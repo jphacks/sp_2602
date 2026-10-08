@@ -138,8 +138,10 @@ if (me) {
   } else todo.push(`docs/members/${me.id}.md がない → _template.md から作る`);
 
   const decl = p(`.kit/declare-${me.id}.json`);
-  if (!existsSync(decl))
-    todo.push("着手前に `npm run step -- S<番号> <英語名>` → 着手宣言を埋めて `npm run preflight`");
+  if (!existsSync(decl) && branch !== "main")
+    todo.push(
+      "着手宣言がない → `npm run declare -- demoStep=… files=… screens=… contracts=…` で埋める（preflight も走る）",
+    );
 
   // 契約と実装のすき間（scripts/lib/gaps.mjs）。第1統合までに埋める
   const g = gaps();
