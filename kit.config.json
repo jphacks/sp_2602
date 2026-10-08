@@ -1,0 +1,128 @@
+{
+  "$comment": "チームの正本。メンバー・担当範囲・タイムライン・変更ルールはここだけで決める。CODEOWNERS は npm run kit:owners で生成する。",
+  "$comment_times": "milestones の時刻は仮（当日の時刻表が決まったら書き換える）。sync: true の時刻が「合流を決める・見直す同期点」",
+  "project": "（プロダクト名）",
+  "event": {
+    "start": "2026-10-18T09:00:00+09:00",
+    "end": "2026-10-18T19:00:00+09:00"
+  },
+  "milestones": [
+    {
+      "id": "kickoff",
+      "at": "2026-10-18T09:00:00+09:00",
+      "name": "キックオフ",
+      "changes": "open",
+      "rule": "課題1文・DEMO.md・欲しいデータの洗い出し→削る。コードはまだ書かない"
+    },
+    {
+      "id": "contract",
+      "at": "2026-10-18T10:00:00+09:00",
+      "name": "契約凍結",
+      "changes": "additive",
+      "rule": "contracts/ と screens.md を凍結。以降の追加は change-request Issue で、同期点でまとめて決める"
+    },
+    {
+      "id": "sync1",
+      "at": "2026-10-18T12:00:00+09:00",
+      "name": "同期点1",
+      "changes": "additive",
+      "rule": "全員の現状を main で通す。溜まった change-request をここで採否",
+      "sync": true
+    },
+    {
+      "id": "integrate",
+      "at": "2026-10-18T14:00:00+09:00",
+      "name": "第1統合",
+      "changes": "additive",
+      "rule": "DEMO.md を main で端から端まで通す。赤のスライスは縮退（切る→Stretch→再割当）",
+      "sync": true
+    },
+    {
+      "id": "freeze",
+      "at": "2026-10-18T17:30:00+09:00",
+      "name": "機能フリーズ",
+      "changes": "frozen",
+      "rule": "新機能・契約変更は禁止。デモ経路のバグ修正・磨き・通し練習のみ",
+      "sync": true
+    },
+    {
+      "id": "record",
+      "at": "2026-10-18T18:30:00+09:00",
+      "name": "バックアップ録画",
+      "changes": "frozen",
+      "rule": "DEMO.md 通りの画面を録画して docs/pitch/ に置く"
+    }
+  ],
+  "help": {
+    "$comment": "合流のルール（docs/rules/help.md）。切り出し型の合流はフリーズの何分前まで始めてよいか。値は仮",
+    "carveOutCutoffMinBeforeFreeze": 90
+  },
+  "members": [
+    {
+      "id": "lead",
+      "github": "github-user-1",
+      "role": "統合担当（契約・main・同期点の進行・共通部品）",
+      "owns": [
+        "contracts/**",
+        "kit.config.json",
+        "package.json",
+        "package-lock.json",
+        "tsconfig.json",
+        "next.config.ts",
+        "postcss.config.mjs",
+        "biome.json",
+        "vitest.config.ts",
+        "components.json",
+        ".github/**",
+        ".claude/**",
+        ".githooks/**",
+        ".vscode/**",
+        "scripts/**",
+        ".nvmrc",
+        ".gitignore",
+        ".gitattributes",
+        ".env.example",
+        "src/app/layout.tsx",
+        "src/app/page.tsx",
+        "src/app/globals.css",
+        "src/lib/**",
+        "src/components/**",
+        "tests/contracts.test.ts",
+        "tests/stubs/**",
+        "next-env.d.ts",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "docs/rules/**",
+        "docs/kit/**"
+      ]
+    },
+    {
+      "id": "back",
+      "github": "github-user-2",
+      "role": "サーバ・AI呼び出し・DB",
+      "owns": ["src/app/api/**", "src/server/**", "tests/server/**"]
+    },
+    {
+      "id": "front1",
+      "github": "github-user-3",
+      "role": "画面 home",
+      "owns": ["src/app/home/**"]
+    },
+    {
+      "id": "front2",
+      "github": "github-user-4",
+      "role": "画面 result",
+      "owns": ["src/app/result/**"]
+    },
+    {
+      "id": "pitch",
+      "github": "github-user-5",
+      "role": "発表・デモ台本・E2E確認",
+      "owns": ["docs/pitch/**", "docs/DEMO.md", "tests/e2e/**"]
+    }
+  ],
+  "shared": ["docs/requirements/**", "docs/members/**", "docs/data-wishlist.md", "README.md"],
+  "ports": {
+    "app": 3000
+  }
+}

@@ -1,0 +1,50 @@
+# hackathon-kit
+
+5人でAIを使って作るためのチーム開発の枠組み。製品のコードではなく「道具」なので事前に用意してよい（中身の契約・データ・画面は当日作る）。
+
+- AI（Claude Code / Codex）は `AGENTS.md` だけを入口に読み、`npm run now` で「今何をするか」を決める。
+- ルールは md に、**状況は GitHub（Issue・PR）と git に**持たせる。md に進捗を書かない（5人で書き換えると衝突して古くなる）。
+- 「触るな」は文章ではなく仕組みで止める: Claude の hook（早期警告）→ pre-commit → CI。
+
+## 正本はこれだけ
+| 何 | どこ |
+|---|---|
+| メンバー・担当範囲・タイムライン・変更ルール | `kit.config.json` |
+| 何を作るか | `docs/DEMO.md` |
+| 型・API・画面・デザイン | `contracts/` |
+| 決まったこと / 未決 | `docs/requirements/` |
+| 技術構成・書き方の約束 | `docs/rules/stack.md`（Next.js + Tailwind v4 + Biome。DB は Supabase、公開先は Vercel を仮置き） |
+
+このファイルは枠組みの説明書。リポジトリ直下の `README.md` と `LICENSE` はプロダクト用に空けてある。
+
+## 前日までに
+**lead**
+1. GitHub にリポジトリを作り、このキットを push（当日は新リポジトリから始めるため「テンプレートリポジトリ」にしておく）。
+2. `kit.config.json` の members（github ユーザー名）と milestones（実際の時刻）を書き換え → `npm run kit:owners`。
+3. main のブランチ保護: PR 必須 / CI（check）必須 / CODEOWNERS のレビュー必須。
+4. ラベル作成: `task` `bug` `change-request` `blocked` `help`。
+
+**全員**
+```
+git clone <repo> && cd <repo>
+npm ci
+npm run kit:setup
+npm run kit:whoami -- <自分のid>
+cp .env.example .env
+npm run doctor        # 全部 ✓ になるまで
+npm run now
+```
+
+## 当日の流れ
+| 時刻（kit.config.json） | やること |
+|---|---|
+| キックオフ | 課題1文 → DEMO.md 下書き → data-wishlist で削る → 契約を書く |
+| 契約凍結 | 以降の追加は change-request。全員 MOCK=1 で並行開発 |
+| 同期点 / 第1統合 | docs/rules/sync.md（動くもので理解を合わせる） |
+| 機能フリーズ | バグと磨きと通し練習だけ |
+| 録画 | DEMO.md 通りに録画（バックアップ） |
+
+## 理解のずれを防ぐ3段
+1. **着手宣言 + preflight**: ステップごとに、実在する契約名・画面 id・デモの D番号・自分のファイルで「何を作るか」を書かせて照合（docs/rules/declare.md）。
+2. **型**: 契約から外れたコードはコンパイルが通らない。サーバは入出力を実行時にも検査する。
+3. **同期点**: 動く main を全員で見る。書類ではなく画面で食い違いを見つける。

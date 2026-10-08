@@ -1,0 +1,7 @@
+#!/bin/sh
+# 範囲外の変更・CHANGELOG のない契約変更・整形崩れをコミット前に止める。
+node scripts/check-scope.mjs --staged || exit 1
+npx biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true || {
+  echo "整形・lint のエラー。npm run fix を実行してから add し直してください。"
+  exit 1
+}

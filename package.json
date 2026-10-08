@@ -1,0 +1,39 @@
+{
+  "name": "hackathon-kit",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome ci . && node scripts/check-style.mjs",
+    "fix": "biome check --write .",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run scope",
+    "now": "node scripts/now.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "preflight": "node scripts/preflight.mjs",
+    "scope": "node scripts/check-scope.mjs",
+    "kit:setup": "node scripts/setup.mjs",
+    "kit:whoami": "node scripts/whoami.mjs",
+    "kit:owners": "node scripts/gen-codeowners.mjs"
+  },
+  "dependencies": {
+    "next": "^16.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

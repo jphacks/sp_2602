@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.next-doctor/
+out/
+*.tsbuildinfo
+.env
+.env.local
+.kit-member
+.kit-state.json
+.kit/
+*.log
+docs/pitch/*.mp4

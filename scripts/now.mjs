@@ -1,0 +1,146 @@
+// npm run now — 「今何をするか」を決めるための状況を短く出す。AI も人間も作業の区切りごとに実行する。
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { currentMember, fmtTime, helpPhase, loadConfig, p, phaseAt, sh } from "./lib/kit.mjs";
+
+const cfg = loadConfig();
+const me = currentMember(cfg);
+const now = new Date();
+const out = [];
+const todo = [];
+const statePath = p(".kit-state.json");
+const state = existsSync(statePath) ? JSON.parse(readFileSync(statePath, "utf8")) : {};
+
+// 1. 時刻とフェーズ
+const { current, next } = phaseAt(cfg, now);
+const policy = current?.changes ?? "open";
+const policyText = { open: "自由に変更可", additive: "追加のみ（change-request Issue 経由）", frozen: "変更禁止" }[
+  policy
+];
+out.push(`## 時刻 ${fmtTime(now.toISOString())}  フェーズ: ${current ? current.name : "開始前"}  契約: ${policyText}`);
+if (current) out.push(`ルール: ${current.rule}`);
+if (next) out.push(`次: ${fmtTime(next.at)} ${next.name}（あと${Math.round((new Date(next.at) - now) / 60000)}分）`);
+const help = helpPhase(cfg, now);
+out.push(
+  `合流: ${help.text}${help.nextSync ? `（次に合流を決める同期点 ${fmtTime(help.nextSync.at)} ${help.nextSync.name}）` : ""}`,
+);
+
+// 2. 自分
+if (!me) {
+  out.push("\n## 自分: 未設定");
+  todo.push("`npm run kit:whoami -- <id>` で自分を設定する（id は kit.config.json の members）");
+} else {
+  out.push(`\n## 自分: ${me.id}（${me.role}）`);
+}
+
+// 3. doctor
+const doctorAge = state.doctorOkAt ? (now - new Date(state.doctorOkAt)) / 3600000 : Infinity;
+if (doctorAge > 6) todo.push("`npm run doctor` が最近通っていない → まず通す");
+
+// 4. git
+const branch = sh("git symbolic-ref --short HEAD", { allowFail: true });
+const dirty = (sh("git status --porcelain", { allowFail: true }) ?? "").split("\n").filter(Boolean).length;
+const hasRemote = !!sh("git remote get-url origin", { allowFail: true });
+let behind = 0;
+if (hasRemote) {
+  sh("git fetch -q origin main", { allowFail: true });
+  behind = Number(sh("git rev-list --count HEAD..origin/main", { allowFail: true }) ?? 0);
+}
+out.push(`\n## git: ${branch ?? "?"}  未コミット ${dirty}件  main より遅れ ${hasRemote ? behind : "（remote なし）"}`);
+if (behind > 0) todo.push(`main が ${behind} コミット先行 → \`git pull --rebase origin main\``);
+
+// 5. 契約の変更（前回見た以降の CHANGELOG 行）
+const cl = existsSync(p("contracts/CHANGELOG.md"))
+  ? readFileSync(p("contracts/CHANGELOG.md"), "utf8")
+      .split("\n")
+      .filter((l) => l.startsWith("- "))
+  : [];
+const seen = state.changelogSeen ?? 0;
+const fresh = cl.slice(seen);
+if (fresh.length) {
+  out.push(`\n## 契約の新しい変更 ${fresh.length}件`);
+  out.push(...fresh);
+  todo.push("契約が変わった → 自分の所有ファイルへの影響を確認し `npm run typecheck`");
+}
+state.changelogSeen = cl.length;
+
+// 6. GitHub
+const gh = (args) => {
+  const r = sh(`gh ${args}`, { allowFail: true });
+  try {
+    return r ? JSON.parse(r) : null;
+  } catch {
+    return null;
+  }
+};
+if (hasRemote && me) {
+  const login = me.github;
+  // 同じ GitHub アカウントを複数人で使う場合（リハーサル等）: Issue は member:<id> ラベル、PR はブランチ名の先頭 <id>/ で見分ける
+  const shared = cfg.members.filter((m) => m.github.toLowerCase() === login.toLowerCase()).length > 1;
+  const whose = shared ? `--label member:${me.id}` : `--assignee ${login}`;
+  const issues = gh(`issue list ${whose} --state open --json number,title,labels --limit 10`);
+  const reviews = shared
+    ? me.id === cfg.members[0].id
+      ? gh(`pr list --state open --json number,title --limit 20`) // 共有時は lead が全 PR を見る
+      : []
+    : gh(`pr list --search "review-requested:${login}" --json number,title --limit 10`);
+  const mine = (
+    gh(`pr list --author ${login} --json number,title,headRefName,statusCheckRollup --limit 30`) ?? []
+  ).filter((pr) => !shared || pr.headRefName.startsWith(`${me.id}/`));
+  const crs = gh(`issue list --label change-request --state open --json number,title --limit 20`);
+  if (issues === null) out.push("\n## GitHub: 取得できず（`gh auth status` を確認）");
+  else {
+    out.push(`\n## GitHub`);
+    out.push(`自分の Issue: ${issues.length ? issues.map((i) => `#${i.number} ${i.title}`).join(" / ") : "なし"}`);
+    out.push(`レビュー依頼: ${reviews?.length ? reviews.map((r) => `#${r.number} ${r.title}`).join(" / ") : "なし"}`);
+    for (const pr of mine ?? []) {
+      const failed = (pr.statusCheckRollup ?? []).some((c) => ["FAILURE", "ERROR"].includes(c.conclusion ?? c.state));
+      out.push(`自分の PR #${pr.number} ${pr.title}${failed ? "  ← CI 失敗" : ""}`);
+      if (failed) todo.push(`PR #${pr.number} の CI 失敗を直す`);
+    }
+    if (crs?.length)
+      out.push(`未決の change-request: ${crs.map((c) => `#${c.number} ${c.title}`).join(" / ")}（同期点で採否）`);
+    // 合流（docs/rules/help.md）: 期限は「作成後の最初の同期点」まで
+    const helps =
+      gh(`issue list --label help --state open --json number,title,createdAt,assignees,labels --limit 20`) ?? [];
+    for (const h of helps) {
+      const mineHelp = shared
+        ? h.labels?.some((l) => l.name === `member:${me.id}`)
+        : h.assignees?.some((a) => a.login.toLowerCase() === login.toLowerCase());
+      const due = cfg.milestones.find((m) => m.sync && new Date(m.at) > new Date(h.createdAt));
+      const expired = due && new Date(due.at) <= now;
+      out.push(
+        `合流中 #${h.number} ${h.title}  期限: ${due ? `${fmtTime(due.at)} ${due.name}` : "なし"}${expired ? "  ← 期限切れ" : ""}`,
+      );
+      if (mineHelp && expired)
+        todo.push(`合流 #${h.number} の期限が来た → 自分の担当に戻る（続けるなら同期点で決め直して Issue を作り直す）`);
+    }
+    if (reviews?.length) todo.push("レビュー依頼を先に処理する（他人を待たせない）");
+    if (issues.some((i) => i.labels?.some((l) => l.name === "bug"))) todo.push("自分宛ての bug Issue を優先する");
+  }
+} else if (!hasRemote) {
+  out.push("\n## GitHub: remote 未設定");
+}
+
+// 7. 次のステップ（docs/members/<id>.md の最初の未チェック項目）
+if (me) {
+  const f = p(`docs/members/${me.id}.md`);
+  if (existsSync(f)) {
+    const step = readFileSync(f, "utf8")
+      .split("\n")
+      .find((l) => /^- \[ \] /.test(l));
+    out.push(`\n## 次のステップ: ${step ? step.slice(6) : "すべて完了 → lead に次の仕事をもらう"}`);
+  } else todo.push(`docs/members/${me.id}.md がない → _template.md から作る`);
+
+  const decl = p(`.kit/declare-${me.id}.json`);
+  if (!existsSync(decl)) todo.push("着手前に着手宣言を書いて `npm run preflight`（docs/rules/declare.md）");
+}
+
+if (policy === "frozen") todo.push("フリーズ中: 新機能・契約変更はしない。デモ経路のバグと磨きだけ");
+if (dirty > 0 && todo.length === 0) todo.push("完了確認が通っていれば commit → push → PR（1ステップ = 1PR）");
+if (todo.length === 0) todo.push("次のステップに着手（着手宣言 → preflight → 実装 → 完了確認 → PR）");
+
+out.push(`\n## やること（上から順に）`);
+out.push(...todo.map((t, i) => `${i + 1}. ${t}`));
+
+writeFileSync(statePath, JSON.stringify(state, null, 2));
+console.log(out.join("\n"));

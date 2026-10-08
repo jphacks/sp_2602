@@ -1,0 +1,23 @@
+/* デザイン契約（Tailwind v4 のテーマ）。キックオフ後30〜60分で lead（またはデザイン担当）が決めて凍結する。
+   Tailwind 標準の色は無効にしてあるので、使える色はここで定義したものだけ（bg-primary, text-muted など）。
+   余白は Tailwind 標準の4px刻み（p-4 = 16px）を使う。[#fff] や [13px] のような任意値は npm run lint が弾く。 */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+
+  --color-bg: #fafaf7;
+  --color-surface: #ffffff;
+  --color-text: #1d1d1b;
+  --color-muted: #6b6b66;
+  --color-line: #e4e4de;
+  --color-primary: #2f5d50;
+  --color-primary-fg: #ffffff;
+  --color-danger: #b3261e;
+
+  --radius-card: 12px;
+  --radius-button: 10px;
+
+  --font-sans: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+}

@@ -1,0 +1,19 @@
+# 画面契約
+
+画面の一覧・遷移・所有者。画面 id（バッククォートで囲んだもの）は着手宣言で参照される。
+変更手続きはデータ契約と同じ（CHANGELOG に1行）。
+
+「前の画面から受け取る」「次の画面へ渡す」は `useFlow()` 経由の受け渡し。「サーバとの通信」は `call()` / `stream()` で使う API（contracts/api.ts の名前）。
+
+| id | 画面 | 所有者 | 前の画面から受け取る | サーバとの通信 | 次の画面へ渡す | 遷移先 |
+|---|---|---|---|---|---|---|
+| `home` | 入力 | front1 | なし | analyzeStream（AnalyzeRequest → AnalyzeResult） | AnalyzeResult | `result` |
+| `result` | 結果 | front2 | AnalyzeResult | なし | なし | `home` |
+
+## UXの約束（全画面共通）
+- 1画面1目的。主ボタンは1つだけ。
+- 待ち時間が1秒を超えたら、何をしているかを文字で出す。
+- エラーは「何が起きたか＋次に押すもの」をセットで出す（`errorOf(e)` の message と hint をそのまま表示）。
+- 見た目は Tailwind のクラスと tokens.css の名前だけ（任意値・style 直書き禁止。npm run lint が弾く）。
+- スマホ優先: 375px 幅で作り、`md:` で PC 向けを足す。押せる部品は高さ 44px（`min-h-11`）以上。
+- 画面 id = `src/app/<id>/page.tsx`。表に画面を足したのにページがないとテストが落ちる。
