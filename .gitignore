@@ -11,3 +11,4 @@ out/
 *.log
 docs/pitch/*.mp4
 .npm-cache/
+next-env.d.ts

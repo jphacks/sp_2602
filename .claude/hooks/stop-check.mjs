@@ -9,7 +9,7 @@ if (JSON.parse(input || "{}").stop_hook_active) process.exit(0);
 const changed = sh("git status --porcelain -- src contracts tests", { allowFail: true });
 if (!changed) process.exit(0);
 
-if (sh("npx tsc --noEmit", { allowFail: true }) === null) {
+if (sh("npm run -s typecheck", { allowFail: true }) === null) {
   console.error(
     "型チェックが通っていません。`npm run typecheck` の結果を直してから終えてください。直せない場合は理由を報告してください。",
   );

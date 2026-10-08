@@ -10,11 +10,11 @@
 - 各メンバーの画面・サーバのファイル（直したい時は所有者に Issue）
 
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
-`npm run now` は最初の `- [ ]` を「次のステップ」として表示する。終わったら `[x]` にして PR に含める。
+印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
 
-- [ ] S1 contracts を確定して凍結（DEMO.md は pitch と合意） — 完了確認: `npm run check`
-- [ ] S2 GitHub のブランチ保護と CODEOWNERS を確認 — 完了確認: `npm run kit:owners`
-- [ ] S3 同期点1 を進行（docs/rules/sync.md） — 完了確認: 全員の PR がマージ済み
+- S1 contracts を確定して凍結（DEMO.md は pitch と合意） — 完了確認: `npm run check`
+- S2 GitHub のブランチ保護と CODEOWNERS を確認 — 完了確認: `npm run kit:owners`
+- S3 同期点1 を進行（docs/rules/sync.md） — 完了確認: 全員の PR がマージ済み
 
 ## 追記（同期点での変更）
 （lead が同期点の決定をここに追記する。上のステップ本体は書き換えない）

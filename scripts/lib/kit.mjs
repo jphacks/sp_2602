@@ -66,6 +66,54 @@ export function phaseAt(cfg, now = new Date()) {
   return { current, next, ms };
 }
 
+// ステップの状態。完了は「マージ済み PR のブランチ名 <id>/S<番号>-…」から自動で判定する（手で印は付けない）。
+// gh が使えないときは、手元の main のマージコミットの件名から判定する。
+//   返り値: { steps: [{ id, text, state: "done" | "pr" | "todo", pr? }], next } / メンバーファイルがなければ null
+export function stepStates(me) {
+  const file = p(`docs/members/${me.id}.md`);
+  if (!existsSync(file)) return null;
+  const steps = readFileSync(file, "utf8")
+    .split("\n")
+    .map((l) => /^- (?:\[[ x]\] )?(S\d+)\b\s*(.*)$/.exec(l))
+    .filter(Boolean)
+    .map((m) => ({ id: m[1], text: m[2].trim(), state: "todo" }));
+
+  const merged = new Set();
+  const open = new Map();
+  const branchStep = new RegExp(`(?:^|[/'\\s])${me.id}/(S\\d+)(?:\\b|-)`);
+  const hasRemote = !!sh("git remote get-url origin", { allowFail: true });
+  let prs = null;
+  if (hasRemote) {
+    try {
+      prs = JSON.parse(
+        sh("gh pr list --state all --limit 300 --json number,headRefName,state", { allowFail: true }) ?? "null",
+      );
+    } catch {}
+  }
+  if (prs) {
+    for (const pr of prs) {
+      const m = branchStep.exec(pr.headRefName);
+      if (!m) continue;
+      if (pr.state === "MERGED") merged.add(m[1]);
+      else if (pr.state === "OPEN") open.set(m[1], pr.number);
+    }
+  } else {
+    const log = sh(`git log ${hasRemote ? "origin/main" : "main"} --merges --format=%s`, { allowFail: true }) ?? "";
+    for (const subject of log.split("\n")) {
+      const m = branchStep.exec(subject);
+      if (m) merged.add(m[1]);
+    }
+  }
+  for (const s of steps) {
+    if (merged.has(s.id)) s.state = "done";
+    else if (open.has(s.id)) {
+      s.state = "pr";
+      s.pr = open.get(s.id);
+    }
+  }
+  return { steps, next: steps.find((s) => s.state === "todo") ?? null, source: prs ? "GitHub の PR" : "手元の main" };
+}
+
 // 合流の時間帯（docs/rules/help.md）。区切りは kit.config.json の help と、最初の frozen の milestone から決まる。
 //   carve  : 切り出し型の合流もしてよい
 //   verify : 確認・テストの手伝いだけ（新しいコードを増やさない）

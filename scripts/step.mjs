@@ -1,7 +1,7 @@
 // npm run step -- S2 [短い英語名]
 // ステップを始める: 最新の main から <自分のid>/S2-<名前> ブランチを作り、着手宣言のひな型を .kit/ に用意する。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { currentMember, loadConfig, p, sh } from "./lib/kit.mjs";
+import { currentMember, loadConfig, p, sh, stepStates } from "./lib/kit.mjs";
 
 const [step, rawName] = process.argv.slice(2);
 const cfg = loadConfig();
@@ -14,15 +14,14 @@ const fail = (msg) => {
 if (!me) fail("自分が未設定。npm run kit:whoami -- <id>");
 if (!/^S\d+$/.test(step ?? "")) fail("使い方: npm run step -- S2 [短い英語名]（例: npm run step -- S2 input-form）");
 
-// ステップは自分のメンバーファイルにあるか
-const mf = p(`docs/members/${me.id}.md`);
-const line = existsSync(mf)
-  ? readFileSync(mf, "utf8")
-      .split("\n")
-      .find((l) => new RegExp(`^- \\[( |x)\\] ${step}\\b`).test(l))
-  : undefined;
-if (!line) fail(`${step} は docs/members/${me.id}.md にない`);
-if (line.startsWith("- [x]")) console.log(`! ${step} は完了済み（[x]）になっている。続きをやるならこのまま進めてよい`);
+// ステップは自分のメンバーファイルにあるか・もう終わっていないか（完了はマージ済み PR から判定）
+const st = stepStates(me);
+const found = st?.steps.find((s) => s.id === step);
+if (!found) fail(`${step} は docs/members/${me.id}.md にない`);
+if (found.state === "done")
+  console.log(`! ${step} はマージ済みの PR がある。追加の修正なら続けてよい（新しい作業なら次のステップへ）`);
+if (found.state === "pr") console.log(`! ${step} は PR #${found.pr} がマージ待ち。追加の修正ならそのブランチで続ける`);
+const line = `- ${found.id} ${found.text}`;
 
 // 未コミットの変更があるとブランチを移れない
 const dirty = sh("git status --porcelain", { allowFail: true });
@@ -57,7 +56,7 @@ mkdirSync(p(".kit"), { recursive: true });
 const decl = p(`.kit/declare-${me.id}.json`);
 const doneCheck = /完了確認: `([^`]+)`/.exec(line)?.[1] ?? "npm run check";
 const goal = line
-  .replace(/^- \[( |x)\] S\d+\s*/, "")
+  .replace(/^- S\d+\s*/, "")
   .replace(/\s*— 完了確認:.*$/, "")
   .trim();
 const prev = existsSync(decl) ? JSON.parse(readFileSync(decl, "utf8")) : null;

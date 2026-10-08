@@ -12,4 +12,3 @@
 ## チェック
 - [ ] `npm run check` が通った
 - [ ] 契約を変えた場合 contracts/CHANGELOG.md に1行足した
-- [ ] docs/members/<自分>.md のステップを [x] にした

@@ -4,7 +4,9 @@
 //   --member <id>     : 検査する人（省略時は .kit-member / KIT_MEMBER）
 //   --author <login>  : GitHub ログインから人を引く（CI 用）
 //   --branch <name>   : 同じログインを複数人で使うとき、ブランチ名の先頭 <id>/ で人を決める（CI 用）
-import { currentMember, loadConfig, ownerOf, sh } from "./lib/kit.mjs";
+import { existsSync, readFileSync } from "node:fs";
+import { STUB_MARK } from "./lib/gaps.mjs";
+import { currentMember, loadConfig, ownerOf, p, sh } from "./lib/kit.mjs";
 
 const args = process.argv.slice(2);
 const opt = (k) => {
@@ -45,10 +47,24 @@ files = [
   ),
 ];
 
+// 例外: 契約の所有者（lead）が npm run kit:stub で置いた「仮のファイル」（1 行目が KIT-STUB）は、他人の範囲でも入れてよい
+const ownsContracts = ownerOf("contracts/api.ts", cfg) === me.id;
+const contentOf = (f) =>
+  args.includes("--staged")
+    ? sh(`git show ":${f}"`, { allowFail: true })
+    : opt("--base")
+      ? sh(`git show "HEAD:${f}"`, { allowFail: true })
+      : existsSync(p(f))
+        ? readFileSync(p(f), "utf8")
+        : null;
+
 const errors = [];
 for (const f of files) {
   const owner = ownerOf(f, cfg);
   if (owner === me.id || owner === "shared") continue;
+  // .gitignore に入れて管理から外したファイル（例: next-env.d.ts）の削除は誰でもよい
+  if (sh(`git check-ignore -q --no-index "${f}"`, { allowFail: true }) !== null) continue;
+  if (ownsContracts && (contentOf(f) ?? "").startsWith(STUB_MARK)) continue;
   errors.push(owner ? `${f}  → 所有者は ${owner}` : `${f}  → 所有者なし（kit.config.json に追加が必要）`);
 }
 

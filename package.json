@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "lint": "biome ci . && node scripts/check-style.mjs",
     "fix": "biome check --write .",
@@ -19,7 +19,9 @@
     "kit:whoami": "node scripts/whoami.mjs",
     "kit:owners": "node scripts/gen-codeowners.mjs",
     "step": "node scripts/step.mjs",
-    "declare": "node scripts/declare.mjs"
+    "declare": "node scripts/declare.mjs",
+    "kit:stub": "node scripts/stub.mjs",
+    "issue": "node scripts/issue.mjs"
   },
   "dependencies": {
     "next": "^16.4.0",

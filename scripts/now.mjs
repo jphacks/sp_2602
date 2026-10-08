@@ -1,6 +1,7 @@
 // npm run now — 「今何をするか」を決めるための状況を短く出す。AI も人間も作業の区切りごとに実行する。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { currentMember, fmtTime, helpPhase, loadConfig, ownerOf, p, phaseAt, sh } from "./lib/kit.mjs";
+import { apiRoutes, gaps, isStub, screenRows } from "./lib/gaps.mjs";
+import { currentMember, fmtTime, helpPhase, loadConfig, ownerOf, p, phaseAt, sh, stepStates } from "./lib/kit.mjs";
 
 const cfg = loadConfig();
 const me = currentMember(cfg);
@@ -123,31 +124,50 @@ if (hasRemote && me) {
   out.push("\n## GitHub: remote 未設定");
 }
 
-// 7. 次のステップ（docs/members/<id>.md の最初の未チェック項目）
+// 7. ステップ（完了はマージ済み PR のブランチ名から自動判定）
 if (me) {
-  const f = p(`docs/members/${me.id}.md`);
-  if (existsSync(f)) {
-    const step = readFileSync(f, "utf8")
-      .split("\n")
-      .find((l) => /^- \[ \] /.test(l));
-    out.push(`\n## 次のステップ: ${step ? step.slice(6) : "すべて完了 → lead に次の仕事をもらう"}`);
+  const st = stepStates(me);
+  if (st) {
+    const mark = { done: "✓", pr: "…", todo: "・" };
+    out.push(`\n## ステップ（完了の判定: ${st.source}）`);
+    for (const s of st.steps)
+      out.push(`${mark[s.state]} ${s.id} ${s.text}${s.state === "pr" ? `（PR #${s.pr} マージ待ち）` : ""}`);
+    out.push(
+      `次のステップ: ${st.next ? `${st.next.id} ${st.next.text}` : "すべて完了またはマージ待ち → lead に次の仕事をもらう"}`,
+    );
   } else todo.push(`docs/members/${me.id}.md がない → _template.md から作る`);
 
   const decl = p(`.kit/declare-${me.id}.json`);
   if (!existsSync(decl))
     todo.push("着手前に `npm run step -- S<番号> <英語名>` → 着手宣言を埋めて `npm run preflight`");
 
-  // 契約にあるのに実装がないもの（自分の担当分）。第1統合までに作る
-  const apiSrc = existsSync(p("contracts/api.ts")) ? readFileSync(p("contracts/api.ts"), "utf8") : "";
-  const screenSrc = existsSync(p("contracts/screens.md")) ? readFileSync(p("contracts/screens.md"), "utf8") : "";
-  const needed = [
-    ...[...apiSrc.matchAll(/path:\s*"(\/api\/[^"]+)"/g)].map((m) => `src/app${m[1]}/route.ts`),
-    ...[...screenSrc.matchAll(/^\| `([a-z0-9-]+)` \|/gm)].map((m) => `src/app/${m[1]}/page.tsx`),
-  ];
-  const missing = needed.filter((f) => !existsSync(p(f)) && ownerOf(f, cfg) === me.id);
-  if (missing.length) {
-    out.push(`\n## 契約にあって未実装（自分の担当・第1統合までに必要）: ${missing.join(", ")}`);
-    todo.push(`未実装の ${missing.length} 件を作る（まずは MOCK=1 で fixtures を返すだけでよい）`);
+  // 契約と実装のすき間（scripts/lib/gaps.mjs）。第1統合までに埋める
+  const g = gaps();
+  const ownsContracts = ownerOf("contracts/api.ts", cfg) === me.id;
+  if (ownsContracts && (g.routes.length || g.pages.length)) {
+    out.push(
+      `\n## 契約にあって中身がない: ${[...g.routes.map((r) => r.file), ...g.pages.map((s) => s.file)].join(", ")}`,
+    );
+    todo.push("`npm run kit:stub` で仮の API・画面を置き、契約と同じ PR に入れる（担当者を待たせない）");
+  } else {
+    const missing = [...g.routes.map((r) => r.file), ...g.pages.map((s) => s.file)].filter(
+      (f) => ownerOf(f, cfg) === me.id,
+    );
+    if (missing.length) {
+      out.push(`\n## 契約にあって未実装（自分の担当・第1統合までに必要）: ${missing.join(", ")}`);
+      todo.push(`未実装の ${missing.length} 件を作る（まずは MOCK=1 で fixtures を返すだけでよい）`);
+    }
+  }
+  if (g.flow.length && ownerOf("src/lib/flow.tsx", cfg) === me.id) {
+    out.push(`\n## useFlow に受け渡しの欄がない型: ${g.flow.join(", ")}`);
+    todo.push("screens.md の「受け取る / 渡す」に合わせて src/lib/flow.tsx に欄を足す（画面担当が待っている）");
+  }
+  const stubs = [...apiRoutes().map((r) => r.file), ...screenRows().map((s) => s.file)].filter(
+    (f) => ownerOf(f, cfg) === me.id && isStub(f),
+  );
+  if (stubs.length) {
+    out.push(`\n## 仮のファイル（自分の担当・本物に置き換える）: ${stubs.join(", ")}`);
+    todo.push(`仮のファイル ${stubs.length} 件を本物に置き換える（1 行目の KIT-STUB の印ごと書き換える）`);
   }
 }
 

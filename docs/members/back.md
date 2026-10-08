@@ -11,11 +11,11 @@
 - 他メンバーの画面フォルダ
 
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
-`npm run now` は最初の `- [ ]` を「次のステップ」として表示する。終わったら `[x]` にして PR に含める。
+印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
 
-- [ ] S1 MOCK=1 で全 API が契約どおり返る — 完了確認: `npm run check`
-- [ ] S2 analyze の本物の処理（TODO(back, S2)） — 完了確認: `npm run check`
-- [ ] S3 デモ用固定入力で本物の出力を確認し fixtures を更新 — 完了確認: `npm run check`
+- S1 MOCK=1 で全 API が契約どおり返る — 完了確認: `npm run check`
+- S2 analyze の本物の処理（TODO(back, S2)） — 完了確認: `npm run check`
+- S3 デモ用固定入力で本物の出力を確認し fixtures を更新 — 完了確認: `npm run check`
 
 ## 追記（同期点での変更）
 （lead が同期点の決定をここに追記する。上のステップ本体は書き換えない）

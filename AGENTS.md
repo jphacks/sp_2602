@@ -12,8 +12,8 @@
 6. 1に戻る。
 
 ## 絶対に守ること
-- 他人の所有ファイルを編集しない。必要なら所有者宛てに Issue を立てて待つ間は別のステップへ。
-- `contracts/` は lead だけが変更する。足りない型・フィールドがあれば change-request Issue（docs/rules/changes.md）。勝手に自分の側で型を作って回避しない。
+- 他人の所有ファイルを編集しない。必要なら `npm run issue -- bug <所有者id> "題名"` で所有者に頼み、待つ間は別のステップへ。Issue は必ず `npm run issue` で立てる（似た Issue があれば止まるので、そちらにコメントする）。宛先は「対応する人」で、自分ではない。
+- `contracts/` は lead だけが変更する。足りない型・フィールドがあれば `npm run issue -- change-request lead "題名"`（docs/rules/changes.md）。lead は契約を足したら `npm run kit:stub` で仮の API・画面を置き、useFlow の欄も同じ PR で足す。勝手に自分の側で型を作って回避しない。
 - テストを消す・skip する・期待値を実装に合わせて書き換えることで通さない。
 - 外部API（AI含む）はサーバ経由で呼ぶ。`MOCK=1` で必ず動く状態を保つ。
 - 見た目は Tailwind のクラスと `contracts/tokens.css` の名前だけ（任意値・style 直書き禁止）。画面遷移は `contracts/screens.md` の表どおり。

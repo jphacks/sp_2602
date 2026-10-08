@@ -61,7 +61,7 @@ check(
 );
 
 // 型チェック
-check("型チェックが通る", sh("npx tsc --noEmit", { allowFail: true }) !== null, "npm run typecheck で詳細");
+check("型チェックが通る", sh("npm run -s typecheck", { allowFail: true }) !== null, "npm run typecheck で詳細");
 
 // 起動確認: モックでサーバを立て /api/health を叩く
 async function smoke() {
@@ -84,12 +84,8 @@ async function smoke() {
   else child.kill("SIGTERM");
   check("モックで Next.js が起動し /api/health が応答する", ok, "MOCK=1 npm run dev でエラーを見る");
 }
-if (!quick) {
-  // next dev は next-env.d.ts を書き換えるので、起動前に変更がなかったなら元に戻す（pull を妨げないため）
-  const envClean = !sh("git status --porcelain -- next-env.d.ts", { allowFail: true });
-  await smoke();
-  if (envClean) sh("git checkout -- next-env.d.ts", { allowFail: true });
-}
+// next-env.d.ts は git 管理外（next dev / typegen が作り直す）なので、起動しても作業ツリーは汚れない
+if (!quick) await smoke();
 
 let allOk = true;
 for (const r of results) {
