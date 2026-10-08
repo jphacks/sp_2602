@@ -1,6 +1,7 @@
 # 着手宣言
 
-ステップを始める前に `.kit/declare-<自分のid>.json` を書き、`npm run preflight` を通す。
+ステップを始める前に `npm run step -- S<番号> <英語名>` でひな型を作り、`npm run declare -- 項目=値 …` で埋める（JSON を手で編集しない。最後に preflight が自動で走る）。
+例: `npm run declare -- demoStep=D2 screens=home contracts=AnalyzeRequest,Item files=src/app/home/page.tsx,src/app/home/ItemForm.tsx`
 目的は「AIが（人間も）何を作ろうとしているか」を、**実在する名前で**書かせて照合すること。
 存在しない契約名・他人のファイル・デモ台本にない番号を書いたら、理解がずれている。
 

@@ -18,7 +18,8 @@
     "kit:setup": "node scripts/setup.mjs",
     "kit:whoami": "node scripts/whoami.mjs",
     "kit:owners": "node scripts/gen-codeowners.mjs",
-    "step": "node scripts/step.mjs"
+    "step": "node scripts/step.mjs",
+    "declare": "node scripts/declare.mjs"
   },
   "dependencies": {
     "next": "^16.4.0",

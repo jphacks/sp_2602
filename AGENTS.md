@@ -5,7 +5,7 @@
 
 ## 毎回の手順（作業の区切りごとに最初から）
 1. `npm run now` を実行し、出力の「やること」を上から順に処理する。
-2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言を埋めて `npm run preflight` を通す（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
+2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言は `npm run declare -- demoStep=D2 files=… screens=… contracts=…` で埋める（JSON を手で編集しない。preflight も自動で走る）（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
 3. 実装する。触ってよいのは宣言した自分の所有ファイルだけ。
 4. 宣言した完了確認（doneCheck）を実行する。**出力の全文は PR 本文の「完了確認」欄に貼り**、人間への報告（下の6行）には結果の要点を書く。「できました」だけの報告はしない。
 5. `npm run check`（整形・見た目・型・テスト・範囲）が通ったら commit → push → PR。1ステップ = 1PR。

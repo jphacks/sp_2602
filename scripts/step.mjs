@@ -67,10 +67,10 @@ if (prev?.step === step) {
   const template = { member: me.id, step, goal, demoStep: "", screens: [], contracts: [], files: [], doneCheck };
   writeFileSync(decl, `${JSON.stringify(template, null, 2)}\n`);
   console.log(
-    `✓ 着手宣言のひな型を .kit/declare-${me.id}.json に作った（demoStep / screens / contracts / files を埋める）`,
+    `✓ 着手宣言のひな型を .kit/declare-${me.id}.json に作った（npm run declare -- demoStep=… files=… screens=… contracts=… で埋める）`,
   );
 }
 
 console.log(
-  `\n次: 着手宣言を埋める → npm run preflight → 実装 → ${doneCheck === "npm run check" ? "" : `${doneCheck} → `}npm run check → commit → git push -u origin ${branch} → PR`,
+  `\n次: npm run declare -- … で宣言を埋める（preflight も走る） → 実装 → ${doneCheck === "npm run check" ? "" : `${doneCheck} → `}npm run check → commit → git push -u origin ${branch} → PR`,
 );
