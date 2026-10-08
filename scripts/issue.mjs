@@ -1,14 +1,15 @@
 // npm run issue -- <種類> <宛先id> "<題名>" ["<本文>"] [--force]
 //   種類: bug / task / blocked / change-request / help
 //   宛先: その Issue に「対応する人」の id（自分ではなく、直す・決める人）。change-request は普通 lead
-// 立てる前に、似た題名の open な Issue を探す。似たものがあれば立てずに止まる（そちらにコメントする。違うなら --force）。
+// --dry-run: 似た Issue の確認だけ。立てる前に、似た題名の open な Issue を探す。似たものがあれば立てずに止まる（そちらにコメントする。違うなら --force）。
 import { execFileSync } from "node:child_process";
 import { currentMember, loadConfig, sh } from "./lib/kit.mjs";
 
 const TYPES = ["bug", "task", "blocked", "change-request", "help"];
 const args = process.argv.slice(2);
 const force = args.includes("--force");
-const [type, to, title, body = ""] = args.filter((a) => a !== "--force");
+const dryRun = args.includes("--dry-run"); // 似た Issue の確認だけして、作らない
+const [type, to, title, body = ""] = args.filter((a) => a !== "--force" && a !== "--dry-run");
 const cfg = loadConfig();
 const me = currentMember(cfg);
 const fail = (msg) => {
@@ -63,6 +64,10 @@ if (similar.length && !force) {
   process.exit(1);
 }
 
+if (dryRun) {
+  console.log(`✓ 似た Issue はない。作るなら: ${type} → ${to}「${title}」（--dry-run なので作らない）`);
+  process.exit(0);
+}
 const fullBody = `${body}\n\n---\n起票: ${me.id} / 対応する人: ${to}`;
 // シェルを通さずに gh を直接呼ぶ（Windows の cmd でも改行・引用符が壊れない）
 const ghArgs = ["issue", "create", "--title", title, "--body", fullBody, "--label", type];
