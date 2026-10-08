@@ -5,7 +5,7 @@
 
 ## 毎回の手順（作業の区切りごとに最初から）
 1. `npm run now` を実行し、出力の「やること」を上から順に処理する。
-2. 着手前に着手宣言 `.kit/declare-<自分>.json` を書き、`npm run preflight` を通す（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
+2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言を埋めて `npm run preflight` を通す（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
 3. 実装する。触ってよいのは宣言した自分の所有ファイルだけ。
 4. 宣言した完了確認（doneCheck）を実行する。**出力の全文は PR 本文の「完了確認」欄に貼り**、人間への報告（下の6行）には結果の要点を書く。「できました」だけの報告はしない。
 5. `npm run check`（整形・見た目・型・テスト・範囲）が通ったら commit → push → PR。1ステップ = 1PR。
@@ -37,7 +37,7 @@
 | 他の人を手伝う・手伝ってもらう（合流） | `docs/rules/help.md` |
 
 ## コマンド
-- `npm run now` 状況とやること / `npm run doctor` 環境チェック / `npm run preflight` 着手宣言の照合
+- `npm run now` 状況とやること / `npm run step -- S2 input-form` ステップ開始（ブランチ＋宣言ひな型） / `npm run doctor` 環境チェック / `npm run preflight` 着手宣言の照合
 - `npm run check` 全検査 / `npm run fix` 整形 / `npm run dev`（http://localhost:3000、`.env` の `MOCK=1` 推奨）
 - 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
 

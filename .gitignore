@@ -10,3 +10,4 @@ out/
 .kit/
 *.log
 docs/pitch/*.mp4
+.npm-cache/

@@ -3,14 +3,14 @@
 ## タイミング
 | いつ | やること |
 |---|---|
-| ステップを始める前 | `git pull --rebase origin main`（`npm run now` が遅れを教える） |
+| ステップを始める前 | `npm run step -- S<番号> <英語名>`（最新の main からブランチを作る。main に直接コミットすると pre-commit が止める） |
 | ステップが終わった時（30〜60分ごと） | `npm run check` → commit → push → PR |
 | PR を出した後 | 待たずに次のステップへ。CI が落ちたら `npm run now` に出るので最優先で直す |
 | CHANGELOG に新しい行が来た時 | pull → `npm run typecheck` → 自分のコードを直す |
 | 同期点の直前 | 手元の作業を PR にしておく（同期点は main で確認する） |
 
 ## ブランチと PR
-- ブランチ名: `<自分のid>/S<番号>-<短い名前>`（例 `front1/S2-input-form`）
+- ブランチ名: `<自分のid>/S<番号>-<短い名前>`（例 `front1/S2-input-form`）。`npm run step` が作る。`<自分のid>/` で始まらない名前は pre-commit が止める
 - 1ステップ = 1PR。PR 本文のテンプレートに着手宣言の要約を書く。
 - 自分の所有範囲だけの PR は CI が緑なら自分でマージしてよい。
 - contracts/ や共有ファイルに触れる PR は lead がレビューしてからマージ（CODEOWNERS が自動でレビュー依頼する）。
@@ -22,7 +22,7 @@
 - レビュー依頼と自分宛て `bug` は、自分のステップより先に処理する。
 
 ## 強制する仕組み（文章だけに頼らない）
-- pre-commit: `npm run scope -- --staged`（範囲外・CHANGELOG なしの契約変更を止める）
+- pre-commit: main への直接コミット・ブランチ名の検査、`npm run scope -- --staged`（範囲外・CHANGELOG なしの契約変更を止める）
 - CI: 型・テスト・範囲（PR 作成者で判定）
 - GitHub 側の設定（lead が前日に）: main のブランチ保護（PR 必須・CI 必須・CODEOWNERS レビュー必須）
 

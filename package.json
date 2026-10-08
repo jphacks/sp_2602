@@ -17,7 +17,8 @@
     "scope": "node scripts/check-scope.mjs",
     "kit:setup": "node scripts/setup.mjs",
     "kit:whoami": "node scripts/whoami.mjs",
-    "kit:owners": "node scripts/gen-codeowners.mjs"
+    "kit:owners": "node scripts/gen-codeowners.mjs",
+    "step": "node scripts/step.mjs"
   },
   "dependencies": {
     "next": "^16.4.0",

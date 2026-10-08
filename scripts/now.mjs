@@ -1,6 +1,6 @@
 // npm run now — 「今何をするか」を決めるための状況を短く出す。AI も人間も作業の区切りごとに実行する。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { currentMember, fmtTime, helpPhase, loadConfig, p, phaseAt, sh } from "./lib/kit.mjs";
+import { currentMember, fmtTime, helpPhase, loadConfig, ownerOf, p, phaseAt, sh } from "./lib/kit.mjs";
 
 const cfg = loadConfig();
 const me = currentMember(cfg);
@@ -46,6 +46,8 @@ if (hasRemote) {
   behind = Number(sh("git rev-list --count HEAD..origin/main", { allowFail: true }) ?? 0);
 }
 out.push(`\n## git: ${branch ?? "?"}  未コミット ${dirty}件  main より遅れ ${hasRemote ? behind : "（remote なし）"}`);
+if (branch === "main" && me)
+  todo.push("main の上にいる → `npm run step -- S<番号> <英語名>` でステップ用のブランチを作ってから作業する");
 if (behind > 0) todo.push(`main が ${behind} コミット先行 → \`git pull --rebase origin main\``);
 
 // 5. 契約の変更（前回見た以降の CHANGELOG 行）
@@ -132,7 +134,21 @@ if (me) {
   } else todo.push(`docs/members/${me.id}.md がない → _template.md から作る`);
 
   const decl = p(`.kit/declare-${me.id}.json`);
-  if (!existsSync(decl)) todo.push("着手前に着手宣言を書いて `npm run preflight`（docs/rules/declare.md）");
+  if (!existsSync(decl))
+    todo.push("着手前に `npm run step -- S<番号> <英語名>` → 着手宣言を埋めて `npm run preflight`");
+
+  // 契約にあるのに実装がないもの（自分の担当分）。第1統合までに作る
+  const apiSrc = existsSync(p("contracts/api.ts")) ? readFileSync(p("contracts/api.ts"), "utf8") : "";
+  const screenSrc = existsSync(p("contracts/screens.md")) ? readFileSync(p("contracts/screens.md"), "utf8") : "";
+  const needed = [
+    ...[...apiSrc.matchAll(/path:\s*"(\/api\/[^"]+)"/g)].map((m) => `src/app${m[1]}/route.ts`),
+    ...[...screenSrc.matchAll(/^\| `([a-z0-9-]+)` \|/gm)].map((m) => `src/app/${m[1]}/page.tsx`),
+  ];
+  const missing = needed.filter((f) => !existsSync(p(f)) && ownerOf(f, cfg) === me.id);
+  if (missing.length) {
+    out.push(`\n## 契約にあって未実装（自分の担当・第1統合までに必要）: ${missing.join(", ")}`);
+    todo.push(`未実装の ${missing.length} 件を作る（まずは MOCK=1 で fixtures を返すだけでよい）`);
+  }
 }
 
 if (policy === "frozen") todo.push("フリーズ中: 新機能・契約変更はしない。デモ経路のバグと磨きだけ");

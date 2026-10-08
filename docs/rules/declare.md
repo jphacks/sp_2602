@@ -22,7 +22,8 @@
 | step | `docs/members/<自分>.md` にある番号 |
 | demoStep | `docs/DEMO.md` の D番号（このステップがデモのどこに効くか） |
 | screens | `contracts/screens.md` の画面 id |
-| contracts | `contracts/schemas.ts` / `api.ts` で export されている名前 |
+| contracts | `contracts/schemas.ts` / `api.ts` / `errors.ts` で export されている名前 |
+| newContracts（任意） | このステップで新しく作る契約名。files に contracts/ を含む場合だけ書ける（lead 用）。既にある名前は書けない |
 | files | すべて自分の所有範囲（`kit.config.json`） |
 | doneCheck | 実行できるコマンド（`npm run …` なら script が存在するか） |
 

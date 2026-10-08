@@ -37,7 +37,14 @@ const contractSrc = ["contracts/schemas.ts", "contracts/api.ts", "contracts/erro
   .join("\n");
 for (const c of d.contracts ?? []) {
   if (!new RegExp(`export\\s+(const|type|interface)\\s+${c}\\b`).test(contractSrc))
-    errors.push(`contracts: ${c} は contracts/ に存在しない`);
+    errors.push(`contracts: ${c} は contracts/ に存在しない（このステップで作るなら newContracts に書く）`);
+}
+// これから作る契約名（契約を変える人＝contracts/ の所有者だけが書ける）
+if ((d.newContracts ?? []).length && !(d.files ?? []).some((f) => f.startsWith("contracts/")))
+  errors.push("newContracts を書くなら、files に contracts/ のファイルを含める（契約を変えるのは lead）");
+for (const c of d.newContracts ?? []) {
+  if (new RegExp(`export\\s+(const|type|interface)\\s+${c}\\b`).test(contractSrc))
+    errors.push(`newContracts: ${c} は既にある（contracts に書く）`);
 }
 
 // 画面 id は screens.md にあるか
