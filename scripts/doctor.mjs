@@ -53,7 +53,12 @@ if (existsSync(p(".env.example"))) {
 // git まわり
 check("自分が設定済み", !!currentMember(cfg), "npm run kit:whoami -- <id>");
 check("git hooks が有効", sh("git config core.hooksPath", { allowFail: true }) === ".githooks", "npm run kit:setup");
-check("gh にログイン済み", sh("gh auth status", { allowFail: true }) !== null, "gh auth login");
+// gh auth status は保存済みの認証の不調も失敗扱いにするので、実際に API が使えるかで判定する（GH_TOKEN でも可）
+check(
+  "gh で GitHub を使える",
+  sh("gh api user --jq .login", { allowFail: true }) !== null,
+  "gh auth login（または GH_TOKEN を設定）",
+);
 
 // 型チェック
 check("型チェックが通る", sh("npx tsc --noEmit", { allowFail: true }) !== null, "npm run typecheck で詳細");
