@@ -84,7 +84,12 @@ async function smoke() {
   else child.kill("SIGTERM");
   check("モックで Next.js が起動し /api/health が応答する", ok, "MOCK=1 npm run dev でエラーを見る");
 }
-if (!quick) await smoke();
+if (!quick) {
+  // next dev は next-env.d.ts を書き換えるので、起動前に変更がなかったなら元に戻す（pull を妨げないため）
+  const envClean = !sh("git status --porcelain -- next-env.d.ts", { allowFail: true });
+  await smoke();
+  if (envClean) sh("git checkout -- next-env.d.ts", { allowFail: true });
+}
 
 let allOk = true;
 for (const r of results) {
