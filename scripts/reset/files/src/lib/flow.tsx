@@ -11,7 +11,9 @@ import { z } from "zod";
 
 const KEY = "kit-flow";
 const Saved = z.object({});
-type Saved = z.infer<typeof Saved>;
+// 欄が0個の z.object({}) は Record<string, never> になり、下の Flow と合わなくなる。
+// 欄を1つ足したら、この行を `type Saved = z.infer<typeof Saved>;` に戻す。
+type Saved = Record<never, unknown>;
 const empty: Saved = {};
 
 type Flow = Saved & {

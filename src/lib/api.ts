@@ -4,7 +4,16 @@
 // 失敗は必ず ApiCallError で投げられる。画面は catch で setError(errorOf(e)) とし、message と hint を出せばよい。
 // 中断: 時間制限は { signal: AbortSignal.timeout(ミリ秒) } → 「時間切れ」。
 //       自分で止めた（画面を離れた等）は AbortController.abort() → errorOf が null を返すので何も出ない。
-import { api, type Chunk, type JsonRoute, type Req, type Res, type StreamRoute, streamLine } from "@contracts/api";
+import {
+  api,
+  type Chunk,
+  type JsonRoute,
+  type Req,
+  type Res,
+  type StreamDef,
+  type StreamRoute,
+  streamLine,
+} from "@contracts/api";
 import { ApiError, errorText } from "@contracts/errors";
 
 export class ApiCallError extends Error {
@@ -60,7 +69,7 @@ export async function stream<K extends StreamRoute>(
   onChunk: (chunk: Chunk<K>) => void,
   opts: { signal?: AbortSignal } = {},
 ): Promise<Res<K>> {
-  const r = api[name];
+  const r = api[name] as unknown as StreamDef;
   const res = await send(r.path, r.method, body, opts.signal);
   if (!res.body) throw new ApiCallError({ code: "internal", ...errorText.internal }, res.status);
 

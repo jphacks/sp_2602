@@ -29,6 +29,15 @@ export type StreamRoute = { [K in RouteName]: Api[K]["kind"] extends "stream" ? 
 export type Req<K extends RouteName> = z.infer<Api[K]["req"]>;
 export type Res<K extends RouteName> = z.infer<Api[K]["res"]>;
 export type Chunk<K extends StreamRoute> = z.infer<Api[K]["chunk"]>;
+// ストリームの API 1本の形。stream() / handleStream() はこれで読む（ストリームの API が1本もない時も型が崩れない）
+export type StreamDef = {
+  kind: "stream";
+  method: string;
+  path: string;
+  req: z.ZodType;
+  chunk: z.ZodType;
+  res: z.ZodType;
+};
 
 // ストリームで流れる1行（NDJSON）の形
 export const streamLine = <C extends z.ZodType, R extends z.ZodType>(chunk: C, res: R) =>

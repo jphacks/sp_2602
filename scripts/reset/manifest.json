@@ -26,7 +26,7 @@
     },
     "contracts/api.ts": {
       "action": "replace",
-      "sha": "384c3ff272fb07f04fc2aa71eaf2288cdf2c0af893ad085830c008e038966929"
+      "sha": "5854e3086b6459a7536f189305913333ee61510c534256dc834874a006659bc2"
     },
     "contracts/fixtures.ts": {
       "action": "replace",
