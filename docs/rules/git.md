@@ -12,12 +12,12 @@
 ## ブランチと PR
 - ブランチ名: `<自分のid>/S<番号>-<短い名前>`（例 `front1/S2-input-form`）。`npm run step` が作る。`<自分のid>/` で始まらない名前は pre-commit が止める
 - 1ステップ = 1PR。PR 本文のテンプレートに着手宣言の要約を書く。
-- 自分の所有範囲だけの PR は CI が緑なら自分でマージしてよい。
+- 自分の所有範囲だけの PR は CI が緑なら自分でマージしてよい。**マージは `npm run merge -- <PR番号>`**（今のコミットの CI が現れて全部成功するまで待つ。push 直後の `gh pr checks --watch` は「no checks reported」で即座に正常終了するので、それを見てマージしない）。GitHub の画面でマージする人間も、CI の緑を見てから押す。
 - contracts/ や共有ファイルに触れる PR は lead がレビューしてからマージ（CODEOWNERS が自動でレビュー依頼する）。
 - コンフリクトしたら: 自分の所有ファイルは自分で解決。他人のファイルでコンフリクトしたら、そもそも範囲外を触っている。
 
 ## Issue
-- 立てるときは `npm run issue -- <種類> <宛先id> "題名" ["本文"]`。立てる前に似た open な Issue を探し、あれば止まる（そちらにコメントする。別件なら --force）。
+- 立てるときは `npm run issue -- <種類> <宛先id> "題名" ["1行の本文"]`。本文が2行以上なら `--body-file <path>`（`-` で標準入力）。Windows の npm は引数を cmd.exe に通すので、引数の本文は最初の改行で切れ、後ろの `--dry-run` なども落ちる。立てる前に似た open な Issue を探し、あれば止まる（そちらにコメントする。別件なら --force）。
 - 宛先は「対応する人」（直す人・決める人）。自分宛てにしない。自分の作業の記録は Issue ではなく PR に書く。
 - 種類: `task`（ステップ）/ `bug` / `change-request`（契約・機能の追加）/ `blocked`（他人待ち）
 - 他人のファイルに直してほしいことがあれば、その所有者に `bug` か `task` で assign する。口頭で頼んだ場合も Issue に残す。
@@ -26,7 +26,7 @@
 ## 強制する仕組み（文章だけに頼らない）
 - pre-commit: main への直接コミット・ブランチ名の検査、`npm run scope -- --staged`（範囲外・CHANGELOG なしの契約変更を止める）
 - CI: 型・テスト・範囲（PR 作成者で判定）
-- GitHub 側の設定（lead が前日に）: main のブランチ保護（PR 必須・CI 必須・CODEOWNERS レビュー必須）
+- GitHub 側の設定（lead が前日に）: main のブランチ保護（PR 必須・CI 必須・CODEOWNERS レビュー必須）。**無料のプライベートリポジトリでは使えない**（API が 403）。その場合は `npm run merge` だけでマージする運用で代える。
 
 ## 同じ GitHub アカウントを複数人で使う場合（リハーサル等）
 - kit.config.json の members で github が同じ人が複数いると、自動でこのモードになる。

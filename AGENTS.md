@@ -8,11 +8,11 @@
 2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言は `npm run declare -- demoStep=D2 files=… screens=… contracts=…` で埋める（JSON を手で編集しない。preflight も自動で走る）（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
 3. 実装する。触ってよいのは宣言した自分の所有ファイルだけ。
 4. 宣言した完了確認（doneCheck）を実行する。**出力の全文は PR 本文の「完了確認」欄に貼り**、人間への報告（下の6行）には結果の要点を書く。「できました」だけの報告はしない。
-5. `npm run check`（整形・見た目・型・テスト・範囲）が通ったら commit → push → PR。1ステップ = 1PR。
+5. `npm run check`（整形・見た目・型・テスト・範囲）が通ったら commit → push → PR。1ステップ = 1PR。マージは必ず `npm run merge`（CI が今のコミットで通るまで待ってからマージする。`gh pr merge` を直接使わない）。
 6. 1に戻る。
 
 ## 絶対に守ること
-- 他人の所有ファイルを編集しない。必要なら `npm run issue -- bug <所有者id> "題名"` で所有者に頼み、待つ間は別のステップへ。Issue は必ず `npm run issue` で立てる（似た Issue があれば止まるので、そちらにコメントする）。宛先は「対応する人」で、自分ではない。
+- 他人の所有ファイルを編集しない。必要なら `npm run issue -- bug <所有者id> "題名"` で所有者に頼み、待つ間は別のステップへ。Issue は必ず `npm run issue` で立てる（似た Issue があれば止まるので、そちらにコメントする）。宛先は「対応する人」で、自分ではない。**本文が2行以上ならファイルに書いて `--body-file <path>` で渡す**（引数で渡すと Windows では最初の改行で切れる）。
 - `contracts/` は lead だけが変更する。足りない型・フィールドがあれば `npm run issue -- change-request lead "題名"`（docs/rules/changes.md）。lead は契約を足したら `npm run kit:stub` で仮の API・画面を置き、useFlow の欄も同じ PR で足す。勝手に自分の側で型を作って回避しない。
 - テストを消す・skip する・期待値を実装に合わせて書き換えることで通さない。
 - 外部API（AI含む）はサーバ経由で呼ぶ。`MOCK=1` で必ず動く状態を保つ。
@@ -39,6 +39,8 @@
 ## コマンド
 - `npm run now` 状況とやること / `npm run step -- S2 input-form` ステップ開始（ブランチ＋宣言ひな型） / `npm run doctor` 環境チェック / `npm run preflight` 着手宣言の照合
 - `npm run check` 全検査 / `npm run fix` 整形 / `npm run dev`（http://localhost:3000、`.env` の `MOCK=1` 推奨）
+- `npm run merge -- [PR番号]` CI を待ってからマージ / `npm run issue -- <種類> <宛先> "題名" --body-file <path>` Issue
+- lead だけ: `npm run kit:reset`（キックオフで1回。ひな型の例を消す） / `npm run kit:stub`（契約に合わせて仮の API・画面を置く）
 - 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
 
 ## 報告の形（6行）

@@ -12,7 +12,7 @@
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
 
-- S1 contracts を確定して凍結（DEMO.md は pitch と合意） — 完了確認: `npm run check`
+- S1 `npm run kit:reset` でひな型の例を消し、contracts を確定して凍結（DEMO.md は pitch と合意） — 完了確認: `npm run check`
 - S2 GitHub のブランチ保護と CODEOWNERS を確認 — 完了確認: `npm run kit:owners`
 - S3 同期点1 を進行（docs/rules/sync.md） — 完了確認: 全員の PR がマージ済み
 

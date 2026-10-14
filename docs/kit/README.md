@@ -21,8 +21,9 @@
 **lead**
 1. GitHub にリポジトリを作り、このキットを push（当日は新リポジトリから始めるため「テンプレートリポジトリ」にしておく）。
 2. `kit.config.json` の members（github ユーザー名）と milestones（実際の時刻）を書き換え → `npm run kit:owners`。
-3. main のブランチ保護: PR 必須 / CI（check）必須 / CODEOWNERS のレビュー必須。
-4. ラベル作成: `task` `bug` `change-request` `blocked` `help`。
+3. main のブランチ保護: PR 必須 / CI（check）必須 / CODEOWNERS のレビュー必須。無料のプライベートリポジトリでは使えない（403）→ 全員 `npm run merge` でマージする運用にする。
+4. ラベル作成: `task` `bug` `change-request` `blocked` `help`（同じ GitHub アカウントを共有するなら `member:<id>` も）。
+5. **他のメンバーより先に**ここまで済ませる（リハーサル3: lead の設定前に動いた人がラベルなし・宛先なしの Issue を作った）。
 
 **全員**
 ```
@@ -38,7 +39,7 @@ npm run now
 ## 当日の流れ
 | 時刻（kit.config.json） | やること |
 |---|---|
-| キックオフ | 課題1文 → DEMO.md 下書き → data-wishlist で削る → 契約を書く |
+| キックオフ | lead が `npm run kit:reset`（ひな型の例を消す）→ 課題1文 → DEMO.md 下書き → data-wishlist で削る → 契約を書く → `npm run kit:stub` |
 | 契約凍結 | 以降の追加は change-request。全員 MOCK=1 で並行開発 |
 | 同期点 / 第1統合 | docs/rules/sync.md（動くもので理解を合わせる） |
 | 機能フリーズ | バグと磨きと通し練習だけ |
