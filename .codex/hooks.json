@@ -1,0 +1,30 @@
+{
+  "description": "hackathon-kit の守り（.claude/settings.json の Codex 版）。範囲外の編集を止める・型が通らないまま終わらせない。説明は docs/kit/codex.md",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .codex/hooks/guard-scope.mjs",
+            "timeout": 30,
+            "statusMessage": "所有範囲を確認しています"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .codex/hooks/stop-check.mjs",
+            "timeout": 300,
+            "statusMessage": "型チェックをしています"
+          }
+        ]
+      }
+    ]
+  }
+}

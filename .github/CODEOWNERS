@@ -13,6 +13,7 @@
 /components.json @github-user-1
 /.github/ @github-user-1
 /.claude/ @github-user-1
+/.codex/ @github-user-1
 /.githooks/ @github-user-1
 /.vscode/ @github-user-1
 /scripts/ @github-user-1
@@ -27,7 +28,6 @@
 /src/components/ @github-user-1
 /tests/contracts.test.ts @github-user-1
 /tests/stubs/ @github-user-1
-/next-env.d.ts @github-user-1
 /AGENTS.md @github-user-1
 /CLAUDE.md @github-user-1
 /docs/rules/ @github-user-1
@@ -43,4 +43,5 @@
 /docs/requirements/ @github-user-1
 /docs/members/ @github-user-1
 /docs/data-wishlist.md @github-user-1
+/docs/shots/ @github-user-1
 /README.md @github-user-1

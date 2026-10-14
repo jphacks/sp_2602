@@ -42,11 +42,20 @@ const branch = sh("git symbolic-ref --short HEAD", { allowFail: true });
 const dirty = (sh("git status --porcelain", { allowFail: true }) ?? "").split("\n").filter(Boolean).length;
 const hasRemote = !!sh("git remote get-url origin", { allowFail: true });
 let behind = 0;
+// fetch に失敗すると origin/main が古いままで「遅れ 0」と出てしまうので、失敗したことを出す
+// （ネットワーク・認証のほか、Codex のサンドボックスでは .git に書けず必ず失敗する: docs/kit/codex.md）
+let fetchFailed = false;
 if (hasRemote) {
-  sh("git fetch -q origin main", { allowFail: true });
+  fetchFailed = sh("git fetch -q origin main", { allowFail: true }) === null;
   behind = Number(sh("git rev-list --count HEAD..origin/main", { allowFail: true }) ?? 0);
 }
-out.push(`\n## git: ${branch ?? "?"}  未コミット ${dirty}件  main より遅れ ${hasRemote ? behind : "（remote なし）"}`);
+out.push(
+  `\n## git: ${branch ?? "?"}  未コミット ${dirty}件  main より遅れ ${hasRemote ? `${behind}${fetchFailed ? "（fetch に失敗。前回の取得時点の数）" : ""}` : "（remote なし）"}`,
+);
+if (fetchFailed)
+  todo.push(
+    "`git fetch origin main` に失敗した → ネットワーク・認証を確かめる（Codex ならサンドボックスの外での実行を承認）。直したら npm run now をやり直す",
+  );
 if (branch === "main" && me)
   todo.push("main の上にいる → `npm run step -- S<番号> <英語名>` でステップ用のブランチを作ってから作業する");
 if (behind > 0) todo.push(`main が ${behind} コミット先行 → \`git pull --rebase origin main\``);

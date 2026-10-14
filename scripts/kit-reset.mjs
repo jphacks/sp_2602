@@ -74,5 +74,5 @@ if (done.length) {
 console.log(done.length ? `✓ ひな型の例を片付けた:\n  ${done.join("\n  ")}` : "片付けるものはなかった（実行済み）");
 if (kept.length) console.log(`! 内容が変わっていたので残した（手で確かめる）:\n  ${kept.join("\n  ")}`);
 console.log(
-  "\n次: kit.config.json の画面の所有（home/result）を自分たちの画面 id に書き換え → 契約を書く → npm run kit:stub → npm run check → commit（範囲チェックは kit:reset の変更を例外で通す）",
+  "\n次: kit.config.json の画面の所有（home/result）を自分たちの画面 id に書き換え → npm run kit:owners → 契約を書く → npm run kit:stub → npm run check → commit（範囲チェックは kit:reset の変更を例外で通す）",
 );

@@ -67,7 +67,8 @@ export function phaseAt(cfg, now = new Date()) {
 }
 
 // ステップの状態。完了は「マージ済み PR のブランチ名 <id>/S<番号>-…」から自動で判定する（手で印は付けない）。
-// gh が使えないときは、手元の main のマージコミットの件名から判定する。
+// gh が使えないときは、手元の main のマージコミットの件名から判定する。ただし npm run merge はスカッシュマージ（件名にブランチ名が残らない）なので、
+// remote がある時のこの判定は「完了」を見落とす。そのことを source に出す。
 //   返り値: { steps: [{ id, text, state: "done" | "pr" | "todo", pr? }], next } / メンバーファイルがなければ null
 export function stepStates(me) {
   const file = p(`docs/members/${me.id}.md`);
@@ -111,7 +112,12 @@ export function stepStates(me) {
       s.pr = open.get(s.id);
     }
   }
-  return { steps, next: steps.find((s) => s.state === "todo") ?? null, source: prs ? "GitHub の PR" : "手元の main" };
+  const source = prs
+    ? "GitHub の PR"
+    : hasRemote
+      ? "手元の main。gh が使えず、スカッシュマージした PR は完了と判定できない → gh を直して npm run now をやり直す"
+      : "手元の main";
+  return { steps, next: steps.find((s) => s.state === "todo") ?? null, source };
 }
 
 // 合流の時間帯（docs/rules/help.md）。区切りは kit.config.json の help と、最初の frozen の milestone から決まる。

@@ -35,6 +35,7 @@
 | 会議の録音から要件を更新する | `docs/rules/meeting.md` |
 | 同期点（lead が進行） | `docs/rules/sync.md` |
 | 他の人を手伝う・手伝ってもらう（合流） | `docs/rules/help.md` |
+| Codex で動いていて、git・gh・npm がサンドボックスで失敗する | `docs/kit/codex.md` |
 
 ## コマンド
 - `npm run now` 状況とやること / `npm run step -- S2 input-form` ステップ開始（ブランチ＋宣言ひな型） / `npm run doctor` 環境チェック / `npm run preflight` 着手宣言の照合

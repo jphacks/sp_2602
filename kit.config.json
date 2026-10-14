@@ -76,6 +76,7 @@
         "components.json",
         ".github/**",
         ".claude/**",
+        ".codex/**",
         ".githooks/**",
         ".vscode/**",
         "scripts/**",

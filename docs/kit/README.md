@@ -2,9 +2,9 @@
 
 5人でAIを使って作るためのチーム開発の枠組み。製品のコードではなく「道具」なので事前に用意してよい（中身の契約・データ・画面は当日作る）。
 
-- AI（Claude Code / Codex）は `AGENTS.md` だけを入口に読み、`npm run now` で「今何をするか」を決める。
+- AI（Claude Code / Codex）は `AGENTS.md` だけを入口に読み、`npm run now` で「今何をするか」を決める。AI ごとの設定は Claude Code が `.claude/`、Codex が `.codex/`（使い方は docs/kit/codex.md）。
 - ルールは md に、**状況は GitHub（Issue・PR）と git に**持たせる。md に進捗を書かない（5人で書き換えると衝突して古くなる）。
-- 「触るな」は文章ではなく仕組みで止める: Claude の hook（早期警告）→ pre-commit → CI。
+- 「触るな」は文章ではなく仕組みで止める: Claude / Codex の hook（早期警告）→ pre-commit → CI。
 
 ## 正本はこれだけ
 | 何 | どこ |
@@ -35,6 +35,7 @@ cp .env.example .env
 npm run doctor        # 全部 ✓ になるまで
 npm run now
 ```
+Codex を使う人は、続けて docs/kit/codex.md の「最初に1回」（trust・hook の確認・GH_TOKEN）。
 
 ## 当日の流れ
 | 時刻（kit.config.json） | やること |

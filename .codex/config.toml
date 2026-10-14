@@ -1,0 +1,15 @@
+# hackathon-kit の Codex 設定。このリポジトリを trust したときだけ読まれる（説明は docs/kit/codex.md）。
+# 入口のルールは AGENTS.md（Codex は自動で読む）。守りの hook は .codex/hooks.json。
+
+# ファイルの編集はリポジトリの中だけ。リポジトリ外への書き込みとサンドボックスの外での実行は、その都度人間に確認する
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[sandbox_workspace_write]
+# npm run now / issue / merge は gh で GitHub に、npm ci は npm のサーバに繋ぐ
+network_access = true
+
+[shell_environment_policy]
+# npm の既定のキャッシュ（ユーザーのフォルダ）はサンドボックスから書けず、npm が毎回ログの書き込みで失敗する（リハーサル1）。
+# リポジトリ内に置く（.gitignore 済み）
+set = { npm_config_cache = ".npm-cache" }

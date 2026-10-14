@@ -1,5 +1,5 @@
 // Claude Code 用: 自分の所有範囲外のファイルを編集しようとしたら止める。
-// （Codex や手作業には pre-commit と CI が効く。これは早めに気づくための補助）
+// （Codex は .codex/hooks/guard-scope.mjs が同じ判定をする。手作業やシェルでの書き換えには pre-commit と CI が効く。これは早めに気づくための補助）
 import { relative } from "node:path";
 import { currentMember, loadConfig, ownerOf, ROOT } from "../../scripts/lib/kit.mjs";
 

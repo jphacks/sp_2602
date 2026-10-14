@@ -46,11 +46,12 @@ const localAhead =
 const mainRef = hasOriginMain && !localAhead ? "origin/main" : "main";
 const forkPoint = sh(`git merge-base HEAD ${mainRef}`, { allowFail: true });
 const baseRef = opt("--base") ?? (args.includes("--staged") ? "HEAD" : (forkPoint ?? "HEAD"));
+// --no-renames: 移動は「元の削除＋先の追加」として両方を数える（数えないと、他人のファイルを自分のフォルダへ移すと元の削除が見えない）
 let files;
-if (args.includes("--staged")) files = sh("git diff --cached --name-only --diff-filter=ACMRD");
-else if (opt("--base")) files = sh(`git diff --name-only ${opt("--base")}...HEAD`);
+if (args.includes("--staged")) files = sh("git diff --cached --name-only --no-renames --diff-filter=ACMRD");
+else if (opt("--base")) files = sh(`git diff --name-only --no-renames ${opt("--base")}...HEAD`);
 else
-  files = `${forkPoint ? sh(`git diff --name-only ${forkPoint} HEAD`) : ""}\n${sh("git diff --name-only HEAD")}\n${sh("git ls-files --others --exclude-standard")}`;
+  files = `${forkPoint ? sh(`git diff --name-only --no-renames ${forkPoint} HEAD`) : ""}\n${sh("git diff --name-only --no-renames HEAD")}\n${sh("git ls-files --others --exclude-standard")}`;
 files = [
   ...new Set(
     files
