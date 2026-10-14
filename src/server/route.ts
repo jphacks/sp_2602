@@ -3,7 +3,7 @@
 //   export const POST = handle("analyze", analyze);
 //   export const POST = handleStream("analyzeStream", analyzeStream);
 import "server-only";
-import { api, type Chunk, type JsonRoute, type Req, type Res, type StreamRoute } from "@contracts/api";
+import { api, type Chunk, type JsonRoute, type Req, type Res, type StreamDef, type StreamRoute } from "@contracts/api";
 import { badRequest, toApiError } from "./errors";
 
 async function readInput(request: Request, method: string): Promise<unknown> {
@@ -35,7 +35,7 @@ export function handleStream<K extends StreamRoute>(
   name: K,
   fn: (req: Req<K>, emit: (chunk: Chunk<K>) => void, signal: AbortSignal) => Promise<Res<K>>,
 ) {
-  const route = api[name];
+  const route = api[name] as unknown as StreamDef;
   return async (request: Request): Promise<Response> => {
     const parsed = route.req.safeParse(await readInput(request, route.method));
     if (!parsed.success) {
