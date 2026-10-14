@@ -21,7 +21,9 @@
     "step": "node scripts/step.mjs",
     "declare": "node scripts/declare.mjs",
     "kit:stub": "node scripts/stub.mjs",
-    "issue": "node scripts/issue.mjs"
+    "issue": "node scripts/issue.mjs",
+    "merge": "node scripts/merge.mjs",
+    "kit:reset": "node scripts/kit-reset.mjs"
   },
   "dependencies": {
     "next": "^16.4.0",

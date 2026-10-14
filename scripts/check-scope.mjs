@@ -4,6 +4,7 @@
 //   --member <id>     : 検査する人（省略時は .kit-member / KIT_MEMBER）
 //   --author <login>  : GitHub ログインから人を引く（CI 用）
 //   --branch <name>   : 同じログインを複数人で使うとき、ブランチ名の先頭 <id>/ で人を決める（CI 用）
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { STUB_MARK } from "./lib/gaps.mjs";
 import { currentMember, loadConfig, ownerOf, p, sh } from "./lib/kit.mjs";
@@ -58,6 +59,24 @@ const contentOf = (f) =>
         ? readFileSync(p(f), "utf8")
         : null;
 
+// 例外2: lead の npm run kit:reset。ひな型のままのファイルを「消す」か「scripts/reset/files/ の形にする」変更だけ通す
+const reset = existsSync(p("scripts/reset/manifest.json"))
+  ? JSON.parse(readFileSync(p("scripts/reset/manifest.json"), "utf8")).files
+  : {};
+const norm = (s) => s.replace(/\r\n/g, "\n");
+const sha = (s) => createHash("sha256").update(norm(s)).digest("hex");
+const before = (f) => sh(`git show "${opt("--base") ?? "HEAD"}:${f}"`, { allowFail: true });
+function byReset(f) {
+  const m = reset[f];
+  if (!ownsContracts || !m) return false;
+  const was = before(f);
+  if (was === null || sha(was) !== m.sha) return false; // 元がひな型のままでなければ例外にしない
+  const now = contentOf(f);
+  if (m.action === "delete") return now === null;
+  const want = existsSync(p(`scripts/reset/files/${f}`)) ? readFileSync(p(`scripts/reset/files/${f}`), "utf8") : null;
+  return now !== null && want !== null && norm(now) === norm(want);
+}
+
 const errors = [];
 for (const f of files) {
   const owner = ownerOf(f, cfg);
@@ -65,6 +84,7 @@ for (const f of files) {
   // .gitignore に入れて管理から外したファイル（例: next-env.d.ts）の削除は誰でもよい
   if (sh(`git check-ignore -q --no-index "${f}"`, { allowFail: true }) !== null) continue;
   if (ownsContracts && (contentOf(f) ?? "").startsWith(STUB_MARK)) continue;
+  if (byReset(f)) continue;
   errors.push(owner ? `${f}  → 所有者は ${owner}` : `${f}  → 所有者なし（kit.config.json に追加が必要）`);
 }
 

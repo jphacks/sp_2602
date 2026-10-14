@@ -1,15 +1,21 @@
-// npm run issue -- <種類> <宛先id> "<題名>" ["<本文>"] [--force]
+// npm run issue -- <種類> <宛先id> "<題名>" ["<本文>"] [--body-file <path>] [--force]
 //   種類: bug / task / blocked / change-request / help
 //   宛先: その Issue に「対応する人」の id（自分ではなく、直す・決める人）。change-request は普通 lead
+// 本文が複数行なら --body-file <path>（"-" なら標準入力）を使う。Windows の npm は引数を cmd.exe に通すので、
+//   引数の本文は最初の改行で切れ、後ろの引数（--dry-run など）も落ちる（リハーサル3で Issue #3・#6 の本文が消えた）。
 // --dry-run: 似た Issue の確認だけ。立てる前に、似た題名の open な Issue を探す。似たものがあれば立てずに止まる（そちらにコメントする。違うなら --force）。
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { currentMember, loadConfig, sh } from "./lib/kit.mjs";
 
 const TYPES = ["bug", "task", "blocked", "change-request", "help"];
 const args = process.argv.slice(2);
 const force = args.includes("--force");
 const dryRun = args.includes("--dry-run"); // 似た Issue の確認だけして、作らない
-const [type, to, title, body = ""] = args.filter((a) => a !== "--force" && a !== "--dry-run");
+const fileAt = args.indexOf("--body-file");
+const bodyFile = fileAt >= 0 ? args[fileAt + 1] : undefined;
+const positional = args.filter((a, i) => a !== "--force" && a !== "--dry-run" && i !== fileAt && i !== fileAt + 1);
+const [type, to, title, inlineBody = ""] = positional;
 const cfg = loadConfig();
 const me = currentMember(cfg);
 const fail = (msg) => {
@@ -18,8 +24,21 @@ const fail = (msg) => {
 };
 
 if (!me) fail("自分が未設定。npm run kit:whoami -- <id>");
+if (fileAt >= 0 && !bodyFile) fail("--body-file の後にファイルのパス（標準入力なら -）を書く");
+if (bodyFile && inlineBody) fail("本文は引数か --body-file のどちらか一方で渡す");
+let body = inlineBody;
+if (bodyFile) {
+  try {
+    body = readFileSync(bodyFile === "-" ? 0 : bodyFile, "utf8").trim();
+  } catch (e) {
+    fail(`本文のファイルを読めない: ${bodyFile}（${e.message}）`);
+  }
+  if (!body) fail(`本文が空: ${bodyFile}`);
+}
 if (!TYPES.includes(type ?? "") || !to || !title)
-  fail(`使い方: npm run issue -- <${TYPES.join("|")}> <宛先id> "<題名>" ["<本文>"]（宛先は対応する人）`);
+  fail(
+    `使い方: npm run issue -- <${TYPES.join("|")}> <宛先id> "<題名>" ["<1行の本文>" | --body-file <path>]（宛先は対応する人。複数行の本文は --body-file）`,
+  );
 const target = cfg.members.find((m) => m.id === to);
 if (!target) fail(`宛先 ${to} は kit.config.json の members にない（${cfg.members.map((m) => m.id).join(", ")}）`);
 if (type === "change-request" && to !== cfg.members[0].id)
