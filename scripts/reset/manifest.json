@@ -2,55 +2,55 @@
   "files": {
     "src/app/api/analyze/route.ts": {
       "action": "delete",
-      "sha": "8379e8c4ff4db8f30e2b37f91a819bedf679dbac45df57c77b2e069b98a8e494"
+      "sha": "455a67d664d9efb312eae22f368cddcdfbe59c93655c10a1199cac5dda7d0fd9"
     },
     "src/app/api/analyze-stream/route.ts": {
       "action": "delete",
-      "sha": "7aa04c0fbc8a548ba103799975d7de04b90c122e8661b55c81e54535808cbbb8"
+      "sha": "9b57481dc25005b0893f62f0f264c2e85c2916ea30e2171edf1d072b98fa32c0"
     },
     "src/server/analyze.ts": {
       "action": "delete",
-      "sha": "a43018824d95d93432ad3f673e38883916669772b1d455d08b302369a50e6fb6"
+      "sha": "97298fff80bceebd9f89119060b13c7bbfbcbe01ecc0ed0d5d545cad9eb274b8"
     },
     "src/app/home/page.tsx": {
       "action": "delete",
-      "sha": "300a12d4826d92126d88e6c93099427a0a5747498b4194cdc79cfb82d04967ea"
+      "sha": "abe4f7056041215e6d78bedd771100d273eb48f5c6f80789a6f7d98255b8bb2c"
     },
     "src/app/result/page.tsx": {
       "action": "delete",
-      "sha": "bdc201fb99584bb026b10373d9f6c385bc8c426bcbabd466eee4f15d641cb29b"
+      "sha": "f68377f6b4e3930c71b97eb1b9f1feb92982805e91b317b72d72cdd7fa6ac69d"
     },
     "contracts/schemas.ts": {
       "action": "replace",
-      "sha": "019a6098ac2d23312d6f34f15a363d4a5ea6b086f5cff5a1d5be0a34900f2f71"
+      "sha": "c9b8bea1497809849c6076e4409ef13a36c8a03b5b960b15f391bc463cf3ef79"
     },
     "contracts/api.ts": {
       "action": "replace",
-      "sha": "5854e3086b6459a7536f189305913333ee61510c534256dc834874a006659bc2"
+      "sha": "0da6c99ff1866a94768c0340a5d729f076f8052785df1b82ba8946140b7085dc"
     },
     "contracts/fixtures.ts": {
       "action": "replace",
-      "sha": "113f7d393cba7c22d97d00d608b71ec5ce33b6feac9d745ade40cada4df794f0"
+      "sha": "44f6b38a8eae12879b8e3409f0290d67dfd0baa1ed1dffe636a2a636512c2803"
     },
     "contracts/screens.md": {
       "action": "replace",
-      "sha": "b89f024c59e488e9ddb19e4add5fc2f489c9ff6f23f8262cf5624b36bf633231"
+      "sha": "5ce41d5c60ba36379c78023e03240a49fcccde1045ea8ceeb2e6509701beff7b"
     },
     "src/lib/flow.tsx": {
       "action": "replace",
-      "sha": "623e710efe4718ea973a47c4b4a0f52ebc0eddcbb85d1e629cb10ada7632e7ba"
+      "sha": "c78be5c1500c4df0c1a32d14074a6d256ca703ef269f8de36113f07919b29eac"
     },
     "src/app/page.tsx": {
       "action": "replace",
-      "sha": "4c6166e567b74ea42016aea7684ed9244182cffe891a4ebe3b5851b91baa1b88"
+      "sha": "e6e7bbc6d9844b5463a6ed3d38d2bd766877649557e9553540694ae046047570"
     },
     "src/app/api/health/route.ts": {
       "action": "replace",
-      "sha": "a4e7b5c0d9e1d2ae136568f286011e920699fb85860ed3976efb426b1b4dabc2"
+      "sha": "c9273f90ad860f82f95433568108c235a870f99faac045537a776e1165760a23"
     },
     "tests/server/api.test.ts": {
       "action": "replace",
-      "sha": "b2053587db31c9413410006c66a2c325db0de762861591855e6976d8ee49ce15"
+      "sha": "f8566eb67f9eb79a80c55091b1bcd2124d22506616856e92687f866d08fb387b"
     }
   }
 }

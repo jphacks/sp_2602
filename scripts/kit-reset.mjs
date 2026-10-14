@@ -27,7 +27,8 @@ export const REPLACE = [
   "tests/server/api.test.ts",
 ];
 const MANIFEST = "scripts/reset/manifest.json";
-export const norm = (s) => s.replace(/\r\n/g, "\n");
+// check-scope.mjs と同じそろえ方（改行コードと末尾の空白）。git show の出力は末尾が trim されるため
+export const norm = (s) => s.replace(/\r\n/g, "\n").trimEnd();
 export const sha = (s) => createHash("sha256").update(norm(s)).digest("hex");
 const read = (f) => (existsSync(p(f)) ? readFileSync(p(f), "utf8") : null);
 

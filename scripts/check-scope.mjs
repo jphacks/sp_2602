@@ -63,7 +63,8 @@ const contentOf = (f) =>
 const reset = existsSync(p("scripts/reset/manifest.json"))
   ? JSON.parse(readFileSync(p("scripts/reset/manifest.json"), "utf8")).files
   : {};
-const norm = (s) => s.replace(/\r\n/g, "\n");
+// sh() は出力の末尾を trim するので、比べる時は改行コードと末尾の空白をそろえる（kit-reset.mjs と同じ）
+const norm = (s) => s.replace(/\r\n/g, "\n").trimEnd();
 const sha = (s) => createHash("sha256").update(norm(s)).digest("hex");
 const before = (f) => sh(`git show "${opt("--base") ?? "HEAD"}:${f}"`, { allowFail: true });
 function byReset(f) {
