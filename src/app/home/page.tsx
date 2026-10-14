@@ -1,5 +1,5 @@
 "use client";
-// 画面 home（front1 の所有）。このフォルダ内なら部品ファイルを自由に増やしてよい（例: ./ItemForm.tsx）。
+// 画面 home（front-a の所有）。このフォルダ内なら部品ファイルを自由に増やしてよい（例: ./ItemForm.tsx）。
 // 例として、ストリームで途中経過を表示しながら判定し、終わったら result へ進む。
 import type { ApiError } from "@contracts/errors";
 import { demoInput } from "@contracts/fixtures";
@@ -20,7 +20,7 @@ export default function HomePage() {
     setError(null);
     setProgress([]);
     try {
-      // TODO(front1, S2): 入力欄の値を渡す（今はデモ用の固定入力）
+      // TODO(front-a, S2): 入力欄の値を渡す（今はデモ用の固定入力）
       const result = await stream("analyzeStream", demoInput, (chunk) => setProgress((p) => [...p, chunk.text]));
       setAnalyzeResult(result);
       router.push("/result");
