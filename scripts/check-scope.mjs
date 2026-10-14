@@ -37,8 +37,13 @@ if (!me) {
 
 // 何と比べるか。オプションなし（npm run check）は「main から分かれた後のブランチ全体＋まだコミットしていない変更」。
 // 以前は未コミットの変更だけを見ていたので、コミット直後や main を取り込んだ直後に「0 件」と出て意味が分からなかった（リハーサル3で4人）
+// origin/main と手元の main のうち新しい方と比べる（fetch せずに手元の main だけ取り込むと、origin/main が古いまま残り、
+// 他人が main に入れた変更まで「範囲外」と出る）
 const hasOriginMain = sh("git rev-parse --verify -q origin/main", { allowFail: true }) !== null;
-const mainRef = hasOriginMain ? "origin/main" : "main";
+const hasMain = sh("git rev-parse --verify -q main", { allowFail: true }) !== null;
+const localAhead =
+  hasOriginMain && hasMain && sh("git merge-base --is-ancestor origin/main main", { allowFail: true }) !== null;
+const mainRef = hasOriginMain && !localAhead ? "origin/main" : "main";
 const forkPoint = sh(`git merge-base HEAD ${mainRef}`, { allowFail: true });
 const baseRef = opt("--base") ?? (args.includes("--staged") ? "HEAD" : (forkPoint ?? "HEAD"));
 let files;
@@ -103,6 +108,10 @@ if (touchesContracts && !files.includes("contracts/CHANGELOG.md"))
 if (errors.length) {
   console.error(`✗ コミットできない変更（${me.id}）:\n  ${errors.join("\n  ")}`);
   console.error("\n他人のファイルが必要なら: 所有者に Issue を立てる。契約が足りないなら: change-request Issue。");
+  if (!args.includes("--staged") && !opt("--base"))
+    console.error(
+      `自分で触っていないファイルが並んでいるなら: 比べた main（${mainRef}）が古い。git fetch してから、もう一度 npm run check。`,
+    );
   process.exit(1);
 }
 const what = args.includes("--staged")

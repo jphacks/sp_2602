@@ -1,8 +1,10 @@
 // npm run merge -- [PR番号] — CI が「今の先頭のコミット」で通ったのを確かめてからマージする（番号を省くと今のブランチの PR）。
 // なぜ: 無料のプライベートリポジトリではブランチ保護が使えない。push 直後の `gh pr checks --watch` は
 //   「no checks reported」で即座に正常終了するので、CI が始まる前にマージしてしまう（リハーサル3で4人が踏んだ）。
-// 手順: 下書きなら解除 → main より遅れていれば止める → 先頭コミットの CI が現れて全部終わるまで待つ → 全部成功ならマージ。
+// 手順: 下書きなら解除 → main より遅れていれば止める（比較 API で数える）→ 先頭コミットの CI が現れて全部終わるまで待つ → 全部成功ならマージ。
 import { execFileSync } from "node:child_process";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { p } from "./lib/kit.mjs";
 
 const arg = process.argv[2];
 const WAIT_START_MS = 3 * 60 * 1000; // CI が現れるまで待つ上限
@@ -18,7 +20,7 @@ const view = () =>
       "view",
       ...(arg ? [arg] : []),
       "--json",
-      "number,state,isDraft,headRefOid,mergeStateStatus,statusCheckRollup,headRefName",
+      "number,state,isDraft,headRefOid,mergeStateStatus,statusCheckRollup,headRefName,baseRefName",
     ),
   );
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -26,6 +28,31 @@ const fail = (msg) => {
   console.error(`✗ ${msg}`);
   process.exit(1);
 };
+// main より何コミット遅れているか。mergeStateStatus の BEHIND はブランチ保護で「最新を取り込む」を必須にした時しか出ないので、
+// 無料のプライベートリポジトリでは使えない。GitHub の比較 API で直接数える（数えられなければ null）
+const behindBy = (base, head) => {
+  try {
+    return Number(gh("api", `repos/{owner}/{repo}/compare/${base}...${head}`, "--jq", ".behind_by"));
+  } catch {
+    return null;
+  }
+};
+const BEHIND_MSG = "main を取り込んで（git pull origin main）`npm run check` → push してから、もう一度 npm run merge。";
+// PR で動くはずのワークフロー名（.github/workflows のうち on: に pull_request があるもの）。
+// 全部が現れるまで「CI が始まった」とみなさない（1つ目が見えた時点で数えると、遅れて始まる方を待たずにマージする）
+const expectedWorkflows = (() => {
+  const dir = p(".github/workflows");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => /\.ya?ml$/.test(f))
+    .map((f) => {
+      const text = readFileSync(`${dir}/${f}`, "utf8");
+      const head = text.split(/^jobs:/m)[0];
+      if (!/\bpull_request\b/.test(head)) return null;
+      return /^name:\s*["']?([^"'\r\n]+?)["']?\s*$/m.exec(head)?.[1] ?? f;
+    })
+    .filter(Boolean);
+})();
 
 let pr;
 try {
@@ -41,8 +68,11 @@ if (pr.isDraft) {
   gh("pr", "ready", String(pr.number));
   console.log("  下書きを解除した");
 }
-if (pr.mergeStateStatus === "BEHIND" || pr.mergeStateStatus === "DIRTY")
-  fail("main より遅れている（または衝突している）。main を取り込んで `npm run check` → push してから、もう一度。");
+if (pr.mergeStateStatus === "DIRTY") fail(`main と衝突している。${BEHIND_MSG}`);
+const behind = behindBy(pr.baseRefName, sha);
+if (behind === null) console.log("  ! main との差を数えられなかった（gh api）。遅れの確認なしで進む");
+else if (behind > 0)
+  fail(`main より ${behind} コミット遅れている（CI は古い main と合わせて試しただけ）。${BEHIND_MSG}`);
 
 // 先頭コミットの CI だけを見る（古いコミットの「成功」で通さない）
 const started = Date.now();
@@ -52,14 +82,19 @@ for (;;) {
   if (now.headRefOid !== sha) fail("待っている間に新しいコミットが push された。もう一度 npm run merge を実行する。");
   // statusCheckRollup は先頭コミットの分。CheckRun（status/conclusion）と StatusContext（state）が混ざる
   const checks = now.statusCheckRollup ?? [];
-  if (checks.length) seen = true;
+  const names = new Set(checks.map((c) => c.workflowName).filter(Boolean));
+  const missing = expectedWorkflows.filter((w) => !names.has(w));
+  if (checks.length && !missing.length) seen = true;
   const isPending = (c) =>
     c.__typename === "StatusContext" ? ["PENDING", "EXPECTED"].includes(c.state) : c.status !== "COMPLETED";
   const pending = checks.filter(isPending);
   const elapsed = Math.round((Date.now() - started) / 1000);
   if (!seen) {
-    if (Date.now() - started > WAIT_START_MS) fail("CI が始まらない（.github/workflows を確認）。マージしない。");
-    console.log(`  CI の開始を待っている…（${elapsed}秒）`);
+    if (Date.now() - started > WAIT_START_MS)
+      fail(
+        `CI が始まらない${missing.length ? `: ${missing.join(", ")}` : ""}（.github/workflows を確認）。マージしない。`,
+      );
+    console.log(`  CI の開始を待っている…（${elapsed}秒${missing.length ? `、まだ: ${missing.join(", ")}` : ""}）`);
   } else if (pending.length) {
     if (Date.now() - started > WAIT_DONE_MS)
       fail(`CI が終わらない: ${pending.map((c) => c.name ?? c.context).join(", ")}`);
@@ -75,6 +110,10 @@ for (;;) {
   }
   await sleep(POLL_MS);
 }
+
+// 待っている間に main が進んでいたら止める（他の人が先にマージした）
+const behindNow = behindBy(pr.baseRefName, sha);
+if (behindNow !== null && behindNow > 0) fail(`待っている間に main が ${behindNow} コミット進んだ。${BEHIND_MSG}`);
 
 try {
   // 先頭コミットが確かめたものと同じ時だけマージする

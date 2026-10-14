@@ -24,10 +24,10 @@ const withOffset = (ms, like) => {
   return off ? `${local}${off[1]}:${off[2]}` : new Date(ms).toISOString();
 };
 
-function show() {
-  const ph = phaseAt(cfg);
-  console.log(`時刻表（${cfg.project}）`);
-  for (const m of [...cfg.milestones].sort((x, y) => Date.parse(x.at) - Date.parse(y.at)))
+function show(c = cfg) {
+  const ph = phaseAt(c);
+  console.log(`時刻表（${c.project}）`);
+  for (const m of [...c.milestones].sort((x, y) => Date.parse(x.at) - Date.parse(y.at)))
     console.log(
       `  ${m.id === ph?.current?.id ? "▶" : " "} ${hhmm(m.at)}  ${m.name}（${m.id}）${m.sync ? "  同期点" : ""}`,
     );
@@ -61,16 +61,22 @@ const move = (iso) => {
   const t = Date.parse(iso);
   return t <= now && t + deltaMs > now ? iso : withOffset(t + deltaMs, iso);
 };
-for (const m of cfg.milestones) {
-  const next = move(m.at);
-  text = text.replace(`"at": "${m.at}"`, `"at": "${next}"`);
-  m.at = next;
-}
-for (const k of ["start", "end"]) {
-  const next = move(cfg.event[k]);
-  text = text.replace(`"${k}": "${cfg.event[k]}"`, `"${k}": "${next}"`);
-  cfg.event[k] = next;
-}
+// 1回の走査で「元の時刻 → 新しい時刻」に置き換える。1件ずつ replace すると、ずらした後の時刻が次の予定の元の時刻と同じ時
+// （30分・1時間刻みの時刻表ではほぼ毎回）同じ行を2回ずらし、次の予定は動かなかった
+const want = (c) => [...c.milestones.map((m) => m.at), c.event.start, c.event.end];
+const before = want(cfg);
+const moved = new Map(before.map((iso) => [iso, move(iso)]));
+const original = text;
+text = text.replace(/"(at|start|end)": "([^"]+)"/g, (all, k, iso) =>
+  moved.has(iso) ? `"${k}": "${moved.get(iso)}"` : all,
+);
 writeFileSync(p("kit.config.json"), text);
+// 表示はファイルを読み直して行う（書いた結果をそのまま見せる）。期待どおりでなければ元に戻す
+const after = loadConfig();
+const bad = want(after).filter((iso, i) => iso !== moved.get(before[i]));
+if (bad.length) {
+  writeFileSync(p("kit.config.json"), original);
+  fail("kit.config.json の書き換えが期待どおりにならなかったので元に戻した（手で直す）");
+}
 console.log(`✓ ${Math.round(deltaMs / 60000)} 分ずらした。decisions.md に「時刻表を変えた理由」を1行書く`);
-show();
+show(after);
