@@ -189,7 +189,7 @@ if (mine) {
   out.push(`\n## 個人メモ: やること ${mine.todo} / 待ち ${mine.wait} / 行き詰まり ${mine.stuck}（npm run log）`);
   for (const l of mine.over)
     todo.push(
-      `行き詰まりが30分を超えた: ${l.replace(/^- \[ \] \S+ \S+ /, "").slice(0, 60)} → 範囲の外なら所有者に Issue、内なら \`npm run issue -- blocked <まとめ役> "…"\`（解決したら npm run log -- done "…"）`,
+      `行き詰まりが30分を超えた: ${l.replace(/^- \[ \] \S+ \S+ /, "").slice(0, 60)} → 範囲の外なら所有者に Issue、内なら \`npm run issue -- blocked ${cfg.facilitator ?? cfg.members[0].id} "…"\`（解決したら npm run log -- done "…"）`,
     );
 }
 
