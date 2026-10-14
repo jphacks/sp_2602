@@ -28,4 +28,8 @@
 | files | すべて自分の所有範囲（`kit.config.json`） |
 | doneCheck | 実行できるコマンド（`npm run …` なら script が存在するか） |
 
+使わない項目は `contracts=なし`（`none` / `-` も可）と書く。空のまま残さない。
+ステップ表にない作業（`npm run step -- X … --adhoc`）は step が `X` になり、メンバーファイルとの照合を省く。
+DEMO.md の該当行の画面と screens が食い違うと警告が出る（止めはしない）。DEMO.md と screens.md のどちらが古いか確かめる。
+
 `demoStep` が書けないステップは、デモに効かない作業。やる前に lead に確認する。

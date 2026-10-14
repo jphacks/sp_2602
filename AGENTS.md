@@ -41,6 +41,9 @@
 - `npm run check` 全検査 / `npm run fix` 整形 / `npm run dev`（http://localhost:3000、`.env` の `MOCK=1` 推奨）
 - `npm run merge -- [PR番号]` CI を待ってからマージ / `npm run issue -- <種類> <宛先> "題名" --body-file <path>` Issue
 - lead だけ: `npm run kit:reset`（キックオフで1回。ひな型の例を消す） / `npm run kit:stub`（契約に合わせて仮の API・画面を置く）
+- 確かめる道具: `npm run api -- <契約名> [--body-file 本文.json]`（契約どおりに API を叩く） / `npm run shot -- <URL> docs/shots/<自分>/<D番号>-<名前>.png`（画面を撮って Read で見る。見た目の確認は必ずこれで）
+- ステップ表にない作業: `npm run step -- X <英語名> --adhoc "目的"`（完了には数えない。PR に理由を1行）
+- lead だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す）
 - 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
 
 ## 報告の形（6行）
