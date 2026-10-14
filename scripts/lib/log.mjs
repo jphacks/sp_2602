@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
-import { ROOT } from "./kit.mjs";
+import { clock, ROOT } from "./kit.mjs";
 
 // 種類 → 見出し。check: true は「- [ ]」で始まり、npm run log -- done で閉じる
 export const SECTIONS = {
@@ -29,13 +29,12 @@ export function logDir() {
 export const logFile = (id) => join(logDir(), `${id}.md`);
 
 const pad = (n) => String(n).padStart(2, "0");
-export const stamp = (d = new Date()) =>
-  `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+export const stamp = (d = clock()) => `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 // "10/18 10:05" → Date（年は今年）
 export function parseStamp(s) {
   const m = /(\d{1,2})\/(\d{1,2}) (\d{2}):(\d{2})/.exec(s);
   if (!m) return null;
-  return new Date(new Date().getFullYear(), Number(m[1]) - 1, Number(m[2]), Number(m[3]), Number(m[4]));
+  return new Date(clock().getFullYear(), Number(m[1]) - 1, Number(m[2]), Number(m[3]), Number(m[4]));
 }
 const oneLine = (t) =>
   String(t)
@@ -139,7 +138,7 @@ export function minutesSinceStart(member, branch) {
       .filter((l) => l.includes("[開始]") && l.includes(`（${branch}）`))
       .pop();
     const t = line && parseStamp(line);
-    return t ? Math.round((Date.now() - t.getTime()) / 60000) : null;
+    return t ? Math.round((clock().getTime() - t.getTime()) / 60000) : null;
   } catch {
     return null;
   }
@@ -162,7 +161,7 @@ export function summary(member) {
     const stuck = open("stuck");
     const over = stuck.filter((l) => {
       const t = parseStamp(l);
-      return t && Date.now() - t.getTime() > 30 * 60000;
+      return t && clock().getTime() - t.getTime() > 30 * 60000;
     });
     return { file: f, wait: open("wait").length, stuck: stuck.length, todo: open("todo").length, over };
   } catch {
