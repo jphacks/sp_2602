@@ -41,7 +41,7 @@
 ## コマンド
 - `npm run now` 状況とやること / `npm run step -- S2 input-form` ステップ開始（ブランチ＋宣言ひな型） / `npm run doctor` 環境チェック / `npm run preflight` 着手宣言の照合
 - `npm run check` 全検査 / `npm run fix` 整形 / `npm run dev`（http://localhost:3000、`.env` の `MOCK=1` 推奨）
-- `npm run merge -- [PR番号]` CI を待ってからマージ / `npm run issue -- <種類> <宛先> "題名" --body-file <path>` Issue
+- `npm run log -- "メモ"` 個人の作業ログに1行（開始・完了は step / merge が自動で書く。置き場所はリポジトリの外。`npm run log` で今日の分を見る） / `npm run merge -- [PR番号]` CI を待ってからマージ / `npm run issue -- <種類> <宛先> "題名" --body-file <path>` Issue
 - lead だけ: `npm run kit:reset`（キックオフで1回。ひな型の例を消す） / `npm run kit:stub`（契約に合わせて仮の API・画面を置く）
 - 確かめる道具: `npm run api -- <契約名> [--body-file 本文.json]`（契約どおりに API を叩く） / `npm run shot -- <URL> docs/shots/<自分>/<D番号>-<名前>.png`（画面を撮って Read で見る。見た目の確認は必ずこれで）
 - ステップ表にない作業: `npm run step -- X <英語名> --adhoc "目的"`（完了には数えない。PR に理由を1行）

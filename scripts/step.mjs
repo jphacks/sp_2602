@@ -4,6 +4,7 @@
 //   → <自分のid>/X-<名前> ブランチ。ステップの完了には数えない。PR 本文に「なぜステップ外か」を書く。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { currentMember, loadConfig, p, sh, stepStates } from "./lib/kit.mjs";
+import { appendLog } from "./lib/log.mjs";
 
 const argv = process.argv.slice(2);
 const adhocAt = argv.indexOf("--adhoc");
@@ -90,6 +91,9 @@ if (prev?.step === step) {
     `✓ 着手宣言のひな型を .kit/declare-${me.id}.json に作った（npm run declare -- demoStep=… files=… screens=… contracts=… で埋める）`,
   );
 }
+
+// 個人の作業ログ（リポジトリの外。npm run log で見る）
+appendLog(me.id, "開始", `${step} ${goal}（${branch}）`);
 
 console.log(
   `\n次: npm run declare -- … で宣言を埋める（preflight も走る） → 実装 → ${doneCheck === "npm run check" ? "" : `${doneCheck} → `}npm run check → commit → git push -u origin ${branch} → PR`,

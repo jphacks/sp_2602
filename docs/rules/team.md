@@ -37,5 +37,10 @@ API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする�
 - back-a = AI（`src/server/ai/`）、back-b = データと保存（`src/server/data/`）
 - front-a = 画面＋発表、front-b = 共通部品・見た目の仕上げ・スマホ / PC の確認
 
+## 個人の作業ログ（誰が何をしたか）
+- `npm run step` で「開始」、`npm run merge` で「完了」が自動で書かれる。手で書くのは `npm run log -- "…"` で「なぜそうしたか・詰まった所・分かったこと」だけ（1行でよい）。
+- 置き場所はリポジトリの外（Windows は `C:\hackathon\log\<リポジトリ名>\<自分のid>.md`、Mac / Linux は `~/hackathon/log/…`。`KIT_LOG_DIR` で変えられる）。リポジトリは公開なので、個人のメモはそこに出さない。
+- 使いどころ: 同期点の30秒報告（`npm run log` で今日の分を読む）、終わった後の振り返り、発表で「誰が何をしたか」を聞かれた時。
+
 ## 人を決めたら
 kit.config.json の `github` に各自の GitHub のユーザー名を書き、`npm run kit:owners`。members の **1人目がつなぎ役**（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）なので、lead を先頭から動かさない。まとめ役を変えるときは `facilitator` を書き換える。

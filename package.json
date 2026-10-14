@@ -22,6 +22,7 @@
     "declare": "node scripts/declare.mjs",
     "kit:stub": "node scripts/stub.mjs",
     "issue": "node scripts/issue.mjs",
+    "log": "node scripts/log.mjs",
     "merge": "node scripts/merge.mjs",
     "kit:reset": "node scripts/kit-reset.mjs",
     "kit:schedule": "node scripts/schedule.mjs",

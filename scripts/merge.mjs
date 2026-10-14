@@ -4,7 +4,8 @@
 // 手順: 下書きなら解除 → main より遅れていれば止める（比較 API で数える）→ 先頭コミットの CI が現れて全部終わるまで待つ → 全部成功ならマージ。
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { p } from "./lib/kit.mjs";
+import { currentMember, p } from "./lib/kit.mjs";
+import { appendLog } from "./lib/log.mjs";
 
 const arg = process.argv[2];
 const WAIT_START_MS = 3 * 60 * 1000; // CI が現れるまで待つ上限
@@ -20,7 +21,7 @@ const view = () =>
       "view",
       ...(arg ? [arg] : []),
       "--json",
-      "number,state,isDraft,headRefOid,mergeStateStatus,statusCheckRollup,headRefName,baseRefName",
+      "number,state,isDraft,headRefOid,mergeStateStatus,statusCheckRollup,headRefName,baseRefName,title,url",
     ),
   );
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -121,4 +122,7 @@ try {
 } catch (e) {
   fail(`マージできなかった: ${String(e.stderr ?? e.message).trim()}`);
 }
+// 個人の作業ログ（リポジトリの外）。他人の PR をマージした時は書かない
+const me = currentMember();
+if (me && pr.headRefName.startsWith(`${me.id}/`)) appendLog(me.id, "完了", `#${pr.number} ${pr.title}（${pr.url}）`);
 console.log(`✓ #${pr.number} をマージした。次: git switch main && git pull → npm run now`);
