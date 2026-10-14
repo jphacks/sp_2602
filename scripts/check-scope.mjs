@@ -35,10 +35,17 @@ if (!me) {
   process.exit(1);
 }
 
+// 何と比べるか。オプションなし（npm run check）は「main から分かれた後のブランチ全体＋まだコミットしていない変更」。
+// 以前は未コミットの変更だけを見ていたので、コミット直後や main を取り込んだ直後に「0 件」と出て意味が分からなかった（リハーサル3で4人）
+const hasOriginMain = sh("git rev-parse --verify -q origin/main", { allowFail: true }) !== null;
+const mainRef = hasOriginMain ? "origin/main" : "main";
+const forkPoint = sh(`git merge-base HEAD ${mainRef}`, { allowFail: true });
+const baseRef = opt("--base") ?? (args.includes("--staged") ? "HEAD" : (forkPoint ?? "HEAD"));
 let files;
 if (args.includes("--staged")) files = sh("git diff --cached --name-only --diff-filter=ACMRD");
 else if (opt("--base")) files = sh(`git diff --name-only ${opt("--base")}...HEAD`);
-else files = `${sh("git diff --name-only HEAD")}\n${sh("git ls-files --others --exclude-standard")}`;
+else
+  files = `${forkPoint ? sh(`git diff --name-only ${forkPoint} HEAD`) : ""}\n${sh("git diff --name-only HEAD")}\n${sh("git ls-files --others --exclude-standard")}`;
 files = [
   ...new Set(
     files
@@ -66,7 +73,7 @@ const reset = existsSync(p("scripts/reset/manifest.json"))
 // sh() は出力の末尾を trim するので、比べる時は改行コードと末尾の空白をそろえる（kit-reset.mjs と同じ）
 const norm = (s) => s.replace(/\r\n/g, "\n").trimEnd();
 const sha = (s) => createHash("sha256").update(norm(s)).digest("hex");
-const before = (f) => sh(`git show "${opt("--base") ?? "HEAD"}:${f}"`, { allowFail: true });
+const before = (f) => sh(`git show "${baseRef}:${f}"`, { allowFail: true });
 function byReset(f) {
   const m = reset[f];
   if (!ownsContracts || !m) return false;
@@ -98,4 +105,9 @@ if (errors.length) {
   console.error("\n他人のファイルが必要なら: 所有者に Issue を立てる。契約が足りないなら: change-request Issue。");
   process.exit(1);
 }
-console.log(`✓ ${files.length} 件の変更はすべて ${me.id} の範囲内`);
+const what = args.includes("--staged")
+  ? "コミットする変更"
+  : opt("--base")
+    ? `${opt("--base")} からの変更`
+    : `${mainRef} から分かれた後の変更（未コミットを含む）`;
+console.log(`✓ ${what} ${files.length} 件はすべて ${me.id} の範囲内`);

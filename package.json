@@ -23,7 +23,10 @@
     "kit:stub": "node scripts/stub.mjs",
     "issue": "node scripts/issue.mjs",
     "merge": "node scripts/merge.mjs",
-    "kit:reset": "node scripts/kit-reset.mjs"
+    "kit:reset": "node scripts/kit-reset.mjs",
+    "kit:schedule": "node scripts/schedule.mjs",
+    "shot": "node scripts/shot.mjs",
+    "api": "node scripts/api.mjs"
   },
   "dependencies": {
     "next": "^16.4.0",

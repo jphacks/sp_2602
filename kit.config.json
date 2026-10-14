@@ -120,7 +120,7 @@
       "owns": ["docs/pitch/**", "docs/DEMO.md", "tests/e2e/**"]
     }
   ],
-  "shared": ["docs/requirements/**", "docs/members/**", "docs/data-wishlist.md", "README.md"],
+  "shared": ["docs/requirements/**", "docs/members/**", "docs/data-wishlist.md", "docs/shots/**", "README.md"],
   "ports": {
     "app": 3000
   }

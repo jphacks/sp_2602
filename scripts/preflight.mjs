@@ -56,6 +56,20 @@ for (const s of d.screens ?? [])
 const demo = existsSync(p("docs/DEMO.md")) ? readFileSync(p("docs/DEMO.md"), "utf8") : "";
 if (d.demoStep && !new RegExp(`\\b${d.demoStep}\\b`).test(demo))
   errors.push(`demoStep: ${d.demoStep} は docs/DEMO.md にない`);
+// DEMO.md の台本の行に書かれた画面 id も照合する（リハーサル3: DEMO.md がひな型の home/result のままでも通っていた）
+// キックオフ中は DEMO.md と screens.md が書きかけなので、止めずに警告だけ出す
+const warnings = [];
+const demoRow = demo.split("\n").find((l) => l.startsWith(`| ${d.demoStep} |`));
+const rowScreens = [...(demoRow ?? "").matchAll(/`([a-z0-9-]+)`/g)].map((x) => x[1]);
+for (const s of rowScreens)
+  if (!screens.includes(`\`${s}\``))
+    warnings.push(
+      `docs/DEMO.md の ${d.demoStep} の画面 ${s} が contracts/screens.md にない（DEMO.md が古いかも。pitch / lead に確認）`,
+    );
+if (rowScreens.length && (d.screens ?? []).length && !(d.screens ?? []).some((s) => rowScreens.includes(s)))
+  warnings.push(
+    `screens（${d.screens.join(", ")}）が docs/DEMO.md の ${d.demoStep} の画面（${rowScreens.join(", ")}）と合わない`,
+  );
 
 // 完了確認は実行できるコマンドか
 const pkg = JSON.parse(readFileSync(p("package.json"), "utf8"));
@@ -64,7 +78,7 @@ if (m && !pkg.scripts[m[1]]) errors.push(`doneCheck: npm script '${m[1]}' がな
 
 // ステップは自分のメンバーファイルにあるか
 const mf = p(`docs/members/${me.id}.md`);
-if (d.step && existsSync(mf) && !readFileSync(mf, "utf8").includes(d.step))
+if (d.step && d.step !== "X" && existsSync(mf) && !readFileSync(mf, "utf8").includes(d.step))
   errors.push(`step: ${d.step} は docs/members/${me.id}.md にない`);
 
 if (errors.length) {
@@ -72,5 +86,6 @@ if (errors.length) {
   console.error(`\n読み直す: docs/members/${me.id}.md / contracts/ / docs/DEMO.md`);
   process.exit(1);
 }
+if (warnings.length) console.log(`! 確認してほしいこと（止めはしない）:\n  ${warnings.join("\n  ")}`);
 console.log(`✓ 着手OK: ${d.step} — ${d.goal}`);
 console.log(`  デモ ${d.demoStep} / 契約 ${(d.contracts ?? []).join(", ") || "なし"} / 完了確認: ${d.doneCheck}`);

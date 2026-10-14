@@ -1,6 +1,6 @@
 // npm run declare -- demoStep=D2 screens=home contracts=Item,AnalyzeRequest files=src/app/home/page.tsx goal="…"
 // 着手宣言（.kit/declare-<id>.json）を、JSON を手で編集せずに埋める。書いたあと preflight を自動で実行する。
-// 配列の項目（screens / contracts / newContracts / files）はカンマ区切り。値を空にすると消える（例: screens=）。
+// 配列の項目（screens / contracts / newContracts / files）はカンマ区切り。値を空にすると消える（例: contracts=）。「なし」「none」「-」も空。
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { currentMember, loadConfig, p } from "./lib/kit.mjs";
@@ -41,11 +41,13 @@ for (const a of args) {
     console.error(`✗ 分からない項目: ${a}（使えるもの: ${[...STRINGS, ...ARRAYS].join(", ")}）`);
     process.exit(1);
   }
+  // 「使わない」は空で書く（contracts= ）。なし / none / - も空として受け付ける（リハーサル3で4人が「なし」と書いて弾かれた）
+  const NONE = ["なし", "無し", "none", "-"];
   d[key] = ARRAYS.includes(key)
     ? value
         .split(",")
         .map((s) => s.trim())
-        .filter(Boolean)
+        .filter((s) => s && !NONE.includes(s.toLowerCase()))
     : value;
 }
 d.member = me.id;
