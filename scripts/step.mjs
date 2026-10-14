@@ -40,6 +40,7 @@ if (adhoc) {
     );
   if (found.state === "done")
     console.log(`! ${step} はマージ済みの PR がある。追加の修正なら続けてよい（新しい作業なら次のステップへ）`);
+  if (found.state === "wip") console.log(`! ${step} は下書きの PR #${found.pr} で作業中。続きならそのブランチで続ける`);
   if (found.state === "pr")
     console.log(`! ${step} は PR #${found.pr} がマージ待ち。追加の修正ならそのブランチで続ける`);
   line = `- ${found.id} ${found.text}`;
@@ -97,5 +98,5 @@ appendLog(me, "開始", `${step} ${goal}（${branch}）`);
 setNow(me, `${step} ${goal}（${branch}）`);
 
 console.log(
-  `\n次: npm run declare -- … で宣言を埋める（preflight も走る） → 実装 → ${doneCheck === "npm run check" ? "" : `${doneCheck} → `}npm run check → commit → git push -u origin ${branch} → PR`,
+  `\n次: npm run declare -- … で宣言を埋める（preflight が通ると下書きの PR ができる） → 実装 → ${doneCheck === "npm run check" ? "" : `${doneCheck} → `}npm run check → commit → git push → PR 本文の完了確認を埋めて npm run merge`,
 );

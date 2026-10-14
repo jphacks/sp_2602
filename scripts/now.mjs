@@ -1,12 +1,33 @@
 // npm run now — 「今何をするか」を決めるための状況を短く出す。AI も人間も作業の区切りごとに実行する。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  deadlineIssues,
+  itemState,
+  leftText,
+  minutesUntil,
+  ownersOf,
+  PRIORITY,
+  relevantDeadlines,
+  renderDeadline,
+} from "./lib/deadlines.mjs";
 import { apiRoutes, gaps, isStub, screenRows } from "./lib/gaps.mjs";
-import { currentMember, fmtTime, helpPhase, loadConfig, ownerOf, p, phaseAt, sh, stepStates } from "./lib/kit.mjs";
+import {
+  clock,
+  currentMember,
+  fmtTime,
+  helpPhase,
+  loadConfig,
+  ownerOf,
+  p,
+  phaseAt,
+  sh,
+  stepStates,
+} from "./lib/kit.mjs";
 import { summary } from "./lib/log.mjs";
 
 const cfg = loadConfig();
 const me = currentMember(cfg);
-const now = new Date();
+const now = clock();
 const out = [];
 const todo = [];
 const statePath = p(".kit-state.json");
@@ -18,13 +39,37 @@ const policy = current?.changes ?? "open";
 const policyText = { open: "自由に変更可", additive: "追加のみ（change-request Issue 経由）", frozen: "変更禁止" }[
   policy
 ];
-out.push(`## 時刻 ${fmtTime(now.toISOString())}  フェーズ: ${current ? current.name : "開始前"}  契約: ${policyText}`);
+out.push(
+  `## 時刻 ${fmtTime(now.toISOString())}  フェーズ（目安）: ${current ? current.name : "開始前"}  契約: ${policyText}`,
+);
 if (current) out.push(`ルール: ${current.rule}`);
-if (next) out.push(`次: ${fmtTime(next.at)} ${next.name}（あと${Math.round((new Date(next.at) - now) / 60000)}分）`);
+if (next) out.push(`次の目安: ${fmtTime(next.at)} ${next.name}（${leftText(minutesUntil(next.at, now))}）`);
 const help = helpPhase(cfg, now);
 out.push(
   `合流: ${help.text}${help.nextSync ? `（次に合流を決める同期点 ${fmtTime(help.nextSync.at)} ${help.nextSync.name}）` : ""}`,
 );
+
+// 1b. 締め切り（運営が決めた動かない時刻と、それまでにやること。kit.config.json の deadlines）
+// やることの完了は Issue（ラベル deadline）が閉じたかで見る。近い・過ぎたのに残っている自分の担当は「やること」の先頭へ
+const urgent = [];
+const stale = []; // 1時間以上前に期限が過ぎたのに残っているもの（閉じ忘れが多い）。先頭を占領しないよう最後に1行で出す
+if ((cfg.deadlines ?? []).length) {
+  const issues = sh("git remote get-url origin", { allowFail: true }) ? deadlineIssues() : null;
+  for (const d of relevantDeadlines(cfg, issues, { now })) {
+    out.push("", ...renderDeadline(d, cfg, issues, { me, now }));
+    for (const i of d.items) {
+      if (!me || !ownersOf(i, cfg).includes(me.id) || itemState(i, issues).state === "done") continue;
+      const min = minutesUntil(i.due, now);
+      const text = `【${d.name}・${PRIORITY[i.priority]}・${leftText(min)}】${i.what}${itemState(i, issues).number ? `（終わったら #${itemState(i, issues).number} を閉じる）` : ""}`;
+      if (min < -60) stale.push(itemState(i, issues).number ? `#${itemState(i, issues).number}` : i.what);
+      else if (min <= 60) urgent.push(text);
+      else if (i.priority === "must" && min <= 180) todo.push(text);
+    }
+  }
+  if (issues === null) out.push("（やることの完了は GitHub の Issue で見る。取得できないので ・ は未確認）");
+  const frozen = (cfg.deadlines ?? []).find((d) => d.freeze && Date.parse(d.at) <= now.getTime());
+  if (frozen) urgent.unshift(`${frozen.name}を過ぎた: コミット・push はしない（発表の準備へ）`);
+}
 
 // 2. 自分
 if (!me) {
@@ -138,10 +183,12 @@ if (hasRemote && me) {
 if (me) {
   const st = stepStates(me);
   if (st) {
-    const mark = { done: "✓", pr: "…", todo: "・" };
+    const mark = { done: "✓", pr: "…", wip: "▶", todo: "・" };
     out.push(`\n## ステップ（完了の判定: ${st.source}）`);
     for (const s of st.steps)
-      out.push(`${mark[s.state]} ${s.id} ${s.text}${s.state === "pr" ? `（PR #${s.pr} マージ待ち）` : ""}`);
+      out.push(
+        `${mark[s.state]} ${s.id} ${s.text}${s.state === "pr" ? `（PR #${s.pr} マージ待ち）` : s.state === "wip" ? `（下書き PR #${s.pr} で作業中）` : ""}`,
+      );
     out.push(
       `次のステップ: ${st.next ? `${st.next.id} ${st.next.text}` : `すべて完了またはマージ待ち → まとめ役（${cfg.facilitator ?? cfg.members[0].id}）に次の仕事をもらう`}`,
     );
@@ -193,6 +240,11 @@ if (mine) {
     );
 }
 
+todo.unshift(...urgent);
+if (stale.length)
+  todo.push(
+    `期限を1時間以上過ぎた自分のやること: ${stale.join(" / ")} → 終わっていれば Issue を閉じる。まだなら縮めるか、まとめ役に相談`,
+  );
 if (policy === "frozen") todo.push("フリーズ中: 新機能・契約変更はしない。デモ経路のバグと磨きだけ");
 if (dirty > 0 && todo.length === 0) todo.push("完了確認が通っていれば commit → push → PR（1ステップ = 1PR）");
 if (todo.length === 0) todo.push("次のステップに着手（着手宣言 → preflight → 実装 → 完了確認 → PR）");

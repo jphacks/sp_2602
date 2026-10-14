@@ -4,14 +4,15 @@
 | いつ | やること |
 |---|---|
 | ステップを始める前 | `npm run step -- S<番号> <英語名>`（最新の main からブランチを作る。main に直接コミットすると pre-commit が止める） |
-| ステップが終わった時（30〜60分ごと） | `npm run check` → commit → push → PR |
+| 着手宣言が通った時 | `npm run declare` が下書きの PR を作る（空の「着手」コミットを push する）。誰が何をしているかが `npm run status` と GitHub で見える |
+| ステップが終わった時（30〜60分ごと） | `npm run check` → commit → push → PR 本文の完了確認を埋める |
 | PR を出した後 | 待たずに次のステップへ。CI が落ちたら `npm run now` に出るので最優先で直す |
 | CHANGELOG に新しい行が来た時 | pull → `npm run typecheck` → 自分のコードを直す |
 | 同期点の直前 | 手元の作業を PR にしておく（同期点は main で確認する） |
 
 ## ブランチと PR
 - ブランチ名: `<自分のid>/S<番号>-<短い名前>`（例 `front-a/S2-input-form`）。`npm run step` が作る。`<自分のid>/` で始まらない名前は pre-commit が止める
-- 1ステップ = 1PR。PR 本文のテンプレートに着手宣言の要約を書く。
+- 1ステップ = 1PR。PR は着手宣言の時点で下書きとしてでき、本文に宣言の要約が入る（`npm run declare`。作らないなら `--no-pr`）。宣言を直すと PR にコメントで残る。`npm run merge` が下書きを解除してからマージする。
 - 自分の所有範囲だけの PR は CI が緑なら自分でマージしてよい。**マージは `npm run merge -- <PR番号>`**（今のコミットの CI が現れて全部成功するまで待つ。push 直後の `gh pr checks --watch` は「no checks reported」で即座に正常終了するので、それを見てマージしない）。main より遅れていると止まるので、`git pull origin main` → `npm run check` → push してからもう一度（CI が今の main と合わせて試し直す）。GitHub の画面でマージする人間も、CI の緑を見てから押す。
 - contracts/ や共有ファイルに触れる PR は lead がレビューしてからマージ（CODEOWNERS が自動でレビュー依頼する）。
 - コンフリクトしたら: 自分の所有ファイルは自分で解決。他人のファイルでコンフリクトしたら、そもそも範囲外を触っている。

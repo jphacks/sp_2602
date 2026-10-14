@@ -26,6 +26,9 @@
     "merge": "node scripts/merge.mjs",
     "kit:reset": "node scripts/kit-reset.mjs",
     "kit:schedule": "node scripts/schedule.mjs",
+    "kit:deadlines": "node scripts/deadlines.mjs",
+    "kit:alarm": "node scripts/alarm.mjs",
+    "status": "node scripts/status.mjs",
     "shot": "node scripts/shot.mjs",
     "api": "node scripts/api.mjs",
     "db:push": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/db-push.mjs"

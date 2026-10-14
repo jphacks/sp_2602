@@ -55,7 +55,28 @@ export function sh(cmd, { allowFail = false } = {}) {
   }
 }
 
-export function phaseAt(cfg, now = new Date()) {
+// 今の時刻。リハーサル・試験用に、KIT_NOW（例: 2026-10-17T18:20:00+09:00）で「起動した瞬間の時刻」を決められる（そこから時計は進む）。
+// KIT_CLOCK_SPEED（例: 60）を足すと、その倍の速さで進む（60 なら実際の1秒が1分）
+const clockStart = Date.now();
+const clockBase = process.env.KIT_NOW ? Date.parse(process.env.KIT_NOW) : clockStart;
+export const clockSpeed = Number(process.env.KIT_CLOCK_SPEED) > 0 ? Number(process.env.KIT_CLOCK_SPEED) : 1;
+export const clock = () => new Date(clockBase + (Date.now() - clockStart) * clockSpeed);
+
+// gh を呼んで JSON を返す。使えない（未認証・ネットワーク・remote なし）なら null
+export function ghJson(args) {
+  const r = sh(`gh ${args}`, { allowFail: true });
+  try {
+    return r ? JSON.parse(r) : null;
+  } catch {
+    return null;
+  }
+}
+
+// 同じ GitHub アカウントを複数人で使っているか（リハーサル等）。その場合 Issue の宛先は member:<id> ラベル、PR はブランチ名の先頭で見分ける
+export const sharesAccount = (cfg, member) =>
+  cfg.members.filter((m) => m.github.toLowerCase() === member.github.toLowerCase()).length > 1;
+
+export function phaseAt(cfg, now = clock()) {
   const ms = [...cfg.milestones].sort((a, b) => new Date(a.at) - new Date(b.at));
   let current = null;
   let next = null;
@@ -69,7 +90,8 @@ export function phaseAt(cfg, now = new Date()) {
 // ステップの状態。完了は「マージ済み PR のブランチ名 <id>/S<番号>-…」から自動で判定する（手で印は付けない）。
 // gh が使えないときは、手元の main のマージコミットの件名から判定する。ただし npm run merge はスカッシュマージ（件名にブランチ名が残らない）なので、
 // remote がある時のこの判定は「完了」を見落とす。そのことを source に出す。
-//   返り値: { steps: [{ id, text, state: "done" | "pr" | "todo", pr? }], next } / メンバーファイルがなければ null
+//   返り値: { steps: [{ id, text, state: "done" | "pr" | "wip" | "todo", pr? }], next } / メンバーファイルがなければ null
+//   wip = 下書きの PR（npm run declare が作る）で作業中。pr = 下書きでない PR がマージ待ち
 export function stepStates(me) {
   const file = p(`docs/members/${me.id}.md`);
   if (!existsSync(file)) return null;
@@ -87,7 +109,7 @@ export function stepStates(me) {
   if (hasRemote) {
     try {
       prs = JSON.parse(
-        sh("gh pr list --state all --limit 300 --json number,headRefName,state", { allowFail: true }) ?? "null",
+        sh("gh pr list --state all --limit 300 --json number,headRefName,state,isDraft", { allowFail: true }) ?? "null",
       );
     } catch {}
   }
@@ -96,7 +118,7 @@ export function stepStates(me) {
       const m = branchStep.exec(pr.headRefName);
       if (!m) continue;
       if (pr.state === "MERGED") merged.add(m[1]);
-      else if (pr.state === "OPEN") open.set(m[1], pr.number);
+      else if (pr.state === "OPEN") open.set(m[1], pr);
     }
   } else {
     const log = sh(`git log ${hasRemote ? "origin/main" : "main"} --merges --format=%s`, { allowFail: true }) ?? "";
@@ -108,8 +130,8 @@ export function stepStates(me) {
   for (const s of steps) {
     if (merged.has(s.id)) s.state = "done";
     else if (open.has(s.id)) {
-      s.state = "pr";
-      s.pr = open.get(s.id);
+      s.state = open.get(s.id).isDraft ? "wip" : "pr";
+      s.pr = open.get(s.id).number;
     }
   }
   const source = prs
@@ -124,7 +146,7 @@ export function stepStates(me) {
 //   carve  : 切り出し型の合流もしてよい
 //   verify : 確認・テストの手伝いだけ（新しいコードを増やさない）
 //   all    : フリーズ後。全員がデモの不具合修正・通し練習
-export function helpPhase(cfg, now = new Date()) {
+export function helpPhase(cfg, now = clock()) {
   const { ms } = phaseAt(cfg, now);
   const freeze = ms.find((m) => m.changes === "frozen");
   const nextSync = ms.find((m) => m.sync && new Date(m.at) > now) ?? null;

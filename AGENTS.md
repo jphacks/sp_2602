@@ -5,10 +5,10 @@
 
 ## 毎回の手順（作業の区切りごとに最初から）
 1. `npm run now` を実行し、出力の「やること」を上から順に処理する。
-2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言は `npm run declare -- demoStep=D2 files=… screens=… contracts=…` で埋める（JSON を手で編集しない。preflight も自動で走る）（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
+2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言は `npm run declare -- demoStep=D2 files=… screens=… contracts=…` で埋める（JSON を手で編集しない。preflight も自動で走り、通ると下書きの PR ができて「作業中」が全員に見える）（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
 3. 実装する。触ってよいのは宣言した自分の所有ファイルだけ。
 4. 宣言した完了確認（doneCheck）を実行する。**出力の全文は PR 本文の「完了確認」欄に貼り**、人間への報告（下の6行）には結果の要点を書く。「できました」だけの報告はしない。
-5. `npm run check`（整形・見た目・型・テスト・範囲）が通ったら commit → push → PR。1ステップ = 1PR。マージは必ず `npm run merge`（CI が今のコミットで通るまで待ってからマージする。`gh pr merge` を直接使わない）。
+5. `npm run check`（整形・見た目・型・テスト・範囲）が通ったら commit → push（PR は declare が下書きで作ってある。本文の完了確認を埋める）。1ステップ = 1PR。マージは必ず `npm run merge`（CI が今のコミットで通るまで待ってからマージする。`gh pr merge` を直接使わない）。
 6. 1に戻る。
 
 ## 絶対に守ること
@@ -19,7 +19,8 @@
 - 見た目は Tailwind のクラスと `contracts/tokens.css` の名前だけ（任意値・style 直書き禁止）。画面遷移は `contracts/screens.md` の表どおり。
 - サーバとの通信は `src/lib/api.ts` の `call()`（1回で返る）と `stream()`（少しずつ返る）だけで行う。`fetch` を手書きしない。画面間のデータは `useFlow()` だけで渡す。依存パッケージを勝手に足さない。
 - 同じ不具合の修正（テスト・型・ビルドが通らない）に2回失敗したら、止まって人間に状況を報告する。道具の失敗（ファイル編集が適用できない、文字化けなど）は修正の失敗に数えず、別の方法（別の編集手段、エンコーディング指定）を1回試してから報告する。
-- フリーズ後（`npm run now` に「変更禁止」と出たら）は新機能を作らない。
+- フリーズ後（`npm run now` に「変更禁止」と出たら）は新機能を作らない。Code Freeze（運営の締め切り）を過ぎたらコミット・push もしない。
+- `npm run now` の「締め切り」に自分の担当（← 自分）が出たら、時刻に間に合うよう優先する。終わったらその Issue を閉じる。
 
 ## いつ何を読むか
 | 状況 | 読むもの |
@@ -48,6 +49,7 @@
 - ステップ表にない作業: `npm run step -- X <英語名> --adhoc "目的"`（完了には数えない。PR に理由を1行）
 - まとめ役だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す。kit.config.json の時刻だけはまとめ役も変えてよい）
 - DB: テーブルは `src/server/db/schema.ts`、使うのは `await db()`。手元は設定なしで動く。Neon に反映は `npm run db:push`（docs/rules/stack.md「DB」）
+- 締め切りと全員の状況: `npm run kit:deadlines`（締め切りとやることの一覧） / `npm run status`（全員の作業中・止まっている人・担当の残り） / `npm run kit:alarm`（人間が別のターミナルで動かす見張り役。AI は動かさない）
 - 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
 
 ## 報告の形（6行）

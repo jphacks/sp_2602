@@ -1,29 +1,135 @@
 {
   "$comment": "チームの正本。メンバー・担当範囲・タイムライン・変更ルールはここだけで決める。CODEOWNERS は npm run kit:owners で生成する。",
-  "$comment_times": "milestones の時刻は仮（当日の時刻表が決まったら書き換える）。sync: true の時刻が「合流を決める・見直す同期点」",
+  "$comment_times": "deadlines = 運営が決めた動かない締め切りと「それまでにやること」（担当・優先度つき。npm run now / kit:alarm が知らせる）。milestones = チームの目安（進みに合わせてまとめ役が kit:schedule でずらす）。sync: true の目安が「合流を決める・見直す同期点」",
   "project": "（プロダクト名）",
   "event": {
-    "start": "2026-10-18T09:00:00+09:00",
-    "end": "2026-10-18T19:00:00+09:00"
+    "start": "2026-10-17T10:20:00+09:00",
+    "end": "2026-10-18T15:00:00+09:00"
   },
+  "deadlines": [
+    {
+      "id": "midpitch",
+      "at": "2026-10-17T18:50:00+09:00",
+      "name": "中間発表",
+      "note": "運営の必須事項はなし",
+      "items": [
+        {
+          "id": "show",
+          "what": "中間発表で見せるもの・話すことを決める（動くところまでで可）",
+          "owner": "front-a",
+          "priority": "should",
+          "by": "2026-10-17T18:30:00+09:00"
+        },
+        {
+          "id": "demo-main",
+          "what": "見せる画面が main で動く",
+          "owner": "lead",
+          "priority": "nice"
+        }
+      ]
+    },
+    {
+      "id": "day1close",
+      "at": "2026-10-17T20:00:00+09:00",
+      "name": "1日目 閉会（会場を出る）",
+      "items": [
+        {
+          "id": "push",
+          "what": "作業中の変更を push する（PC を閉じる前に）",
+          "owner": "all",
+          "priority": "must"
+        },
+        {
+          "id": "night-plan",
+          "what": "夜に誰が何をするか・連絡手段・2日目の朝の確認を決める",
+          "owner": "front-b",
+          "priority": "must"
+        }
+      ]
+    },
+    {
+      "id": "codefreeze",
+      "at": "2026-10-18T15:00:00+09:00",
+      "name": "Code Freeze（運営）",
+      "note": "以降はコミット・push しない",
+      "freeze": true,
+      "items": [
+        {
+          "id": "demo-path",
+          "what": "DEMO.md の流れが main で端から端まで通る",
+          "owner": "all",
+          "priority": "must"
+        },
+        {
+          "id": "merge-all",
+          "what": "作業中の PR をすべてマージするか閉じる",
+          "owner": "all",
+          "priority": "must",
+          "by": "2026-10-18T14:45:00+09:00"
+        },
+        {
+          "id": "readme",
+          "what": "README.md（JPHACKS のひな型）を埋める。「開発技術」に事前に用意したもの（このキット）と当日作ったものを分けて書く",
+          "owner": "lead",
+          "priority": "must",
+          "by": "2026-10-18T14:30:00+09:00"
+        },
+        {
+          "id": "record",
+          "what": "DEMO.md どおりの画面をバックアップ録画（docs/pitch/）",
+          "owner": "front-a",
+          "priority": "must",
+          "by": "2026-10-18T14:30:00+09:00"
+        }
+      ]
+    },
+    {
+      "id": "pitch",
+      "at": "2026-10-18T16:00:00+09:00",
+      "name": "ピッチ（1チーム90秒・拍手で強制終了）",
+      "items": [
+        {
+          "id": "script90",
+          "what": "台本を90秒に収める（DEMO.md の秒数の合計を90以下に）",
+          "owner": "front-a",
+          "priority": "must",
+          "by": "2026-10-18T12:00:00+09:00"
+        },
+        {
+          "id": "video90",
+          "what": "紹介動画を90秒に編集して書き出す",
+          "owner": "front-a",
+          "priority": "must",
+          "by": "2026-10-18T15:30:00+09:00"
+        },
+        {
+          "id": "rehearsal",
+          "what": "時間を計って通し練習（90秒を超えたら削る）",
+          "owner": "all",
+          "priority": "should",
+          "by": "2026-10-18T15:30:00+09:00"
+        }
+      ]
+    }
+  ],
   "milestones": [
     {
       "id": "kickoff",
-      "at": "2026-10-18T09:00:00+09:00",
+      "at": "2026-10-17T10:20:00+09:00",
       "name": "キックオフ",
       "changes": "open",
-      "rule": "課題1文・DEMO.md・欲しいデータの洗い出し→削る。コードはまだ書かない"
+      "rule": "課題1文・DEMO.md（90秒）・欲しいデータの洗い出し→削る。コードはまだ書かない"
     },
     {
       "id": "contract",
-      "at": "2026-10-18T10:00:00+09:00",
+      "at": "2026-10-17T11:30:00+09:00",
       "name": "契約凍結",
       "changes": "additive",
       "rule": "contracts/ と screens.md を凍結。以降の追加は change-request Issue で、同期点でまとめて決める"
     },
     {
       "id": "sync1",
-      "at": "2026-10-18T12:00:00+09:00",
+      "at": "2026-10-17T14:00:00+09:00",
       "name": "同期点1",
       "changes": "additive",
       "rule": "全員の現状を main で通す。溜まった change-request をここで採否",
@@ -31,15 +137,31 @@
     },
     {
       "id": "integrate",
-      "at": "2026-10-18T14:00:00+09:00",
+      "at": "2026-10-17T17:00:00+09:00",
       "name": "第1統合",
       "changes": "additive",
-      "rule": "DEMO.md を main で端から端まで通す。赤のスライスは縮退（切る→Stretch→再割当）",
+      "rule": "DEMO.md を main で端から端まで通す（中間発表で見せる形に）。赤のスライスは縮退（切る→Stretch→再割当）",
+      "sync": true
+    },
+    {
+      "id": "night",
+      "at": "2026-10-17T20:30:00+09:00",
+      "name": "夜の作業（オンライン）",
+      "changes": "additive",
+      "rule": "1日目の閉会で決めた分担で進める。中間発表の講評は change-request に",
+      "sync": true
+    },
+    {
+      "id": "day2",
+      "at": "2026-10-18T09:50:00+09:00",
+      "name": "2日目の始め",
+      "changes": "additive",
+      "rule": "夜の変更を main で通し、残りのステップを Code Freeze までに収まるよう決め直す",
       "sync": true
     },
     {
       "id": "freeze",
-      "at": "2026-10-18T17:30:00+09:00",
+      "at": "2026-10-18T13:30:00+09:00",
       "name": "機能フリーズ",
       "changes": "frozen",
       "rule": "新機能・契約変更は禁止。デモ経路のバグ修正・磨き・通し練習のみ",
@@ -47,10 +169,10 @@
     },
     {
       "id": "record",
-      "at": "2026-10-18T18:30:00+09:00",
+      "at": "2026-10-18T14:30:00+09:00",
       "name": "バックアップ録画",
       "changes": "frozen",
-      "rule": "DEMO.md 通りの画面を録画して docs/pitch/ に置く"
+      "rule": "DEMO.md 通りの画面を録画して docs/pitch/ に置く。Code Freeze（15:00）の前に撮り、問題があれば直せるようにする"
     }
   ],
   "help": {

@@ -7,9 +7,11 @@
 - 詰まったら: 自分の作業は 30分で解決しなければ全員に声をかける（まとめ役が止まると進行が止まる）。契約・API のことは lead へ
 
 ## まとめ役の仕事（kit.config.json の facilitator）
+- `npm run status` で全員の状況を見る（30分以上動きのない人・PR のない人・必須の締め切りが近い人に印が出る）。`npm run kit:alarm` は全員分を知らせる
 - 同期点を進行する（docs/rules/sync.md。15分以内）。change-request の採否も同期点で進める（契約として通るかは lead が判断）
 - 合流（手伝い）を決める（docs/rules/help.md）。`blocked` Issue が30分以上動かない時はその場で決めてよい
-- 進みが時計とずれたら `npm run kit:schedule` で時刻表を直す（kit.config.json の時刻だけはコミットしてよい）。直したら decisions.md に1行
+- 進みが時計とずれたら `npm run kit:schedule` で目安を直す（kit.config.json の時刻だけはコミットしてよい。運営の締め切りは動かない）。直したら decisions.md に1行
+- 前日: `npm run kit:deadlines -- issues` で締め切りのやることを Issue にする。1日目の閉会までに夜の分担を決める
 - 手が空いた人に次の仕事を渡す（`npm run now` で「すべて完了」と出た人が来る）
 - 自分の画面より進行を優先してよい。手が回らない時は共通部品を front-a / lead に Issue で渡す
 

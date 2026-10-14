@@ -43,3 +43,24 @@ describe(`契約と実装（${strict ? "厳格" : "未実装は警告のみ"}）
     );
   });
 });
+
+// 締め切り（kit.config.json の deadlines）の書き間違いを止める。npm run now / kit:alarm / kit:deadlines が黙って読み飛ばさないように
+type Item = { id: string; what: string; owner: string | string[]; priority: string; by?: string };
+type Deadline = { id: string; at: string; name: string; items?: Item[] };
+describe("kit.config.json の締め切り", () => {
+  const deadlines = (cfg as unknown as { deadlines?: Deadline[] }).deadlines ?? [];
+  const memberIds = cfg.members.map((m) => m.id);
+  it("締め切りの id が重ならず、時刻が読める", () => {
+    expect(new Set(deadlines.map((d) => d.id)).size).toBe(deadlines.length);
+    for (const d of deadlines) expect(Number.isFinite(Date.parse(d.at)), `${d.id} の at`).toBe(true);
+  });
+  it.each(deadlines.flatMap((d) => (d.items ?? []).map((i) => [`${d.id}/${i.id}`, d, i] as const)))(
+    "%s",
+    (_key, d, i) => {
+      expect(["must", "should", "nice"], "priority は must / should / nice").toContain(i.priority);
+      for (const o of [i.owner].flat()) expect([...memberIds, "all"], `owner ${o} が members にない`).toContain(o);
+      if (i.by) expect(Date.parse(i.by) <= Date.parse(d.at), `by（${i.by}）が締め切りより後`).toBe(true);
+      expect((d.items ?? []).filter((x) => x.id === i.id).length, "item の id が重なっている").toBe(1);
+    },
+  );
+});
