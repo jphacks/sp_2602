@@ -56,12 +56,29 @@ try {
 }
 console.log(`${method} ${path} → ${res.status}（${Date.now() - started}ms）`);
 if (kind === "stream" && res.body) {
+  // ストリームは HTTP 200 を返した後で {"type":"error"} を送ることがある。1行ずつ読んで、error が来たか・done が来ないまま
+  // 終わったら失敗にする（HTTP の状態だけで決めると、処理の失敗を成功と見間違える: レビュー指摘）
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  let last = null;
   for (;;) {
     const { value, done } = await reader.read();
-    if (value) process.stdout.write(value);
-    if (done) break;
+    if (value) {
+      process.stdout.write(value);
+      buffer += value;
+    }
+    const lines = buffer.split("\n");
+    buffer = done ? "" : (lines.pop() ?? "");
+    for (const l of lines.filter((s) => s.trim())) {
+      try {
+        last = JSON.parse(l).type ?? last;
+      } catch {}
+      if (last === "error") break;
+    }
+    if (done || last === "error") break;
   }
+  if (res.ok && last !== "done")
+    fail(last === "error" ? "ストリームの途中で失敗した（上の error を読む）" : "ストリームが done を送らずに終わった");
 } else {
   const text = await res.text();
   try {

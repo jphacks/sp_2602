@@ -43,18 +43,27 @@ export function handleStream<K extends StreamRoute>(
       return Response.json(body, { status });
     }
     const encoder = new TextEncoder();
+    // 画面が読むのをやめた（ページを離れた・中断した）ら、fn に渡す signal も止める。止めた後は何も書かない
+    // （以前は処理が最後まで続き、閉じたストリームに書いて例外になっていた: レビュー指摘）
+    const cancelled = new AbortController();
+    const signal = AbortSignal.any([request.signal, cancelled.signal]);
     const body = new ReadableStream<Uint8Array>({
       async start(controller) {
-        const send = (line: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+        const send = (line: unknown) => {
+          if (!signal.aborted) controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+        };
         try {
           const emit = (chunk: Chunk<K>) => send({ type: "chunk", data: route.chunk.parse(chunk) });
-          const result = route.res.parse(await fn(parsed.data as Req<K>, emit, request.signal));
+          const result = route.res.parse(await fn(parsed.data as Req<K>, emit, signal));
           send({ type: "done", data: result });
         } catch (e) {
           send({ type: "error", error: toApiError(e).body });
         } finally {
-          controller.close();
+          if (!signal.aborted) controller.close();
         }
+      },
+      cancel() {
+        cancelled.abort();
       },
     });
     return new Response(body, {

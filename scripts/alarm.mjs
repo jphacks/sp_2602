@@ -78,8 +78,9 @@ if (args.includes("--test")) {
 // ---- 見張り ----
 const cfg0 = loadConfig();
 const me = currentMember(cfg0);
-const showAll = args.includes("--all") || (me && me.id === cfg0.facilitator);
-if (!me && !showAll) console.log("! 自分が未設定（npm run kit:whoami -- <id>）。全員の担当を知らせる");
+// 自分が未設定なら全員分を知らせる（以前は表示で me.id を読んで落ちていた: レビュー指摘）
+const showAll = args.includes("--all") || !me || me.id === cfg0.facilitator;
+if (!me) console.log("! 自分が未設定（npm run kit:whoami -- <id>）。全員の担当を知らせる");
 const watching = (item, cfg) => !me || showAll || ownersOf(item, cfg).includes(me.id);
 
 let issues = null;

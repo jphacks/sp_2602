@@ -71,9 +71,10 @@ if (pr.isDraft) {
 }
 if (pr.mergeStateStatus === "DIRTY") fail(`main と衝突している。${BEHIND_MSG}`);
 const behind = behindBy(pr.baseRefName, sha);
-if (behind === null) console.log("  ! main との差を数えられなかった（gh api）。遅れの確認なしで進む");
-else if (behind > 0)
-  fail(`main より ${behind} コミット遅れている（CI は古い main と合わせて試しただけ）。${BEHIND_MSG}`);
+// 差を数えられないときは止める。確かめずに進むと、古い main を前提にした変更が入ることがある（レビュー指摘）
+if (behind === null)
+  fail(`main との差を GitHub に確かめられなかった（gh api）。マージしない。少し待ってから、もう一度 npm run merge`);
+if (behind > 0) fail(`main より ${behind} コミット遅れている（CI は古い main と合わせて試しただけ）。${BEHIND_MSG}`);
 
 // 先頭コミットの CI だけを見る（古いコミットの「成功」で通さない）
 const started = Date.now();
@@ -114,7 +115,9 @@ for (;;) {
 
 // 待っている間に main が進んでいたら止める（他の人が先にマージした）
 const behindNow = behindBy(pr.baseRefName, sha);
-if (behindNow !== null && behindNow > 0) fail(`待っている間に main が ${behindNow} コミット進んだ。${BEHIND_MSG}`);
+if (behindNow === null)
+  fail("マージの直前に main との差を確かめられなかった（gh api）。マージしない。もう一度 npm run merge");
+if (behindNow > 0) fail(`待っている間に main が ${behindNow} コミット進んだ。${BEHIND_MSG}`);
 
 try {
   // 先頭コミットが確かめたものと同じ時だけマージする

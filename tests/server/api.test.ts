@@ -8,7 +8,7 @@ import { POST as analyzeStream } from "@/app/api/analyze-stream/route";
 import { GET as health } from "@/app/api/health/route";
 import { ApiCallError, call, errorOf, stream } from "@/lib/api";
 import { AppError } from "@/server/errors";
-import { handle } from "@/server/route";
+import { handle, handleStream } from "@/server/route";
 
 process.env.MOCK_STREAM_DELAY_MS = "0";
 
@@ -88,6 +88,28 @@ describe("ストリーム", () => {
     expect(lines.filter((l) => l.type === "chunk")).toHaveLength(fixtures.analyzeStream.chunks.length);
     expect(lines.at(-1)?.type).toBe("done");
   });
+
+  it("画面が読むのをやめたら、処理に渡した signal も止まり、その後は書かない", async () => {
+    let seen: AbortSignal | undefined;
+    let finished = () => {};
+    const ended = new Promise<void>((r) => {
+      finished = r;
+    });
+    const route = handleStream("analyzeStream", async (_req, emit, signal) => {
+      seen = signal;
+      emit({ text: "1" });
+      await new Promise((r) => setTimeout(r, 20));
+      emit({ text: "2" }); // 中断の後。閉じたストリームに書いて例外にならないこと
+      finished();
+      return fixtures.analyzeStream.res;
+    });
+    const res = await route(post({ items: [{ id: "1", name: "x" }] }));
+    const reader = res.body?.getReader();
+    await reader?.read();
+    await reader?.cancel();
+    await ended;
+    expect(seen?.aborted).toBe(true);
+  });
 });
 
 describe("クライアント（lib/api.ts）", () => {
@@ -124,5 +146,11 @@ describe("クライアント（lib/api.ts）", () => {
     vi.stubGlobal("fetch", () => Promise.reject(new TypeError("fetch failed")));
     const e = await call("analyze", { items: [{ id: "1", name: "x" }] }).catch((x) => x);
     expect(e.error.code).toBe("network");
+  });
+
+  it("時間切れは network ではなく timeout", async () => {
+    vi.stubGlobal("fetch", () => Promise.reject(new DOMException("timed out", "TimeoutError")));
+    const e = await call("analyze", { items: [{ id: "1", name: "x" }] }).catch((x) => x);
+    expect(errorOf(e)?.code).toBe("timeout");
   });
 });

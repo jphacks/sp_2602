@@ -43,7 +43,8 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") throw e;
+    // 自分で中断した（AbortError）・時間切れ（AbortSignal.timeout の TimeoutError）はそのまま渡し、errorOf() で見分ける
+    if (e instanceof DOMException && (e.name === "AbortError" || e.name === "TimeoutError")) throw e;
     throw new ApiCallError({ code: "network", ...errorText.network }, 0);
   }
   if (!res.ok) {

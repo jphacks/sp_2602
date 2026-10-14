@@ -11,35 +11,37 @@ import { p } from "./lib/kit.mjs";
 const g = gaps();
 const made = [];
 
-for (const r of g.routes) {
-  const body =
+// 同じ path（= 同じ route.ts）に複数の API（GET と POST など）がある時は、1つのファイルにまとめて書く。
+// 1件ずつ書くと、後の API が前の API を上書きして消していた（レビュー指摘）
+const byFile = Map.groupBy(g.routes, (r) => r.file);
+for (const [file, routes] of byFile) {
+  const kinds = new Set(routes.map((r) => r.kind));
+  const handlers = [kinds.has("json") && "handle", kinds.has("stream") && "handleStream"].filter(Boolean).join(", ");
+  const exports = routes.map((r) =>
     r.kind === "stream"
-      ? `${STUB_MARK}: 契約と一緒に lead が置いた仮の API。担当者が本物に置き換えるときはこの行ごと書き換える。
-import { fixtures } from "@contracts/fixtures";
-import { AppError } from "@/server/errors";
-import { handleStream } from "@/server/route";
-
-export const ${r.method} = handleStream("${r.name}", async (_req, emit) => {
+      ? `export const ${r.method} = handleStream("${r.name}", async (_req, emit) => {
   const f = (fixtures as Record<string, { chunks?: unknown[]; res?: unknown } | undefined>).${r.name};
   if (!f?.res) throw new AppError("internal", "まだ実装されていません（仮の API）");
   for (const c of f.chunks ?? []) emit(c as never);
   return f.res as never;
 });
 `
-      : `${STUB_MARK}: 契約と一緒に lead が置いた仮の API。担当者が本物に置き換えるときはこの行ごと書き換える。
-import { fixtures } from "@contracts/fixtures";
-import { AppError } from "@/server/errors";
-import { handle } from "@/server/route";
-
-export const ${r.method} = handle("${r.name}", async () => {
+      : `export const ${r.method} = handle("${r.name}", async () => {
   const f = (fixtures as Record<string, unknown>).${r.name};
   if (f === undefined) throw new AppError("internal", "まだ実装されていません（仮の API）");
   return f as never;
 });
-`;
-  mkdirSync(dirname(p(r.file)), { recursive: true });
-  writeFileSync(p(r.file), body);
-  made.push(`${r.file}（api.${r.name}）`);
+`,
+  );
+  const body = `${STUB_MARK}: 契約と一緒に lead が置いた仮の API。担当者が本物に置き換えるときはこの行ごと書き換える。
+import { fixtures } from "@contracts/fixtures";
+import { AppError } from "@/server/errors";
+import { ${handlers} } from "@/server/route";
+
+${exports.join("\n")}`;
+  mkdirSync(dirname(p(file)), { recursive: true });
+  writeFileSync(p(file), body);
+  made.push(`${file}（${routes.map((r) => `api.${r.name}`).join("・")}）`);
 }
 
 for (const s of g.pages) {
