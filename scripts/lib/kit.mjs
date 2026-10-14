@@ -30,13 +30,49 @@ export function globToRegex(glob) {
 
 export const matches = (file, globs) => globs.some((g) => globToRegex(g).test(file));
 
-// ファイルの所有者 id を返す。共有ファイルは "shared"、誰のものでもなければ null。
+// ファイルの所有者 id を返す。貸し出し中（kit.config.json の loans。npm run handoff）なら借りている人、
+// 共有ファイルは "shared"、誰のものでもなければ null。
 export function ownerOf(file, cfg = loadConfig()) {
+  const f = file.replace(/\\/g, "/");
+  const loan = (cfg.loans ?? []).find((l) => l.files?.includes(f));
+  if (loan) return loan.to;
+  return baseOwnerOf(f, cfg);
+}
+
+// 貸し出しを見ない、owns どおりの持ち主
+export function baseOwnerOf(file, cfg = loadConfig()) {
   const f = file.replace(/\\/g, "/");
   for (const m of cfg.members) if (matches(f, m.owns)) return m.id;
   if (matches(f, cfg.shared ?? [])) return "shared";
   return null;
 }
+
+// 貸し出し（loans の1件）として通らない理由を返す。通るなら null。by = 貸す操作をする人の id。
+// npm run handoff（書く前）と npm run scope（コミットされた kit.config.json の検査）の両方で同じ判定を使う
+export function loanProblem(loan, cfg, by) {
+  const lead = cfg.members[0].id;
+  if (!Number.isInteger(loan.issue) || loan.issue <= 0) return "issue は help Issue の番号（正の整数）";
+  if (Number.isNaN(Date.parse(loan.at ?? ""))) return "at（貸した時刻）がない";
+  if (!cfg.members.some((m) => m.id === loan.to)) return `借りる人 ${loan.to} は members にない`;
+  if (!Array.isArray(loan.files) || !loan.files.length) return "files が空";
+  for (const f of loan.files) {
+    if (typeof f !== "string" || /[*?]/.test(f)) return `${f}: ファイルは1つずつ名前で書く（* は使えない）`;
+    if (f.startsWith("/") || f.split("/").includes("..") || /^[A-Za-z]:/.test(f))
+      return `${f}: リポジトリ内の相対パスで書く`;
+    if (f.startsWith("contracts/") || f === "kit.config.json")
+      return `${f}: 契約と kit.config.json は貸せない（lead だけが変える）`;
+    const owner = baseOwnerOf(f, cfg);
+    if (owner !== loan.from) return `${f}: 持ち主は ${owner ?? "なし"}（from の ${loan.from} ではない）`;
+    if ((cfg.loans ?? []).some((l) => l !== loan && l.files?.includes(f))) return `${f}: すでに貸し出し中`;
+  }
+  if (loan.to === loan.from) return "自分に貸すことはできない";
+  if (![loan.from, cfg.facilitator, lead].includes(by))
+    return `貸せるのは持ち主（${loan.from}）・まとめ役・${lead} だけ`;
+  return null;
+}
+
+// 貸し出しの期限: 貸した後の最初の同期点（合流と同じ。docs/rules/help.md）。同期点がもうなければ null
+export const loanDue = (cfg, loan) => cfg.milestones.find((m) => m.sync && new Date(m.at) > new Date(loan.at)) ?? null;
 
 // 自分が誰か: 環境変数 KIT_MEMBER → .kit-member ファイル（git 管理外）。
 export function currentMember(cfg = loadConfig()) {

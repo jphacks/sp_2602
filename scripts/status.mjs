@@ -5,6 +5,7 @@
 //   最後の動き: その人の PR が最後に更新された・マージされた時刻。30分以上なければ印（止まっている・詰まっているかも）
 //   頼まれごと: その人宛ての open な Issue（bug / blocked / help / change-request / task）
 //   締め切り : 次の締め切りまでの、その人の担当で終わっていないやること
+//   貸し借り : npm run handoff で貸している・借りているファイル（期限切れなら印）
 import {
   deadlineIssues,
   itemState,
@@ -14,7 +15,7 @@ import {
   PRIORITY,
   relevantDeadlines,
 } from "./lib/deadlines.mjs";
-import { clock, fmtTime, ghJson, loadConfig, phaseAt, sharesAccount } from "./lib/kit.mjs";
+import { clock, fmtTime, ghJson, loadConfig, loanDue, phaseAt, sharesAccount } from "./lib/kit.mjs";
 
 const IDLE_MIN = 30;
 const cfg = loadConfig();
@@ -80,6 +81,16 @@ for (const m of cfg.members) {
     console.log(
       `  締め切りの担当: ${dues.map((i) => `${PRIORITY[i.priority]} ${i.what}（${leftText(minutesUntil(i.due, now))}）`).join(" / ")}`,
     );
+
+  for (const l of (cfg.loans ?? []).filter((l) => [l.from, l.to].includes(m.id))) {
+    const due = loanDue(cfg, l);
+    const expired = due && new Date(due.at) <= now;
+    const what = l.to === m.id ? `${l.from} から借りている` : `${l.to} に貸している`;
+    console.log(
+      `  ${what} #${l.issue}: ${l.files.join(", ")}  期限: ${due ? fmtTime(due.at) : "なし"}${expired ? " ← 期限切れ" : ""}`,
+    );
+    if (expired && l.to === m.id) flags.push(`${m.id}: 貸し出し #${l.issue} の期限切れ → 返すか、続けるか決め直す`);
+  }
 
   if (idle !== null && idle >= IDLE_MIN)
     flags.push(`${m.id}: ${idle}分動きなし → 声をかける（詰まっていれば合流を検討）`);

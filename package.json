@@ -29,6 +29,7 @@
     "kit:deadlines": "node scripts/deadlines.mjs",
     "kit:alarm": "node scripts/alarm.mjs",
     "status": "node scripts/status.mjs",
+    "handoff": "node scripts/handoff.mjs",
     "shot": "node scripts/shot.mjs",
     "api": "node scripts/api.mjs",
     "db:push": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/db-push.mjs"

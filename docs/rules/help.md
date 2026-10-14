@@ -23,5 +23,28 @@
 
 ## 手伝い方の種類（上から優先）
 1. **コードを触らない手伝い**：テストを書く、デモ用データを作る、操作して不具合を Issue にする。衝突しない。
-2. **切り出し**：手伝われる人のステップを1つ新しいファイルに切り出し、まとめ役が決め、lead が kit.config.json でそのファイルの所有者を手伝う人にする（PR）。範囲チェックはそのまま効く。手伝う人も着手宣言と preflight を通す。
+2. **切り出し（貸し出し）**：手伝われる人のステップの一部を新しいファイルに切り出し、そのファイルだけを期限つきで手伝う人に貸す（下の「貸し出しの手順」）。範囲チェックはそのまま効く。手伝う人も着手宣言と preflight を通す。
 3. **同じファイルを一緒に**：最後の手段。ペアで1つの画面を見ながら、書くのは片方だけ。
+
+## 貸し出しの手順（`npm run handoff`）
+lead に kit.config.json を書き換えてもらわなくても、持ち主本人（不在ならまとめ役）が貸せる。
+
+1. まとめ役が合流を決め、`help` Issue を立てる（上の「決め方」）。
+2. 貸す人が、切り出すファイルを決めて貸す。まだないファイルでもよい（例: 処理の一部を `score.ts` に分けるなら、その新しいファイルを貸す）。
+   ```
+   npm run handoff -- lend back-b src/server/quiz/score.ts --issue 23
+   ```
+   kit.config.json の `loans` に1件足される → `npm run check` → PR → `npm run merge`。main に入ると、hook・check・CI・preflight が、そのファイルを借りた人のものとして扱う。
+3. 借りた人は、ふつうのステップと同じく `npm run step -- X help-23 --adhoc "合流 #23"` → 着手宣言の files にそのファイルを書く → 実装 → PR → `npm run merge`。レビュー役（CODEOWNERS）は元の持ち主のまま。
+4. 終わったら（遅くとも期限の同期点で）、借りた人の PR をマージしてから返す: `npm run handoff -- return 23` → PR → マージ。help Issue を閉じる。
+
+- 期限は貸した後の最初の同期点。過ぎると `npm run now` と `npm run status` に「期限切れ」と出る。
+- 貸せないもの: `contracts/` と kit.config.json（lead だけが変える）、`*` を使った指定（1ファイルずつ名前で書く）、すでに貸し出し中のファイル。
+- 切り出しの合流を始めてよい時間帯（上の表）を過ぎると、`lend` は止まる。返す `return` はいつでもできる。
+- 一覧は `npm run handoff`。
+
+## 他の人の設計・API を待っていて進めないとき
+待つ間も止まらない。上から順に試す。
+1. **仮の形で進める**：契約（`contracts/`）があれば、仮の API・画面（`npm run kit:stub`）と固定のデモ用データ（`contracts/fixtures.ts`）、`MOCK=1` で、相手の完成を待たずに自分の側を作れる。デザインが来ていなければ `contracts/tokens.css` の名前だけで作り、見た目は後で差し替える。
+2. **待っていることを残す**：`npm run log -- wait "back-a の score API（#14）"`。契約そのものが足りないなら change-request（docs/rules/changes.md）。
+3. **30分動かなければ**：まとめ役に `npm run issue -- blocked <まとめ役id> "…"`。まとめ役は、待たれている人の作業の一部を、手の空いている人に貸す（上の貸し出し）か、順番を入れ替える。

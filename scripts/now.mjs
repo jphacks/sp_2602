@@ -17,6 +17,7 @@ import {
   fmtTime,
   helpPhase,
   loadConfig,
+  loanDue,
   ownerOf,
   p,
   phaseAt,
@@ -48,6 +49,19 @@ const help = helpPhase(cfg, now);
 out.push(
   `合流: ${help.text}${help.nextSync ? `（次に合流を決める同期点 ${fmtTime(help.nextSync.at)} ${help.nextSync.name}）` : ""}`,
 );
+// 貸し出し（npm run handoff）: 期限は貸した後の最初の同期点
+for (const l of cfg.loans ?? []) {
+  const due = loanDue(cfg, l);
+  const expired = due && new Date(due.at) <= now;
+  const role = l.to === me?.id ? "借りている" : l.from === me?.id ? "貸している" : "貸し出し";
+  out.push(
+    `${role} #${l.issue} ${l.from} → ${l.to}: ${l.files.join(", ")}  期限: ${due ? `${fmtTime(due.at)} ${due.name}` : "なし"}${expired ? "  ← 期限切れ" : ""}`,
+  );
+  if (expired && me && [l.from, l.to].includes(me.id))
+    todo.push(
+      `貸し出し #${l.issue} の期限が来た → 借りた人の PR をマージしてから \`npm run handoff -- return ${l.issue}\`（続けるなら同期点で決め直す）`,
+    );
+}
 
 // 1b. 締め切り（運営が決めた動かない時刻と、それまでにやること。kit.config.json の deadlines）
 // やることの完了は Issue（ラベル deadline）が閉じたかで見る。近い・過ぎたのに残っている自分の担当は「やること」の先頭へ

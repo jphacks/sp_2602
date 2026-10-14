@@ -267,6 +267,8 @@
     "README.md",
     "src/server/db/schema.ts"
   ],
+  "$comment_loans": "貸し出し（期限つきの委託）。npm run handoff で足す・消す。手で編集しない。ここにあるファイルは owns より優先して to の人のもの（docs/rules/help.md）",
+  "loans": [],
   "ports": {
     "app": 3000
   }
