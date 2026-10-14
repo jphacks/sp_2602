@@ -9,7 +9,7 @@
 | `.codex/hooks/*.mjs` | hook の中身（判定は Claude 用の `.claude/hooks/` と同じ） |
 
 ## 最初に1回（Codex を使う人だけ）
-`npm run kit:setup` など全員の準備（docs/kit/README.md）を済ませてから:
+全員の準備（docs/kit/setup.md の `npm run kit:setup -- <id>`）を済ませてから:
 
 1. **リポジトリ直下で**起動する。hook はリポジトリ直下からの相対パスで動くため、サブフォルダで起動すると守りが効かない。
    ```powershell

@@ -3,6 +3,9 @@
 ハッカソンのチーム開発用リポジトリ。5人がそれぞれ自分の範囲だけを作り、`contracts/` の型で繋がる。
 **このファイルは判断の手順だけ。詳細は下の表で必要になった時だけ読む。**
 
+## 最初に1回（このPCで初めて使うとき・clone した直後）
+**ほかの何よりも先に** `docs/kit/setup.md` を上から実行して確かめ、結果を人間に報告する。中心は `npm run kit:setup -- <自分のid>`（npm ci・git hooks・自分の設定・.env・GitHub・doctor を順に行う）。自分の id は人間に聞く（推測しない）。`npm run now` の先頭に「このPCの準備がまだ」と出たときも、ここに戻る。
+
 ## 毎回の手順（作業の区切りごとに最初から）
 1. `npm run now` を実行し、出力の「やること」を上から順に処理する。
 2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言は `npm run declare -- demoStep=D2 files=… screens=… contracts=…` で埋める（JSON を手で編集しない。preflight も自動で走り、通ると下書きの PR ができて「作業中」が全員に見える）（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
@@ -50,7 +53,7 @@
 - まとめ役だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す。kit.config.json の時刻だけはまとめ役も変えてよい）
 - DB: テーブルは `src/server/db/schema.ts`、使うのは `await db()`。手元は設定なしで動く。Neon に反映は `npm run db:push`（docs/rules/stack.md「DB」）
 - 締め切りと全員の状況: `npm run kit:deadlines`（締め切りとやることの一覧） / `npm run status`（全員の作業中・止まっている人・担当の残り） / `npm run kit:alarm`（人間が別のターミナルで動かす見張り役。AI は動かさない）
-- 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
+- 最初の準備: `npm run kit:setup -- <id>`（clone 直後に1回。手順と失敗したときは docs/kit/setup.md） / 自分だけ変える: `npm run kit:whoami -- <id>`
 
 ## 報告の形（6行）
 ```
