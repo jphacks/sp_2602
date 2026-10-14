@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { apiRoutes, gaps, isStub, screenRows } from "./lib/gaps.mjs";
 import { currentMember, fmtTime, helpPhase, loadConfig, ownerOf, p, phaseAt, sh, stepStates } from "./lib/kit.mjs";
+import { summary } from "./lib/log.mjs";
 
 const cfg = loadConfig();
 const me = currentMember(cfg);
@@ -180,6 +181,16 @@ if (me) {
     out.push(`\n## 仮のファイル（自分の担当・本物に置き換える）: ${stubs.join(", ")}`);
     todo.push(`仮のファイル ${stubs.length} 件を本物に置き換える（1 行目の KIT-STUB の印ごと書き換える）`);
   }
+}
+
+// 8. 個人の作業ファイル（リポジトリの外。中身は出さず件数だけ）
+const mine = me ? summary(me) : null;
+if (mine) {
+  out.push(`\n## 個人メモ: やること ${mine.todo} / 待ち ${mine.wait} / 行き詰まり ${mine.stuck}（npm run log）`);
+  for (const l of mine.over)
+    todo.push(
+      `行き詰まりが30分を超えた: ${l.replace(/^- \[ \] \S+ \S+ /, "").slice(0, 60)} → 範囲の外なら所有者に Issue、内なら \`npm run issue -- blocked <まとめ役> "…"\`（解決したら npm run log -- done "…"）`,
+    );
 }
 
 if (policy === "frozen") todo.push("フリーズ中: 新機能・契約変更はしない。デモ経路のバグと磨きだけ");

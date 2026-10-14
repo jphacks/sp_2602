@@ -5,7 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { currentMember, p } from "./lib/kit.mjs";
-import { appendLog } from "./lib/log.mjs";
+import { appendLog, minutesSinceStart } from "./lib/log.mjs";
 
 const arg = process.argv[2];
 const WAIT_START_MS = 3 * 60 * 1000; // CI が現れるまで待つ上限
@@ -124,5 +124,8 @@ try {
 }
 // 個人の作業ログ（リポジトリの外）。他人の PR をマージした時は書かない
 const me = currentMember();
-if (me && pr.headRefName.startsWith(`${me.id}/`)) appendLog(me.id, "完了", `#${pr.number} ${pr.title}（${pr.url}）`);
+if (me && pr.headRefName.startsWith(`${me.id}/`)) {
+  const min = minutesSinceStart(me, pr.headRefName);
+  appendLog(me, "完了", `#${pr.number} ${pr.title}（${pr.url}）${min === null ? "" : ` ${min}分`}`);
+}
 console.log(`✓ #${pr.number} をマージした。次: git switch main && git pull → npm run now`);
