@@ -127,8 +127,8 @@
     {
       "id": "front-a",
       "github": "github-user-4",
-      "role": "機能Aの画面＋発表（DEMO.md・資料・紹介動画・通しの確認）",
-      "owns": ["src/app/home/**", "docs/pitch/**", "docs/DEMO.md", "tests/e2e/**"]
+      "role": "機能Aの画面＋デザイン（Figma）＋発表（DEMO.md・資料・紹介動画・通しの確認）",
+      "owns": ["src/app/home/**", "docs/design/**", "docs/pitch/**", "docs/DEMO.md", "tests/e2e/**"]
     },
     {
       "id": "front-b",

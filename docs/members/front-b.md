@@ -20,7 +20,7 @@
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
 
-- S1 共通部品を `src/components/ui/` に作る（ボタン・入力欄・読み込み表示・エラー表示。front-a が最初に使うものから） — 完了確認: `npm run check`
+- S1 共通部品を `src/components/ui/` に作る（ボタン・入力欄・読み込み表示・エラー表示。front-a が最初に使うものから。形は `docs/design/` のモックに合わせる） — 完了確認: `npm run check`
 - S2 機能B の画面を tokens.css と共通部品で組む — 完了確認: `npm run check`
 - S3 同期点1 を進行（docs/rules/sync.md） — 完了確認: 全員の PR がマージ済み
 - S4 機能B の画面をサーバとつなぐ（`call()` / `stream()`）。待ち時間とエラーの表示 — 完了確認: `npm run check`

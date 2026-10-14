@@ -4,13 +4,13 @@
               lead（つなぎ役：通信・API・セキュリティ／契約・main）
              ／                                   ＼
   機能A: back-a（サーバ・DB の接続）              機能B: back-b（サーバ）
-         front-a（画面＋発表）                           front-b（画面＋共通部品＋まとめ役）
+         front-a（画面＋デザイン＋発表）                 front-b（画面＋共通部品＋まとめ役）
 ```
 
 - アイデアを **機能2つ（A・B）** に分け、サーバと画面を同じ線で割る。画面だけ別に悩まない。
 - 機能をまたぐもの（契約・API の入口の仕組み・通信・エラー・認証）は lead が持つ。両機能の間の受け渡しは必ず契約を通す。
 - テーブル定義 `src/server/db/schema.ts` は back-a・back-b の共有。自分の機能の表だけ足す。
-- 発表（DEMO.md・資料・紹介動画・通しの確認）は front-a。共通部品 `src/components/` は front-b。
+- デザイン（Figma で全体の雰囲気のモック → 時間があれば作り込み。`docs/design/`）と発表（DEMO.md・資料・紹介動画・通しの確認）は front-a。共通部品 `src/components/` は front-b。
 - **まとめ役は front-b**（kit.config.json の `facilitator`）：同期点の進行・合流（手伝い）の判断・時刻表のずれの修正。契約の採否は同期点でまとめ役が進め、契約として通るかは lead が判断する。
 - **つなぎ役は lead**（members の1人目）：契約の所有者・CODEOWNERS のレビュー役・change-request の宛先。
 
@@ -20,7 +20,7 @@
 | lead | `contracts/`・`src/lib/`・`src/server/route.ts`・`src/server/errors.ts`・`src/app/api/health/`・`src/proxy.ts`・`tests/server/api.test.ts`・設定・`scripts/`・`docs/rules/` など |
 | back-a | `src/server/a/`・`src/app/api/a/`・`tests/server/a/`・`src/server/db/index.ts`・`src/server/` 直下の共通の処理 |
 | back-b | `src/server/b/`・`src/app/api/b/`・`tests/server/b/` |
-| front-a | 機能A の画面フォルダ・`docs/DEMO.md`・`docs/pitch/`・`tests/e2e/` |
+| front-a | 機能A の画面フォルダ・`docs/design/`・`docs/DEMO.md`・`docs/pitch/`・`tests/e2e/` |
 | front-b | 機能B の画面フォルダ・`src/components/` |
 
 API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする。フォルダ `src/app/api/<機能>/` がそのまま機能の担当者のものになる。
