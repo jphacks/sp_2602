@@ -14,7 +14,8 @@ const force = args.includes("--force");
 const dryRun = args.includes("--dry-run"); // 似た Issue の確認だけして、作らない
 const fileAt = args.indexOf("--body-file");
 const bodyFile = fileAt >= 0 ? args[fileAt + 1] : undefined;
-const positional = args.filter((a, i) => a !== "--force" && a !== "--dry-run" && i !== fileAt && i !== fileAt + 1);
+const isBodyFileArg = (i) => fileAt >= 0 && (i === fileAt || i === fileAt + 1);
+const positional = args.filter((a, i) => a !== "--force" && a !== "--dry-run" && !isBodyFileArg(i));
 const [type, to, title, inlineBody = ""] = positional;
 const cfg = loadConfig();
 const me = currentMember(cfg);
