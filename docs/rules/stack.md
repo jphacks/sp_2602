@@ -58,8 +58,10 @@ src/components/ui/       共通部品（front-b）。欲しい部品は Issue �
 - **WebSocket のサーバは立てられない**：画面を自動で更新したいときは数秒ごとの再取得（ポーリング）にする。
 - **1回の処理は5分まで**（Hobby の上限）。AI の返答のように時間がかかるものは `kind: "stream"` で少しずつ返す（待っている間も画面が動く）。
 - **環境変数は Vercel に設定**：`ANTHROPIC_API_KEY` と `DATABASE_URL`（Neon を Marketplace から追加すると自動で入る）。本番では `MOCK` を入れない。手元に本番と同じ値が要るときは `vercel env pull .env.local`。キーを画面側のコード（`NEXT_PUBLIC_` で始まる変数）に出さない。
-- **リポジトリは個人のアカウントに置く**：Vercel の無料プラン（Hobby）は、GitHub の組織が持つ非公開リポジトリからは公開できない。個人アカウントの非公開リポジトリならメンバーを招待して使える（公開リポジトリならどちらでもよい）。
-- PR ごとに Vercel のプレビュー（専用の URL）ができる。見た目の確認やスマホでの確認に使ってよい。
+- **リポジトリは JPHACKS が用意する公開リポジトリ**（`github.com/jphacks/<チーム>`）：公開なので、`.env` やキーを絶対にコミットしない（`.gitignore` 済み）。Issue・PR・コミットの文面も誰でも読める。Vercel の無料プラン（Hobby）は組織の**公開**リポジトリなら公開できる。
+- **Vercel への公開のしかた**（前日に lead が確かめて1つに決める。docs/kit/pending.md）：
+  - A. Vercel の GitHub 連携で jphacks のリポジトリを読み込む（組織へのアプリの導入に組織の管理者の許可が要るかもしれない）。できれば main へのマージで自動公開、PR ごとにプレビューの URL ができる
+  - B. できなければ Vercel CLI で手元から公開する（`vercel deploy --prod`。main を pull してから。まとめ役か lead が同期点ごとに）
 
 ## アイデア次第で足すもの（当日決める）
 | 必要になったら | 足すもの | 誰が |

@@ -19,7 +19,7 @@
 
 ## 前日までに
 **lead**
-1. GitHub にリポジトリを作り、このキットを push（当日は新リポジトリから始めるため「テンプレートリポジトリ」にしておく）。
+1. JPHACKS が用意したチームのリポジトリ（`github.com/jphacks/<チーム>`）を clone し、このキットのファイルを入れて push。直下の `README.md` は JPHACKS のひな型を残す（キットの説明は docs/kit/ にある）。README の「開発技術」に、事前に用意したもの（このキット＝開発の道具）と当日作ったものを分けて書く。
 2. `kit.config.json` の members（github ユーザー名）を書き換え → `npm run kit:owners`。時刻表（milestones）はまとめ役と決めて書く（当日のずれはまとめ役が `npm run kit:schedule`）。
 3. main のブランチ保護: PR 必須 / CI（check）必須 / CODEOWNERS のレビュー必須。無料のプライベートリポジトリでは使えない（403）→ 全員 `npm run merge` でマージする運用にする。
 4. ラベル作成: `task` `bug` `change-request` `blocked` `help`（同じ GitHub アカウントを共有するなら `member:<id>` も）。

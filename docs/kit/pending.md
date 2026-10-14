@@ -13,7 +13,9 @@
 - [ ] lead が全員の状況を一目で見る `npm run status` を作るか（全員の残りステップ・PR・blocked・合流中を一覧）
 
 ## 3. 前日までに lead がやること（Vercel + Neon。決定は docs/rules/stack.md）
-- [ ] GitHub の個人アカウントにリポジトリを作り、メンバーを招待（Hobby は組織の非公開リポジトリから公開できない）
+- [ ] JPHACKS のチームのリポジトリに push できるか・自分たちの権限（ブランチ保護・Secrets・ラベルを作れるか）を確かめる
+- [ ] JPHACKS のルールで、事前に用意してよい範囲（このキット・ひな型・動画の枠）を確かめる（作業メモ14: 製品の中心は Hack Day に作る）
+- [ ] Vercel への公開を A（GitHub 連携）か B（Vercel CLI）に決める（docs/rules/stack.md）
 - [ ] Vercel でリポジトリを読み込み、Marketplace から Neon を追加（DATABASE_URL が自動で入る）。ANTHROPIC_API_KEY を設定
 - [ ] `vercel env pull .env.local` → `npm run db:push` が Neon に通るか確かめる（未確認: drizzle-kit は Neon に WebSocket でつなぐ）
 - [ ] 本番の URL で /api/health と、DB に書く API を1回ずつ叩く

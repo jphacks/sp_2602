@@ -8,11 +8,11 @@
 /src/server/db/schema.ts @github-user-1
 /src/app/result/ @github-user-5
 /src/components/ @github-user-5
-/src/app/home/ @github-user-4
-/docs/design/ @github-user-4
-/docs/pitch/ @github-user-4
-/docs/DEMO.md @github-user-4
-/tests/e2e/ @github-user-4
+/src/app/home/ @que-dotcom
+/docs/design/ @que-dotcom
+/docs/pitch/ @que-dotcom
+/docs/DEMO.md @que-dotcom
+/tests/e2e/ @que-dotcom
 /src/server/b/ @github-user-3
 /src/app/api/b/ @github-user-3
 /tests/server/b/ @github-user-3
