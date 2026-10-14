@@ -57,11 +57,12 @@
     "$comment": "合流のルール（docs/rules/help.md）。切り出し型の合流はフリーズの何分前まで始めてよいか。値は仮",
     "carveOutCutoffMinBeforeFreeze": 90
   },
+  "$comment_members": "members の1人目がまとめ役（契約の所有者・CODEOWNERS のレビュー役）。機能 a / b は キックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
   "members": [
     {
       "id": "lead",
       "github": "github-user-1",
-      "role": "統合担当（契約・main・同期点の進行・共通部品）",
+      "role": "つなぎ役＋まとめ役（通信・API・セキュリティ／契約・main・同期点の進行）",
       "owns": [
         "contracts/**",
         "kit.config.json",
@@ -88,7 +89,11 @@
         "src/app/page.tsx",
         "src/app/globals.css",
         "src/lib/**",
-        "src/components/**",
+        "src/server/route.ts",
+        "src/server/errors.ts",
+        "src/app/api/health/**",
+        "src/proxy.ts",
+        "tests/server/api.test.ts",
         "tests/contracts.test.ts",
         "tests/stubs/**",
         "AGENTS.md",
@@ -98,31 +103,47 @@
       ]
     },
     {
-      "id": "back",
+      "id": "back-a",
       "github": "github-user-2",
-      "role": "サーバ・AI呼び出し・DB",
-      "owns": ["src/app/api/**", "src/server/**", "tests/server/**"]
+      "role": "機能Aのサーバ（処理・AI・DB の接続）",
+      "owns": [
+        "src/server/a/**",
+        "src/app/api/a/**",
+        "tests/server/a/**",
+        "src/server/db/index.ts",
+        "tests/server/db.test.ts",
+        "src/server/*.ts",
+        "src/app/api/analyze/**",
+        "src/app/api/analyze-stream/**"
+      ]
     },
     {
-      "id": "front1",
+      "id": "back-b",
       "github": "github-user-3",
-      "role": "画面 home",
-      "owns": ["src/app/home/**"]
+      "role": "機能Bのサーバ（処理・AI）",
+      "owns": ["src/server/b/**", "src/app/api/b/**", "tests/server/b/**"]
     },
     {
-      "id": "front2",
+      "id": "front-a",
       "github": "github-user-4",
-      "role": "画面 result",
-      "owns": ["src/app/result/**"]
+      "role": "機能Aの画面＋発表（DEMO.md・資料・紹介動画・通しの確認）",
+      "owns": ["src/app/home/**", "docs/pitch/**", "docs/DEMO.md", "tests/e2e/**"]
     },
     {
-      "id": "pitch",
+      "id": "front-b",
       "github": "github-user-5",
-      "role": "発表・デモ台本・E2E確認",
-      "owns": ["docs/pitch/**", "docs/DEMO.md", "tests/e2e/**"]
+      "role": "機能Bの画面＋共通部品",
+      "owns": ["src/app/result/**", "src/components/**"]
     }
   ],
-  "shared": ["docs/requirements/**", "docs/members/**", "docs/data-wishlist.md", "docs/shots/**", "README.md"],
+  "shared": [
+    "docs/requirements/**",
+    "docs/members/**",
+    "docs/data-wishlist.md",
+    "docs/shots/**",
+    "README.md",
+    "src/server/db/schema.ts"
+  ],
   "ports": {
     "app": 3000
   }

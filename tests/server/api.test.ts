@@ -1,4 +1,4 @@
-// 契約どおりに応答するかのテスト（back の所有）。
+// 契約どおりに応答するかのテスト（lead の所有）。
 import { api, streamLine } from "@contracts/api";
 import { ApiError } from "@contracts/errors";
 import { fixtures } from "@contracts/fixtures";

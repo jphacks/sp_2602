@@ -64,7 +64,7 @@ const rowScreens = [...(demoRow ?? "").matchAll(/`([a-z0-9-]+)`/g)].map((x) => x
 for (const s of rowScreens)
   if (!screens.includes(`\`${s}\``))
     warnings.push(
-      `docs/DEMO.md の ${d.demoStep} の画面 ${s} が contracts/screens.md にない（DEMO.md が古いかも。pitch / lead に確認）`,
+      `docs/DEMO.md の ${d.demoStep} の画面 ${s} が contracts/screens.md にない（DEMO.md が古いかも。front-a / lead に確認）`,
     );
 if (rowScreens.length && (d.screens ?? []).length && !(d.screens ?? []).some((s) => rowScreens.includes(s)))
   warnings.push(

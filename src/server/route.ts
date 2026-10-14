@@ -1,4 +1,4 @@
-// 契約つきの Route Handler を作る（back の所有）。入力と出力の両方を contracts の Zod で検査し、
+// 契約つきの Route Handler を作る（lead の所有）。入力と出力の両方を contracts の Zod で検査し、
 // 失敗はすべて contracts/errors.ts の ApiError の形で返す。
 //   export const POST = handle("analyze", analyze);
 //   export const POST = handleStream("analyzeStream", analyzeStream);

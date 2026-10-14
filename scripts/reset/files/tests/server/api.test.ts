@@ -1,4 +1,4 @@
-// 契約どおりに応答するかのテスト（back の所有）。npm run kit:reset 後の状態: health と、エラー・クライアントの共通の仕組みだけを検査する。
+// 契約どおりに応答するかのテスト（lead の所有）。npm run kit:reset 後の状態: health と、エラー・クライアントの共通の仕組みだけを検査する。
 // API を足したら、その API の「契約どおりの出力」「契約外の入力は 400」をここに足す。
 import { api } from "@contracts/api";
 import { ApiError } from "@contracts/errors";

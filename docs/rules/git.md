@@ -10,7 +10,7 @@
 | 同期点の直前 | 手元の作業を PR にしておく（同期点は main で確認する） |
 
 ## ブランチと PR
-- ブランチ名: `<自分のid>/S<番号>-<短い名前>`（例 `front1/S2-input-form`）。`npm run step` が作る。`<自分のid>/` で始まらない名前は pre-commit が止める
+- ブランチ名: `<自分のid>/S<番号>-<短い名前>`（例 `front-a/S2-input-form`）。`npm run step` が作る。`<自分のid>/` で始まらない名前は pre-commit が止める
 - 1ステップ = 1PR。PR 本文のテンプレートに着手宣言の要約を書く。
 - 自分の所有範囲だけの PR は CI が緑なら自分でマージしてよい。**マージは `npm run merge -- <PR番号>`**（今のコミットの CI が現れて全部成功するまで待つ。push 直後の `gh pr checks --watch` は「no checks reported」で即座に正常終了するので、それを見てマージしない）。main より遅れていると止まるので、`git pull origin main` → `npm run check` → push してからもう一度（CI が今の main と合わせて試し直す）。GitHub の画面でマージする人間も、CI の緑を見てから押す。
 - contracts/ や共有ファイルに触れる PR は lead がレビューしてからマージ（CODEOWNERS が自動でレビュー依頼する）。

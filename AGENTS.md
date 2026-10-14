@@ -25,6 +25,7 @@
 | 状況 | 読むもの |
 |---|---|
 | 自分の担当・ステップ・触らないファイル | `docs/members/<自分>.md` |
+| チームの組み方（機能A・B の分け方・キックオフでの書き換え） | `docs/rules/team.md` |
 | 何を作っているのか（全体像） | `docs/DEMO.md`（これが最上位の仕様） |
 | 型・API・画面 | `contracts/`（schemas.ts / api.ts / screens.md / tokens.css） |
 | 技術構成・フォルダ・書き方の約束 | `docs/rules/stack.md` |

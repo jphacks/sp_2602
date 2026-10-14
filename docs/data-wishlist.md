@@ -4,7 +4,7 @@
 
 残ったものは行き先が2つに分かれる（docs/rules/stack.md「DB と契約は分ける」）。
 - **画面に出す / 画面から受け取る** → `contracts/schemas.ts`（lead）
-- **保存するだけ（画面は知らなくてよい）** → `src/server/db/` のテーブル（back）
+- **保存するだけ（画面は知らなくてよい）** → `src/server/db/schema.ts` のテーブル（back-a / back-b）
 
 | データ | 何に使う | DEMO の D番号 | 画面に出す？ | 保存する？ | 判定 |
 |---|---|---|---|---|---|

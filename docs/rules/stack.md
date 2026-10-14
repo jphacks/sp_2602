@@ -7,25 +7,25 @@
 |---|---|---|
 | 画面 | Next.js（App Router）+ React + TypeScript | 確定 |
 | 見た目 | Tailwind CSS v4。色・角丸・書体は `contracts/tokens.css` のテーマだけ | 確定 |
-| 共通部品 | `src/components/ui/`（lead の所有。shadcn/ui を入れる場合もここ） | 確定 |
+| 共通部品 | `src/components/ui/`（front-b の所有。shadcn/ui を入れる場合もここ。依存を足すのは lead） | 確定 |
 | API | Next.js の Route Handler（`src/app/api/<名前>/route.ts`）。型は Zod の契約 | 確定 |
 | サーバ処理 | `src/server/`（外部API・AI・DB はここだけから呼ぶ） | 確定 |
 | 整形・lint | Biome（保存時・Claude の編集時に自動整形、コミット前に検査） | 確定 |
-| テスト | Vitest（契約と API）。E2E は必要なら Playwright（pitch） | 確定 |
+| テスト | Vitest（契約と API）。E2E は必要なら Playwright（front-a） | 確定 |
 | DB | Neon（Postgres。Vercel の Marketplace から追加）+ Drizzle。手元・テスト・CI はメモリ上の Postgres（PGlite）で自動 | 確定（テーブルはアイデアが決まってから） |
 | 公開先 | Vercel（下の「Vercel で動かすための約束」） | 確定 |
-| AI 呼び出し | `src/server/` から呼ぶ。出力は Zod で形を固定。デモ用の結果は fixtures に保存 | 確定（SDK は back が選ぶ） |
+| AI 呼び出し | `src/server/` から呼ぶ。出力は Zod で形を固定。デモ用の結果は fixtures に保存 | 確定（SDK は back-a が選ぶ） |
 
 ## フォルダと所有者
 ```
 contracts/               型・API表・画面表・デザイン（lead）
 src/app/layout.tsx       全体の枠・スマホ優先の幅（lead）
 src/app/<画面id>/        1画面 = 1フォルダ = 1人。部品はフォルダ内に自由に増やす
-src/app/api/<名前>/      Route Handler（back）。中身は handle() に1行で渡す
-src/server/              サーバ処理（back）。route.ts（契約つき Handler）/ errors.ts（AppError）
-src/server/db/           DB（back）。schema.ts = テーブル定義 / index.ts = 接続（db()）
+src/app/api/<機能>/<名前>/ Route Handler（その機能の back）。中身は handle() に1行で渡す。health は lead
+src/server/<機能>/       サーバ処理（その機能の back）。route.ts（契約つき Handler）/ errors.ts（AppError）は lead
+src/server/db/           DB。schema.ts = テーブル定義（back-a・back-b の共有）/ index.ts = 接続 db()（back-a）
 src/lib/                 api クライアント・画面間の受け渡し（lead）
-src/components/ui/       共通部品（lead）。欲しい部品は Issue で依頼
+src/components/ui/       共通部品（front-b）。欲しい部品は Issue で依頼
 ```
 
 ## 書き方の約束
@@ -38,7 +38,7 @@ src/components/ui/       共通部品（lead）。欲しい部品は Issue で�
 - **エラーは1つの形**（`contracts/errors.ts` の `ApiError`：code / message / hint）
   - サーバ：失敗は `throw new AppError("upstream_failed")` のように投げるだけ。形と HTTP ステータスは `route.ts` が揃える。想定外の例外は中身を隠して `internal` にする
   - 画面：`catch (e) { setError(errorOf(e)) }` → `message`（何が起きたか）と `hint`（次に何をするか）をそのまま出す
-- **DB と契約は分ける**：`contracts/` は「画面とサーバの間で受け渡す形」だけ。DB のテーブル定義は `src/server/db/`（back）に置き、テーブル ⇔ 契約の型の変換は `src/server/` の中だけで行う。画面は DB の形を知らない（DB 設計を変えても画面担当に影響しない）。テーブルの列を契約にそのまま流用しない
+- **DB と契約は分ける**：`contracts/` は「画面とサーバの間で受け渡す形」だけ。DB のテーブル定義は `src/server/db/schema.ts`（back-a・back-b）に置き、テーブル ⇔ 契約の型の変換は `src/server/` の中だけで行う。画面は DB の形を知らない（DB 設計を変えても画面担当に影響しない）。テーブルの列を契約にそのまま流用しない
 - **画面間のデータは `useFlow()` 経由**：画面同士で import し合わない。受け渡しの追加は lead へ。
 - **見た目の値は直書きしない**：`bg-[#fff]`・`p-[13px]`・`style={{}}`・色コードは `npm run lint` が弾く。どうしても必要な行は `// style-ok 理由` を付ける。
 - **依存の追加は lead だけ**：`npm install` したくなったら Issue で依頼（package.json は lead の所有なので、コミットできない）。
@@ -64,9 +64,9 @@ src/components/ui/       共通部品（lead）。欲しい部品は Issue で�
 ## アイデア次第で足すもの（当日決める）
 | 必要になったら | 足すもの | 誰が |
 |---|---|---|
-| データを保存する | `src/server/db/schema.ts` にテーブルを足す → `npm run db:push`（Neon は前日に用意済み） | back |
-| ログインが要る | まず固定のデモ用アカウントで済ませる。本当に要るなら Auth.js など（lead が判断） | back |
-| リアルタイム更新 | 数秒ごとの再取得（ポーリング）。それで足りない時だけ外部サービスを lead が判断 | back |
-| 画像・ファイル保存 | Vercel Blob（`@vercel/blob`。lead が依存を足す） | back |
+| データを保存する | `src/server/db/schema.ts` にテーブルを足す → `npm run db:push`（Neon は前日に用意済み） | その機能の back |
+| ログインが要る | まず固定のデモ用アカウントで済ませる。本当に要るなら Auth.js など（lead が判断） | lead |
+| リアルタイム更新 | 数秒ごとの再取得（ポーリング）。それで足りない時だけ外部サービスを lead が判断 | その機能の back |
+| 画像・ファイル保存 | Vercel Blob（`@vercel/blob`。lead が依存を足す） | その機能の back |
 | スマホのホーム画面に置く | PWA（manifest とアイコン） | lead |
 | ブラウザだけで完結する | DB なしで localStorage（`src/lib/` に保存関数を1つ） | lead |

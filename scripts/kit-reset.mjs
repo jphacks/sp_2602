@@ -1,6 +1,6 @@
 // npm run kit:reset — キックオフで lead が1回だけ実行する。ひな型の例（サブスク判定の analyze 系 API・画面 home/result・固定データ・テスト）を消し、
 // 契約を空の状態（scripts/reset/files/）に置き換える。そのあと lead は自分たちの契約を書いて npm run kit:stub。
-// 他人の所有ファイル（back の route・テスト、front の画面）も消す・置き換えるが、check-scope は
+// 他人の所有ファイル（back の route、front の画面）も消す・置き換えるが、check-scope は
 // 「ひな型のままのファイルを、この決まった形に消す・置き換える」変更だけを例外として通す（scripts/reset/manifest.json で照合）。
 // 誰かがすでに手を入れたファイル（ひな型と内容が違う）は触らずに残す。
 //   --write-manifest : キットの保守用。今のファイルの内容からマニフェストを作り直す
@@ -74,5 +74,5 @@ if (done.length) {
 console.log(done.length ? `✓ ひな型の例を片付けた:\n  ${done.join("\n  ")}` : "片付けるものはなかった（実行済み）");
 if (kept.length) console.log(`! 内容が変わっていたので残した（手で確かめる）:\n  ${kept.join("\n  ")}`);
 console.log(
-  "\n次: kit.config.json の画面の所有（home/result）を自分たちの画面 id に書き換え → npm run kit:owners → 契約を書く → npm run kit:stub → npm run check → commit（範囲チェックは kit:reset の変更を例外で通す）",
+  "\n次: kit.config.json の機能 a / b と画面（home/result）を自分たちの名前に書き換え（docs/rules/team.md） → npm run kit:owners → 契約を書く → npm run kit:stub → npm run check → commit（範囲チェックは kit:reset の変更を例外で通す）",
 );

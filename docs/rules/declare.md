@@ -7,7 +7,7 @@
 
 ```json
 {
-  "member": "front1",
+  "member": "front-a",
   "step": "S2",
   "goal": "入力欄に3件まで登録し、判定ボタンで analyze を呼ぶ",
   "demoStep": "D2",
