@@ -1,7 +1,8 @@
 // npm run kit:schedule — 時刻表（kit.config.json の milestones）を見る・ずらす（lead）。
 //   npm run kit:schedule                      今の時刻表と現在地
 //   npm run kit:schedule -- shift <分>         全部を <分> ずらす（-30 で30分前へ）
-//   npm run kit:schedule -- from <id> <HH:MM>  <id> を今日の HH:MM にし、それより後もまとめて同じだけずらす
+//   npm run kit:schedule -- from <id> <HH:MM>  <id> が今日の HH:MM になるように、時刻表全体を同じだけずらす
+// どちらも、もう過ぎた時刻を未来へ戻すことはしない（遅れて後ろへずらしても、凍結済みの契約が開き直らないように）。
 // 進み方が時計とずれたら（早く終わった・遅れた）、手で JSON を直さずにこれで直す。now の「フェーズ」が実際と合うようにするため
 // （リハーサル3: 時刻表が古いままで、now が「キックオフまであと5603分」と出た）。変えたら decisions.md に1行。
 import { readFileSync, writeFileSync } from "node:fs";
@@ -38,7 +39,6 @@ if (!cmd) {
 }
 
 let deltaMs;
-let fromMs = Number.NEGATIVE_INFINITY;
 if (cmd === "shift") {
   const min = Number(a);
   if (!Number.isFinite(min) || !a) fail("使い方: npm run kit:schedule -- shift <分>（例: -30）");
@@ -50,23 +50,26 @@ if (cmd === "shift") {
   if (!t) fail("使い方: npm run kit:schedule -- from <id> <HH:MM>（今日のその時刻にする）");
   const target = new Date();
   target.setHours(Number(t[1]), Number(t[2]), 0, 0);
-  fromMs = Date.parse(m.at);
-  deltaMs = target.getTime() - fromMs;
+  deltaMs = target.getTime() - Date.parse(m.at);
 } else fail("使い方: npm run kit:schedule [shift <分> | from <id> <HH:MM>]");
 
 // JSON を作り直さず、時刻の文字列だけを置き換える（kit.config.json の書式とコメントを保つ）
 let text = readFileSync(p("kit.config.json"), "utf8");
-const move = (iso) => withOffset(Date.parse(iso) + deltaMs, iso);
+const now = Date.now();
+// もう過ぎた時刻が、ずらすと未来になるなら動かさない
+const move = (iso) => {
+  const t = Date.parse(iso);
+  return t <= now && t + deltaMs > now ? iso : withOffset(t + deltaMs, iso);
+};
 for (const m of cfg.milestones) {
-  if (Date.parse(m.at) < fromMs) continue;
-  text = text.replace(`"at": "${m.at}"`, `"at": "${move(m.at)}"`);
-  m.at = move(m.at);
+  const next = move(m.at);
+  text = text.replace(`"at": "${m.at}"`, `"at": "${next}"`);
+  m.at = next;
 }
-if (cmd === "shift" || Date.parse(cfg.event.end) >= fromMs) {
-  for (const k of cmd === "shift" ? ["start", "end"] : ["end"]) {
-    text = text.replace(`"${k}": "${cfg.event[k]}"`, `"${k}": "${move(cfg.event[k])}"`);
-    cfg.event[k] = move(cfg.event[k]);
-  }
+for (const k of ["start", "end"]) {
+  const next = move(cfg.event[k]);
+  text = text.replace(`"${k}": "${cfg.event[k]}"`, `"${k}": "${next}"`);
+  cfg.event[k] = next;
 }
 writeFileSync(p("kit.config.json"), text);
 console.log(`✓ ${Math.round(deltaMs / 60000)} 分ずらした。decisions.md に「時刻表を変えた理由」を1行書く`);
