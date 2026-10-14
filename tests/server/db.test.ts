@@ -1,4 +1,4 @@
-// DB の接続とテーブル定義の確認（back の所有）。DATABASE_URL なしなので PGlite（メモリ上の Postgres）で走る。
+// DB の接続とテーブル定義の確認（back-a の所有）。DATABASE_URL なしなので PGlite（メモリ上の Postgres）で走る。
 import { describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import { aiCalls } from "@/server/db/schema";
