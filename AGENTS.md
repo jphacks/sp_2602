@@ -34,7 +34,7 @@
 | pull / push / PR / Issue のタイミング | `docs/rules/git.md` |
 | 着手宣言の書き方 | `docs/rules/declare.md` |
 | 会議の録音から要件を更新する | `docs/rules/meeting.md` |
-| 同期点（lead が進行） | `docs/rules/sync.md` |
+| 同期点（まとめ役が進行） | `docs/rules/sync.md` |
 | 他の人を手伝う・手伝ってもらう（合流） | `docs/rules/help.md` |
 | Codex で動いていて、git・gh・npm がサンドボックスで失敗する | `docs/kit/codex.md` |
 
@@ -45,7 +45,7 @@
 - lead だけ: `npm run kit:reset`（キックオフで1回。ひな型の例を消す） / `npm run kit:stub`（契約に合わせて仮の API・画面を置く）
 - 確かめる道具: `npm run api -- <契約名> [--body-file 本文.json]`（契約どおりに API を叩く） / `npm run shot -- <URL> docs/shots/<自分>/<D番号>-<名前>.png`（画面を撮って Read で見る。見た目の確認は必ずこれで）
 - ステップ表にない作業: `npm run step -- X <英語名> --adhoc "目的"`（完了には数えない。PR に理由を1行）
-- lead だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す）
+- まとめ役だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す。kit.config.json の時刻だけはまとめ役も変えてよい）
 - DB: テーブルは `src/server/db/schema.ts`、使うのは `await db()`。手元は設定なしで動く。Neon に反映は `npm run db:push`（docs/rules/stack.md「DB」）
 - 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
 

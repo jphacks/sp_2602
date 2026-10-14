@@ -5,7 +5,7 @@
 - 所有ファイル: kit.config.json の owns（ここ以外は触らない）。`src/server/a/`・`src/app/api/a/`・`tests/server/a/`・DB の接続（`src/server/db/index.ts`）
 - テーブル定義（`src/server/db/schema.ts`）は back-b と共有。自分の機能の表だけ足す
 - 動作確認: `npm run dev`（.env は MOCK=1）→ `npm run api -- <契約名>` で自分の API を叩く
-- 詰まったら: 30分で解決しなければ lead に声をかける / `blocked` Issue
+- 詰まったら: 30分で解決しなければまとめ役（front-b）に声をかける / `blocked` Issue。契約・API のことは lead へ
 
 ## 触らないファイル（よく間違えるもの）
 - contracts/ 全部（変えたい時は change-request Issue）
@@ -20,4 +20,4 @@
 - S4 デモ用の固定入力で本物の出力を確認し fixtures を更新 — 完了確認: `npm run check`
 
 ## 追記（同期点での変更）
-（lead が同期点の決定をここに追記する。上のステップ本体は書き換えない）
+（まとめ役が同期点の決定をここに追記する。上のステップ本体は書き換えない）

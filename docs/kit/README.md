@@ -20,7 +20,7 @@
 ## 前日までに
 **lead**
 1. GitHub にリポジトリを作り、このキットを push（当日は新リポジトリから始めるため「テンプレートリポジトリ」にしておく）。
-2. `kit.config.json` の members（github ユーザー名）と milestones（実際の時刻）を書き換え → `npm run kit:owners`。
+2. `kit.config.json` の members（github ユーザー名）を書き換え → `npm run kit:owners`。時刻表（milestones）はまとめ役と決めて書く（当日のずれはまとめ役が `npm run kit:schedule`）。
 3. main のブランチ保護: PR 必須 / CI（check）必須 / CODEOWNERS のレビュー必須。無料のプライベートリポジトリでは使えない（403）→ 全員 `npm run merge` でマージする運用にする。
 4. ラベル作成: `task` `bug` `change-request` `blocked` `help`（同じ GitHub アカウントを共有するなら `member:<id>` も）。
 5. **他のメンバーより先に**ここまで済ませる（リハーサル3: lead の設定前に動いた人がラベルなし・宛先なしの Issue を作った）。

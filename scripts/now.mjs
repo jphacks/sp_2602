@@ -142,7 +142,7 @@ if (me) {
     for (const s of st.steps)
       out.push(`${mark[s.state]} ${s.id} ${s.text}${s.state === "pr" ? `（PR #${s.pr} マージ待ち）` : ""}`);
     out.push(
-      `次のステップ: ${st.next ? `${st.next.id} ${st.next.text}` : "すべて完了またはマージ待ち → lead に次の仕事をもらう"}`,
+      `次のステップ: ${st.next ? `${st.next.id} ${st.next.text}` : `すべて完了またはマージ待ち → まとめ役（${cfg.facilitator ?? cfg.members[0].id}）に次の仕事をもらう`}`,
     );
   } else todo.push(`docs/members/${me.id}.md がない → _template.md から作る`);
 

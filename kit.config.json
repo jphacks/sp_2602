@@ -57,12 +57,13 @@
     "$comment": "合流のルール（docs/rules/help.md）。切り出し型の合流はフリーズの何分前まで始めてよいか。値は仮",
     "carveOutCutoffMinBeforeFreeze": 90
   },
-  "$comment_members": "members の1人目がまとめ役（契約の所有者・CODEOWNERS のレビュー役）。機能 a / b は キックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
+  "$comment_members": "members の1人目がつなぎ役（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
+  "facilitator": "front-b",
   "members": [
     {
       "id": "lead",
       "github": "github-user-1",
-      "role": "つなぎ役＋まとめ役（通信・API・セキュリティ／契約・main・同期点の進行）",
+      "role": "つなぎ役（通信・API・セキュリティ／契約・main）",
       "owns": [
         "contracts/**",
         "kit.config.json",
@@ -132,7 +133,7 @@
     {
       "id": "front-b",
       "github": "github-user-5",
-      "role": "機能Bの画面＋共通部品",
+      "role": "機能Bの画面＋共通部品＋まとめ役（同期点の進行・合流の判断・時刻表）",
       "owns": ["src/app/result/**", "src/components/**"]
     }
   ],

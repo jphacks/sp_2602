@@ -91,6 +91,26 @@ function byReset(f) {
   return now !== null && want !== null && norm(now) === norm(want);
 }
 
+// 例外3: まとめ役（kit.config.json の facilitator）の npm run kit:schedule。kit.config.json の時刻（event.start / end・milestones の at）だけを変える変更は通す
+// 時刻以外を1か所でも変えていれば例外にしない（facilitator を自分に書き換える、などは止まる）
+function byFacilitator(f) {
+  if (f !== "kit.config.json" || me.id !== cfg.facilitator) return false;
+  const was = before(f);
+  const now = contentOf(f);
+  if (was === null || now === null) return false;
+  try {
+    const strip = (text) => {
+      const c = JSON.parse(text);
+      c.event = { ...c.event, start: null, end: null };
+      c.milestones = c.milestones.map((m) => ({ ...m, at: null }));
+      return JSON.stringify(c);
+    };
+    return strip(was) === strip(now);
+  } catch {
+    return false;
+  }
+}
+
 const errors = [];
 for (const f of files) {
   const owner = ownerOf(f, cfg);
@@ -99,6 +119,7 @@ for (const f of files) {
   if (sh(`git check-ignore -q --no-index "${f}"`, { allowFail: true }) !== null) continue;
   if (ownsContracts && (contentOf(f) ?? "").startsWith(STUB_MARK)) continue;
   if (byReset(f)) continue;
+  if (byFacilitator(f)) continue;
   errors.push(owner ? `${f}  → 所有者は ${owner}` : `${f}  → 所有者なし（kit.config.json に追加が必要）`);
 }
 

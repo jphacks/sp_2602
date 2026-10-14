@@ -1,4 +1,5 @@
-// npm run kit:schedule — 時刻表（kit.config.json の milestones）を見る・ずらす（lead）。
+// npm run kit:schedule — 時刻表（kit.config.json の milestones）を見る・ずらす（まとめ役 = kit.config.json の facilitator）。
+// kit.config.json は lead の所有だが、時刻だけを変える変更はまとめ役もコミットできる（check-scope の例外）。
 //   npm run kit:schedule                      今の時刻表と現在地
 //   npm run kit:schedule -- shift <分>         全部を <分> ずらす（-30 で30分前へ）
 //   npm run kit:schedule -- from <id> <HH:MM>  <id> が今日の HH:MM になるように、時刻表全体を同じだけずらす
