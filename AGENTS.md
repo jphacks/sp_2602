@@ -44,6 +44,7 @@
 - 確かめる道具: `npm run api -- <契約名> [--body-file 本文.json]`（契約どおりに API を叩く） / `npm run shot -- <URL> docs/shots/<自分>/<D番号>-<名前>.png`（画面を撮って Read で見る。見た目の確認は必ずこれで）
 - ステップ表にない作業: `npm run step -- X <英語名> --adhoc "目的"`（完了には数えない。PR に理由を1行）
 - lead だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す）
+- DB: テーブルは `src/server/db/schema.ts`、使うのは `await db()`。手元は設定なしで動く。Neon に反映は `npm run db:push`（docs/rules/stack.md「DB」）
 - 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
 
 ## 報告の形（6行）

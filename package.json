@@ -26,9 +26,13 @@
     "kit:reset": "node scripts/kit-reset.mjs",
     "kit:schedule": "node scripts/schedule.mjs",
     "shot": "node scripts/shot.mjs",
-    "api": "node scripts/api.mjs"
+    "api": "node scripts/api.mjs",
+    "db:push": "node --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/db-push.mjs"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "@neondatabase/serverless": "^1.2.0",
+    "drizzle-orm": "^0.45.4",
     "next": "^16.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
@@ -41,6 +45,7 @@
     "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "drizzle-kit": "^0.31.11",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"

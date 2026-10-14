@@ -12,6 +12,8 @@
 - [ ] 切り出したファイルの所有者を、終わったら元に戻すか（戻さなくても困らない、が今の考え）
 - [ ] lead が全員の状況を一目で見る `npm run status` を作るか（全員の残りステップ・PR・blocked・合流中を一覧）
 
-## 3. 仮置きの技術
-- [ ] DB: Supabase + Drizzle で確定するか
-- [ ] 公開先: Vercel で確定するか
+## 3. 前日までに lead がやること（Vercel + Neon。決定は docs/rules/stack.md）
+- [ ] GitHub の個人アカウントにリポジトリを作り、メンバーを招待（Hobby は組織の非公開リポジトリから公開できない）
+- [ ] Vercel でリポジトリを読み込み、Marketplace から Neon を追加（DATABASE_URL が自動で入る）。ANTHROPIC_API_KEY を設定
+- [ ] `vercel env pull .env.local` → `npm run db:push` が Neon に通るか確かめる（未確認: drizzle-kit は Neon に WebSocket でつなぐ）
+- [ ] 本番の URL で /api/health と、DB に書く API を1回ずつ叩く

@@ -69,6 +69,7 @@
         "package-lock.json",
         "tsconfig.json",
         "next.config.ts",
+        "drizzle.config.ts",
         "postcss.config.mjs",
         "biome.json",
         "vitest.config.ts",

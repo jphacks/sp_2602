@@ -6,6 +6,7 @@
 /package-lock.json @github-user-1
 /tsconfig.json @github-user-1
 /next.config.ts @github-user-1
+/drizzle.config.ts @github-user-1
 /postcss.config.mjs @github-user-1
 /biome.json @github-user-1
 /vitest.config.ts @github-user-1

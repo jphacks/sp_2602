@@ -12,8 +12,8 @@
 | サーバ処理 | `src/server/`（外部API・AI・DB はここだけから呼ぶ） | 確定 |
 | 整形・lint | Biome（保存時・Claude の編集時に自動整形、コミット前に検査） | 確定 |
 | テスト | Vitest（契約と API）。E2E は必要なら Playwright（pitch） | 確定 |
-| DB | **Supabase（Postgres）+ Drizzle** | **仮置き**（アイデアが決まってから確定） |
-| 公開先 | **Vercel** | **仮置き** |
+| DB | Neon（Postgres。Vercel の Marketplace から追加）+ Drizzle。手元・テスト・CI はメモリ上の Postgres（PGlite）で自動 | 確定（テーブルはアイデアが決まってから） |
+| 公開先 | Vercel（下の「Vercel で動かすための約束」） | 確定 |
 | AI 呼び出し | `src/server/` から呼ぶ。出力は Zod で形を固定。デモ用の結果は fixtures に保存 | 確定（SDK は back が選ぶ） |
 
 ## フォルダと所有者
@@ -23,7 +23,7 @@ src/app/layout.tsx       全体の枠・スマホ優先の幅（lead）
 src/app/<画面id>/        1画面 = 1フォルダ = 1人。部品はフォルダ内に自由に増やす
 src/app/api/<名前>/      Route Handler（back）。中身は handle() に1行で渡す
 src/server/              サーバ処理（back）。route.ts（契約つき Handler）/ errors.ts（AppError）
-src/server/db/           DB のテーブル定義と接続（back。DB を使うと決めたら作る）
+src/server/db/           DB（back）。schema.ts = テーブル定義 / index.ts = 接続（db()）
 src/lib/                 api クライアント・画面間の受け渡し（lead）
 src/components/ui/       共通部品（lead）。欲しい部品は Issue で依頼
 ```
@@ -44,12 +44,29 @@ src/components/ui/       共通部品（lead）。欲しい部品は Issue で�
 - **依存の追加は lead だけ**：`npm install` したくなったら Issue で依頼（package.json は lead の所有なので、コミットできない）。
 - **MOCK=1 で必ず動く**：外部APIやDBが落ちてもデモできる状態を保つ。
 
+## DB
+- 使い方：`const d = await db()`（`src/server/db`）→ Drizzle で `d.insert(表).values(…)` / `d.select().from(表)`。テーブルは `src/server/db/schema.ts`。
+- つながる先は `DATABASE_URL` で決まる。なし → PGlite（メモリ上の Postgres。サーバを止めると空）、あり → Neon。手元で開発・テストするだけなら何も設定しなくてよい。
+- テーブルを変えたら `npm run db:push`（Neon に反映。マイグレーションは作らない。データが消える変更は `-- --force`）。手元の PGlite は起動時に自動で作る。
+- 約束：id は uuid、作成日時は `created_at`（timestamptz）、列名は snake_case。形が決まらないもの（AI の生の返答など）は jsonb に丸ごと。外部キーの連鎖削除は使わない。
+- AI を呼んだら `ai_calls` に1行残す（入力・出力・時間）。審査で「本物が動いている」を見せる材料と、不具合の調査に使う。
+- ログインは作らない（必要なら固定のデモ用アカウント）。利用者の区別は端末ごとの `clientId`。
+- Neon の HTTP 接続では `d.transaction()` が使えない。まとめて書くなら `d.batch([…])`。
+
+## Vercel で動かすための約束
+- **関数のメモリやファイルに保存しない**：呼ぶたびに別のインスタンスになりうるので、変数・`Map`・ファイルに置いたデータは消える。残すものは DB、画像などのファイルは Vercel Blob。
+- **WebSocket のサーバは立てられない**：画面を自動で更新したいときは数秒ごとの再取得（ポーリング）にする。
+- **1回の処理は5分まで**（Hobby の上限）。AI の返答のように時間がかかるものは `kind: "stream"` で少しずつ返す（待っている間も画面が動く）。
+- **環境変数は Vercel に設定**：`ANTHROPIC_API_KEY` と `DATABASE_URL`（Neon を Marketplace から追加すると自動で入る）。本番では `MOCK` を入れない。手元に本番と同じ値が要るときは `vercel env pull .env.local`。キーを画面側のコード（`NEXT_PUBLIC_` で始まる変数）に出さない。
+- **リポジトリは個人のアカウントに置く**：Vercel の無料プラン（Hobby）は、GitHub の組織が持つ非公開リポジトリからは公開できない。個人アカウントの非公開リポジトリならメンバーを招待して使える（公開リポジトリならどちらでもよい）。
+- PR ごとに Vercel のプレビュー（専用の URL）ができる。見た目の確認やスマホでの確認に使ってよい。
+
 ## アイデア次第で足すもの（当日決める）
 | 必要になったら | 足すもの | 誰が |
 |---|---|---|
-| データを保存・共有する | Supabase プロジェクト + Drizzle のスキーマ（`src/server/db/`）。`.env` に URL とキー | lead が環境、back がスキーマ |
-| ログインが要る | Supabase Auth。デモでは固定のデモ用アカウントでもよい | back |
-| リアルタイム更新 | Supabase Realtime | back |
-| 画像・ファイル保存 | Supabase Storage | back |
+| データを保存する | `src/server/db/schema.ts` にテーブルを足す → `npm run db:push`（Neon は前日に用意済み） | back |
+| ログインが要る | まず固定のデモ用アカウントで済ませる。本当に要るなら Auth.js など（lead が判断） | back |
+| リアルタイム更新 | 数秒ごとの再取得（ポーリング）。それで足りない時だけ外部サービスを lead が判断 | back |
+| 画像・ファイル保存 | Vercel Blob（`@vercel/blob`。lead が依存を足す） | back |
 | スマホのホーム画面に置く | PWA（manifest とアイコン） | lead |
 | ブラウザだけで完結する | DB なしで localStorage（`src/lib/` に保存関数を1つ） | lead |
