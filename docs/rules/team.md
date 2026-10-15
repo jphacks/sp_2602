@@ -10,7 +10,7 @@
 - アイデアを **機能2つ（A・B）** に分け、サーバと画面を同じ線で割る。画面だけ別に悩まない。
 - 機能をまたぐもの（契約・API の入口の仕組み・通信・エラー・認証）は lead が持つ。両機能の間の受け渡しは必ず契約を通す。
 - テーブル定義 `src/server/db/schema.ts` は back-a・back-b の共有。自分の機能の表だけ足す。
-- デザイン（Figma で全体の雰囲気のモック → 時間があれば作り込み。`docs/design/`）と発表（DEMO.md・資料・紹介動画・通しの確認）は front-a。共通部品 `src/components/` は front-b。
+- デザイン（状態遷移図と線画の試作 → 全員で触る → Figma で作り込み。`docs/design/`）と発表（DEMO.md・資料・紹介動画・通しの確認）は front-a。共通部品 `src/components/` は front-b。
 - **まとめ役は front-b**（kit.config.json の `facilitator`）：同期点の進行・合流（手伝い）の判断・時刻表のずれの修正。契約の採否は同期点でまとめ役が進め、契約として通るかは lead が判断する。
 - **つなぎ役は lead**（members の1人目）：契約の所有者・CODEOWNERS のレビュー役・change-request の宛先。
 

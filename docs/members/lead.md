@@ -20,7 +20,7 @@
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
 
 - S1 `npm run kit:reset` でひな型の例を消し、機能A・B の分け方を kit.config.json に書く（docs/rules/team.md）→ `npm run kit:owners` — 完了確認: `npm run check`
-- S2 contracts を確定して凍結（API の path は `/api/<機能>/<名前>`。DEMO.md は front-a と合意）→ `npm run kit:stub` — 完了確認: `npm run check`
+- S2 contracts を確定して凍結（API の path は `/api/<機能>/<名前>`。DEMO.md は front-a と合意。画面と受け渡すデータは docs/design/README.md の状態の表から: 分かれ道の条件に使う値は schemas.ts の項目に、状態ごとの MOCK の固定データは fixtures.ts に）→ `npm run kit:stub` — 完了確認: `npm run check`
 - S3 セキュリティの確認（上の約束。キーが画面側に出ていない・AI の API の回数上限） — 完了確認: `npm run check`
 - S4 第1統合までに契約と実装のずれを0にする（同期点で採用した change-request を contracts/ に反映） — 完了確認: `npm run check`
 
