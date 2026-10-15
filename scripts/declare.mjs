@@ -83,7 +83,7 @@ function draftPr() {
   const summary = [
     `- ステップ: ${d.step}`,
     `- goal: ${d.goal}`,
-    `- demoStep: ${d.demoStep}`,
+    `- demoStep: ${d.demoStep || "なし"}`,
     `- 使った契約: ${contracts}`,
     `- 触るファイル: ${files}`,
   ].join("\n");
@@ -124,7 +124,7 @@ function draftPr() {
   const filled = template
     .replace(/^- ステップ:.*$/m, `- ステップ: ${d.step}`)
     .replace(/^- goal:.*$/m, `- goal: ${d.goal}`)
-    .replace(/^- demoStep:.*$/m, `- demoStep: ${d.demoStep}`)
+    .replace(/^- demoStep:.*$/m, `- demoStep: ${d.demoStep || "なし"}`)
     .replace(/^- 使った契約:.*$/m, `- 使った契約: ${contracts}\n- 触るファイル: ${files}`);
   const body = `> 下書き（作業中）。終わったら「完了確認」に doneCheck の出力を貼り、npm run merge（下書きは自動で解除される）\n\n${filled}`;
   try {

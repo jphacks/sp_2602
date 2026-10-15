@@ -1,0 +1,7 @@
+{
+  // npm run typecheck 用。next dev（.next/dev・doctor の .next-doctor）が書く型は、サーバを止めた後に画面を消すと古いまま残り、
+  // 消した画面を探して落ちる（kit:reset の後の全員など）。型は直前の next typegen が作る .next/types だけを使う
+  "extends": "../tsconfig.json",
+  "include": ["../next-env.d.ts", "../**/*.ts", "../**/*.tsx", "../.next/types/**/*.ts"],
+  "exclude": ["../node_modules", "../scripts/reset/files", "../.next/dev", "../.next-doctor"]
+}
