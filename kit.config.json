@@ -1,6 +1,6 @@
 {
   "$comment": "チームの正本。メンバー・担当範囲・タイムライン・変更ルールはここだけで決める。CODEOWNERS は npm run kit:owners で生成する。",
-  "$comment_times": "deadlines = 運営が決めた動かない締め切りと「それまでにやること」（担当・優先度つき。npm run now / kit:alarm が知らせる）。milestones = チームの目安（進みに合わせてまとめ役が kit:schedule でずらす）。sync: true の目安が「合流を決める・見直す同期点」",
+  "$comment_times": "deadlines = 運営が決めた動かない締め切りと「それまでにやること」（担当・優先度つき。npm run now / kit:alarm が知らせる）。milestones = チームの目安（進みに合わせてまとめ役が kit:schedule でずらす）。sync: true の目安が「合流を決める・見直す同期点」。owner を書いた目安は、now / kit:alarm がルールに担当を添える（全員に同じ文が出るため）",
   "project": "（プロダクト名）",
   "event": {
     "start": "2026-10-17T10:20:00+09:00",
@@ -172,7 +172,8 @@
       "at": "2026-10-18T14:30:00+09:00",
       "name": "バックアップ録画",
       "changes": "frozen",
-      "rule": "DEMO.md 通りの画面を録画して docs/pitch/ に置く。Code Freeze（15:00）の前に撮り、問題があれば直せるようにする"
+      "owner": "front-a",
+      "rule": "DEMO.md 通りの画面を録画して docs/pitch/ に置く（ほかの人はデモの不具合直しと通し練習）。Code Freeze（15:00）の前に撮り、問題があれば直せるようにする"
     }
   ],
   "help": {

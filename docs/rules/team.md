@@ -29,8 +29,9 @@ API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする�
 1. 機能A・B に短い英語名を付ける（例: `quiz` と `report`）。
 2. kit.config.json の owns の `a` / `b` をその名前に書き換える（`src/server/a/**` → `src/server/quiz/**`、`src/app/api/a/**` → `src/app/api/quiz/**`、`tests/server/a/**` も）。
 3. 画面 id が決まったら、front-a / front-b の owns の `src/app/home/**` / `src/app/result/**` を自分たちの画面 id に置き換える（1画面 = 1行。画面が3つ以上なら機能ごとに並べる）。
-4. `npm run kit:owners` → `npm run check` → commit。
-5. docs/members/*.md の「ミッション」を1文ずつ埋める（各自でもよい）。
+4. docs/members/*.md の所有ファイル・ステップ・触らないファイルに書いてあるフォルダ名（`src/server/a/` など）も、1〜3 で付けた名前に書き換える（kit.config.json だけ直すと説明書が古い名前のまま残り、AI が古いフォルダに作ろうとして止められる。`npm run check` が見つける）。
+5. `npm run kit:owners` → `npm run check` → commit。
+6. docs/members/*.md の「ミッション」を1文ずつ埋める（各自でもよい）。
 
 ## 機能が2つにきれいに割れないとき
 ほぼ1画面で AI の処理だけが重い、など。割り方だけ変える（フォルダの引っ越しは要らない）:

@@ -43,7 +43,12 @@ const policyText = { open: "自由に変更可", additive: "追加のみ（chang
 out.push(
   `## 時刻 ${fmtTime(now.toISOString())}  フェーズ（目安）: ${current ? current.name : "開始前"}  契約: ${policyText}`,
 );
-if (current) out.push(`ルール: ${current.rule}`);
+// 目安のルールは全員に同じ文が出る。担当（owner）がある目安は、誰の仕事かを添える（録画が全員の仕事に見えた。リハーサル6）
+if (current) {
+  const who =
+    current.owner && `（担当: ${current.owner}${current.owner === me?.id ? " ← 自分" : "。自分の担当ではない"}）`;
+  out.push(`ルール${who || ""}: ${current.rule}`);
+}
 if (next) out.push(`次の目安: ${fmtTime(next.at)} ${next.name}（${leftText(minutesUntil(next.at, now))}）`);
 const help = helpPhase(cfg, now);
 out.push(
