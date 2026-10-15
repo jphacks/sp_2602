@@ -20,7 +20,8 @@ const errors = [];
 const need = (k) => {
   if (d[k] === undefined || d[k] === "" || (Array.isArray(d[k]) && !d[k].length)) errors.push(`${k} が空`);
 };
-["member", "step", "goal", "demoStep", "files", "doneCheck"].forEach(need);
+// ステップ表にない作業（step: X）はデモに効かないことが多いので、demoStep は書かなくてよい（リハーサル4・5で「なし」が弾かれた）
+["member", "step", "goal", ...(d.step === "X" ? [] : ["demoStep"]), "files", "doneCheck"].forEach(need);
 
 if (d.member && d.member !== me.id) errors.push(`member が ${d.member}（自分は ${me.id}）`);
 
@@ -88,4 +89,6 @@ if (errors.length) {
 }
 if (warnings.length) console.log(`! 確認してほしいこと（止めはしない）:\n  ${warnings.join("\n  ")}`);
 console.log(`✓ 着手OK: ${d.step} — ${d.goal}`);
-console.log(`  デモ ${d.demoStep} / 契約 ${(d.contracts ?? []).join(", ") || "なし"} / 完了確認: ${d.doneCheck}`);
+console.log(
+  `  デモ ${d.demoStep || "なし"} / 契約 ${(d.contracts ?? []).join(", ") || "なし"} / 完了確認: ${d.doneCheck}`,
+);
