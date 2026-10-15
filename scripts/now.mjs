@@ -255,6 +255,14 @@ if (mine) {
 }
 
 todo.unshift(...urgent);
+// 準備がまだなら、何よりも先に（npm ci をせずに始めると hook・型チェック・doctor が全部失敗する）
+if (
+  !existsSync(p("node_modules/.package-lock.json")) ||
+  sh("git config core.hooksPath", { allowFail: true }) !== ".githooks"
+)
+  todo.unshift(
+    "このPCの準備がまだ（依存パッケージか git hooks がない）→ docs/kit/setup.md のとおり `npm run kit:setup -- <自分のid>`",
+  );
 if (stale.length)
   todo.push(
     `期限を1時間以上過ぎた自分のやること: ${stale.join(" / ")} → 終わっていれば Issue を閉じる。まだなら縮めるか、まとめ役に相談`,

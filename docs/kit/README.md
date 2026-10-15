@@ -25,15 +25,11 @@
 4. ラベル作成: `task` `bug` `change-request` `blocked` `help`（同じ GitHub アカウントを共有するなら `member:<id>` も）。続けてまとめ役が `npm run kit:deadlines -- issues`（締め切りのやることを1件ずつ Issue にする。ラベル `deadline` も作る）。
 5. **他のメンバーより先に**ここまで済ませる（リハーサル3: lead の設定前に動いた人がラベルなし・宛先なしの Issue を作った）。
 
-**全員**
+**全員**（手順・確かめ方・失敗したときは docs/kit/setup.md。AI に「docs/kit/setup.md を実行して」と頼んでもよい）
 ```
 git clone <repo> && cd <repo>
-npm ci
-npm run kit:setup
-npm run kit:whoami -- <自分のid>
-cp .env.example .env
-npm run doctor        # 全部 ✓ になるまで
-npm run kit:alarm -- --test   # 通知（音なし）が出るか
+npm run kit:setup -- <自分のid>   # npm ci・git hooks・自分・.env・GitHub・doctor をまとめて。「✓ 準備完了」まで
+npm run kit:alarm -- --test       # 通知（音なし）が出るか
 npm run now
 ```
 当日は別のターミナルで `npm run kit:alarm` を動かしっぱなしにする（締め切りの60・30・10分前と時刻ちょうど、目安の時刻に知らせる）。
