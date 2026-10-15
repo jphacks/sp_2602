@@ -184,7 +184,7 @@
   "members": [
     {
       "id": "lead",
-      "github": "github-user-1",
+      "github": "que-dotcom",
       "role": "つなぎ役（通信・API・セキュリティ／契約・main）",
       "owns": [
         "contracts/**",
