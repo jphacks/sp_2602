@@ -49,6 +49,7 @@
 - ステップ表にない作業: `npm run step -- X <英語名> --adhoc "目的"`（完了には数えない。PR に理由を1行）
 - まとめ役だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す。kit.config.json の時刻だけはまとめ役も変えてよい）
 - DB: テーブルは `src/server/db/schema.ts`、使うのは `await db()`。手元は設定なしで動く。Neon に反映は `npm run db:push`（docs/rules/stack.md「DB」）
+- 委託（期限つきの貸し出し）: `npm run handoff -- lend <相手id> <ファイル…> --issue <help Issue の番号>` で自分のファイルを貸す / `npm run handoff -- return <番号>` で返す / `npm run handoff` で一覧（docs/rules/help.md）
 - 締め切りと全員の状況: `npm run kit:deadlines`（締め切りとやることの一覧） / `npm run status`（全員の作業中・止まっている人・担当の残り） / `npm run kit:alarm`（人間が別のターミナルで動かす見張り役。AI は動かさない）
 - 自分の設定: `npm run kit:whoami -- <id>`（初回のみ）
 

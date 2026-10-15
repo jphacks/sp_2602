@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { STUB_MARK } from "./lib/gaps.mjs";
-import { currentMember, loadConfig, ownerOf, p, sh } from "./lib/kit.mjs";
+import { currentMember, loadConfig, loanProblem, ownerOf, p, sh } from "./lib/kit.mjs";
 
 const args = process.argv.slice(2);
 const opt = (k) => {
@@ -111,6 +111,30 @@ function byFacilitator(f) {
   }
 }
 
+// 例外4: 貸し出し（npm run handoff）。kit.config.json の loans だけを変える変更で、足す貸し出しが loanProblem を通り
+// （持ち主本人・まとめ役が貸す）、消す貸し出しは貸した人・借りた人・まとめ役が返すものなら通す。loans 以外を1か所でも変えていれば止まる
+function byLoan(f) {
+  if (f !== "kit.config.json") return false;
+  const was = before(f);
+  const now = contentOf(f);
+  if (was === null || now === null) return false;
+  try {
+    const a = JSON.parse(was);
+    const b = JSON.parse(now);
+    const strip = (c) => JSON.stringify({ ...c, loans: null });
+    if (strip(a) !== strip(b)) return false;
+    const key = (l) => JSON.stringify(l);
+    const oldLoans = a.loans ?? [];
+    const newLoans = b.loans ?? [];
+    const added = newLoans.filter((l) => !oldLoans.some((o) => key(o) === key(l)));
+    const removed = oldLoans.filter((o) => !newLoans.some((l) => key(o) === key(l)));
+    const ok = (l) => loanProblem(l, { ...a, loans: [...oldLoans, ...added] }, me.id) === null;
+    return added.every(ok) && removed.every((l) => [l.from, l.to, a.facilitator].includes(me.id));
+  } catch {
+    return false;
+  }
+}
+
 const errors = [];
 for (const f of files) {
   const owner = ownerOf(f, cfg);
@@ -120,6 +144,7 @@ for (const f of files) {
   if (ownsContracts && (contentOf(f) ?? "").startsWith(STUB_MARK)) continue;
   if (byReset(f)) continue;
   if (byFacilitator(f)) continue;
+  if (byLoan(f)) continue;
   errors.push(owner ? `${f}  → 所有者は ${owner}` : `${f}  → 所有者なし（kit.config.json に追加が必要）`);
 }
 
