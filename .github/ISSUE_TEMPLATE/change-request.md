@@ -6,6 +6,8 @@ labels: change-request
 
 ## 何を足したい・変えたいか
 
+## なぜ必要か（何に困っているか）
+
 ## DEMO.md のどこで必要か（D番号）
 （書けない場合は Stretch）
 
