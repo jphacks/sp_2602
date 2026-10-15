@@ -1,6 +1,7 @@
 // 契約と実装のずれを検査する（lead の所有）。規則は scripts/lib/gaps.mjs と同じ。
 // 契約が先・実装が後: 第1統合（milestones の integrate）より前は警告だけ。第1統合以降（または KIT_STRICT_CONTRACTS=1）は失敗。
 // すき間は lead が npm run kit:stub で「仮のファイル」を置けば埋まる。未実装の一覧は npm run now が担当者に出す。
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { api } from "@contracts/api";
 import { describe, expect, it } from "vitest";
@@ -63,4 +64,19 @@ describe("kit.config.json の締め切り", () => {
       expect((d.items ?? []).filter((x) => x.id === i.id).length, "item の id が重なっている").toBe(1);
     },
   );
+});
+
+// kit:reset の照合表（scripts/reset/manifest.json）が、ひな型のファイルと合っているか。キットの保守用で、kit:reset の後は何もしない。
+// ずれていると kit:reset が「内容が変わっていた」として古いファイルを残す（リハーサル5: tests/server/api.test.ts を直した時に作り直し忘れた）。
+// 直し方: node scripts/kit-reset.mjs --write-manifest
+const manifest = JSON.parse(readFileSync("scripts/reset/manifest.json", "utf8")).files as Record<
+  string,
+  { sha: string }
+>;
+describe.runIf(existsSync("src/server/analyze.ts"))("kit:reset の照合表（ひな型のときだけ）", () => {
+  // kit-reset.mjs と同じそろえ方（改行コードと末尾の空白）
+  const sha = (s: string) => createHash("sha256").update(s.replace(/\r\n/g, "\n").trimEnd()).digest("hex");
+  it.each(Object.entries(manifest))("%s", (file, m) => {
+    expect(sha(readFileSync(file, "utf8")), "node scripts/kit-reset.mjs --write-manifest で作り直す").toBe(m.sha);
+  });
 });
