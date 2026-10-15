@@ -83,7 +83,9 @@ const goal = line
   .replace(/\s*— 完了確認:.*$/, "")
   .trim();
 const prev = existsSync(decl) ? JSON.parse(readFileSync(decl, "utf8")) : null;
-if (prev?.step === step) {
+// 同じステップのやり直しだけ前の宣言を残す。X（ステップ表にない作業）は毎回 step が同じ "X" なので、目的も同じときだけ残す
+// （以前は step だけで比べ、前の X の目的と files が次の X に残って、PR の題名が前の作業のままになった。リハーサル6）
+if (prev?.step === step && prev?.goal === goal) {
   console.log(`着手宣言 .kit/declare-${me.id}.json は ${step} のものが既にある（そのまま）`);
 } else {
   const template = { member: me.id, step, goal, demoStep: "", screens: [], contracts: [], files: [], doneCheck };

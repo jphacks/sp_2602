@@ -119,7 +119,7 @@ function tick(first) {
   const groups = new Map();
   for (const c of fresh) {
     if (c.m) {
-      tell(`目安: ${c.m.name}（${fmtTime(c.m.at)}）`, [c.m.rule]);
+      tell(`目安: ${c.m.name}（${fmtTime(c.m.at)}）`, [c.m.owner ? `担当: ${c.m.owner}。${c.m.rule}` : c.m.rule]);
       continue;
     }
     if (itemState(c.i, issues).state === "done" || !watching(c.i, cfg)) continue; // 終わったもの・関係ないものは知らせない

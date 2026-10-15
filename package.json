@@ -8,7 +8,7 @@
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit -p scripts/tsconfig.typecheck.json",
     "test": "vitest run",
-    "lint": "biome ci . && node scripts/check-style.mjs && node scripts/gen-codeowners.mjs --check",
+    "lint": "biome ci . && node scripts/check-style.mjs && node scripts/gen-codeowners.mjs --check && node scripts/check-member-docs.mjs",
     "fix": "biome check --write .",
     "check": "npm run lint && npm run typecheck && npm run test && npm run scope",
     "now": "node scripts/now.mjs",
