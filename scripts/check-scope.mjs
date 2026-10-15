@@ -61,8 +61,19 @@ if (!me) {
 
 // --no-renames: 移動は「元の削除＋先の追加」として両方を数える（数えないと、他人のファイルを自分のフォルダへ移すと元の削除が見えない）
 let files;
-if (args.includes("--staged")) files = sh("git diff --cached --name-only --no-renames --diff-filter=ACMRD");
-else if (opt("--base")) files = sh(`git diff --name-only --no-renames ${opt("--base")}...HEAD`);
+if (args.includes("--staged")) {
+  files = sh("git diff --cached --name-only --no-renames --diff-filter=ACMRD");
+  // main を取り込むマージコミットでは、main 側から入ってきただけのファイル（他人の変更）もステージに乗る。
+  // 取り込み元（MERGE_HEAD）と同じ内容のものは自分の変更ではないので数えない。自分の変更と、衝突を直したファイルは残る
+  // （リハーサル5: front-a の main の取り込みが、lead の kit.config.json の変更で止まった）
+  if (sh("git rev-parse -q --verify MERGE_HEAD", { allowFail: true }) !== null) {
+    const fromMerge = new Set(sh("git diff --cached --name-only --no-renames MERGE_HEAD").split("\n"));
+    files = files
+      .split("\n")
+      .filter((f) => fromMerge.has(f))
+      .join("\n");
+  }
+} else if (opt("--base")) files = sh(`git diff --name-only --no-renames ${opt("--base")}...HEAD`);
 else
   files = `${forkPoint ? sh(`git diff --name-only --no-renames ${forkPoint} HEAD`) : ""}\n${sh("git diff --name-only --no-renames HEAD")}\n${sh("git ls-files --others --exclude-standard")}`;
 files = [
