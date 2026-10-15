@@ -14,13 +14,37 @@ const opt = (k) => {
   const i = args.indexOf(k);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const cfg = loadConfig();
 
 // 初回コミット（キット一式を入れる時）は全員分のファイルを含むので、範囲チェックをしない
 if (sh("git rev-parse --verify -q HEAD", { allowFail: true }) === null) {
   console.log("初回コミット前のため範囲チェックを省略");
   process.exit(0);
 }
+
+// 何と比べるか。オプションなし（npm run check）は「main から分かれた後のブランチ全体＋まだコミットしていない変更」。
+// 以前は未コミットの変更だけを見ていたので、コミット直後や main を取り込んだ直後に「0 件」と出て意味が分からなかった（リハーサル3で4人）
+// origin/main と手元の main のうち新しい方と比べる（fetch せずに手元の main だけ取り込むと、origin/main が古いまま残り、
+// 他人が main に入れた変更まで「範囲外」と出る）
+const hasOriginMain = sh("git rev-parse --verify -q origin/main", { allowFail: true }) !== null;
+const hasMain = sh("git rev-parse --verify -q main", { allowFail: true }) !== null;
+const localAhead =
+  hasOriginMain && hasMain && sh("git merge-base --is-ancestor origin/main main", { allowFail: true }) !== null;
+const mainRef = hasOriginMain && !localAhead ? "origin/main" : "main";
+const forkPoint = sh(`git merge-base HEAD ${mainRef}`, { allowFail: true });
+const baseRef = opt("--base") ?? (args.includes("--staged") ? "HEAD" : (forkPoint ?? "HEAD"));
+
+// 誰が何を持っているかは、比べる元（変更前）の kit.config.json で決める。変更後の設定で決めると、同じ変更の中で
+// 「自分の owns に他人のファイルを足す」「lead から kit.config.json を外す」をすれば何でも範囲内になってしまう（レビュー指摘）。
+// そのため lead が owns を変えた PR では、新しく自分のものにしたファイルはまだ触れない（設定の PR が main に入ってから）。
+// 貸し出し（loans）も同じで、貸す PR が main に入ってから借りた人の PR が通る
+const cfg = (() => {
+  const text = sh(`git show "${baseRef}:kit.config.json"`, { allowFail: true });
+  try {
+    return text ? JSON.parse(text) : loadConfig();
+  } catch {
+    return loadConfig();
+  }
+})();
 
 let me = null;
 if (opt("--member")) me = cfg.members.find((m) => m.id === opt("--member"));
@@ -35,17 +59,6 @@ if (!me) {
   process.exit(1);
 }
 
-// 何と比べるか。オプションなし（npm run check）は「main から分かれた後のブランチ全体＋まだコミットしていない変更」。
-// 以前は未コミットの変更だけを見ていたので、コミット直後や main を取り込んだ直後に「0 件」と出て意味が分からなかった（リハーサル3で4人）
-// origin/main と手元の main のうち新しい方と比べる（fetch せずに手元の main だけ取り込むと、origin/main が古いまま残り、
-// 他人が main に入れた変更まで「範囲外」と出る）
-const hasOriginMain = sh("git rev-parse --verify -q origin/main", { allowFail: true }) !== null;
-const hasMain = sh("git rev-parse --verify -q main", { allowFail: true }) !== null;
-const localAhead =
-  hasOriginMain && hasMain && sh("git merge-base --is-ancestor origin/main main", { allowFail: true }) !== null;
-const mainRef = hasOriginMain && !localAhead ? "origin/main" : "main";
-const forkPoint = sh(`git merge-base HEAD ${mainRef}`, { allowFail: true });
-const baseRef = opt("--base") ?? (args.includes("--staged") ? "HEAD" : (forkPoint ?? "HEAD"));
 // --no-renames: 移動は「元の削除＋先の追加」として両方を数える（数えないと、他人のファイルを自分のフォルダへ移すと元の削除が見えない）
 let files;
 if (args.includes("--staged")) files = sh("git diff --cached --name-only --no-renames --diff-filter=ACMRD");
