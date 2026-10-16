@@ -1,8 +1,9 @@
 #!/bin/sh
-# main への直接コミット・命名違反・CHANGELOG のない契約変更・整形崩れをコミット前に止める。
+# main への直接コミット・命名違反・CHANGELOG のない契約変更をコミット前に止め、整形崩れは自動で直す（直せない lint だけ止める）。
 node scripts/check-branch.mjs || exit 1
 node scripts/check-changelog.mjs --staged || exit 1
+node scripts/precommit-fix.mjs
 npx biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true || {
-  echo "整形・lint のエラー。npm run fix を実行してから add し直してください。"
+  echo "整形・lint のエラー。直せない指摘が残っている。上の内容を直してから add し直してください。"
   exit 1
 }

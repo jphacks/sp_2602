@@ -4,6 +4,7 @@
   "type": "module",
   "main": "expo-router/entry",
   "scripts": {
+    "prepare": "node scripts/prepare.mjs",
     "dev": "expo start --dev-client",
     "dev:server": "tsx watch --env-file-if-exists=.env --env-file-if-exists=.env.local src/server/dev.ts",
     "android": "expo run:android",
