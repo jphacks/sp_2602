@@ -40,7 +40,17 @@
 | 会議の録音から要件を更新する | `docs/rules/meeting.md` |
 | 同期点（まとめ役が進行） | `docs/rules/sync.md` |
 | 他の人を手伝う・手伝ってもらう（合流） | `docs/rules/help.md` |
+| 要件・設計から Issue を一括で洗い出して立てる（開発の開始前） | スキル `plan-issues`（`.claude/skills/` と `.agents/skills/`）。docs/rules/git.md |
+| 作業中に別の問題・追加案を見つけた（Issue を膨らませず新しく立てる） | スキル `spawn-issue`（`.claude/skills/` と `.agents/skills/`）。docs/rules/git.md |
+| コンフリクト（マージ競合）が出た | スキル `resolve-conflicts`（`.claude/skills/` と `.agents/skills/`）。docs/rules/git.md |
 | Codex で動いていて、git・gh・npm がサンドボックスで失敗する | `docs/kit/codex.md` |
+
+## Review guidelines（PR のレビュー観点。Codex の自動レビューもここを読む）
+- コンフリクトを解決した PR（マージコミットを含む）では、**自分側と main 側の両方の変更が残っているか**を確かめる。片方の追加した行・関数・型・テストが意図なく消えていないかを、差分から探す。
+- `contracts/` が変わったら、`contracts/CHANGELOG.md` に1行の記録があるか確認する。契約の競合を AI が片方に寄せて解決していないかも見る。
+- 他人の担当部分（`docs/members/`）への変更が混ざっていないか確認する。
+- テストの削除・skip・期待値の書き換えで通していないか確認する。
+- 色コード・余白の数値の直書き、`style={{ … }}`、画面からの `fetch` の手書きがないか確認する。
 
 ## コマンド
 - `npm run now` 状況とやること / `npm run step -- S2 input-form` ステップ開始（ブランチ＋宣言ひな型） / `npm run doctor` 環境チェック / `npm run preflight` 着手宣言の照合
