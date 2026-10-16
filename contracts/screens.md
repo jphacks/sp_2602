@@ -1,11 +1,11 @@
 # 画面契約
 
-画面の一覧・遷移・所有者。画面 id（バッククォートで囲んだもの）は着手宣言で参照される。
+画面の一覧・遷移・担当。画面 id（バッククォートで囲んだもの）は着手宣言で参照される。
 変更手続きはデータ契約と同じ（CHANGELOG に1行）。
 
 「前の画面から受け取る」「次の画面へ渡す」は `useFlow()` 経由の受け渡し。「サーバとの通信」は `call()` / `stream()` で使う API（contracts/api.ts の名前）。
 
-| id | 画面 | 所有者 | 前の画面から受け取る | サーバとの通信 | 次の画面へ渡す | 遷移先 |
+| id | 画面 | 担当 | 前の画面から受け取る | サーバとの通信 | 次の画面へ渡す | 遷移先 |
 |---|---|---|---|---|---|---|
 | `home` | 入力 | front-b（本体）・front-a（部品） | なし | analyzeStream（AnalyzeRequest → AnalyzeResult） | AnalyzeResult | `result` |
 | `result` | 結果 | front-b（本体）・front-a（部品） | AnalyzeResult | なし | なし | `home` |

@@ -1,7 +1,7 @@
 // npm run preflight — 着手宣言（.kit/declare-<id>.json）を、設定・契約・画面・デモ台本と照合する。
-// 「理解しました」ではなく、名前が実在するか・所有範囲内かで理解を確かめる。
+// 「理解しました」ではなく、名前が実在するかで理解を確かめる。
 import { existsSync, readFileSync } from "node:fs";
-import { currentMember, loadConfig, mayEdit, ownerOf, p } from "./lib/kit.mjs";
+import { currentMember, loadConfig, p } from "./lib/kit.mjs";
 
 const cfg = loadConfig();
 const me = currentMember(cfg);
@@ -25,12 +25,6 @@ const need = (k) => {
 
 if (d.member && d.member !== me.id) errors.push(`member が ${d.member}（自分は ${me.id}）`);
 
-// 触るファイルはすべて自分の範囲内か
-for (const f of d.files ?? []) {
-  const o = ownerOf(f, cfg);
-  if (!mayEdit(o, me, cfg)) errors.push(`files: ${f} は ${o ?? "所有者なし"} のもの`);
-}
-
 // 使う契約名は contracts/ に export されているか
 const contractSrc = ["contracts/schemas.ts", "contracts/api.ts", "contracts/errors.ts"]
   .filter((f) => existsSync(p(f)))
@@ -40,9 +34,9 @@ for (const c of d.contracts ?? []) {
   if (!new RegExp(`export\\s+(const|type|interface)\\s+${c}\\b`).test(contractSrc))
     errors.push(`contracts: ${c} は contracts/ に存在しない（このステップで作るなら newContracts に書く）`);
 }
-// これから作る契約名（契約を変える人＝contracts/ の所有者だけが書ける）
+// これから作る契約名
 if ((d.newContracts ?? []).length && !(d.files ?? []).some((f) => f.startsWith("contracts/")))
-  errors.push("newContracts を書くなら、files に contracts/ のファイルを含める（契約を変えるのは lead）");
+  errors.push("newContracts を書くなら、files に contracts/ のファイルを含める");
 for (const c of d.newContracts ?? []) {
   if (new RegExp(`export\\s+(const|type|interface)\\s+${c}\\b`).test(contractSrc))
     errors.push(`newContracts: ${c} は既にある（contracts に書く）`);

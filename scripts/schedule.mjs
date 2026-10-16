@@ -1,5 +1,4 @@
 // npm run kit:schedule — 時刻表を見る・チームの目安（kit.config.json の milestones）をずらす（まとめ役 = kit.config.json の facilitator）。
-// kit.config.json は lead の所有だが、時刻だけを変える変更はまとめ役もコミットできる（check-scope の例外）。
 //   npm run kit:schedule                      締め切りと目安の一覧と現在地
 //   npm run kit:schedule -- shift <分>         目安を全部 <分> ずらす（-30 で30分前へ）
 //   npm run kit:schedule -- from <id> <HH:MM>  目安 <id> が「その目安の日」の HH:MM になるように、目安全体を同じだけずらす

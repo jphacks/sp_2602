@@ -2,7 +2,7 @@
 
 ## 人間向け（最初に読む）
 - ミッション: アプリ全体の見た目を決め、どの画面もデザインどおりに見える部品をそろえる
-- 所有ファイル: kit.config.json の owns（ここ以外は触らない）。`src/components/`（共通部品 `ui/` と、画面ごとの見た目の部品 `src/components/<画面id>/`）・`docs/design/`
+- 担当の場所: `src/components/`（共通部品 `ui/` と、画面ごとの見た目の部品 `src/components/<画面id>/`）・`docs/design/`
 - 動作確認: `npm run dev`（.env は MOCK=1）で http://localhost:3000 を開く。見た目は `npm run shot` で撮って確かめる（スマホ幅 375px と PC 幅）
 - 詰まったら: 30分で解決しなければまとめ役（lead）に声をかける / `blocked` Issue。契約・API のことは lead へ
 

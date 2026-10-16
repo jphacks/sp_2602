@@ -10,15 +10,15 @@
     },
     "src/server/analyze.ts": {
       "action": "delete",
-      "sha": "e92deed92fd6b255b812f51b2683669576566dd259e0b6b9e3eca5570cb7e9ae"
+      "sha": "792e60b1774ec8eb94f8ea76b385aafdcca0848e101ab406a26aae654b4806cc"
     },
     "src/app/home/page.tsx": {
       "action": "delete",
-      "sha": "0c7a511c089b40a67519b72eca704e820f8ecafbd37f5a8acc2d18ecca5e9c2a"
+      "sha": "7c7ce37e63bb0653e5847104dd133661951a2c886fb0ef6721d49bca6c4b10ba"
     },
     "src/app/result/page.tsx": {
       "action": "delete",
-      "sha": "fbffa0574c2ed36bb471516b79f09efe41ab0bbd7f838fb29bd2e3bac28c5d37"
+      "sha": "92947610cede24d2126d6a58881689cc375f0367a15aaa78dec39699a3f1556f"
     },
     "contracts/schemas.ts": {
       "action": "replace",
@@ -34,15 +34,15 @@
     },
     "contracts/screens.md": {
       "action": "replace",
-      "sha": "cf039bc1d23c1b9b07cdbd94ba4e18dbc1a0eb89e71ad2595a49994ef6b8c9c9"
+      "sha": "a457ec55388b705b0fa8f367f1294f3b54683ac4595727f76190a67644b3f997"
     },
     "src/lib/flow.tsx": {
       "action": "replace",
-      "sha": "c78be5c1500c4df0c1a32d14074a6d256ca703ef269f8de36113f07919b29eac"
+      "sha": "efa52efa17b0fa54add7e86af7b375493d5567b0d8a1efc31e4204ca4c10305f"
     },
     "src/app/page.tsx": {
       "action": "replace",
-      "sha": "e6e7bbc6d9844b5463a6ed3d38d2bd766877649557e9553540694ae046047570"
+      "sha": "7c7d76c1bcfeae86eed02308e85b718682b174b7a0e7e579f39467b1f1df0c18"
     },
     "src/app/api/health/route.ts": {
       "action": "replace",
@@ -50,7 +50,7 @@
     },
     "tests/server/api.test.ts": {
       "action": "replace",
-      "sha": "c1ad771b8d6337ed9438b2f1b1b520da1cddcb49580e9b4857c5d03bf5c3e5de"
+      "sha": "e9b63c494655aaeec0deb7062956a0004131e5643224c25300cdc3341d006d11"
     }
   }
 }

@@ -1,5 +1,5 @@
 "use client";
-// 画面 home（front-a の所有）。このフォルダ内なら部品ファイルを自由に増やしてよい（例: ./ItemForm.tsx）。
+// 画面 home（front-a の担当）。このフォルダ内なら部品ファイルを自由に増やしてよい（例: ./ItemForm.tsx）。
 // 例として、ストリームで途中経過を表示しながら判定し、終わったら result へ進む。
 import type { ApiError } from "@contracts/errors";
 import { demoInput } from "@contracts/fixtures";

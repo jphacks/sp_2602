@@ -8,3 +8,4 @@ contracts/ を変えたら、同じ PR で必ず1行足す（CI と pre-commit �
 - 00:00 [追加] StreamDef（ストリームの API 1本の形。stream()/handleStream() が使う。ストリームの API が0本でも型が崩れない） — back・lead — なし
 - 00:00 [追加] screens.md の所有者を5人構成に（home = front-a / result = front-b。型は変更なし） — front-a・front-b — なし
 - 00:00 [追加] screens.md の担当の列を4人構成に（画面の本体 = front-b・見た目の部品 = front-a。型は変更なし） — front-a・front-b — なし
+- 00:00 [追加] screens.md の表の「所有者」列の名前を「担当」に変えた（編集を制限する仕組みの削除に合わせた表記。型・中身は変更なし） — 全員 — なし

@@ -1,4 +1,4 @@
-// 全画面共通の枠（lead の所有）。スマホ優先: スマホ幅で設計し、PC では中央に寄せて広げる。
+// 全画面共通の枠（lead の担当）。スマホ優先: スマホ幅で設計し、PC では中央に寄せて広げる。
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { FlowProvider } from "@/lib/flow";

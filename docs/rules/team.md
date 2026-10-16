@@ -16,7 +16,7 @@
 - 機能をまたぐもの（契約・API の入口の仕組み・通信・エラー・認証）は lead が持つ。画面とサーバの受け渡しは必ず契約を通す。
 - **発表は lead**（DEMO.md・資料・紹介動画・バックアップ録画。`docs/DEMO.md`・`docs/pitch/`）。
 - **まとめ役も lead**（kit.config.json の `facilitator`）：同期点の進行・合流（手伝い）の判断・時刻表のずれの修正・change-request の採否。lead は役を兼ねるので、契約の問い合わせ → 同期点 → 発表 → 自分のステップの順に優先する。
-- **つなぎ役は lead**（members の1人目）：契約の所有者・CODEOWNERS のレビュー役・change-request の宛先。
+- **つなぎ役は lead**（members の1人目）：契約の窓口・change-request の宛先。
 
 ## 図の流れ（どの図から何を作るか）
 ```
@@ -40,26 +40,24 @@
 - ER図は表の形の合意に使う。テーブル定義のファイル（`src/server/db/schema.ts`）を書くのは back-a のまま。図と schema.ts が食い違ったら schema.ts に合わせて図を直す。
 - 図を AI に描かせるときは、FigJam は Mermaid（図を文で書く形）から作れる。元の Mermaid は各自の docs に残しておくと、AI が読んで作業に使える。
 
-## 担当の場所（kit.config.json の owns）
-持ち主は members の並び順（lead → back-a → front-a → front-b）で、最初に当てはまった人になる。
+## 担当の場所（目安。触れる範囲の制限ではない）
 
-| 人 | 自分だけが触る場所 |
+| 人 | 主に作る場所 |
 |---|---|
 | lead | `contracts/`・`src/lib/`・`src/server/route.ts`・`src/server/errors.ts`・`src/app/api/health/`・`src/proxy.ts`・`tests/server/api.test.ts`・設定・`scripts/`・`docs/rules/`・`docs/DEMO.md`・`docs/pitch/` など |
 | back-a | `src/server/a/`・`src/server/b/`・`src/app/api/a/`・`src/app/api/b/`・`tests/server/a/`・`tests/server/b/`・`src/server/db/index.ts`・`src/server/` 直下の共通の処理。テーブル定義 `src/server/db/schema.ts` は共有の場所だが、サーバ担当は1人なので実際には back-a だけが足す |
 | front-a | `src/components/`・`docs/design/` |
 | front-b | 画面の本体（`src/app/<画面id>/`）・`docs/flow/`・`tests/e2e/` |
-| debug | 自分だけの場所はない。デバッガーとして `editAll: true` で全員のファイルを触れる（直す前に持ち主に知らせる。docs/members/debug.md） |
+| debug | 自分だけの場所はない。デバッガーとして全員のファイルを見て直す（直す前に持ち主に知らせる。docs/members/debug.md） |
 
 API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする。フォルダ `src/app/api/<機能>/` は back-a のもの。
 
 ## キックオフでの書き換え（lead の S1）
 1. 機能A・B に短い英語名を付ける（例: `quiz` と `report`）。
-2. kit.config.json の back-a の owns の `a` / `b` をその名前に書き換える（`src/server/a/**` → `src/server/quiz/**`、`src/app/api/a/**` → `src/app/api/quiz/**`、`tests/server/a/**` も。b も同じ）。
-3. 画面 id が決まったら、front-b の owns の `src/app/home/**` / `src/app/result/**` を自分たちの画面 id に置き換える（1画面 = 1行）。画面ごとの見た目の部品は `src/components/<画面id>/` に置くので、front-a の owns は書き換えなくてよい。
-4. docs/members/*.md の所有ファイル・ステップ・触らないファイルに書いてあるフォルダ名（`src/server/a/` など）も、1〜3 で付けた名前に書き換える（kit.config.json だけ直すと説明書が古い名前のまま残り、AI が古いフォルダに作ろうとして止められる。`npm run check` が見つける）。
-5. `npm run kit:owners` → `npm run check` → commit。
-6. docs/members/*.md の「ミッション」を1文ずつ埋める（各自でもよい）。
+2. 上の表と docs/members/*.md の担当・ステップに書いてあるフォルダ名（`src/server/a/`・`src/app/api/a/`・`tests/server/a/` など。b も同じ）を、付けた名前に書き換える（`src/server/quiz/` など）。
+3. 画面 id が決まったら、docs/members/*.md の `src/app/home/`・`src/app/result/` も自分たちの画面 id に置き換える（1画面 = 1行）。画面ごとの見た目の部品は `src/components/<画面id>/` に置く。説明書が古い名前のまま残ると、AI が古いフォルダに作ろうとする。
+4. `npm run check` → commit。
+5. docs/members/*.md の「ミッション」を1文ずつ埋める（各自でもよい）。
 
 ## 機能が2つにきれいに割れないとき
 ほぼ1画面で AI の処理だけが重い、など。back-a の中のフォルダの分け方だけ変える（例: `src/server/ai/` と `src/server/data/`）。画面の分け方（UI / UX）は変えない。
@@ -68,11 +66,11 @@ API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする�
 1人1ファイル。見出しは: やること（ステップに載らないもの）/ 待ち / 行き詰まり / 未決・解決済み / 決めたこと（理由）/ GitHub の下書き / AI メモ / ログ。
 - 自動: `npm run step` で「開始」と2行目の「今:」、`npm run merge` で「完了」（かかった分も）。
 - 手で（1行ずつ）: `npm run log -- todo|wait|stuck|q|decide|ai|gh "…"`、解決は `npm run log -- done "…"`。人はエディタで開いて直してもよい（`npm run log -- open`）。
-- 行き詰まりは「範囲 内/外 ／ 試したこと ／ 解決できない理由（権限・契約不足・知識・外部・時間）／ 次の手」。30分を超えると `npm run now` が「Issue にする」と知らせる。範囲の外は所有者に Issue（自分で直さない）。
+- 行き詰まりは「範囲 内/外 ／ 試したこと ／ 解決できない理由（権限・契約不足・知識・外部・時間）／ 次の手」。30分を超えると `npm run now` が「Issue にする」と知らせる。範囲の外は担当者に Issue（自分で直さない）。
 - 優先順位はステップの順番と `npm run now` のやることで決まる。このファイルで別の順位は付けない。他の人に関わる未決は docs/requirements/open.md か Issue に出す。GitHub の状態（Issue が開いているか等）は書き写さない。
 - AI はこのファイルを読まない（トークンを使わない）。コマンドで1行足すだけ。
 - 置き場所はリポジトリの外（Windows は `C:\hackathon\log\<リポジトリ名>\<自分のid>.md`、Mac / Linux は `~/hackathon/log/…`。`KIT_LOG_DIR` で変えられる）。リポジトリは公開なので、個人のメモはそこに出さない。
 - 使いどころ: 同期点の30秒報告（`npm run log` で今日の分を読む）、終わった後の振り返り、発表で「誰が何をしたか」を聞かれた時。
 
 ## 人を決めたら
-kit.config.json の `github` に各自の GitHub のユーザー名を書き、`npm run kit:owners`。members の **1人目がつなぎ役**（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）なので、lead を先頭から動かさない。まとめ役を変えるときは `facilitator` を書き換える。
+kit.config.json の `github` に各自の GitHub のユーザー名を書く。members の **1人目がつなぎ役**（契約を見る人・change-request の宛先）なので、lead を先頭から動かさない。まとめ役を変えるときは `facilitator` を書き換える。

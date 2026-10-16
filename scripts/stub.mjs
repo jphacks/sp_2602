@@ -1,7 +1,7 @@
 // npm run kit:stub — 契約を足したら lead が実行する。契約にあって中身がない API と画面に「仮のファイル」を作る。
 //   仮の API : MOCK でも本番でも contracts/fixtures.ts の同名データを返す（なければ「未実装」エラー）
 //   仮の画面 : 「準備中」と出すだけ
-// 仮のファイルは 1 行目に KIT-STUB の印があり、所有者でない lead でもコミットできる（check-scope の例外）。
+// 仮のファイルは 1 行目に KIT-STUB の印があり。
 // 本物に置き換える担当者は、その印の行ごと書き換える。
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";

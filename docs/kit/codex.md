@@ -5,7 +5,7 @@
 | ファイル | 中身 |
 |---|---|
 | `.codex/config.toml` | 編集はリポジトリ内だけ・ネットワークあり・npm のキャッシュをリポジトリ内に |
-| `.codex/hooks.json` | 守りの hook を2つ登録（下の表） |
+| `.codex/hooks.json` | 守りの hook を登録（下の表） |
 | `.codex/hooks/*.mjs` | hook の中身（判定は Claude 用の `.claude/hooks/` と同じ） |
 
 ## 最初に1回（Codex を使う人だけ）
@@ -20,12 +20,11 @@
    ```
    GH_TOKEN を渡す理由: サンドボックスの中の gh は Windows の資格情報を読めず、`npm run now` / `issue` / `merge` が GitHub に繋がらない（リハーサル1）。
 2. 「このフォルダを信頼するか」と聞かれたら trust する。trust しないと `.codex/` の設定も hook も読まれない（AGENTS.md だけは読まれる）。
-3. `/hooks` を開き、このリポジトリの hook 2つを確認して trust する。hook の中身が変わると、もう一度 trust が要る。
+3. `/hooks` を開き、このリポジトリの hook を確認して trust する。hook の中身が変わると、もう一度 trust が要る。
 
 ## 守りの対応（Claude Code との違い）
 | 守り | Claude Code | Codex |
 |---|---|---|
-| 他人のファイルの編集を止める | `.claude/hooks/guard-scope.mjs`（Edit / Write） | `.codex/hooks/guard-scope.mjs`（apply_patch） |
 | 型が通らないまま終わらせない | `.claude/hooks/stop-check.mjs` | `.codex/hooks/stop-check.mjs` |
 | 編集したファイルをその場で整形 | `.claude/hooks/format.mjs` | **なし**。commit の前に `npm run fix`（整形崩れは pre-commit が止める） |
 | シェルのコマンドでの書き換え | 止めない | 止めない（どちらも pre-commit と CI が止める） |

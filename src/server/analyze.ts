@@ -1,4 +1,4 @@
-// サーバ側の処理（back-a の所有。ひな型の例で、kit:reset で消える）。外部サービス（AI・DB など）は必ずここ経由で呼び、MOCK=1 なら fixtures に切り替える。
+// サーバ側の処理（back-a の担当。ひな型の例で、kit:reset で消える）。外部サービス（AI・DB など）は必ずここ経由で呼び、MOCK=1 なら fixtures に切り替える。
 // 失敗は AppError を throw する（形の変換は route.ts がやる）。
 import "server-only";
 import type { Chunk, Req, Res } from "@contracts/api";

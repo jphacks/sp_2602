@@ -1,6 +1,6 @@
 # AGENTS.md — このリポジトリで働くAIへ（人間も同じ手順）
 
-ハッカソンのチーム開発用リポジトリ。4人（docs/rules/team.md）がそれぞれ自分の範囲だけを作り、`contracts/` の型で繋がる。
+ハッカソンのチーム開発用リポジトリ。4人（docs/rules/team.md）がそれぞれ自分の担当を作り、`contracts/` の型で繋がる。
 **このファイルは判断の手順だけ。詳細は下の表で必要になった時だけ読む。**
 
 ## 最初に1回（このPCで初めて使うとき・clone した直後）
@@ -9,14 +9,14 @@
 ## 毎回の手順（作業の区切りごとに最初から）
 1. `npm run now` を実行し、出力の「やること」を上から順に処理する。
 2. `npm run step -- S<番号> <英語名>` で最新の main からブランチを作る（着手宣言のひな型も `.kit/declare-<自分>.json` にできる）。宣言は `npm run declare -- demoStep=D2 files=… screens=… contracts=…` で埋める（JSON を手で編集しない。preflight も自動で走り、通ると下書きの PR ができて「作業中」が全員に見える）（形式: docs/rules/declare.md）。通らなければ読み直してから書き直す。推測で埋めない。
-3. 実装する。触ってよいのは宣言した自分の所有ファイルだけ。
+3. 実装する。宣言した自分の担当（`docs/members/<自分>.md`）を作る。
 4. 宣言した完了確認（doneCheck）を実行する。**出力の全文は PR 本文の「完了確認」欄に貼り**、人間への報告（下の6行）には結果の要点を書く。「できました」だけの報告はしない。
-5. `npm run check`（整形・見た目・型・テスト・範囲）が通ったら commit → push（PR は declare が下書きで作ってある。本文の完了確認を埋める）。1ステップ = 1PR。マージは必ず `npm run merge`（CI が今のコミットで通るまで待ってからマージする。`gh pr merge` を直接使わない）。
+5. `npm run check`（整形・見た目・型・テスト・契約の変更記録）が通ったら commit → push（PR は declare が下書きで作ってある。本文の完了確認を埋める）。1ステップ = 1PR。マージは必ず `npm run merge`（CI が今のコミットで通るまで待ってからマージする。`gh pr merge` を直接使わない）。
 6. 1に戻る。
 
 ## 絶対に守ること
-- 他人の所有ファイルを編集しない。必要なら `npm run issue -- bug <所有者id> "題名"` で所有者に頼み、待つ間は別のステップへ。Issue は必ず `npm run issue` で立てる（似た Issue があれば止まるので、そちらにコメントする）。宛先は「対応する人」で、自分ではない。Issue・PR へのコメントは先頭に `<自分のid>:` を書く（同じ GitHub アカウントを共有していても、誰の発言か分かるように）。**本文が2行以上ならファイルに書いて `--body-file <path>` で渡す**（引数で渡すと Windows では最初の改行で切れる）。
-- `contracts/` は lead だけが変更する。足りない型・フィールドがあれば `npm run issue -- change-request lead "題名"`（docs/rules/changes.md）。lead は契約を足したら `npm run kit:stub` で仮の API・画面を置き、useFlow の欄も同じ PR で足す。勝手に自分の側で型を作って回避しない。
+- 他人の担当部分を直したくなったら、勝手に直さず `npm run issue -- bug <担当者id> "題名"` で担当者に頼み、待つ間は別のステップへ。Issue は必ず `npm run issue` で立てる（似た Issue があれば止まるので、そちらにコメントする）。宛先は「対応する人」で、自分ではない。Issue・PR へのコメントは先頭に `<自分のid>:` を書く（同じ GitHub アカウントを共有していても、誰の発言か分かるように）。**本文が2行以上ならファイルに書いて `--body-file <path>` で渡す**（引数で渡すと Windows では最初の改行で切れる）。
+- `contracts/` を変えるときは docs/rules/changes.md の手順（`contracts/CHANGELOG.md` に1行）に従う。足りない型・フィールドがあれば `npm run issue -- change-request lead "題名"`。契約を足した人は `npm run kit:stub` で仮の API・画面を置き、useFlow の欄も同じ PR で足す。勝手に自分の側で型を作って回避しない。
 - テストを消す・skip する・期待値を実装に合わせて書き換えることで通さない。
 - 外部API（AI含む）はサーバ経由で呼ぶ。`MOCK=1` で必ず動く状態を保つ。
 - 見た目は Tailwind のクラスと `contracts/tokens.css` の名前だけ（任意値・style 直書き禁止）。画面遷移は `contracts/screens.md` の表どおり。
@@ -52,7 +52,6 @@
 - ステップ表にない作業: `npm run step -- X <英語名> --adhoc "目的"`（完了には数えない。PR に理由を1行）
 - まとめ役だけ: `npm run kit:schedule [shift <分> | from <id> <HH:MM>]`（進みが時計とずれたら時刻表を直す。kit.config.json の時刻だけはまとめ役も変えてよい）
 - DB: テーブルは `src/server/db/schema.ts`、使うのは `await db()`。手元は設定なしで動く。Neon に反映は `npm run db:push`（docs/rules/stack.md「DB」）
-- 委託（期限つきの貸し出し）: `npm run handoff -- lend <相手id> <ファイル…> --issue <help Issue の番号>` で自分のファイルを貸す / `npm run handoff -- return <番号>` で返す / `npm run handoff` で一覧（docs/rules/help.md）
 - 締め切りと全員の状況: `npm run kit:deadlines`（締め切りとやることの一覧） / `npm run status`（全員の作業中・止まっている人・担当の残り） / `npm run kit:alarm`（人間が別のターミナルで動かす見張り役。AI は動かさない）
 - 最初の準備: `npm run kit:setup -- <id>`（clone 直後に1回。手順と失敗したときは docs/kit/setup.md） / 自分だけ変える: `npm run kit:whoami -- <id>`
 

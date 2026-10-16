@@ -2,7 +2,7 @@
 
 ## 人間向け（最初に読む）
 - ミッション: 使う人が迷わず DEMO.md の流れをたどれるよう、状態とイベントを決め、画面の本体で状態・イベント・通信をつなぐ
-- 所有ファイル: kit.config.json の owns（ここ以外は触らない）。画面の本体 `src/app/<画面id>/`（キックオフで画面 id に書き換え）・`docs/flow/`（状態遷移と状態・イベントの表）・`tests/e2e/`
+- 担当の場所: 画面の本体 `src/app/<画面id>/`（キックオフで画面 id に書き換え）・`docs/flow/`（状態遷移と状態・イベントの表）・`tests/e2e/`
 - 動作確認: `npm run dev`（.env は MOCK=1）で http://localhost:3000 の画面を開いて操作する。見た目は `npm run shot` で撮って確かめる
 - 詰まったら: 30分で解決しなければまとめ役（lead）に声をかける / `blocked` Issue。契約・API のことは lead へ
 - Figma は Dev 席でよい（FigJam は編集できる。Figma Design は見る・Dev Mode で数値を読むだけ）

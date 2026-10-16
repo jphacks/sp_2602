@@ -1,13 +1,12 @@
 // npm run kit:reset — キックオフで lead が1回だけ実行する。ひな型の例（サブスク判定の analyze 系 API・画面 home/result・固定データ・テスト）を消し、
 // 契約を空の状態（scripts/reset/files/）に置き換える。そのあと lead は自分たちの契約を書いて npm run kit:stub。
-// 他人の所有ファイル（back の route、front の画面）も消す・置き換えるが、check-scope は
-// 「ひな型のままのファイルを、この決まった形に消す・置き換える」変更だけを例外として通す（scripts/reset/manifest.json で照合）。
+// back の route・front の画面も消す・置き換えるが、照合は scripts/reset/manifest.json の内容（sha）で行い、
 // 誰かがすでに手を入れたファイル（ひな型と内容が違う）は触らずに残す。
 //   --write-manifest : キットの保守用。今のファイルの内容からマニフェストを作り直す
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { currentMember, loadConfig, ownerOf, p } from "./lib/kit.mjs";
+import { currentMember, isLead, loadConfig, p } from "./lib/kit.mjs";
 
 export const DELETE = [
   "src/app/api/analyze/route.ts",
@@ -27,7 +26,7 @@ export const REPLACE = [
   "tests/server/api.test.ts",
 ];
 const MANIFEST = "scripts/reset/manifest.json";
-// check-scope.mjs と同じそろえ方（改行コードと末尾の空白）。git show の出力は末尾が trim されるため
+// 改行コードと末尾の空白をそろえて比べる
 export const norm = (s) => s.replace(/\r\n/g, "\n").trimEnd();
 export const sha = (s) => createHash("sha256").update(norm(s)).digest("hex");
 const read = (f) => (existsSync(p(f)) ? readFileSync(p(f), "utf8") : null);
@@ -43,8 +42,8 @@ if (process.argv.includes("--write-manifest")) {
 
 const cfg = loadConfig();
 const me = currentMember(cfg);
-if (!me || ownerOf("contracts/api.ts", cfg) !== me.id) {
-  console.error("✗ kit:reset は契約の所有者（lead）だけが実行する（npm run kit:whoami -- <id>）");
+if (!isLead(cfg, me)) {
+  console.error("✗ kit:reset は lead（kit.config.json の members の先頭）だけが実行する（npm run kit:whoami -- <id>）");
   process.exit(1);
 }
 const { files } = JSON.parse(readFileSync(p(MANIFEST), "utf8"));
@@ -74,5 +73,5 @@ if (done.length) {
 console.log(done.length ? `✓ ひな型の例を片付けた:\n  ${done.join("\n  ")}` : "片付けるものはなかった（実行済み）");
 if (kept.length) console.log(`! 内容が変わっていたので残した（手で確かめる）:\n  ${kept.join("\n  ")}`);
 console.log(
-  "\n次: kit.config.json の機能 a / b と画面（home/result）を自分たちの名前に書き換え（docs/rules/team.md） → npm run kit:owners → 契約を書く → npm run kit:stub → npm run check → commit（範囲チェックは kit:reset の変更を例外で通す）",
+  "\n次: kit.config.json の機能 a / b と画面（home/result）を自分たちの名前に書き換え（docs/rules/team.md） → 契約を書く → npm run kit:stub → npm run check → commit",
 );

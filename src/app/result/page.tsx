@@ -1,5 +1,5 @@
 "use client";
-// 画面 result（front-b の所有）。このフォルダ内なら部品ファイルを自由に増やしてよい。
+// 画面 result（front-b の担当）。このフォルダ内なら部品ファイルを自由に増やしてよい。
 import Link from "next/link";
 import { useFlow } from "@/lib/flow";
 

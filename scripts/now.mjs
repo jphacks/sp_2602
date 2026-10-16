@@ -16,9 +16,8 @@ import {
   currentMember,
   fmtTime,
   helpPhase,
+  isLead,
   loadConfig,
-  loanDue,
-  ownerOf,
   p,
   phaseAt,
   sh,
@@ -54,20 +53,6 @@ const help = helpPhase(cfg, now);
 out.push(
   `合流: ${help.text}${help.nextSync ? `（次に合流を決める同期点 ${fmtTime(help.nextSync.at)} ${help.nextSync.name}）` : ""}`,
 );
-// 貸し出し（npm run handoff）: 期限は貸した後の最初の同期点
-for (const l of cfg.loans ?? []) {
-  const due = loanDue(cfg, l);
-  const expired = due && new Date(due.at) <= now;
-  const role = l.to === me?.id ? "借りている" : l.from === me?.id ? "貸している" : "貸し出し";
-  out.push(
-    `${role} #${l.issue} ${l.from} → ${l.to}: ${l.files.join(", ")}  期限: ${due ? `${fmtTime(due.at)} ${due.name}` : "なし"}${expired ? "  ← 期限切れ" : ""}`,
-  );
-  if (expired && me && [l.from, l.to].includes(me.id))
-    todo.push(
-      `貸し出し #${l.issue} の期限が来た → 借りた人の PR をマージしてから \`npm run handoff -- return ${l.issue}\`（続けるなら同期点で決め直す）`,
-    );
-}
-
 // 1b. 締め切り（運営が決めた動かない時刻と、それまでにやること。kit.config.json の deadlines）
 // やることの完了は Issue（ラベル deadline）が閉じたかで見る。近い・過ぎたのに残っている自分の担当は「やること」の先頭へ
 const urgent = [];
@@ -136,7 +121,7 @@ const fresh = cl.slice(seen);
 if (fresh.length) {
   out.push(`\n## 契約の新しい変更 ${fresh.length}件`);
   out.push(...fresh);
-  todo.push("契約が変わった → 自分の所有ファイルへの影響を確認し `npm run typecheck`");
+  todo.push("契約が変わった → 自分の担当への影響を確認し `npm run typecheck`");
 }
 state.changelogSeen = cl.length;
 
@@ -221,31 +206,31 @@ if (me) {
 
   // 契約と実装のすき間（scripts/lib/gaps.mjs）。第1統合までに埋める
   const g = gaps();
-  const ownsContracts = ownerOf("contracts/api.ts", cfg) === me.id;
-  if (ownsContracts && (g.routes.length || g.pages.length)) {
+  const lead = isLead(cfg, me);
+  if (lead && (g.routes.length || g.pages.length)) {
     out.push(
       `\n## 契約にあって中身がない: ${[...g.routes.map((r) => r.file), ...g.pages.map((s) => s.file)].join(", ")}`,
     );
     todo.push("`npm run kit:stub` で仮の API・画面を置き、契約と同じ PR に入れる（担当者を待たせない）");
   } else {
-    const missing = [...g.routes.map((r) => r.file), ...g.pages.map((s) => s.file)].filter(
-      (f) => ownerOf(f, cfg) === me.id,
-    );
+    const missing = [...g.routes.map((r) => r.file), ...g.pages.map((s) => s.file)];
     if (missing.length) {
-      out.push(`\n## 契約にあって未実装（自分の担当・第1統合までに必要）: ${missing.join(", ")}`);
-      todo.push(`未実装の ${missing.length} 件を作る（まずは MOCK=1 で fixtures を返すだけでよい）`);
+      out.push(`\n## 契約にあって未実装（第1統合までに必要）: ${missing.join(", ")}`);
+      todo.push(
+        `未実装のうち自分の担当（docs/members/${me.id}.md）を作る（まずは MOCK=1 で fixtures を返すだけでよい）`,
+      );
     }
   }
-  if (g.flow.length && ownerOf("src/lib/flow.tsx", cfg) === me.id) {
+  if (g.flow.length && lead) {
     out.push(`\n## useFlow に受け渡しの欄がない型: ${g.flow.join(", ")}`);
     todo.push("screens.md の「受け取る / 渡す」に合わせて src/lib/flow.tsx に欄を足す（画面担当が待っている）");
   }
-  const stubs = [...apiRoutes().map((r) => r.file), ...screenRows().map((s) => s.file)].filter(
-    (f) => ownerOf(f, cfg) === me.id && isStub(f),
-  );
+  const stubs = [...apiRoutes().map((r) => r.file), ...screenRows().map((s) => s.file)].filter((f) => isStub(f));
   if (stubs.length) {
-    out.push(`\n## 仮のファイル（自分の担当・本物に置き換える）: ${stubs.join(", ")}`);
-    todo.push(`仮のファイル ${stubs.length} 件を本物に置き換える（1 行目の KIT-STUB の印ごと書き換える）`);
+    out.push(`\n## 仮のファイル（担当者が本物に置き換える）: ${stubs.join(", ")}`);
+    todo.push(
+      `仮のファイル ${stubs.length} 件のうち自分の担当を本物に置き換える（1 行目の KIT-STUB の印ごと書き換える）`,
+    );
   }
 }
 
@@ -255,7 +240,7 @@ if (mine) {
   out.push(`\n## 個人メモ: やること ${mine.todo} / 待ち ${mine.wait} / 行き詰まり ${mine.stuck}（npm run log）`);
   for (const l of mine.over)
     todo.push(
-      `行き詰まりが30分を超えた: ${l.replace(/^- \[ \] \S+ \S+ /, "").slice(0, 60)} → 範囲の外なら所有者に Issue、内なら \`npm run issue -- blocked ${cfg.facilitator ?? cfg.members[0].id} "…"\`（解決したら npm run log -- done "…"）`,
+      `行き詰まりが30分を超えた: ${l.replace(/^- \[ \] \S+ \S+ /, "").slice(0, 60)} → 自分で直せないなら担当者に \`npm run issue -- bug <担当者id> "…"\`、決められないなら \`npm run issue -- blocked ${cfg.facilitator ?? cfg.members[0].id} "…"\`（解決したら npm run log -- done "…"）`,
     );
 }
 

@@ -1,6 +1,6 @@
 ---
 name: bug
-about: 動かない・契約と違う。所有者に assign する
+about: 動かない・契約と違う。担当者に assign する
 labels: bug
 ---
 

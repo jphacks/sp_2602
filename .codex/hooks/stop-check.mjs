@@ -1,6 +1,6 @@
 // Codex 用: 未コミットの変更があるのに型チェックが通らないまま終わろうとしたら、続けさせる（.claude/hooks/stop-check.mjs と同じ判定）。
 // 続けさせるときは stdout に JSON（decision: "block"）を返す。reason が次の指示として Codex に渡る。
-// 終了コード 2 は Windows の Codex 0.162 では hook のエラー扱いになり効かない（guard-scope.mjs と同じ）。
+// 終了コード 2 は Windows の Codex 0.162 では hook のエラー扱いになり効かない。
 // 2回目（stop_hook_active）は通す。無限ループを避けるため。
 import { sh } from "../../scripts/lib/kit.mjs";
 

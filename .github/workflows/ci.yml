@@ -19,6 +19,6 @@ jobs:
         run: npm run build
         env:
           MOCK: "1"
-      - name: 範囲チェック（PR 作成者の所有範囲に収まっているか）
+      - name: 契約の変更に CHANGELOG の行があるか
         if: github.event_name == 'pull_request'
-        run: node scripts/check-scope.mjs --base origin/${{ github.base_ref }} --author ${{ github.event.pull_request.user.login }} --branch ${{ github.head_ref }}
+        run: node scripts/check-changelog.mjs --base origin/${{ github.base_ref }}

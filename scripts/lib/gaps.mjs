@@ -1,4 +1,4 @@
-// 契約と実装のすき間を見つける（now / kit:stub / check-scope で使う）。tests/contracts.test.ts も同じ規則で検査する。
+// 契約と実装のすき間を見つける（now / kit:stub で使う）。tests/contracts.test.ts も同じ規則で検査する。
 //   routes : contracts/api.ts にあるのに Route Handler がない API
 //   pages  : contracts/screens.md にあるのに page.tsx がない画面
 //   flow   : screens.md の「前の画面から受け取る / 次の画面へ渡す」の型が src/lib/flow.tsx にない
@@ -18,7 +18,7 @@ export function apiRoutes() {
   ].map((m) => ({ name: m[1], kind: m[2], method: m[3], path: m[4], file: `src/app${m[4]}/route.ts` }));
 }
 
-// screens.md の表: | id | 画面 | 所有者 | 前の画面から受け取る | サーバとの通信 | 次の画面へ渡す | 遷移先 |
+// screens.md の表: | id | 画面 | 担当 | 前の画面から受け取る | サーバとの通信 | 次の画面へ渡す | 遷移先 |
 export function screenRows() {
   return read("contracts/screens.md")
     .split("\n")

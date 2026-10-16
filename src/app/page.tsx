@@ -1,4 +1,4 @@
-// 入口（lead の所有）。最初の画面へ送るだけ。
+// 入口（lead の担当）。最初の画面へ送るだけ。
 import { redirect } from "next/navigation";
 
 export default function Page() {

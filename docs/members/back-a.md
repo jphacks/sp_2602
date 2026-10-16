@@ -2,7 +2,7 @@
 
 ## 人間向け（最初に読む）
 - ミッション: （機能A・B が DEMO.md のどこを成立させるか 1文。キックオフで書く）
-- 所有ファイル: kit.config.json の owns（ここ以外は触らない）。`src/server/a/`・`src/server/b/`・`src/app/api/a/`・`src/app/api/b/`・`tests/server/a/`・`tests/server/b/`・DB の接続（`src/server/db/index.ts`）。テーブル定義 `src/server/db/schema.ts` も、サーバ担当は1人なので自分だけが足す
+- 担当の場所: `src/server/a/`・`src/server/b/`・`src/app/api/a/`・`src/app/api/b/`・`tests/server/a/`・`tests/server/b/`・DB の接続（`src/server/db/index.ts`）。テーブル定義 `src/server/db/schema.ts` も、サーバ担当は1人なので自分だけが足す
 - 動作確認: `npm run dev`（.env は MOCK=1）→ `npm run api -- <契約名>` で自分の API を叩く
 - 詰まったら: 30分で解決しなければまとめ役（lead）に声をかける / `blocked` Issue。契約・API のことも lead へ
 - 1人で機能2つ分なので、**MOCK で両方の API が返る状態を先に作る**（画面の2人が待たずに進められる）。本物の処理は DEMO.md で見せる順に

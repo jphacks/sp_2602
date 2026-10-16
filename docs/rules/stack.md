@@ -1,13 +1,13 @@
 # 技術構成と書き方の規約
 
-**決めてあることは議論しない。** 変えたい時は lead に change-request（package.json と設定ファイルは lead の所有）。
+**決めてあることは議論しない。** 変えたい時は lead に change-request（package.json と設定ファイルは lead が見る）。
 
 ## 構成
 | 層 | 使うもの | 状態 |
 |---|---|---|
 | 画面 | Next.js（App Router）+ React + TypeScript | 確定 |
 | 見た目 | Tailwind CSS v4。色・角丸・書体は `contracts/tokens.css` のテーマだけ | 確定 |
-| 共通部品 | `src/components/ui/`（front-a の所有。shadcn/ui を入れる場合もここ。依存を足すのは lead） | 確定 |
+| 共通部品 | `src/components/ui/`（front-a の担当。shadcn/ui を入れる場合もここ。依存を足すのは lead） | 確定 |
 | API | Next.js の Route Handler（`src/app/api/<名前>/route.ts`）。型は Zod の契約 | 確定 |
 | サーバ処理 | `src/server/`（外部API・AI・DB はここだけから呼ぶ） | 確定 |
 | 整形・lint | Biome（保存時・Claude の編集時に自動整形、コミット前に検査） | 確定 |
@@ -16,7 +16,7 @@
 | 公開先 | Vercel（下の「Vercel で動かすための約束」） | 確定 |
 | AI 呼び出し | `src/server/` から呼ぶ。出力は Zod で形を固定。デモ用の結果は fixtures に保存 | 確定（SDK は back-a が選ぶ） |
 
-## フォルダと所有者
+## フォルダと担当
 ```
 contracts/               型・API表・画面表・デザイン（lead）
 src/app/layout.tsx       全体の枠・スマホ優先の幅（lead）
@@ -41,7 +41,7 @@ src/components/ui/       共通部品（front-a）。欲しい部品は Issue �
 - **DB と契約は分ける**：`contracts/` は「画面とサーバの間で受け渡す形」だけ。DB のテーブル定義は `src/server/db/schema.ts`（back-a）に置き、テーブル ⇔ 契約の型の変換は `src/server/` の中だけで行う。画面は DB の形を知らない（DB 設計を変えても画面担当に影響しない）。テーブルの列を契約にそのまま流用しない
 - **画面間のデータは `useFlow()` 経由**：画面同士で import し合わない。受け渡しの追加は lead へ。
 - **見た目の値は直書きしない**：`bg-[#fff]`・`p-[13px]`・`style={{}}`・色コードは `npm run lint` が弾く。どうしても必要な行は `// style-ok 理由` を付ける。
-- **依存の追加は lead だけ**：`npm install` したくなったら Issue で依頼（package.json は lead の所有なので、コミットできない）。
+- **依存の追加は lead に頼む**：`npm install` したくなったら Issue で依頼（package.json は lead が見る）。
 - **MOCK=1 で必ず動く**：外部APIやDBが落ちてもデモできる状態を保つ。
 
 ## DB

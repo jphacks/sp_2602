@@ -1,5 +1,5 @@
 {
-  "$comment": "チームの正本。メンバー・担当範囲・タイムライン・変更ルールはここだけで決める。CODEOWNERS は npm run kit:owners で生成する。",
+  "$comment": "チームの正本。メンバー・タイムライン・変更ルールはここだけで決める。",
   "$comment_times": "deadlines = 運営が決めた動かない締め切りと「それまでにやること」（担当・優先度つき。npm run now / kit:alarm が知らせる）。milestones = チームの目安（進みに合わせてまとめ役が kit:schedule でずらす）。sync: true の目安が「合流を決める・見直す同期点」。owner を書いた目安は、now / kit:alarm がルールに担当を添える（全員に同じ文が出るため）",
   "project": "（プロダクト名）",
   "event": {
@@ -180,102 +180,35 @@
     "$comment": "合流のルール（docs/rules/help.md）。切り出し型の合流はフリーズの何分前まで始めてよいか。値は仮",
     "carveOutCutoffMinBeforeFreeze": 90
   },
-  "$comment_members": "members の1人目がつなぎ役（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。持ち主は members の順で最初に当てはまった人。4人構成: lead＝通信・セキュリティ・DFD・ER図＋発表＋まとめ役、back-a＝サーバ全部・DB・データフローチャート、front-a＝UI（Figma Design）、front-b＝UX（FigJam のフローチャート・画面の本体）。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）。editAll: true の人（debug＝デバッガー）は全員のファイルを触れ、CODEOWNERS ではどの行にもレビュー役として並ぶ（つなぎ役・まとめ役は lead のまま）",
+  "$comment_members": "members の1人目がつなぎ役（契約・main を見る人・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。4人構成: lead＝通信・セキュリティ・DFD・ER図＋発表＋まとめ役、back-a＝サーバ全部・DB・データフローチャート、front-a＝UI（Figma Design）、front-b＝UX（FigJam のフローチャート・画面の本体）、debug＝デバッガー。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
   "facilitator": "lead",
   "members": [
     {
       "id": "lead",
       "github": "que-dotcom",
-      "role": "つなぎ役（通信・API・セキュリティ／契約・main）＋データフローダイアグラム（DFD）・ER図（Figma Design・FigJam）＋発表（DEMO.md・資料・紹介動画）＋まとめ役（同期点の進行・合流の判断・時刻表）",
-      "owns": [
-        "contracts/**",
-        "kit.config.json",
-        "package.json",
-        "package-lock.json",
-        "tsconfig.json",
-        "next.config.ts",
-        "drizzle.config.ts",
-        "postcss.config.mjs",
-        "biome.json",
-        "vitest.config.ts",
-        "components.json",
-        ".github/**",
-        ".claude/**",
-        ".codex/**",
-        ".githooks/**",
-        ".vscode/**",
-        "scripts/**",
-        ".nvmrc",
-        ".gitignore",
-        ".gitattributes",
-        ".env.example",
-        "src/app/layout.tsx",
-        "src/app/page.tsx",
-        "src/app/globals.css",
-        "src/lib/**",
-        "src/server/route.ts",
-        "src/server/errors.ts",
-        "src/app/api/health/**",
-        "src/proxy.ts",
-        "tests/server/api.test.ts",
-        "tests/contracts.test.ts",
-        "tests/stubs/**",
-        "AGENTS.md",
-        "CLAUDE.md",
-        "docs/rules/**",
-        "docs/kit/**",
-        "docs/DEMO.md",
-        "docs/pitch/**"
-      ]
+      "role": "つなぎ役（通信・API・セキュリティ／契約・main）＋データフローダイアグラム（DFD）・ER図（Figma Design・FigJam）＋発表（DEMO.md・資料・紹介動画）＋まとめ役（同期点の進行・合流の判断・時刻表）"
     },
     {
       "id": "back-a",
       "github": "nekopen1011",
-      "role": "サーバ全部（機能A・B の処理・AI・DB）＋データフローチャート（FigJam）",
-      "owns": [
-        "src/server/a/**",
-        "src/app/api/a/**",
-        "tests/server/a/**",
-        "src/server/b/**",
-        "src/app/api/b/**",
-        "tests/server/b/**",
-        "src/server/db/index.ts",
-        "tests/server/db.test.ts",
-        "src/server/*.ts",
-        "src/app/api/analyze/**",
-        "src/app/api/analyze-stream/**"
-      ]
+      "role": "サーバ全部（機能A・B の処理・AI・DB）＋データフローチャート（FigJam）"
     },
     {
       "id": "front-a",
       "github": "ys-2421",
-      "role": "UI（見た目）: Figma Design の画面・画面遷移の試作・トークン案、共通部品と画面ごとの見た目の部品（src/components/）",
-      "owns": ["src/components/**", "docs/design/**"]
+      "role": "UI（見た目）: Figma Design の画面・画面遷移の試作・トークン案、共通部品と画面ごとの見た目の部品（src/components/）"
     },
     {
       "id": "front-b",
       "github": "choko1112",
-      "role": "UX（流れ）: FigJam のフローチャート（状態遷移図）と状態・イベントの表、画面の本体（状態・イベント・通信・useFlow）、通しの確認（e2e）",
-      "owns": ["src/app/home/**", "src/app/result/**", "docs/flow/**", "tests/e2e/**"]
+      "role": "UX（流れ）: FigJam のフローチャート（状態遷移図）と状態・イベントの表、画面の本体（状態・イベント・通信・useFlow）、通しの確認（e2e）"
     },
     {
       "id": "debug",
       "github": "Rai-Tsumugu",
-      "role": "デバッガー（全員の範囲の不具合を見つけて直す・確かめる。役割の細部は未定）。editAll で全員のファイルを触れる",
-      "editAll": true,
-      "owns": []
+      "role": "デバッガー（全員の範囲の不具合を見つけて直す・確かめる。役割の細部は未定）"
     }
   ],
-  "shared": [
-    "docs/requirements/**",
-    "docs/members/**",
-    "docs/data-wishlist.md",
-    "docs/shots/**",
-    "README.md",
-    "src/server/db/schema.ts"
-  ],
-  "$comment_loans": "貸し出し（期限つきの委託）。npm run handoff で足す・消す。手で編集しない。ここにあるファイルは owns より優先して to の人のもの（docs/rules/help.md）",
-  "loans": [],
   "ports": {
     "app": 3000
   }

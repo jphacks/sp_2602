@@ -1,4 +1,4 @@
-// サーバ側のエラー（lead の所有）。処理の中では AppError を throw し、形の変換は route.ts に任せる。
+// サーバ側のエラー（lead の担当）。処理の中では AppError を throw し、形の変換は route.ts に任せる。
 //   throw new AppError("upstream_failed");                       // 既定の文
 //   throw new AppError("not_found", "その結果は見つかりません");   // 文を上書き
 import "server-only";

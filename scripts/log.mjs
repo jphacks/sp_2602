@@ -5,7 +5,7 @@
 //   npm run log -- todo  "…"             ステップに載らない小さなやること
 //   npm run log -- wait  "back-a に #14（件数を足す）"   誰に何を頼んで待っているか
 //   npm run log -- stuck "画面が真っ白" --scope 内 --tried "shot・console" --why 知識 --next "11:30 で blocked"
-//                                         行き詰まり。--scope 内|外(所有者)、--why 権限|契約不足|知識|外部|時間。30分を超えると npm run now が知らせる
+//                                         行き詰まり。--scope 内|外(担当者)、--why 権限|契約不足|知識|外部|時間。30分を超えると npm run now が知らせる
 //   npm run log -- q     "一覧は10件で切るか"       自分だけの未決の問い（人に関わるものは open.md か Issue へ）
 //   npm run log -- done  "<項目の一部>"      やること・待ち・行き詰まり・未決を解決済みにする
 //   npm run log -- decide "ボタンは1画面1つ（UX の約束）"   決めたことと理由
@@ -64,7 +64,7 @@ if (first === "open") {
     ].filter(Boolean);
     if (parts.length) text = `${text} ／ ${parts.join(" ／ ")}`;
     if (opt("--scope")?.startsWith("外"))
-      console.log("! 範囲の外 → 所有者に npm run issue -- bug|task <所有者> …（自分で直さない）");
+      console.log("! 範囲の外 → 担当者に npm run issue -- bug|task <担当者> …（自分で直さない）");
   }
   wrote(addEntry(me, first, text));
 } else if (positional.length) {

@@ -2,7 +2,7 @@
 
 ## 人間向け（最初に読む）
 - ミッション: 画面とサーバが契約（contracts/）どおりにつながって安全に動く状態を保ち、チーム全体を時間内に DEMO.md まで届けて、それを発表で伝える
-- 所有ファイル: kit.config.json の owns（ここ以外は触らない）。契約・API の共通部分（`src/server/route.ts` / `errors.ts`・`src/lib/api.ts`）・`src/app/api/health/`・`src/proxy.ts`・設定と scripts・`docs/DEMO.md`・`docs/pitch/`
+- 担当の場所: 契約・API の共通部分（`src/server/route.ts` / `errors.ts`・`src/lib/api.ts`）・`src/app/api/health/`・`src/proxy.ts`・設定と scripts・`docs/DEMO.md`・`docs/pitch/`
 - 動作確認: `npm run dev`（.env は MOCK=1）で http://localhost:3000 を開く。API は `npm run api -- <契約名>` で叩く
 - 詰まったら: 自分の作業は 30分で解決しなければ全員に声をかける（まとめ役が止まると進行が止まる）。契約の問い合わせは最優先で返す（契約が止まると全員が止まる）
 - チームの組み方とキックオフでの書き換え: docs/rules/team.md（4人構成）
@@ -16,7 +16,7 @@
 - 目安: 契約凍結（11:30）までに DFD・ER図の下書き（FigJam）、同期点1 までに ER図を back-a と合わせる、セキュリティの確認（S4）までに清書（Figma Design）
 
 ## 触らないファイル（よく間違えるもの）
-- 各メンバーの画面・部品・サーバのファイル（直したい時は所有者に Issue）
+- 各メンバーの画面・部品・サーバのファイル（直したい時は担当者に Issue）
 
 ## セキュリティの約束（この役の担当）
 - 入力は契約の Zod で必ず検査される（`handle()` / `handleStream()`）。契約にない入力を受け付ける API を作らない
@@ -40,7 +40,7 @@
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
 
-- S1 `npm run kit:reset` でひな型の例を消し、機能A・B の分け方と画面 id を kit.config.json に書く（docs/rules/team.md）→ `npm run kit:owners`。DEMO.md の下書き（課題1文・数字・台本） — 完了確認: `npm run check`
+- S1 `npm run kit:reset` でひな型の例を消し、機能A・B の分け方と画面 id を docs/rules/team.md の手順で決める。DEMO.md の下書き（課題1文・数字・台本） — 完了確認: `npm run check`
 - S2 contracts を確定して凍結（API の path は `/api/<機能>/<名前>`。画面と受け渡すデータは front-b の `docs/flow/README.md` の状態・イベントの表から: 分かれ道の条件に使う値は schemas.ts の項目に、状態ごとの MOCK の固定データは fixtures.ts に。トークンの値は front-a の案から tokens.css に）→ `npm run kit:stub`。DEMO.md も凍結 — 完了確認: `npm run check`
 - S3 同期点1 を進行し、採用した change-request を contracts/ に反映（docs/rules/sync.md） — 完了確認: `npm run check`
 - S4 セキュリティの確認（上の約束。キーが画面側に出ていない・AI の API の回数上限） — 完了確認: `npm run check`

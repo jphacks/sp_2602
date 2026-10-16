@@ -1,4 +1,4 @@
-// 契約と実装のずれを検査する（lead の所有）。規則は scripts/lib/gaps.mjs と同じ。
+// 契約と実装のずれを検査する（lead の担当）。規則は scripts/lib/gaps.mjs と同じ。
 // 契約が先・実装が後: 第1統合（milestones の integrate）より前は警告だけ。第1統合以降（または KIT_STRICT_CONTRACTS=1）は失敗。
 // すき間は lead が npm run kit:stub で「仮のファイル」を置けば埋まる。未実装の一覧は npm run now が担当者に出す。
 import { createHash } from "node:crypto";

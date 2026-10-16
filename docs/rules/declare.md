@@ -24,8 +24,8 @@
 | demoStep | `docs/DEMO.md` の D番号（このステップがデモのどこに効くか） |
 | screens | `contracts/screens.md` の画面 id |
 | contracts | `contracts/schemas.ts` / `api.ts` / `errors.ts` で export されている名前 |
-| newContracts（任意） | このステップで新しく作る契約名。files に contracts/ を含む場合だけ書ける（lead 用）。既にある名前は書けない |
-| files | すべて自分の所有範囲（`kit.config.json`） |
+| newContracts（任意） | このステップで新しく作る契約名。files に contracts/ を含む場合だけ書ける。既にある名前は書けない |
+| files | 触る予定のファイル（宣言した担当の範囲） |
 | doneCheck | 実行できるコマンド（`npm run …` なら script が存在するか） |
 
 使わない項目は `contracts=なし`（`none` / `-` も可）と書く。空のまま残さない。

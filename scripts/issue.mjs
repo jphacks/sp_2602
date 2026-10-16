@@ -43,7 +43,7 @@ if (!TYPES.includes(type ?? "") || !to || !title)
 const target = cfg.members.find((m) => m.id === to);
 if (!target) fail(`宛先 ${to} は kit.config.json の members にない（${cfg.members.map((m) => m.id).join(", ")}）`);
 if (type === "change-request" && to !== cfg.members[0].id)
-  console.log(`! change-request の宛先は普通 ${cfg.members[0].id}（契約の所有者）`);
+  console.log(`! change-request の宛先は普通 ${cfg.members[0].id}（契約を見る人）`);
 
 // 似た Issue を探す: 文字の 2-gram の重なりで比べる（日本語でも効く）
 const grams = (s) => {

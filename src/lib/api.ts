@@ -1,4 +1,4 @@
-// 型付きクライアント（lead の所有）。画面はここ経由でだけサーバと通信する（パスを手書きしない）。
+// 型付きクライアント（lead の担当）。画面はここ経由でだけサーバと通信する（パスを手書きしない）。
 //   const r = await call("analyze", input);
 //   const r = await stream("analyzeStream", input, (chunk) => setText((t) => t + chunk.text));
 // 失敗は必ず ApiCallError で投げられる。画面は catch で setError(errorOf(e)) とし、message と hint を出せばよい。

@@ -1,7 +1,7 @@
 // npm run kit:deadlines — 締め切り（運営が決めた時刻）と、それまでにやること（担当・優先度・完了）の一覧。
 //   npm run kit:deadlines -- issues   やることを1件ずつ Issue にする（ラベル deadline・担当に assign）。終わったら Issue を閉じる＝完了。
 //                                     まとめ役が前日（GitHub の準備のあと）に1回。何度実行しても、もうあるものは作らない
-// やることの中身は kit.config.json の deadlines（lead の所有）。npm run now と kit:alarm が担当者に知らせる。
+// やることの中身は kit.config.json の deadlines。npm run now と kit:alarm が担当者に知らせる。
 import { execFileSync } from "node:child_process";
 import {
   deadlineIssues,
