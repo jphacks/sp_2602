@@ -16,7 +16,7 @@
         {
           "id": "show",
           "what": "中間発表で見せるもの・話すことを決める（動くところまでで可）",
-          "owner": "front-a",
+          "owner": "lead",
           "priority": "should",
           "by": "2026-10-17T18:30:00+09:00"
         },
@@ -42,7 +42,7 @@
         {
           "id": "night-plan",
           "what": "夜に誰が何をするか・連絡手段・2日目の朝の確認を決める",
-          "owner": "front-b",
+          "owner": "lead",
           "priority": "must"
         }
       ]
@@ -77,7 +77,7 @@
         {
           "id": "record",
           "what": "DEMO.md どおりの画面をバックアップ録画（docs/pitch/）",
-          "owner": "front-a",
+          "owner": "lead",
           "priority": "must",
           "by": "2026-10-18T14:30:00+09:00"
         }
@@ -91,14 +91,14 @@
         {
           "id": "script90",
           "what": "台本を90秒に収める（DEMO.md の秒数の合計を90以下に）",
-          "owner": "front-a",
+          "owner": "lead",
           "priority": "must",
           "by": "2026-10-18T12:00:00+09:00"
         },
         {
           "id": "video90",
           "what": "紹介動画を90秒に編集して書き出す",
-          "owner": "front-a",
+          "owner": "lead",
           "priority": "must",
           "by": "2026-10-18T15:30:00+09:00"
         },
@@ -118,7 +118,7 @@
       "at": "2026-10-17T10:20:00+09:00",
       "name": "キックオフ",
       "changes": "open",
-      "rule": "課題1文・DEMO.md（90秒）・欲しいデータの洗い出し→削る・状態遷移図と線画の試作（front-a）を 11:20 に全員で触る。コードはまだ書かない"
+      "rule": "課題1文・DEMO.md（90秒）・欲しいデータの洗い出し→削る・フローチャート（状態遷移図）と状態・イベントの表（front-b、FigJam）と線画の試作（front-a、Figma Design）を 11:20 に全員で触る。コードはまだ書かない"
     },
     {
       "id": "contract",
@@ -172,7 +172,7 @@
       "at": "2026-10-18T14:30:00+09:00",
       "name": "バックアップ録画",
       "changes": "frozen",
-      "owner": "front-a",
+      "owner": "lead",
       "rule": "DEMO.md 通りの画面を録画して docs/pitch/ に置く（ほかの人はデモの不具合直しと通し練習）。Code Freeze（15:00）の前に撮り、問題があれば直せるようにする"
     }
   ],
@@ -180,13 +180,13 @@
     "$comment": "合流のルール（docs/rules/help.md）。切り出し型の合流はフリーズの何分前まで始めてよいか。値は仮",
     "carveOutCutoffMinBeforeFreeze": 90
   },
-  "$comment_members": "members の1人目がつなぎ役（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
-  "facilitator": "front-b",
+  "$comment_members": "members の1人目がつなぎ役（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。持ち主は members の順で最初に当てはまった人。4人構成: lead＝通信・セキュリティ・DFD・ER図＋発表＋まとめ役、back-a＝サーバ全部・DB・データフローチャート、front-a＝UI（Figma Design）、front-b＝UX（FigJam のフローチャート・画面の本体）。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
+  "facilitator": "lead",
   "members": [
     {
       "id": "lead",
       "github": "que-dotcom",
-      "role": "つなぎ役（通信・API・セキュリティ／契約・main）",
+      "role": "つなぎ役（通信・API・セキュリティ／契約・main）＋データフローダイアグラム（DFD）・ER図（Figma Design・FigJam）＋発表（DEMO.md・資料・紹介動画）＋まとめ役（同期点の進行・合流の判断・時刻表）",
       "owns": [
         "contracts/**",
         "kit.config.json",
@@ -223,17 +223,22 @@
         "AGENTS.md",
         "CLAUDE.md",
         "docs/rules/**",
-        "docs/kit/**"
+        "docs/kit/**",
+        "docs/DEMO.md",
+        "docs/pitch/**"
       ]
     },
     {
       "id": "back-a",
-      "github": "github-user-2",
-      "role": "機能Aのサーバ（処理・AI・DB の接続）",
+      "github": "nekopen1011",
+      "role": "サーバ全部（機能A・B の処理・AI・DB）＋データフローチャート（FigJam）",
       "owns": [
         "src/server/a/**",
         "src/app/api/a/**",
         "tests/server/a/**",
+        "src/server/b/**",
+        "src/app/api/b/**",
+        "tests/server/b/**",
         "src/server/db/index.ts",
         "tests/server/db.test.ts",
         "src/server/*.ts",
@@ -242,22 +247,16 @@
       ]
     },
     {
-      "id": "back-b",
-      "github": "github-user-3",
-      "role": "機能Bのサーバ（処理・AI）",
-      "owns": ["src/server/b/**", "src/app/api/b/**", "tests/server/b/**"]
-    },
-    {
       "id": "front-a",
-      "github": "que-dotcom",
-      "role": "機能Aの画面＋デザイン（Figma）＋発表（DEMO.md・資料・紹介動画・通しの確認）",
-      "owns": ["src/app/home/**", "docs/design/**", "docs/pitch/**", "docs/DEMO.md", "tests/e2e/**"]
+      "github": "ys-2421",
+      "role": "UI（見た目）: Figma Design の画面・画面遷移の試作・トークン案、共通部品と画面ごとの見た目の部品（src/components/）",
+      "owns": ["src/components/**", "docs/design/**"]
     },
     {
       "id": "front-b",
-      "github": "github-user-5",
-      "role": "機能Bの画面＋共通部品＋まとめ役（同期点の進行・合流の判断・時刻表）",
-      "owns": ["src/app/result/**", "src/components/**"]
+      "github": "choko1112",
+      "role": "UX（流れ）: FigJam のフローチャート（状態遷移図）と状態・イベントの表、画面の本体（状態・イベント・通信・useFlow）、通しの確認（e2e）",
+      "owns": ["src/app/home/**", "src/app/result/**", "docs/flow/**", "tests/e2e/**"]
     }
   ],
   "shared": [

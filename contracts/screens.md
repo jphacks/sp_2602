@@ -7,8 +7,8 @@
 
 | id | 画面 | 所有者 | 前の画面から受け取る | サーバとの通信 | 次の画面へ渡す | 遷移先 |
 |---|---|---|---|---|---|---|
-| `home` | 入力 | front-a | なし | analyzeStream（AnalyzeRequest → AnalyzeResult） | AnalyzeResult | `result` |
-| `result` | 結果 | front-b | AnalyzeResult | なし | なし | `home` |
+| `home` | 入力 | front-b（本体）・front-a（部品） | なし | analyzeStream（AnalyzeRequest → AnalyzeResult） | AnalyzeResult | `result` |
+| `result` | 結果 | front-b（本体）・front-a（部品） | AnalyzeResult | なし | なし | `home` |
 
 ## UXの約束（全画面共通）
 - 1画面1目的。主ボタンは1つだけ。

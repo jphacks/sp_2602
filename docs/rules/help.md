@@ -32,7 +32,7 @@ lead に kit.config.json を書き換えてもらわなくても、持ち主本�
 1. まとめ役が合流を決め、`help` Issue を立てる（上の「決め方」）。
 2. 貸す人が、切り出すファイルを決めて貸す。まだないファイルでもよい（例: 処理の一部を `score.ts` に分けるなら、その新しいファイルを貸す）。
    ```
-   npm run handoff -- lend back-b src/server/quiz/score.ts --issue 23
+   npm run handoff -- lend front-b src/components/quiz/ScoreCard.tsx --issue 23
    ```
    kit.config.json の `loans` に1件足される → `npm run check` → PR → `npm run merge`。main に入ると、hook・check・CI・preflight が、そのファイルを借りた人のものとして扱う。
 3. 借りた人は、ふつうのステップと同じく `npm run step -- X help-23 --adhoc "合流 #23"` → 着手宣言の files にそのファイルを書く → 実装 → PR → `npm run merge`。レビュー役（CODEOWNERS）は元の持ち主のまま。
