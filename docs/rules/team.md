@@ -1,7 +1,7 @@
 # チームの組み方（4人）
 
 ```
-        lead（つなぎ役：通信・API・セキュリティ／契約・main ＋ データフローダイアグラム ＋ 発表 ＋ まとめ役）
+        lead（つなぎ役：通信・API・セキュリティ／契約・main ＋ DFD・ER図 ＋ 発表 ＋ まとめ役）
        ／                    │                         ＼
   back-a（サーバ全部：     front-a（UI＝見た目：        front-b（UX＝流れ：
   機能A・B の処理・DB・     Figma Design・部品）          FigJam のフローチャート・
@@ -18,12 +18,13 @@
 - **まとめ役も lead**（kit.config.json の `facilitator`）：同期点の進行・合流（手伝い）の判断・時刻表のずれの修正・change-request の採否。lead は役を兼ねるので、契約の問い合わせ → 同期点 → 発表 → 自分のステップの順に優先する。
 - **つなぎ役は lead**（members の1人目）：契約の所有者・CODEOWNERS のレビュー役・change-request の宛先。
 
-## 4つの図（どの図から何を作るか）
+## 図の流れ（どの図から何を作るか）
 ```
 フローチャート（front-b・FigJam）
   ├→ UI（front-a・Figma Design）
   └→ データフローチャート（back-a・FigJam）
-        └→ データフローダイアグラム（lead・Figma Design と FigJam）
+        ├→ データフローダイアグラム（DFD。lead・Figma Design と FigJam）
+        └→ ER図（lead・Figma Design と FigJam）
 ```
 
 | 図 | 担当 | 置き場所 | 元にするもの | 何を描くか | 何に使うか |
@@ -32,9 +33,11 @@
 | UI | front-a | Figma Design（リンクは `docs/design/README.md`） | フローチャート | 状態ごとの線画 → 作り込んだ画面・トークン | 画面の部品（`src/components/`）・`contracts/tokens.css` |
 | データフローチャート | back-a | FigJam（リンクは `docs/members/back-a.md` の追記か `docs/flow/README.md`） | フローチャート | 画面の操作ごとに、どの API を呼び、サーバの中で何を計算・保存し、何を返すか（処理の順番と分かれ道） | API の処理（`src/server/`）・DB のテーブル（`src/server/db/schema.ts`） |
 | データフローダイアグラム | lead | Figma Design と FigJam | データフローチャート | 外の人・端末（利用者・Android など）、処理（API）、データの置き場所（DB・外部サービス）と、その間を流れるデータ。信頼の境目（ブラウザ／サーバ／外部）を線で区切る | 契約（`contracts/`）の確定・セキュリティの確認（キーの置き場所・入力の検査・回数の上限）・発表の「仕組み」の図 |
+| ER図 | lead | Figma Design と FigJam | データフローチャート（保存するもの） | 保存する表（テーブル）と項目・主キー、表どうしのつながり（1対多など） | back-a と表の形を合わせる（`src/server/db/schema.ts` を足すのは back-a のまま）。契約の型と DB の形を分ける確認 |
 
 - 図の矢印は上の順。前の図が変わったら、後ろの図の担当に Issue で知らせる（例: フローチャートに状態が増えた → front-a と back-a へ）。
 - 図は「作るための道具」。契約（`contracts/`）と DEMO.md が正で、図と食い違ったら契約・DEMO.md に合わせて図を直す。
+- ER図は表の形の合意に使う。テーブル定義のファイル（`src/server/db/schema.ts`）を書くのは back-a のまま。図と schema.ts が食い違ったら schema.ts に合わせて図を直す。
 - 図を AI に描かせるときは、FigJam は Mermaid（図を文で書く形）から作れる。元の Mermaid は各自の docs に残しておくと、AI が読んで作業に使える。
 
 ## 担当の場所（kit.config.json の owns）

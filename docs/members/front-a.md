@@ -27,7 +27,7 @@
 - AI に部品を作らせるときは、状態・イベントの表の行と、同じ名前のフレーム（Figma の MCP か書き出し画像）を渡す。
 
 ## 図の担当: UI（Figma Design）
-- 流れ: フローチャート（front-b）→ UI（front-a）／データフローチャート（back-a）→ データフローダイアグラム（lead）。全体は docs/rules/team.md「4つの図」
+- 流れ: フローチャート（front-b）→ UI（front-a）／データフローチャート（back-a）→ データフローダイアグラム（DFD）と ER図（lead）。全体は docs/rules/team.md「図の流れ」
 - 描くもの: front-b のフローチャートの状態ごとの線画 → 作り込んだ画面・トークン（下の「デザイン（Figma Design）」）
 - 元にするもの: front-b のフローチャート（FigJam）。フローチャートにない状態の画面は作らない（足りなければ front-b に Issue）
 - 目安: 11:20 に線画の試作を全員で触る、11:30 までにトークン案を lead へ
