@@ -49,6 +49,7 @@
 | back-a | `src/server/a/`・`src/server/b/`・`src/app/api/a/`・`src/app/api/b/`・`tests/server/a/`・`tests/server/b/`・`src/server/db/index.ts`・`src/server/` 直下の共通の処理。テーブル定義 `src/server/db/schema.ts` は共有の場所だが、サーバ担当は1人なので実際には back-a だけが足す |
 | front-a | `src/components/`・`docs/design/` |
 | front-b | 画面の本体（`src/app/<画面id>/`）・`docs/flow/`・`tests/e2e/` |
+| debug | 自分だけの場所はない。デバッガーとして `editAll: true` で全員のファイルを触れる（直す前に持ち主に知らせる。docs/members/debug.md） |
 
 API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする。フォルダ `src/app/api/<機能>/` は back-a のもの。
 

@@ -1,7 +1,7 @@
 // Claude Code 用: 自分の所有範囲外のファイルを編集しようとしたら止める。
 // （Codex は .codex/hooks/guard-scope.mjs が同じ判定をする。手作業やシェルでの書き換えには pre-commit と CI が効く。これは早めに気づくための補助）
 import { relative } from "node:path";
-import { currentMember, loadConfig, ownerOf, ROOT } from "../../scripts/lib/kit.mjs";
+import { currentMember, loadConfig, mayEdit, ownerOf, ROOT } from "../../scripts/lib/kit.mjs";
 
 let input = "";
 for await (const chunk of process.stdin) input += chunk;
@@ -19,7 +19,7 @@ if (!me) {
   process.exit(2);
 }
 const owner = ownerOf(rel, cfg);
-if (owner === me.id || owner === "shared") process.exit(0);
+if (mayEdit(owner, me, cfg)) process.exit(0);
 console.error(
   `${rel} は ${owner ?? "所有者なし"} のファイルです（自分は ${me.id}）。編集せず、所有者宛ての Issue を提案してください。契約なら change-request（docs/rules/changes.md）。`,
 );

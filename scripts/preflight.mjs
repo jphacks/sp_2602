@@ -1,7 +1,7 @@
 // npm run preflight — 着手宣言（.kit/declare-<id>.json）を、設定・契約・画面・デモ台本と照合する。
 // 「理解しました」ではなく、名前が実在するか・所有範囲内かで理解を確かめる。
 import { existsSync, readFileSync } from "node:fs";
-import { currentMember, loadConfig, ownerOf, p } from "./lib/kit.mjs";
+import { currentMember, loadConfig, mayEdit, ownerOf, p } from "./lib/kit.mjs";
 
 const cfg = loadConfig();
 const me = currentMember(cfg);
@@ -28,7 +28,7 @@ if (d.member && d.member !== me.id) errors.push(`member が ${d.member}（自分
 // 触るファイルはすべて自分の範囲内か
 for (const f of d.files ?? []) {
   const o = ownerOf(f, cfg);
-  if (o !== me.id && o !== "shared") errors.push(`files: ${f} は ${o ?? "所有者なし"} のもの`);
+  if (!mayEdit(o, me, cfg)) errors.push(`files: ${f} は ${o ?? "所有者なし"} のもの`);
 }
 
 // 使う契約名は contracts/ に export されているか

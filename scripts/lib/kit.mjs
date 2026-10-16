@@ -47,6 +47,11 @@ export function baseOwnerOf(file, cfg = loadConfig()) {
   return null;
 }
 
+// me がその持ち主（ownerOf の結果）のファイルを触ってよいか。自分のもの・共有に加えて、
+// editAll: true の人（kit.config.json の members。全員の範囲で不具合を見るデバッガー）は、持ち主のいるファイルならどれでも触れる
+export const mayEdit = (owner, me, cfg) =>
+  owner === me.id || owner === "shared" || (me.editAll === true && cfg.members.some((m) => m.id === owner));
+
 // 貸し出し（loans の1件）として通らない理由を返す。通るなら null。by = 貸す操作をする人の id。
 // npm run handoff（書く前）と npm run scope（コミットされた kit.config.json の検査）の両方で同じ判定を使う
 export function loanProblem(loan, cfg, by) {

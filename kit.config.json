@@ -180,7 +180,7 @@
     "$comment": "合流のルール（docs/rules/help.md）。切り出し型の合流はフリーズの何分前まで始めてよいか。値は仮",
     "carveOutCutoffMinBeforeFreeze": 90
   },
-  "$comment_members": "members の1人目がつなぎ役（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。持ち主は members の順で最初に当てはまった人。4人構成: lead＝通信・セキュリティ・DFD・ER図＋発表＋まとめ役、back-a＝サーバ全部・DB・データフローチャート、front-a＝UI（Figma Design）、front-b＝UX（FigJam のフローチャート・画面の本体）。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
+  "$comment_members": "members の1人目がつなぎ役（契約の所有者・CODEOWNERS のレビュー役・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。持ち主は members の順で最初に当てはまった人。4人構成: lead＝通信・セキュリティ・DFD・ER図＋発表＋まとめ役、back-a＝サーバ全部・DB・データフローチャート、front-a＝UI（Figma Design）、front-b＝UX（FigJam のフローチャート・画面の本体）。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）。editAll: true の人（debug＝デバッガー）は全員のファイルを触れ、CODEOWNERS ではどの行にもレビュー役として並ぶ（つなぎ役・まとめ役は lead のまま）",
   "facilitator": "lead",
   "members": [
     {
@@ -257,6 +257,13 @@
       "github": "choko1112",
       "role": "UX（流れ）: FigJam のフローチャート（状態遷移図）と状態・イベントの表、画面の本体（状態・イベント・通信・useFlow）、通しの確認（e2e）",
       "owns": ["src/app/home/**", "src/app/result/**", "docs/flow/**", "tests/e2e/**"]
+    },
+    {
+      "id": "debug",
+      "github": "Rai-Tsumugu",
+      "role": "デバッガー（全員の範囲の不具合を見つけて直す・確かめる。役割の細部は未定）。editAll で全員のファイルを触れる",
+      "editAll": true,
+      "owns": []
     }
   ],
   "shared": [
