@@ -3,7 +3,9 @@
 //   1. Node のバージョン（.nvmrc）  2. npm ci（依存が入っていない・package-lock.json より古いとき）
 //   3. git hooks を有効化           4. 自分の id（.kit-member）
 //   5. .env（なければ .env.example から作る。あれば触らない）   6. gh で GitHub を使えるか
-//   7. GitHub から最新を取得（git fetch）                        8. npm run doctor（全部 ✓ になるか）
+//   7. GitHub から最新を取得（git fetch）
+//   8. Android のネイティブ部分を用意（expo prebuild → Gradle で Kotlin のライブラリを先に取得。初回は10分前後）
+//   9. npm run doctor（全部 ✓ になるか）
 // 以前、npm ci をせずに npm run now から始めて、hook・型チェック・doctor が全部失敗して詰まった人がいたため、入口を1つにした。
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -90,7 +92,60 @@ step(
   hasRemote ? "ネットワークと gh のログインを確かめる" : "origin がない。clone し直す（git clone <URL>）",
 );
 
-// 8. doctor（ここまでが全部 ✓ のときだけ。起動確認まで含めて1〜2分）
+// 8. Android のネイティブ部分（android/ は生成物で Git に入らないので、clone した PC ごとに作る）。
+//    作ったあと Gradle で Kotlin のライブラリ（Room・Coroutines など）を先に取得し、npm run android がすぐ動く状態にする。
+//    Java と Android SDK がないと進めない（Android Studio を入れるのは人間の作業）。--skip-android で飛ばせる
+if (!args.includes("--skip-android")) {
+  const sdkDirs = [
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+    process.env.LOCALAPPDATA && `${process.env.LOCALAPPDATA}/Android/Sdk`,
+    process.env.HOME && `${process.env.HOME}/Library/Android/sdk`,
+    process.env.HOME && `${process.env.HOME}/Android/Sdk`,
+  ].filter(Boolean);
+  const sdk = sdkDirs.find((d) => existsSync(d));
+  const javaOk = Number((sh("java -version 2>&1", { allowFail: true }) ?? "").match(/version "(\d+)/)?.[1]) >= 17;
+  if (!sdk || !javaOk) {
+    step(
+      "Android のネイティブ部分を用意",
+      false,
+      `${javaOk ? "" : "Java 17 以上がない。"}${sdk ? "" : "Android SDK がない。"}Android Studio を入れて一度起動し（SDK と JDK が入る）、ANDROID_HOME に SDK の場所を設定してから、もう一度（人間の作業。docs/kit/setup.md）`,
+    );
+  } else {
+    // 環境変数が未設定でも Gradle が SDK を見つけられるようにする（local.properties は Git に入らない）
+    process.env.ANDROID_HOME ??= sdk;
+    const prebuilt = existsSync(p("android/gradlew.bat")) || existsSync(p("android/gradlew"));
+    if (!prebuilt) console.log("… npx expo prebuild（android/ を作る）");
+    const made =
+      prebuilt ||
+      spawnSync("npx expo prebuild --platform android --no-install", {
+        cwd: p(""),
+        stdio: "inherit",
+        shell: true,
+        env: { ...process.env, CI: "1" },
+      }).status === 0;
+    let fetched = false;
+    if (made) {
+      console.log("… Gradle で Kotlin のライブラリを取得（初回は Gradle 本体と合わせて数分〜10分）");
+      const gradle = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+      fetched =
+        spawnSync(`${gradle} :kit-native:dependencies --configuration debugRuntimeClasspath --console=plain`, {
+          cwd: p("android"),
+          stdio: "inherit",
+          shell: true,
+        }).status === 0;
+    }
+    step(
+      "Android のネイティブ部分を用意（android/ と Kotlin のライブラリ）",
+      made && fetched,
+      made
+        ? "上の Gradle のエラーを読む（ネットワーク・Java の版・SDK の license）。直したら、もう一度"
+        : "上の expo prebuild のエラーを読む",
+    );
+  }
+}
+
+// 9. doctor（ここまでが全部 ✓ のときだけ。起動確認まで含めて1〜2分）
 const failed = results.filter((r) => !r.ok);
 if (failed.length) {
   console.log(`\n✗ ${failed.length} 件が未完了。上の → を済ませてから、もう一度 npm run kit:setup`);

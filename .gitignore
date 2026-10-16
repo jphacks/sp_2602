@@ -28,3 +28,7 @@ data/
 !.env.example
 *.pem
 *.key
+
+# Gradle のビルド生成物
+build/
+.gradle/

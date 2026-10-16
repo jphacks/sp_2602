@@ -6,6 +6,7 @@
 ## 0. 人間に先にやってもらうこと（AI にはできない）
 | やること | 確かめ方 | なぜ人間か |
 |---|---|---|
+| Android Studio を入れて一度起動し、`ANDROID_HOME` に SDK の場所を設定する（Windows は通常 `%LOCALAPPDATA%\Android\Sdk`） | `java -version` が 17 以上、`adb version` が動く | PC へのインストールと環境変数 |
 | Node.js 24 を入れる | `node -v` が `v24.` で始まる | PC へのインストール |
 | Git と GitHub CLI（gh）を入れる | `git --version` / `gh --version` | 同上 |
 | GitHub の招待を承認する | リポジトリのページが開ける | 招待メールのボタン、または `https://github.com/<持ち主>/<リポジトリ>/invitations` |
@@ -36,9 +37,10 @@ npm run kit:setup -- <自分のid>
 | 5 | `.env` を作る（なければ） | 手元用の設定ファイル。`MOCK=1` なので AI のキーなしで開発できる。すでにあれば触らない |
 | 6 | gh で GitHub を使えるか | Issue・PR を作れるか。ログインしているアカウントが自分か |
 | 7 | `git fetch` | GitHub の最新の状態を取ってくる（自分のファイルは変えない） |
-| 8 | `npm run doctor` | 最終確認。型チェックと、Android の開発環境（Java・Android SDK・adb・つながっている端末）と、試しにサーバを起動して応答するかまで見る（1〜2分） |
+| 8 | `npx expo prebuild` と Gradle | `android/`（Android の本体。Git に入らない生成物）をこのPCで作り、Kotlin のライブラリ（Room・Coroutines）を先に取得する。**初回は10分前後**。Java 17 と Android SDK がないと ✗（Android Studio を入れる。人間の作業）。飛ばすなら `--skip-android` |
+| 9 | `npm run doctor` | 最終確認。型チェックと、Android の開発環境（Java・Android SDK・adb・つながっている端末）と、試しにサーバを起動して応答するかまで見る（1〜2分） |
 
-最後に **「✓ 準備完了」** と出れば終わり。
+最後に **「✓ 準備完了」** と出れば終わり。アプリを端末に入れて動かすのは `npm run android`（実機を USB でつなぐか、Android Studio でエミュレータを起動してから）。
 
 ## 3. 確かめる（AI は結果を人間に報告する）
 ```
