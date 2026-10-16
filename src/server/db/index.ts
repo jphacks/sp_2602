@@ -1,9 +1,8 @@
-// DB への接続（back-a の担当）。使う側は `const d = await db()` → `d.insert(aiCalls).values(...)` のように Drizzle で書く。
+// DB への接続（back-a の担当）。使う側は `const d = await db()` → `d.insert(rules).values(...)` のように Drizzle で書く。
 //   DATABASE_URL あり（Vercel の本番・プレビュー、手元で vercel env pull した時）→ Neon（HTTP で1回ずつ問い合わせる。接続の使い回しが要らない）
 //   DATABASE_URL なし（手元・テスト・CI）→ メモリ上の Postgres（PGlite）。テーブルは schema.ts から作る。サーバを止めると空に戻る
 // Vercel では関数のメモリにデータを置いても残らない（呼ぶたびに別のインスタンスになりうる）。保存したいものは必ずここを通す。
 // Neon の HTTP 接続では db.transaction() が使えない。まとめて書くなら db.batch([...])。
-import "server-only";
 import type { NeonHttpDatabase } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 

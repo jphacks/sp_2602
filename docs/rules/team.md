@@ -30,9 +30,9 @@
 | 図 | 担当 | 置き場所 | 元にするもの | 何を描くか | 何に使うか |
 |---|---|---|---|---|---|
 | フローチャート | front-b | FigJam（リンクは `docs/flow/README.md`） | DEMO.md | 状態と、状態が変わるきっかけ（イベント）・分かれ道の条件 | 状態・イベントの表 → 画面の本体。UI とデータフローチャートの元 |
-| UI | front-a | Figma Design（リンクは `docs/design/README.md`） | フローチャート | 状態ごとの線画 → 作り込んだ画面・トークン | 画面の部品（`src/components/`）・`contracts/tokens.css` |
+| UI | front-a | Figma Design（リンクは `docs/design/README.md`） | フローチャート | 状態ごとの線画 → 作り込んだ画面・トークン | 画面の部品（`src/components/`）・`contracts/tokens.ts` |
 | データフローチャート | back-a | FigJam（リンクは `docs/members/back-a.md` の追記か `docs/flow/README.md`） | フローチャート | 画面の操作ごとに、どの API を呼び、サーバの中で何を計算・保存し、何を返すか（処理の順番と分かれ道） | API の処理（`src/server/`）・DB のテーブル（`src/server/db/schema.ts`） |
-| データフローダイアグラム | lead | Figma Design と FigJam | データフローチャート | 外の人・端末（利用者・Android など）、処理（API）、データの置き場所（DB・外部サービス）と、その間を流れるデータ。信頼の境目（ブラウザ／サーバ／外部）を線で区切る | 契約（`contracts/`）の確定・セキュリティの確認（キーの置き場所・入力の検査・回数の上限）・発表の「仕組み」の図 |
+| データフローダイアグラム | lead | Figma Design と FigJam | データフローチャート | 外の人・端末（利用者・Android など）、処理（API）、データの置き場所（DB・外部サービス）と、その間を流れるデータ。信頼の境目（端末のアプリ／サーバ／外部）を線で区切る | 契約（`contracts/`）の確定・セキュリティの確認（キーの置き場所・入力の検査・回数の上限）・発表の「仕組み」の図 |
 | ER図 | lead | Figma Design と FigJam | データフローチャート（保存するもの） | 保存する表（テーブル）と項目・主キー、表どうしのつながり（1対多など） | back-a と表の形を合わせる（`src/server/db/schema.ts` を足すのは back-a のまま）。契約の型と DB の形を分ける確認 |
 
 - 図の矢印は上の順。前の図が変わったら、後ろの図の担当に Issue で知らせる（例: フローチャートに状態が増えた → front-a と back-a へ）。

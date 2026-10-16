@@ -1,24 +1,27 @@
-// 通信の契約（画面 ⇔ サーバ）。サーバとクライアントは必ずこの表を経由する（パスを手書きしない）。
+// 通信の契約（アプリ ⇔ サーバ）。サーバとクライアントは必ずこの表を経由する（パスを手書きしない）。
 //   kind "json"   : 1回の要求に1回の応答
 //   kind "stream" : 応答を少しずつ返す（chunk を何回か → 最後に res を1回）。AI の返答や進み具合の表示に使う
 // 失敗したときの形は errors.ts の ApiError に統一。
 import { z } from "zod";
 import { ApiError } from "./errors";
-import { AnalyzeChunk, AnalyzeRequest, AnalyzeResult } from "./schemas";
+import { Rules, RulesQuery, RulesSave, SyncChunk, Usage, UsageReport } from "./schemas";
 
 export const Health = z.object({ ok: z.literal(true), mock: z.boolean() });
 export type Health = z.infer<typeof Health>;
 
 export const api = {
   health: { kind: "json", method: "GET", path: "/api/health", req: z.void(), res: Health },
-  analyze: { kind: "json", method: "POST", path: "/api/analyze", req: AnalyzeRequest, res: AnalyzeResult },
-  analyzeStream: {
+  rulesGet: { kind: "json", method: "POST", path: "/api/rules/get", req: RulesQuery, res: Rules },
+  rulesSave: { kind: "json", method: "POST", path: "/api/rules/save", req: RulesSave, res: Rules },
+  usageReport: { kind: "json", method: "POST", path: "/api/usage/report", req: UsageReport, res: Usage },
+  usageGet: { kind: "json", method: "POST", path: "/api/usage/get", req: RulesQuery, res: Usage },
+  rulesSyncStream: {
     kind: "stream",
     method: "POST",
-    path: "/api/analyze-stream",
-    req: AnalyzeRequest,
-    chunk: AnalyzeChunk,
-    res: AnalyzeResult,
+    path: "/api/rules/sync-stream",
+    req: RulesQuery,
+    chunk: SyncChunk,
+    res: Rules,
   },
 } as const;
 

@@ -1,14 +1,15 @@
-# front-b — UX（流れ）: FigJam の状態遷移・画面の本体・通しの確認
+# front-b — アプリの UX（流れ）: FigJam の状態遷移・画面の本体（Expo Router）・通しの確認
 
 ## 人間向け（最初に読む）
 - ミッション: 使う人が迷わず DEMO.md の流れをたどれるよう、状態とイベントを決め、画面の本体で状態・イベント・通信をつなぐ
-- 担当の場所: 画面の本体 `src/app/<画面id>/`（キックオフで画面 id に書き換え）・`docs/flow/`（状態遷移と状態・イベントの表）・`tests/e2e/`
-- 動作確認: `npm run dev`（.env は MOCK=1）で http://localhost:3000 の画面を開いて操作する。見た目は `npm run shot` で撮って確かめる
+- 担当の場所: 画面の本体 `src/app/<画面id>/`（キックオフで画面 id に書き換え。`index.tsx` が画面の本体）・`docs/flow/`（状態遷移と状態・イベントの表）・`tests/e2e/`
+- 動作確認: `.env` を MOCK=1 にして `npm run dev:server`（API）と `npm run android`（Android 16 の実機に入れて起動）を動かし、画面を操作する。見た目は `npm run shot`（adb で画面を撮る）で確かめる
 - 詰まったら: 30分で解決しなければまとめ役（lead）に声をかける / `blocked` Issue。契約・API のことは lead へ
 - Figma は Dev 席でよい（FigJam は編集できる。Figma Design は見る・Dev Mode で数値を読むだけ）
 
 ## front-a（UI）との分け方
 画面は「front-a が見た目の部品（`src/components/`）を作り、front-b が画面の本体でそれを並べ、状態・イベント・通信をつなぐ」。同じファイルを2人で触らない。
+- Kotlin の機能（使用時間の取得・制限の状態など）は、画面から `src/lib/native.ts` の窓口だけを通して呼ぶ。Android の機能を直接触らない（Kotlin は back-a）
 - 画面の本体の仕事: 今どの状態か（読み込み中・成功・失敗・データなし）を持つ、`call()` / `stream()` でサーバとやり取りする、`useFlow()` で次の画面にデータを渡す、`contracts/screens.md` どおりに画面を移る
 - 見た目は部品に任せる。画面の本体には並べ方（余白・順番）だけを書く。足りない部品・状態は front-a に Issue
 - まだ部品がない時は、`src/components/ui/` の共通部品で仮に組んでよい（後で front-a の部品に差し替える）
@@ -19,7 +20,7 @@
 | いつ | やること | 置き場所 |
 |---|---|---|
 | キックオフ〜11:10 | DEMO.md の流れから **状態遷移図**（状態とイベント）を描き、**状態・イベントの表** にする（状態ごとに: 出す内容・押せるもの・次の状態・必要なデータ） | FigJam、`docs/flow/README.md` |
-| 11:20（5分） | **全員で試作を触る** を進行する（front-a の線画をスマホで開く）。聞くこと: この画面で一番知りたい答えはどこに出ているか／足りない状態（待ち・失敗・データなし）はないか | — |
+| 11:20（5分） | **全員で試作を触る** を進行する（front-a の線画を実機で開く）。聞くこと: この画面で一番知りたい答えはどこに出ているか／足りない状態（待ち・失敗・データなし）はないか | — |
 | 11:20〜11:30 | 試して直した表を lead に渡す。lead が状態ごとに受け渡すデータ・MOCK の固定データを契約に入れる | lead が `contracts/` |
 | 状態を足す・変える時 | 先に表を直し、front-a（線画・部品）と lead（契約）に知らせる | — |
 
@@ -31,7 +32,7 @@
 
 ## 触らないファイル（よく間違えるもの）
 - contracts/ 全部（画面遷移の `screens.md` も。変えたい時は change-request Issue）
-- 部品 `src/components/`（front-a）、`docs/design/`（front-a）、`docs/DEMO.md`・`docs/pitch/`（lead）
+- 部品 `src/components/`（front-a）、`android/`（Kotlin は back-a）、`docs/design/`（front-a）、`docs/DEMO.md`・`docs/pitch/`（lead）
 
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
@@ -39,7 +40,7 @@
 - S1 状態遷移図（FigJam）と状態・イベントの表（`docs/flow/README.md`。FigJam のリンクも）。11:20 に全員で試作を触り、直した表を lead に渡す — 完了確認: `npm run check`
 - S2 画面の本体を組む（`src/app/<画面id>/`。状態・イベントの表の行ごとに状態を持ち、部品を並べる。部品がまだなら共通部品で仮に） — 完了確認: `npm run check`
 - S3 画面をサーバとつなぐ（`call()` / `stream()`・`useFlow()`）。待ち・失敗・データなしは表どおり（screens.md の UX の約束） — 完了確認: `npm run check`
-- S4 front-a の画面ごとの部品に差し替え、表どおりに画面を移るか確かめる — 完了確認: `npm run check`
+- S4 front-a の画面ごとの部品に差し替え、表どおりに画面を移るか実機で確かめる — 完了確認: `npm run check`
 - S5 状態・イベントの表を e2e に（`tests/e2e/`。表の行ごとに、その状態で出る文言を確かめる）。DEMO.md どおりに main を通しで操作して問題を Issue に — 完了確認: `npm run check`
 
 ## 追記（同期点での変更）

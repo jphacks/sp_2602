@@ -1,56 +1,96 @@
 {
   "files": {
-    "src/app/api/analyze/route.ts": {
+    "src/server/handlers/rulesGet.ts": {
       "action": "delete",
-      "sha": "455a67d664d9efb312eae22f368cddcdfbe59c93655c10a1199cac5dda7d0fd9"
+      "sha": "e13a2ed375d4b7bc7fb217c98de188c6e9cd1cf13a0ba367f3b51b1311ad2c4f"
     },
-    "src/app/api/analyze-stream/route.ts": {
+    "src/server/handlers/rulesSave.ts": {
       "action": "delete",
-      "sha": "9b57481dc25005b0893f62f0f264c2e85c2916ea30e2171edf1d072b98fa32c0"
+      "sha": "20f4ad55dcdeedc7168f7d41c6a613c3290263d902d3770f347fec6fb62e334e"
     },
-    "src/server/analyze.ts": {
+    "src/server/handlers/rulesSyncStream.ts": {
       "action": "delete",
-      "sha": "792e60b1774ec8eb94f8ea76b385aafdcca0848e101ab406a26aae654b4806cc"
+      "sha": "0d8cb865984de2493c8dc321d8380a08cd8ad4b782afb5257ace96bc5d53c03f"
     },
-    "src/app/home/page.tsx": {
+    "src/server/handlers/usageGet.ts": {
       "action": "delete",
-      "sha": "7c7ce37e63bb0653e5847104dd133661951a2c886fb0ef6721d49bca6c4b10ba"
+      "sha": "5dc299cfef9dd4acbcc2d36949e175d917bf151e046e01f0084b2e6e285316fd"
     },
-    "src/app/result/page.tsx": {
+    "src/server/handlers/usageReport.ts": {
       "action": "delete",
-      "sha": "92947610cede24d2126d6a58881689cc375f0367a15aaa78dec39699a3f1556f"
+      "sha": "c895a78c28dc3b1dde38eeefc3bc35936632635b3ef87799b489e81b8375caaf"
+    },
+    "src/server/rules.ts": {
+      "action": "delete",
+      "sha": "1fbd6867da43aeda63b20423415494272fa7bbb1987c8b55897feebe7e491d3c"
+    },
+    "src/server/usage.ts": {
+      "action": "delete",
+      "sha": "0f063455a733b9c30959831d11915d8fc8e773a74d7dec51ee8ebe36e5ee5c35"
+    },
+    "src/app/role/index.tsx": {
+      "action": "delete",
+      "sha": "c98511b2e255af2add132dca9d0678c61736547f15d04be5567940c0b95b095d"
+    },
+    "src/app/parent-rules/index.tsx": {
+      "action": "delete",
+      "sha": "6ad0c3ff655c660078adbbd3e1b501c37c00746b6331e467143a68b750796410"
+    },
+    "src/app/parent-usage/index.tsx": {
+      "action": "delete",
+      "sha": "ce3e28950ebfd97d1aac763ab9fdce9c3a22c3ffc459e18500be6bfefbef30da"
+    },
+    "src/app/child-home/index.tsx": {
+      "action": "delete",
+      "sha": "be0f5bc8280ae8320b72d3f134b47746c167adfbfb87d5789ce7d7cbf0a3cec2"
     },
     "contracts/schemas.ts": {
       "action": "replace",
-      "sha": "c9b8bea1497809849c6076e4409ef13a36c8a03b5b960b15f391bc463cf3ef79"
+      "sha": "81d52fb5a1d86b80088878c3372169884d287e453e183eeba7b46abce44e7b36"
     },
     "contracts/api.ts": {
       "action": "replace",
-      "sha": "0da6c99ff1866a94768c0340a5d729f076f8052785df1b82ba8946140b7085dc"
+      "sha": "f35b4bfc8bee1288c30b7ea08ee6f6d24fa7857bf30609c2f1ffa5a5375c7d5b"
     },
     "contracts/fixtures.ts": {
       "action": "replace",
-      "sha": "44f6b38a8eae12879b8e3409f0290d67dfd0baa1ed1dffe636a2a636512c2803"
+      "sha": "f2f305eaf65e5281e53e19321b1779c440f404e75f7e4a61500140ce4c9e2972"
     },
     "contracts/screens.md": {
       "action": "replace",
-      "sha": "a457ec55388b705b0fa8f367f1294f3b54683ac4595727f76190a67644b3f997"
+      "sha": "a0517bd7d1b54ea42d9a3ec80987ab72f45e1dfb9c5f2d436d69565ac486e436"
     },
     "src/lib/flow.tsx": {
       "action": "replace",
-      "sha": "efa52efa17b0fa54add7e86af7b375493d5567b0d8a1efc31e4204ca4c10305f"
+      "sha": "dfc9ac6ab292a3a7f6f702bf4afd9a6e62d510752e740e50be516a1ba51d9551"
     },
-    "src/app/page.tsx": {
+    "src/app/index.tsx": {
       "action": "replace",
-      "sha": "7c7d76c1bcfeae86eed02308e85b718682b174b7a0e7e579f39467b1f1df0c18"
+      "sha": "0ce5ef2077e7b45af9aadd69c54e892d9a217eef5aed2215a1b1f14661926ddb"
     },
-    "src/app/api/health/route.ts": {
+    "src/server/handlers/index.ts": {
       "action": "replace",
-      "sha": "c9273f90ad860f82f95433568108c235a870f99faac045537a776e1165760a23"
+      "sha": "d78eb199eaa8cffd1b7ee1b6f98038d8d128d6be341e9d9ada679aafd7750e6d"
+    },
+    "src/server/db/schema.ts": {
+      "action": "replace",
+      "sha": "6048d66cfd4e745b496355fcf807cd8bbd5245bfa83ddfc493bac4e441c6ec3d"
+    },
+    "tests/contracts.test.ts": {
+      "action": "replace",
+      "sha": "b4002aae4fc790751346ac414325b57ac90ea3690aa8d62e89b6d43747f78275"
+    },
+    "tests/lib/api.test.ts": {
+      "action": "replace",
+      "sha": "dde6cbdc9937b0d4d4a9a7635d08f6577693c4d0cedf971d4c65afd8aee552be"
     },
     "tests/server/api.test.ts": {
       "action": "replace",
-      "sha": "e9b63c494655aaeec0deb7062956a0004131e5643224c25300cdc3341d006d11"
+      "sha": "57619a076abe469463872d7f5166f63067b9a1e0f69d48282c1d1816ac2202b3"
+    },
+    "tests/server/db.test.ts": {
+      "action": "replace",
+      "sha": "f1bbf8960b2c4de6158778636b95b906989b162ff8f3306001274a309edd1887"
     }
   }
 }

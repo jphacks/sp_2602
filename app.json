@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "hackathon-kit",
+    "slug": "hackathon-kit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "hackathonkit",
+    "platforms": ["android"],
+    "android": {
+      "package": "dev.hackathon.kit",
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": ["expo-router", "expo-status-bar"]
+  }
+}

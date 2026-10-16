@@ -1,18 +1,18 @@
-// npm run shot -- <URL> <保存先.png> [--size 375x812] [--wait 1500] [--js "document.querySelector('button').click()"] [--after 1500] [--profile s1]
-// 画面のスクリーンショット。AI が自分の画面を「目で」確かめるための道具（依存なし。Edge / Chrome のヘッドレスを DevTools プロトコルで操作）。
-//   --js は読み込み後にページ内で実行する（ボタンを押すなど）。--after はその後に待つミリ秒。
-//   --profile <名前> は同じブラウザの保存領域を使い回す（同じ利用者として開き直す。押した本人の画面を撮るときなど）。
+// npm run shot -- <保存先.png> [--link hackathonkit://home] [--wait 1500] [--tap x,y] [--after 1000] [--serial emulator-5554]
+// Android の画面のスクリーンショット。AI が自分の画面を「目で」確かめるための道具（依存なし。adb で、つながっている実機かエミュレータの画面を撮る）。
+//   --link  は撮る前に開く画面（アプリの deep link。app.json の scheme + 画面 id、例 hackathonkit://home）。なければ今映っている画面を撮る
+//   --wait  は --link で開いたあとに待つミリ秒（画面が描かれるまで）。--tap x,y は撮る前にその位置（画面の dp ではなく px）を押す、--after は押したあとに待つミリ秒
+//   --serial は端末が複数つながっているとき、どれを撮るか（adb devices の1列目）
 // 撮った画像は Read ツールで開き、デザインと見比べる。保存先は docs/shots/<自分のid>/<D番号>-<名前>.png を推奨（共有ファイル）。
-// ブラウザは KIT_BROWSER（実行ファイルのパス）か、よくある場所の Edge / Chrome を使う。
-import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+// adb は ADB（実行ファイルのパス）か、ANDROID_HOME の platform-tools か、PATH のものを使う。
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-const [url, out, ...rest] = process.argv.slice(2);
-if (!url || !out) {
+const [out, ...rest] = process.argv.slice(2);
+if (!out || out.startsWith("--")) {
   console.error(
-    "使い方: npm run shot -- <URL> <保存先.png> [--size 375x812] [--wait ms] [--js code] [--after ms] [--profile 名前]",
+    "使い方: npm run shot -- <保存先.png> [--link hackathonkit://home] [--wait ms] [--tap x,y] [--after ms] [--serial id]",
   );
   process.exit(2);
 }
@@ -20,123 +20,79 @@ const opt = (k, d) => {
   const i = rest.indexOf(k);
   return i < 0 ? d : rest[i + 1];
 };
-const [w, h] = opt("--size", "375x812").split("x").map(Number);
-const wait = Number(opt("--wait", "1500"));
-const js = opt("--js");
-const after = Number(opt("--after", "1500"));
-const profile = opt("--profile");
-const CANDIDATES = [
-  process.env.KIT_BROWSER,
-  "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-  "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
-  "C:/Program Files/Google/Chrome/Application/chrome.exe",
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-  "/usr/bin/google-chrome",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser",
-].filter(Boolean);
-const BROWSER = CANDIDATES.find((c) => existsSync(c));
-if (!BROWSER) {
-  console.error("✗ Edge / Chrome が見つからない。KIT_BROWSER にブラウザの実行ファイルのパスを入れる");
-  process.exit(1);
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const link = opt("--link");
+const wait = Number(opt("--wait", "2000"));
+const tap = opt("--tap");
+const after = Number(opt("--after", "1000"));
+const serial = opt("--serial");
 
-const dir = profile ? join(tmpdir(), `shot-profile-${profile}`) : mkdtempSync(join(tmpdir(), "shot-"));
-const portFile = join(dir, "DevToolsActivePort");
-if (existsSync(portFile)) rmSync(portFile);
-const edge = spawn(
-  BROWSER,
+const exe = process.platform === "win32" ? "adb.exe" : "adb";
+// doctor と同じ探し方: ADB → ANDROID_HOME / ANDROID_SDK_ROOT → Android Studio の標準の場所 → PATH
+const adb =
+  process.env.ADB ??
   [
-    "--headless=new",
-    "--disable-gpu",
-    "--no-first-run",
-    "--remote-debugging-port=0",
-    `--user-data-dir=${dir}`,
-    `--window-size=${w},${h}`,
-    "about:blank",
-  ],
-  { stdio: "ignore" },
-);
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+    process.env.LOCALAPPDATA && `${process.env.LOCALAPPDATA}/Android/Sdk`,
+    process.env.HOME && `${process.env.HOME}/Library/Android/sdk`,
+    process.env.HOME && `${process.env.HOME}/Android/Sdk`,
+  ]
+    .filter(Boolean)
+    .map((h) => join(h, "platform-tools", exe))
+    .find((f) => existsSync(f)) ??
+  exe;
+const run = (args, o = {}) =>
+  execFileSync(adb, [...(serial ? ["-s", serial] : []), ...args], { maxBuffer: 64 * 1024 * 1024, ...o });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const fail = (msg) => {
+  console.error(`✗ ${msg}`);
+  process.exit(1);
+};
 
-// Windows では kill() でも taskkill /T でも Edge が残る（起動したプロセスがすぐ抜け、子が残る）。
-// 残ったページは動き続ける（同期点1で参加数が水増しされた）。DevTools の Browser.close で閉じ、念のため保存領域の名前で探して落とす
-let browserWs;
-async function stopEdge() {
-  try {
-    if (browserWs) {
-      const bws = new WebSocket(browserWs);
-      await new Promise((r, j) => {
-        bws.addEventListener("open", r, { once: true });
-        bws.addEventListener("error", j, { once: true });
-      });
-      bws.send(JSON.stringify({ id: 1, method: "Browser.close" }));
-      await sleep(800);
-    }
-  } catch {}
-  try {
-    if (process.platform === "win32") {
-      const key = dir.replaceAll("'", "''");
-      execFileSync(
-        "powershell",
-        [
-          "-NoProfile",
-          "-Command",
-          `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like '*${key}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
-        ],
-        { stdio: "ignore" },
-      );
-    } else edge.kill();
-  } catch {}
-}
-
-let ws;
+let lines;
 try {
-  let port;
-  for (let i = 0; i < 100 && !port; i++) {
-    if (existsSync(portFile)) port = readFileSync(portFile, "utf8").split("\n")[0].trim();
-    else await sleep(100);
-  }
-  if (!port) throw new Error("Edge が起動しなかった");
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
-  browserWs = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()).webSocketDebuggerUrl;
-  ws = new WebSocket(targets.find((t) => t.type === "page").webSocketDebuggerUrl);
-  await new Promise((r) => ws.addEventListener("open", r, { once: true }));
-  let id = 0;
-  const pending = new Map();
-  ws.addEventListener("message", (e) => {
-    const m = JSON.parse(e.data);
-    if (m.id && pending.has(m.id)) {
-      pending.get(m.id)(m);
-      pending.delete(m.id);
-    }
-  });
-  const cdp = (method, params = {}) =>
-    new Promise((r) => {
-      const n = ++id;
-      pending.set(n, r);
-      ws.send(JSON.stringify({ id: n, method, params }));
-    });
-
-  await cdp("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: w < 600 });
-  await cdp("Page.navigate", { url });
-  await sleep(wait);
-  if (js) {
-    const r = await cdp("Runtime.evaluate", { expression: js, awaitPromise: true });
-    if (r.result?.exceptionDetails) console.error("js のエラー:", r.result.exceptionDetails.text);
-    await sleep(after);
-  }
-  const shot = await cdp("Page.captureScreenshot", { format: "png" });
-  mkdirSync(dirname(resolve(out)), { recursive: true });
-  writeFileSync(resolve(out), Buffer.from(shot.result.data, "base64"));
-  console.log(`保存: ${resolve(out)}（${w}x${h}）`);
-} finally {
-  ws?.close();
-  await stopEdge();
-  await sleep(500);
-  if (!profile)
-    try {
-      rmSync(dir, { recursive: true, force: true });
-    } catch {}
+  lines = execFileSync(adb, ["devices"], { encoding: "utf8" }).split("\n").slice(1);
+} catch {
+  fail(
+    "adb（端末とやりとりする道具）が見つからないか、動かない。Android Studio の SDK Manager で「Android SDK Platform-Tools」を入れ、環境変数 ANDROID_HOME に SDK の場所を設定する（docs/kit/setup.md。人間の作業）。確かめるには npm run doctor",
+  );
 }
+const unauthorized = lines.filter((l) => /\tunauthorized\s*$/.test(l));
+const offline = lines.filter((l) => /\toffline\s*$/.test(l));
+const devices = lines.filter((l) => /\tdevice\s*$/.test(l));
+if (!devices.length) {
+  if (unauthorized.length)
+    fail(
+      "端末は見えているが、USB デバッグが許可されていない。端末の画面に出る「USB デバッグを許可しますか」で許可してから、もう一度実行する",
+    );
+  if (offline.length)
+    fail("端末が応答しない（offline）。USB を抜き差しするか、エミュレータを再起動してから、もう一度実行する");
+  fail(
+    "つながっている端末がない。実機は、設定で開発者向けオプションと USB デバッグをオンにして USB でつなぐ。エミュレータなら Android Studio の Device Manager から起動する。そのあと、もう一度実行する",
+  );
+}
+if (devices.length > 1 && !serial)
+  fail(
+    `端末が複数ある。どれを撮るかを --serial で選んで、もう一度実行する（候補: ${devices.map((l) => l.split("\t")[0]).join(", ")}）`,
+  );
+
+if (link) {
+  try {
+    run(["shell", "am", "start", "-W", "-a", "android.intent.action.VIEW", "-d", link]);
+  } catch (e) {
+    fail(`${link} を開けなかった（アプリが入っているか、scheme が合っているか）: ${e.message.split("\n")[0]}`);
+  }
+  await sleep(wait);
+}
+if (tap) {
+  const [x, y] = tap.split(",").map(Number);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) fail("--tap は x,y（例 540,1200）");
+  run(["shell", "input", "tap", String(x), String(y)]);
+  await sleep(after);
+}
+
+const png = run(["exec-out", "screencap", "-p"]);
+if (png.length < 100 || png[1] !== 0x50) fail("画面を撮れなかった（画面が消えていないか確かめる）");
+mkdirSync(dirname(resolve(out)), { recursive: true });
+writeFileSync(resolve(out), png);
+console.log(`✓ ${out}（${(png.length / 1024).toFixed(0)}KB）。Read で開いて確かめる`);

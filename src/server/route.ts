@@ -1,9 +1,16 @@
-// 契約つきの Route Handler を作る（lead の担当）。入力と出力の両方を contracts の Zod で検査し、
+// 契約つきの API の処理を作る（lead の担当）。Web 標準の Request → Response の関数を返すので、どの Web フレームワークからも呼べる（src/server/app.ts が Hono につなぐ）。入力と出力の両方を contracts の Zod で検査し、
 // 失敗はすべて contracts/errors.ts の ApiError の形で返す。
-//   export const POST = handle("analyze", analyze);
-//   export const POST = handleStream("analyzeStream", analyzeStream);
-import "server-only";
-import { api, type Chunk, type JsonRoute, type Req, type Res, type StreamDef, type StreamRoute } from "@contracts/api";
+//   export default handle("rulesGet", async (req) => …);
+//   export default handleStream("rulesSyncStream", async (req, emit, signal) => …);
+import {
+  api,
+  type Chunk,
+  type JsonRoute,
+  type Req,
+  type Res,
+  type StreamDef,
+  type StreamRoute,
+} from "../../contracts/api";
 import { badRequest, toApiError } from "./errors";
 
 async function readInput(request: Request, method: string): Promise<unknown> {

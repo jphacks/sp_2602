@@ -1,37 +1,14 @@
 {
+  "extends": "expo/tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "allowJs": false,
-    "noEmit": true,
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "@/*": ["./src/*"],
       "@contracts/*": ["./contracts/*"]
-    },
-    "esModuleInterop": true
+    }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    ".next-doctor/types/**/*.ts",
-    ".next-doctor/dev/types/**/*.ts"
-  ],
-  "exclude": ["node_modules", "scripts/reset/files"]
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "scripts/reset/files", "tmp", "android", "ios", "dist"]
 }

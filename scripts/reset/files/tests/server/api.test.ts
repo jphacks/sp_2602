@@ -3,8 +3,8 @@
 import { api } from "@contracts/api";
 import { ApiError } from "@contracts/errors";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GET as health } from "@/app/api/health/route";
 import { ApiCallError, call, errorOf } from "@/lib/api";
+import app from "@/server/app";
 import { AppError } from "@/server/errors";
 import { handle } from "@/server/route";
 
@@ -12,7 +12,7 @@ const get = () => new Request("http://test/api/health");
 
 describe("json", () => {
   it("health は契約どおり", async () => {
-    const res = await health(get());
+    const res = await app.request("/api/health");
     expect(api.health.res.safeParse(await res.json()).success).toBe(true);
   });
 });
@@ -48,9 +48,15 @@ describe("エラーの契約", () => {
     expect(ApiError.parse(await res.json()).code).toBe("upstream_failed");
   });
 
-  it("errorOf: 自分で中断したら null、時間切れなら timeout", () => {
-    expect(errorOf(new DOMException("aborted", "AbortError"))).toBeNull();
-    expect(errorOf(new DOMException("timeout", "TimeoutError"))?.code).toBe("timeout");
+  it("契約にない道筋は 404 + ApiError(not_found)", async () => {
+    const res = await app.request("/api/nothing");
+    expect(res.status).toBe(404);
+    expect(ApiError.parse(await res.json()).code).toBe("not_found");
+  });
+
+  it("errorOf: 自分で中断したら null、想定外は internal", () => {
+    expect(errorOf(Object.assign(new Error("aborted"), { name: "AbortError" }))).toBeNull();
+    expect(errorOf(new Error("x"))?.code).toBe("internal");
   });
 });
 
@@ -58,7 +64,7 @@ describe("クライアント（lib/api.ts）", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("call() は契約どおりの結果を返す", async () => {
-    vi.stubGlobal("fetch", (path: string, init: RequestInit) => health(new Request(`http://test${path}`, init)));
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) => app.request(new URL(url).pathname, init));
     const r = await call("health");
     expect(r.ok).toBe(true);
   });
@@ -67,7 +73,9 @@ describe("クライアント（lib/api.ts）", () => {
     const failing = handle("health", async () => {
       throw new AppError("upstream_failed");
     });
-    vi.stubGlobal("fetch", (path: string, init: RequestInit) => failing(new Request(`http://test${path}`, init)));
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) =>
+      failing(new Request(`http://test${new URL(url).pathname}`, init)),
+    );
     const e = await call("health").catch((x) => x);
     expect(e).toBeInstanceOf(ApiCallError);
     expect(e.error.code).toBe("upstream_failed");

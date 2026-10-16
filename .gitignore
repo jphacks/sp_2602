@@ -1,7 +1,4 @@
 node_modules/
-.next/
-.next-doctor/
-out/
 *.tsbuildinfo
 .env
 .env.local
@@ -11,4 +8,23 @@ out/
 *.log
 docs/pitch/*.mp4
 .npm-cache/
-next-env.d.ts
+tmp/
+
+# Expo / Android（/android/ /ios/ は npx expo prebuild が作り直す生成物。Kotlin の自作部分は modules/ に置く）
+.expo/
+dist/
+/android/
+/ios/
+expo-env.d.ts
+*.jks
+*.keystore
+local.properties
+
+# 実行時の領域と秘密情報（最低限）
+state/
+data/
+.team/
+.env*
+!.env.example
+*.pem
+*.key

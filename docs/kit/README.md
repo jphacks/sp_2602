@@ -13,7 +13,7 @@
 | 何を作るか | `docs/DEMO.md` |
 | 型・API・画面・デザイン | `contracts/` |
 | 決まったこと / 未決 | `docs/requirements/` |
-| 技術構成・書き方の約束 | `docs/rules/stack.md`（Next.js + Tailwind v4 + Biome。公開先は Vercel、DB は Neon + Drizzle。手元は PGlite） |
+| 技術構成・書き方の約束 | `docs/rules/stack.md`（Expo（Android）+ Hono + StyleSheet + Kotlin + Biome。API の公開先は Vercel、DB は Neon + Drizzle。手元は PGlite） |
 
 このファイルは枠組みの説明書。リポジトリ直下の `README.md` と `LICENSE` はプロダクト用に空けてある。
 

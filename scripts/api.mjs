@@ -1,10 +1,10 @@
 // npm run api -- <API名> ['<JSON>' | --body-file <path>] [--base http://localhost:3000]
-// 動いているサーバの API を、contracts/api.ts の名前で1回呼んで結果を表示する（動作確認・模擬の利用者・計測用）。
+// 動いているサーバ（npm run dev:server）の API を、contracts/api.ts の名前で1回呼んで結果を表示する（動作確認・模擬の利用者・計測用）。
 // curl を使わない理由: Windows の Git Bash の curl は日本語の本文が文字化けし、検証で弾かれる（リハーサル3で3人）。
 // node の fetch は常に UTF-8 で送る。stream の API は届いた行を順に出す。
 //   例: npm run api -- health
-//       npm run api -- press '{"clientId":"abc"}'
-//       npm run api -- help --body-file body.json
+//       npm run api -- rulesGet '{"childId":"demo-child"}'
+//       npm run api -- rulesSave --body-file body.json
 import { readFileSync } from "node:fs";
 import { p } from "./lib/kit.mjs";
 

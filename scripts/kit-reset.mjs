@@ -1,6 +1,6 @@
-// npm run kit:reset — キックオフで lead が1回だけ実行する。ひな型の例（サブスク判定の analyze 系 API・画面 home/result・固定データ・テスト）を消し、
+// npm run kit:reset — キックオフで lead が1回だけ実行する。ひな型の例（制限ルール rules 系・使用状況 usage 系の API・画面 role/parent-rules/parent-usage/child-home・固定データ・テーブル・テスト）を消し、
 // 契約を空の状態（scripts/reset/files/）に置き換える。そのあと lead は自分たちの契約を書いて npm run kit:stub。
-// back の route・front の画面も消す・置き換えるが、照合は scripts/reset/manifest.json の内容（sha）で行い、
+// back の API の処理・front の画面も消す・置き換えるが、照合は scripts/reset/manifest.json の内容（sha）で行い、
 // 誰かがすでに手を入れたファイル（ひな型と内容が違う）は触らずに残す。
 //   --write-manifest : キットの保守用。今のファイルの内容からマニフェストを作り直す
 import { createHash } from "node:crypto";
@@ -8,22 +8,35 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeF
 import { dirname } from "node:path";
 import { currentMember, isLead, loadConfig, p } from "./lib/kit.mjs";
 
+// 消すもの: ひな型の例の API の処理・サーバの関数・画面（制限ルール rules 系と使用状況 usage 系）。
+// 残すもの（基盤）: health、src/lib/api.ts・native.ts、src/app/_layout.tsx、contracts/errors.ts・native.ts・tokens.ts、src/server/（app・route・errors・env・dev・db/index.ts）。
 export const DELETE = [
-  "src/app/api/analyze/route.ts",
-  "src/app/api/analyze-stream/route.ts",
-  "src/server/analyze.ts",
-  "src/app/home/page.tsx",
-  "src/app/result/page.tsx",
+  "src/server/handlers/rulesGet.ts",
+  "src/server/handlers/rulesSave.ts",
+  "src/server/handlers/rulesSyncStream.ts",
+  "src/server/handlers/usageGet.ts",
+  "src/server/handlers/usageReport.ts",
+  "src/server/rules.ts",
+  "src/server/usage.ts",
+  "src/app/role/index.tsx",
+  "src/app/parent-rules/index.tsx",
+  "src/app/parent-usage/index.tsx",
+  "src/app/child-home/index.tsx",
 ];
+// 空に置き換えるもの: files/ に同じ道筋で置いた「空の形」を書く
 export const REPLACE = [
   "contracts/schemas.ts",
   "contracts/api.ts",
   "contracts/fixtures.ts",
   "contracts/screens.md",
   "src/lib/flow.tsx",
-  "src/app/page.tsx",
-  "src/app/api/health/route.ts",
+  "src/app/index.tsx",
+  "src/server/handlers/index.ts",
+  "src/server/db/schema.ts",
+  "tests/contracts.test.ts",
+  "tests/lib/api.test.ts",
   "tests/server/api.test.ts",
+  "tests/server/db.test.ts",
 ];
 const MANIFEST = "scripts/reset/manifest.json";
 // 改行コードと末尾の空白をそろえて比べる
@@ -67,11 +80,11 @@ if (done.length) {
   const hhmm = new Date().toTimeString().slice(0, 5);
   appendFileSync(
     p("contracts/CHANGELOG.md"),
-    `- ${hhmm} [破壊] npm run kit:reset でひな型の例（Item / Analyze* / api.analyze・analyzeStream / 画面 home・result）を消した — 全員 — なし\n`,
+    `- ${hhmm} [破壊] npm run kit:reset でひな型の例（Role / Child / AppLimit / Rules* / Usage* / api.rulesGet・rulesSave・rulesSyncStream・usageGet・usageReport / テーブル rules・usage / 画面 role・parent-rules・parent-usage・child-home）を消した — 全員 — なし\n`,
   );
 }
 console.log(done.length ? `✓ ひな型の例を片付けた:\n  ${done.join("\n  ")}` : "片付けるものはなかった（実行済み）");
 if (kept.length) console.log(`! 内容が変わっていたので残した（手で確かめる）:\n  ${kept.join("\n  ")}`);
 console.log(
-  "\n次: kit.config.json の機能 a / b と画面（home/result）を自分たちの名前に書き換え（docs/rules/team.md） → 契約を書く → npm run kit:stub → npm run check → commit",
+  "\n次: kit.config.json の機能 a / b と画面（role など）を自分たちの名前に書き換え（docs/rules/team.md） → 契約を書く → npm run kit:stub → npm run check → commit",
 );

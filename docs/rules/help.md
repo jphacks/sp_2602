@@ -37,6 +37,6 @@
 
 ## 他の人の設計・API を待っていて進めないとき
 待つ間も止まらない。上から順に試す。
-1. **仮の形で進める**：契約（`contracts/`）があれば、仮の API・画面（`npm run kit:stub`）と固定のデモ用データ（`contracts/fixtures.ts`）、`MOCK=1` で、相手の完成を待たずに自分の側を作れる。デザインが来ていなければ `contracts/tokens.css` の名前だけで作り、見た目は後で差し替える。
+1. **仮の形で進める**：契約（`contracts/`）があれば、仮の API・画面（`npm run kit:stub`）と固定のデモ用データ（`contracts/fixtures.ts`）、`MOCK=1` で、相手の完成を待たずに自分の側を作れる。デザインが来ていなければ `contracts/tokens.ts` の名前だけで作り、見た目は後で差し替える。
 2. **待っていることを残す**：`npm run log -- wait "back-a の score API（#14）"`。契約そのものが足りないなら change-request（docs/rules/changes.md）。
 3. **30分動かなければ**：まとめ役に `npm run issue -- blocked <まとめ役id> "…"`。まとめ役は、待たれている人の作業の一部を、手の空いている人に切り出して渡す（上の切り出し）か、順番を入れ替える。

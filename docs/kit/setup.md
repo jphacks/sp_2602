@@ -36,7 +36,7 @@ npm run kit:setup -- <自分のid>
 | 5 | `.env` を作る（なければ） | 手元用の設定ファイル。`MOCK=1` なので AI のキーなしで開発できる。すでにあれば触らない |
 | 6 | gh で GitHub を使えるか | Issue・PR を作れるか。ログインしているアカウントが自分か |
 | 7 | `git fetch` | GitHub の最新の状態を取ってくる（自分のファイルは変えない） |
-| 8 | `npm run doctor` | 最終確認。型チェックと、試しにアプリを起動して応答するかまで見る（1〜2分） |
+| 8 | `npm run doctor` | 最終確認。型チェックと、Android の開発環境（Java・Android SDK・adb・つながっている端末）と、試しにサーバを起動して応答するかまで見る（1〜2分） |
 
 最後に **「✓ 準備完了」** と出れば終わり。
 
@@ -68,7 +68,7 @@ kit:setup: <✓ の数> / <全体の数>（✗ があればその行と → の�
 | `gh で GitHub を使える ✗` | ログインしていない／別アカウント | 人間が `gh auth login`。Codex の中なら docs/kit/codex.md の GH_TOKEN |
 | `git fetch ✗`（Codex） | サンドボックスの中から `.git` に書けない | 「サンドボックスの外で実行してよいか」を承認する（docs/kit/codex.md） |
 | doctor の `型チェック ✗` | main 以外のブランチにいて、途中の変更がある | `git switch main` → `git pull` してから、もう一度 |
-| doctor の `/api/health ✗` | ポートの衝突・起動のエラー | `MOCK=1 npm run dev` を実行して、出たエラーを読む |
+| doctor の `/api/health ✗` | ポートの衝突・起動のエラー | `MOCK=1 npm run dev:server` を実行して、出たエラーを読む |
 | 日本語が文字化けする | Windows PowerShell 5.1 | PowerShell 7（`pwsh`）を使う |
 
 2回やり直しても同じ ✗ が出たら、止まって人間に、出た行をそのまま見せて相談する（AGENTS.md「2回失敗したら」）。

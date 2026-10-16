@@ -2,33 +2,41 @@
 import type { Chunk, Req, Res } from "./api";
 
 // デモ用の固定入力（DEMO.md の「デモ用の固定入力」と一致させる）。下の結果はこの入力に対応している。
-export const demoInput: Req<"analyze"> = {
-  items: [
-    { id: "1", name: "動画配信サービス" },
-    { id: "2", name: "音楽配信サービス" },
-    { id: "3", name: "学習アプリ" },
+export const demoInput: Req<"rulesGet"> = { childId: "demo-child" };
+
+const rules: Res<"rulesGet"> = {
+  childId: "demo-child",
+  limits: [
+    { packageName: "com.google.android.youtube", label: "YouTube", dailyMinutes: 60 },
+    { packageName: "com.instagram.android", label: "Instagram", dailyMinutes: 30 },
+    { packageName: "com.nintendo.zaka", label: "ゲーム", dailyMinutes: 45 },
   ],
+  updatedAt: "2026-10-17T10:00:00+09:00",
 };
 
-const analyzeResult: Res<"analyze"> = {
-  summary: "（モック）3件中1件は減らせます",
-  verdicts: [
-    { itemId: "1", label: "keep", reason: "毎日使っている" },
-    { itemId: "2", label: "reduce", reason: "週1回しか開いていない" },
-    { itemId: "3", label: "drop", reason: "3か月使っていない" },
+const usage: Res<"usageGet"> = {
+  childId: "demo-child",
+  date: "2026-10-17",
+  apps: [
+    { packageName: "com.google.android.youtube", label: "YouTube", usedMinutes: 42 },
+    { packageName: "com.instagram.android", label: "Instagram", usedMinutes: 30 },
+    { packageName: "com.nintendo.zaka", label: "ゲーム", usedMinutes: 10 },
   ],
+  updatedAt: "2026-10-17T18:00:00+09:00",
 };
 
 export const fixtures = {
-  analyze: analyzeResult,
+  usageReport: usage,
+  usageGet: usage,
+  rulesGet: rules,
+  rulesSave: rules,
   // ストリームのモック: chunks を順に流してから res を返す
-  analyzeStream: {
+  rulesSyncStream: {
     chunks: [
-      { text: "利用状況を確認しています…" },
-      { text: "1件目は毎日使われています。" },
-      { text: "2件目は週1回だけです。" },
-      { text: "3件目は3か月使われていません。" },
-    ] satisfies Chunk<"analyzeStream">[],
-    res: analyzeResult,
+      { text: "保護者の設定を読み込んでいます…" },
+      { text: "3つのアプリの制限を受け取りました。" },
+      { text: "端末に保存しています…" },
+    ] satisfies Chunk<"rulesSyncStream">[],
+    res: rules,
   },
 };

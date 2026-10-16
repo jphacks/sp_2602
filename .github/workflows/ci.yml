@@ -15,10 +15,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - name: ビルド（client から server-only を読んでいない・"use client" の付け忘れ等を検出）
-        run: npm run build
-        env:
-          MOCK: "1"
+      - name: Android 用にアプリをバンドルできるか（import の間違い・足りない依存を検出。端末やエミュレータは使わない）
+        run: npx expo export --platform android --output-dir "$RUNNER_TEMP/export"
       - name: 契約の変更に CHANGELOG の行があるか
         if: github.event_name == 'pull_request'
         run: node scripts/check-changelog.mjs --base origin/${{ github.base_ref }}

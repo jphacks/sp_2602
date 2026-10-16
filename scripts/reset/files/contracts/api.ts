@@ -1,4 +1,4 @@
-// 通信の契約（画面 ⇔ サーバ）。サーバとクライアントは必ずこの表を経由する（パスを手書きしない）。
+// 通信の契約（アプリ ⇔ サーバ）。サーバとクライアントは必ずこの表を経由する（パスを手書きしない）。
 //   kind "json"   : 1回の要求に1回の応答
 //   kind "stream" : 応答を少しずつ返す（chunk を何回か → 最後に res を1回）。AI の返答や進み具合の表示に使う
 // 失敗したときの形は errors.ts の ApiError に統一。
@@ -8,7 +8,7 @@ import { ApiError } from "./errors";
 export const Health = z.object({ ok: z.literal(true), mock: z.boolean() });
 export type Health = z.infer<typeof Health>;
 
-// API を足すときはここに1行ずつ（kind "json" は1回で返す / "stream" は少しずつ返す）。足したら npm run kit:stub で仮の Route Handler を置く。
+// API を足すときはここに1行ずつ（kind "json" は1回で返す / "stream" は少しずつ返す）。足したら npm run kit:stub で仮の処理（src/server/handlers/）を置く。
 export const api = {
   health: { kind: "json", method: "GET", path: "/api/health", req: z.void(), res: Health },
 } as const;

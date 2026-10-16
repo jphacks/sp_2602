@@ -1,9 +1,9 @@
 // サーバ側のエラー（lead の担当）。処理の中では AppError を throw し、形の変換は route.ts に任せる。
 //   throw new AppError("upstream_failed");                       // 既定の文
 //   throw new AppError("not_found", "その結果は見つかりません");   // 文を上書き
-import "server-only";
-import { type ApiError, type ErrorCode, errorStatus, errorText } from "@contracts/errors";
+
 import { ZodError } from "zod";
+import { type ApiError, type ErrorCode, errorStatus, errorText } from "../../contracts/errors";
 
 // "network" はクライアントが「サーバに届かなかった」ときにだけ作る。サーバから外部APIに繋がらないときは "upstream_failed"。
 export type ServerErrorCode = Exclude<ErrorCode, "network">;
