@@ -1,63 +1,63 @@
 # 自動生成（npm run kit:owners）。編集は kit.config.json で。
-* @que-dotcom
-/docs/requirements/ @que-dotcom
-/docs/members/ @que-dotcom
-/docs/data-wishlist.md @que-dotcom
-/docs/shots/ @que-dotcom
-/README.md @que-dotcom
-/src/server/db/schema.ts @que-dotcom
-/src/app/home/ @choko1112
-/src/app/result/ @choko1112
-/docs/flow/ @choko1112
-/tests/e2e/ @choko1112
-/src/components/ @ys-2421
-/docs/design/ @ys-2421
-/src/server/a/ @nekopen1011
-/src/app/api/a/ @nekopen1011
-/tests/server/a/ @nekopen1011
-/src/server/b/ @nekopen1011
-/src/app/api/b/ @nekopen1011
-/tests/server/b/ @nekopen1011
-/src/server/db/index.ts @nekopen1011
-/tests/server/db.test.ts @nekopen1011
-/src/server/*.ts @nekopen1011
-/src/app/api/analyze/ @nekopen1011
-/src/app/api/analyze-stream/ @nekopen1011
-/contracts/ @que-dotcom
-/kit.config.json @que-dotcom
-/package.json @que-dotcom
-/package-lock.json @que-dotcom
-/tsconfig.json @que-dotcom
-/next.config.ts @que-dotcom
-/drizzle.config.ts @que-dotcom
-/postcss.config.mjs @que-dotcom
-/biome.json @que-dotcom
-/vitest.config.ts @que-dotcom
-/components.json @que-dotcom
-/.github/ @que-dotcom
-/.claude/ @que-dotcom
-/.codex/ @que-dotcom
-/.githooks/ @que-dotcom
-/.vscode/ @que-dotcom
-/scripts/ @que-dotcom
-/.nvmrc @que-dotcom
-/.gitignore @que-dotcom
-/.gitattributes @que-dotcom
-/.env.example @que-dotcom
-/src/app/layout.tsx @que-dotcom
-/src/app/page.tsx @que-dotcom
-/src/app/globals.css @que-dotcom
-/src/lib/ @que-dotcom
-/src/server/route.ts @que-dotcom
-/src/server/errors.ts @que-dotcom
-/src/app/api/health/ @que-dotcom
-/src/proxy.ts @que-dotcom
-/tests/server/api.test.ts @que-dotcom
-/tests/contracts.test.ts @que-dotcom
-/tests/stubs/ @que-dotcom
-/AGENTS.md @que-dotcom
-/CLAUDE.md @que-dotcom
-/docs/rules/ @que-dotcom
-/docs/kit/ @que-dotcom
-/docs/DEMO.md @que-dotcom
-/docs/pitch/ @que-dotcom
+* @que-dotcom @Rai-Tsumugu
+/docs/requirements/ @que-dotcom @Rai-Tsumugu
+/docs/members/ @que-dotcom @Rai-Tsumugu
+/docs/data-wishlist.md @que-dotcom @Rai-Tsumugu
+/docs/shots/ @que-dotcom @Rai-Tsumugu
+/README.md @que-dotcom @Rai-Tsumugu
+/src/server/db/schema.ts @que-dotcom @Rai-Tsumugu
+/src/app/home/ @choko1112 @Rai-Tsumugu
+/src/app/result/ @choko1112 @Rai-Tsumugu
+/docs/flow/ @choko1112 @Rai-Tsumugu
+/tests/e2e/ @choko1112 @Rai-Tsumugu
+/src/components/ @ys-2421 @Rai-Tsumugu
+/docs/design/ @ys-2421 @Rai-Tsumugu
+/src/server/a/ @nekopen1011 @Rai-Tsumugu
+/src/app/api/a/ @nekopen1011 @Rai-Tsumugu
+/tests/server/a/ @nekopen1011 @Rai-Tsumugu
+/src/server/b/ @nekopen1011 @Rai-Tsumugu
+/src/app/api/b/ @nekopen1011 @Rai-Tsumugu
+/tests/server/b/ @nekopen1011 @Rai-Tsumugu
+/src/server/db/index.ts @nekopen1011 @Rai-Tsumugu
+/tests/server/db.test.ts @nekopen1011 @Rai-Tsumugu
+/src/server/*.ts @nekopen1011 @Rai-Tsumugu
+/src/app/api/analyze/ @nekopen1011 @Rai-Tsumugu
+/src/app/api/analyze-stream/ @nekopen1011 @Rai-Tsumugu
+/contracts/ @que-dotcom @Rai-Tsumugu
+/kit.config.json @que-dotcom @Rai-Tsumugu
+/package.json @que-dotcom @Rai-Tsumugu
+/package-lock.json @que-dotcom @Rai-Tsumugu
+/tsconfig.json @que-dotcom @Rai-Tsumugu
+/next.config.ts @que-dotcom @Rai-Tsumugu
+/drizzle.config.ts @que-dotcom @Rai-Tsumugu
+/postcss.config.mjs @que-dotcom @Rai-Tsumugu
+/biome.json @que-dotcom @Rai-Tsumugu
+/vitest.config.ts @que-dotcom @Rai-Tsumugu
+/components.json @que-dotcom @Rai-Tsumugu
+/.github/ @que-dotcom @Rai-Tsumugu
+/.claude/ @que-dotcom @Rai-Tsumugu
+/.codex/ @que-dotcom @Rai-Tsumugu
+/.githooks/ @que-dotcom @Rai-Tsumugu
+/.vscode/ @que-dotcom @Rai-Tsumugu
+/scripts/ @que-dotcom @Rai-Tsumugu
+/.nvmrc @que-dotcom @Rai-Tsumugu
+/.gitignore @que-dotcom @Rai-Tsumugu
+/.gitattributes @que-dotcom @Rai-Tsumugu
+/.env.example @que-dotcom @Rai-Tsumugu
+/src/app/layout.tsx @que-dotcom @Rai-Tsumugu
+/src/app/page.tsx @que-dotcom @Rai-Tsumugu
+/src/app/globals.css @que-dotcom @Rai-Tsumugu
+/src/lib/ @que-dotcom @Rai-Tsumugu
+/src/server/route.ts @que-dotcom @Rai-Tsumugu
+/src/server/errors.ts @que-dotcom @Rai-Tsumugu
+/src/app/api/health/ @que-dotcom @Rai-Tsumugu
+/src/proxy.ts @que-dotcom @Rai-Tsumugu
+/tests/server/api.test.ts @que-dotcom @Rai-Tsumugu
+/tests/contracts.test.ts @que-dotcom @Rai-Tsumugu
+/tests/stubs/ @que-dotcom @Rai-Tsumugu
+/AGENTS.md @que-dotcom @Rai-Tsumugu
+/CLAUDE.md @que-dotcom @Rai-Tsumugu
+/docs/rules/ @que-dotcom @Rai-Tsumugu
+/docs/kit/ @que-dotcom @Rai-Tsumugu
+/docs/DEMO.md @que-dotcom @Rai-Tsumugu
+/docs/pitch/ @que-dotcom @Rai-Tsumugu

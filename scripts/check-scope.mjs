@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { STUB_MARK } from "./lib/gaps.mjs";
-import { currentMember, loadConfig, loanProblem, ownerOf, p, sh } from "./lib/kit.mjs";
+import { currentMember, loadConfig, loanProblem, mayEdit, ownerOf, p, sh } from "./lib/kit.mjs";
 
 const args = process.argv.slice(2);
 const opt = (k) => {
@@ -162,7 +162,7 @@ function byLoan(f) {
 const errors = [];
 for (const f of files) {
   const owner = ownerOf(f, cfg);
-  if (owner === me.id || owner === "shared") continue;
+  if (mayEdit(owner, me, cfg)) continue;
   // .gitignore に入れて管理から外したファイル（例: next-env.d.ts）の削除は誰でもよい
   if (sh(`git check-ignore -q --no-index "${f}"`, { allowFail: true }) !== null) continue;
   if (ownsContracts && (contentOf(f) ?? "").startsWith(STUB_MARK)) continue;

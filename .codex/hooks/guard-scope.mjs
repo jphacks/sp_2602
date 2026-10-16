@@ -4,7 +4,7 @@
 // Windows の Codex 0.162 では hook のエラー扱いになり、パッチがそのまま適用された（実機で確認）。
 // シェルのコマンドで書き換えた場合は止められない。そちらは pre-commit と CI が止める（これは早めに気づくための補助）。
 import { isAbsolute, relative, resolve } from "node:path";
-import { currentMember, loadConfig, ownerOf, ROOT } from "../../scripts/lib/kit.mjs";
+import { currentMember, loadConfig, mayEdit, ownerOf, ROOT } from "../../scripts/lib/kit.mjs";
 
 let input = "";
 for await (const chunk of process.stdin) input += chunk;
@@ -35,7 +35,7 @@ const me = currentMember(cfg);
 if (!me) deny("自分が未設定です。人間に `npm run kit:whoami -- <id>` を頼んでください。");
 const others = targets
   .map((rel) => ({ rel, owner: ownerOf(rel, cfg) }))
-  .filter(({ owner }) => owner !== me.id && owner !== "shared");
+  .filter(({ owner }) => !mayEdit(owner, me, cfg));
 if (others.length)
   deny(
     `${others.map(({ rel, owner }) => `${rel} は ${owner ?? "所有者なし"} のファイル`).join("、")}です（自分は ${me.id}）。このパッチは適用していません。編集せず、所有者宛ての Issue を提案してください。契約なら change-request（docs/rules/changes.md）。`,

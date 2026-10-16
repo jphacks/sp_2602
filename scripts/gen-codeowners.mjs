@@ -5,14 +5,17 @@ import { loadConfig, p } from "./lib/kit.mjs";
 
 const cfg = loadConfig();
 const lead = cfg.members[0];
-const lines = ["# 自動生成（npm run kit:owners）。編集は kit.config.json で。", `* @${lead.github}`];
+// editAll の人（全員の範囲を触れるデバッガー）は、どの行のレビュー役にも並べる
+const all = cfg.members.filter((m) => m.editAll === true);
+const at = (m) => [...new Set([m, ...all].map((x) => `@${x.github}`))].join(" ");
+const lines = ["# 自動生成（npm run kit:owners）。編集は kit.config.json で。", `* ${at(lead)}`];
 // GitHub は「最後に一致した行」を使い、キット（ownerOf）は「members の前の人から順に最初に一致したもの、なければ共有」を使う。
 // 同じ結果になるよう、優先の低い順（共有 → members の後ろの人 → 前の人）に並べる（例: src/server/route.ts は lead、src/server/*.ts は back-a）
 // 共有ファイルは誰でも変更できるが、統合担当がレビューする
 // 貸し出し（loans。npm run handoff）は載せない: 借りた人の PR のレビュー役は、元の持ち主のまま（自分の担当を手伝ってもらった中身を確かめる）
-for (const g of cfg.shared ?? []) lines.push(`/${g.replace(/\/\*\*$/, "/")} @${lead.github}`);
+for (const g of cfg.shared ?? []) lines.push(`/${g.replace(/\/\*\*$/, "/")} ${at(lead)}`);
 for (const m of [...cfg.members].reverse())
-  for (const g of m.owns) lines.push(`/${g.replace(/\/\*\*$/, "/")} @${m.github}`);
+  for (const g of m.owns) lines.push(`/${g.replace(/\/\*\*$/, "/")} ${at(m)}`);
 const text = `${lines.join("\n")}\n`;
 
 if (process.argv.includes("--check")) {
