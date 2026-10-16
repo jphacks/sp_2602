@@ -1,9 +1,9 @@
 # hackathon-kit
 
-5人でAIを使って作るためのチーム開発の枠組み。製品のコードではなく「道具」なので事前に用意してよい（中身の契約・データ・画面は当日作る）。
+4人でAIを使って作るためのチーム開発の枠組み。製品のコードではなく「道具」なので事前に用意してよい（中身の契約・データ・画面は当日作る）。
 
 - AI（Claude Code / Codex）は `AGENTS.md` だけを入口に読み、`npm run now` で「今何をするか」を決める。AI ごとの設定は Claude Code が `.claude/`、Codex が `.codex/`（使い方は docs/kit/codex.md）。
-- ルールは md に、**状況は GitHub（Issue・PR）と git に**持たせる。md に進捗を書かない（5人で書き換えると衝突して古くなる）。
+- ルールは md に、**状況は GitHub（Issue・PR）と git に**持たせる。md に進捗を書かない（全員で書き換えると衝突して古くなる）。
 - 「触るな」は文章ではなく仕組みで止める: Claude / Codex の hook（早期警告）→ pre-commit → CI。
 
 ## 正本はこれだけ
@@ -42,7 +42,7 @@ Codex を使う人は、続けて docs/kit/codex.md の「最初に1回」（tru
 
 | いつ | 種類 | やること |
 |---|---|---|
-| 10/17 10:20 キックオフ | 目安 | lead が `npm run kit:reset` → 課題1文 → DEMO.md 下書き（90秒） → data-wishlist で削る → front-a の状態遷移図・線画の試作を全員で触る（11:20・5分。docs/design/README.md） → 契約を書く（状態ごとに受け渡すデータ・固定データ） → `npm run kit:stub` |
+| 10/17 10:20 キックオフ | 目安 | lead が `npm run kit:reset` → 課題1文 → DEMO.md 下書き（90秒） → data-wishlist で削る → front-b の状態遷移（FigJam・docs/flow/README.md）と front-a の線画の試作を全員で触る（11:20・5分） → 契約を書く（状態ごとに受け渡すデータ・固定データ） → `npm run kit:stub` |
 | 契約凍結 / 同期点1 / 第1統合 | 目安 | 以降の追加は change-request。同期点は docs/rules/sync.md（`npm run status` と動く main で確かめる） |
 | 10/17 18:50 中間発表 | 締め切り | 必須事項はなし。見せられるところまで |
 | 10/17 20:00 閉会 → 夜 | 締め切り・目安 | push してから会場を出る。夜の分担はまとめ役が決め、オンラインで続ける |

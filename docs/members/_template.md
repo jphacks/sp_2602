@@ -4,7 +4,7 @@
 - ミッション: （このスライスが DEMO.md のどこを成立させるか 1文）
 - 所有ファイル: kit.config.json の owns（ここ以外は触らない）
 - 動作確認: `npm run dev`（.env は MOCK=1）で http://localhost:3000 の自分の画面を開く。スマホ幅（DevTools の 375px）でも確認
-- 詰まったら: 30分で解決しなければまとめ役（front-b）に声をかける / `blocked` Issue。契約・API のことは lead へ
+- 詰まったら: 30分で解決しなければまとめ役（lead）に声をかける / `blocked` Issue。契約・API のことは lead へ
 
 ## 触らないファイル（よく間違えるもの）
 - contracts/ 全部（変えたい時は change-request Issue）

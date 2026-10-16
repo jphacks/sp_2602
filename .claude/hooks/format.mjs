@@ -1,4 +1,4 @@
-// Claude Code 用: 編集したファイルをその場で Biome 整形する（5人のAIの書き方を揃え、差分のノイズを消す）。
+// Claude Code 用: 編集したファイルをその場で Biome 整形する（全員のAIの書き方を揃え、差分のノイズを消す）。
 import { relative } from "node:path";
 import { ROOT, sh } from "../../scripts/lib/kit.mjs";
 
