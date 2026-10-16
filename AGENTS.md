@@ -42,6 +42,7 @@
 | 他の人を手伝う・手伝ってもらう（合流） | `docs/rules/help.md` |
 | 要件・設計から Issue を一括で洗い出して立てる（開発の開始前） | スキル `plan-issues`（`.claude/skills/` と `.agents/skills/`）。docs/rules/git.md |
 | 作業中に別の問題・追加案を見つけた（Issue を膨らませず新しく立てる） | スキル `spawn-issue`（`.claude/skills/` と `.agents/skills/`）。docs/rules/git.md |
+| PR の AI 自動レビュー（Codex）を有効にする・使う | `docs/kit/pr-review.md` |
 | コンフリクト（マージ競合）が出た | スキル `resolve-conflicts`（`.claude/skills/` と `.agents/skills/`）。docs/rules/git.md |
 | Codex で動いていて、git・gh・npm がサンドボックスで失敗する | `docs/kit/codex.md` |
 

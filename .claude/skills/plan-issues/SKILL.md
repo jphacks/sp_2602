@@ -21,6 +21,12 @@ description: 要件定義・設計（docs/DEMO.md、決定事項、契約、画�
 
 資料どうしが食い違うときは、上の順に正とし、食い違いを人間に報告する。**資料に無いものは Issue にしない。** 推測で補った項目は「推測」と明記する。
 
+### 1.5 図をテキストにする（図が Figma / FigJam にしかないとき）
+- 画面の流れ・データの流れが `docs/flow/` などに**テキスト（Mermaid 記法など）で無い**場合、AI は Figma / FigJam の図を直接読めないので、そのまま分解しない。
+- 人間から図の内容（画面名・遷移・操作・データの流れ）を聞き取るか、スクリーンショットを見て、**Mermaid の下書きを `tmp/flow-draft/` に作る**。画面遷移は `flowchart`、状態は `stateDiagram-v2`、データの流れは `flowchart` で書く。
+- 下書きを人間に見せ、図と合っているか確認してもらう。**`docs/flow/` は人間確認領域なので、AI は勝手に書き込まない。** 置いてよいと言われたら、そこに置く（担当は `docs/rules/team.md` の front-b）。
+- 確認された Mermaid を、手順 2 の分解の入力にする。図が無いまま推測で Issue を作らない。
+
 ## 2. 動作の単位に分解する
 - 次の観点を漏れなく見て、**1 つの動作を確かめられる単位**に分ける。「〜周り全般」「〜の整備」のような大枠にしない。
   - DEMO.md の D番号ごとの画面と操作
@@ -47,9 +53,11 @@ description: 要件定義・設計（docs/DEMO.md、決定事項、契約、画�
 ## 5. 計画を書く（まだ GitHub には何もしない）
 `tmp/issue-plan.md`（リポジトリ内の `tmp/` は Git 管理外）に表で書く。
 
-| ID | 題名 | 種類 | 宛先 | 根拠（ファイル・節） | 依存 | 完了条件・テスト | 参考 |
-|---|---|---|---|---|---|---|---|
-| P1 | [D2] 入力フォームを表示する | task | front-b | DEMO.md D2 / screens.md home | — | `npm run shot` で `home` に入力欄が出る | S2 |
+| ID | 題名 | 種類 | 宛先 | ラベル | 根拠（ファイル・節） | 依存 | 完了条件・テスト | 参考 |
+|---|---|---|---|---|---|---|---|---|
+| P1 | [D2] 入力フォームを表示する | task | front-b | area:front, screen:home, demo:D2 | DEMO.md D2 / screens.md home | — | `npm run shot` で `home` に入力欄が出る | S2 |
+
+ラベルは、機能と画面ごとに付ける（進み具合を絞り込んで見るため）。`area:front|back|native|contract|test`（どこを触るか）、`screen:<画面id>`、`demo:D<番号>`。全 Issue に `area:` を 1 つは付ける。
 
 題名は 1 動作を「〜する」で書き、台本に対応するなら `[D番号]` を頭に付ける。各 Issue の本文は spawn-issue のひな型（概要・発見の経緯→「根拠」・完了条件・参考）で書く。
 
@@ -74,10 +82,10 @@ description: 要件定義・設計（docs/DEMO.md、決定事項、契約、画�
 ## 8. まとめて立てる（承認後）
 - **依存される側から順に**、1 件ずつ立てる:
   ```bash
-  npm run issue -- <種類> <宛先> "<題名>" --body-file <本文のパス>
+  npm run issue -- <種類> <宛先> "<題名>" --body-file <本文のパス> --label area:front --label screen:home --blocked-by <先に終わる Issue の番号>
   ```
-  本文のファイルは `tmp/issue-bodies/` に作る。引数で渡さない。
-- 立てるたびに、`P番号 → #Issue番号` の対応を `tmp/issue-plan.created.json` に追記する。後続の Issue の `Depends on #<番号>` は、この対応から本文に書く。
+  本文のファイルは `tmp/issue-bodies/` に作る。引数で渡さない。ラベルは無ければ自動で作られる。
+- 立てるたびに、`P番号 → #Issue番号` の対応を `tmp/issue-plan.created.json` に追記する。後続の Issue の `--blocked-by` には、この対応から依存先の番号を渡す（本文に `Depends on #番号` が入り、GitHub 標準の依存関係にも登録される）。標準の登録に失敗しても Issue は作られるので、警告が出たら報告する。
 - **途中で失敗したら止める。** 作れた分と作れなかった分を報告する。再開するときは、対応表にあるものを飛ばす（二重に立てない）。
 - 終わったら、全件の `P番号 / #番号 / 題名 / 宛先 / 依存` の一覧を報告する。
 

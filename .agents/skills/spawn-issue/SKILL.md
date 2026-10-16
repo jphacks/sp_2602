@@ -45,7 +45,7 @@ npm run issue -- <種類> <宛先id> "<題名>" --dry-run
 ## 参考
 Depends on #<先に終わるべき Issue>   ← 依存があるときだけ
 ```
-- 依存は向きを決めて書く: ブロッカーなら**今の Issue の本文に** `Depends on #<新>` を足すようコメントで知らせ、新 Issue 側には書かない。後回しの追加案なら新 Issue に `Depends on #<今の Issue>`。
+- 依存は向きを決めて書く: ブロッカーなら新 Issue には依存を付けず、今の Issue 側に足すようコメントで知らせる。後回しの追加案なら新 Issue に `--blocked-by <今の Issue>` を付ける。
 - 完了条件に**テスト（または確認手順）を必ず入れる**。入れられないものは Issue にしない。
 
 人間への見せ方（1 件ずつ「〜のため、…を立てる」の形で）:
@@ -59,8 +59,11 @@ Depends on #<先に終わるべき Issue>   ← 依存があるときだけ
 
 ## 4. 立てる（人間が OK したら）
 ```bash
-npm run issue -- <種類> <宛先id> "<題名>" --body-file <下書きのパス>
+npm run issue -- <種類> <宛先id> "<題名>" --body-file <下書きのパス> [--label area:front] [--label screen:home] [--blocked-by <先に終わるべき Issue の番号>]
 ```
+- ラベル（`--label`）は、種類のほかに付ける目印。`area:front|back|native|contract|test`（どこを触るか）、`screen:<画面id>`（どの画面か）、`demo:D<番号>`（台本のどこか）を使う。無いラベルは自動で作る。
+- 依存（`--blocked-by`）は、**この新しい Issue が先に終わるべき Issue**。本文に `Depends on #番号` が入り、GitHub 標準の依存関係（Blocked by）にも登録される。標準の登録に失敗しても Issue は作られ、本文の記載は残る。
+- ブロッカー（今の Issue が新しい Issue に依存する）の場合は、今の Issue 側の本文に依存を足す必要がある。`gh issue edit` は使わず、今の Issue へのコメントで人間に知らせる。
 - 本文のファイルは、リポジトリの外（スクラッチ領域）に置く。結果の URL を控える。
 - 立てたら、**今の Issue にコメント**で知らせる（先頭に `<自分のid>:`）: 「…は #<新> に切り出した。この Issue では扱わない」。
 - ブロッカーの場合は、作業を止めて人間に報告する（待つ間は別のステップへ）。
