@@ -55,6 +55,12 @@ describe("keepTailTogether", () => {
     expect(cuts(keepTailTogether("今の計画での上限の下がり方を見る"))).toBe("今の/計画での/上限の/下がり方を/見る");
   });
 
+  it("名詞の後の「で」でも、次が「き」なら「できます」の中なので切らない（A53 の子16 で「連携で／きます」と切れていた）", () => {
+    const out = cuts(keepTailTogether("いまは保護者1人と子ども1人だけで連携できます（2人目は連携できません）"));
+    expect(out).not.toContain("連携で/き");
+    expect(out).toContain("連携できます");
+  });
+
   it("句読点・かっこの閉じ・小さい「ゃ」などを行の頭にしない", () => {
     // 「・」でつないだ短い組（「一覧・変更」）は割らない（親04 で「テスト日程の一覧・／変更」と切れていた）
     expect(cuts(keepTailTogether("テスト日程の一覧・変更"))).toBe("テスト日程の/一覧・変更");

@@ -75,6 +75,9 @@ function isBoundary(chars: readonly string[], i: number): boolean {
   if (BREAK_AFTER_ALWAYS.has(a) || BREAK_BEFORE.has(b)) return true;
   if (!BREAK_AFTER_PARTICLE.has(a)) return false;
   if (!isHiragana(b)) return true;
+  // 「でき」は名詞の後でも「できる・できます・できない」の中のことがほとんどなので切らない
+  // （第3回のデバッグ: A53 の子16 で「連携で／きます」と切れていた）
+  if (a === "で" && b === "き") return false;
   // 次も助詞なら「での」「には」のように2文字で1つの助詞なので切らない
   return BREAK_AFTER_NOUN.has(a) && isWordHead(chars[i - 1]) && !PARTICLE_NEXT.has(b);
 }
