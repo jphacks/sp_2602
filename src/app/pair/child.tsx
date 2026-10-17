@@ -13,6 +13,7 @@ import { AppText, Banner, Button, Chip, Dialog, MessageView, Screen } from "@/co
 import {
   childPairReducer,
   initialChildPairView,
+  issueFailedText,
   LinkIncomplete,
   PAIR_POLL_MS,
   QrCard,
@@ -157,19 +158,25 @@ export default function PairChild() {
           <MessageView spinner title="QRコードをつくっています" body="しばらく待ってね。" actions={quit} />
         </Screen>
       );
-    case "issueFailed":
+    case "issueFailed": {
+      // 文とボタンは原因で出し分ける（child-flow.ts の issueFailedText。連携済み・保護者の端末を通信のせいにしない）
+      const failed = issueFailedText(view.error);
       return (
         <Screen title="Slope" scroll={false}>
           <MessageView
             icon="error"
             iconTone="danger"
             title="QRコードをつくれませんでした"
-            body="通信を確かめて、もう一度ためしてください。"
+            body={failed.body}
             actions={
-              <>
-                <Button label="もう一度つくる" onPress={start} />
-                {quit}
-              </>
+              failed.next === "retry" ? (
+                <>
+                  <Button label="もう一度つくる" onPress={start} />
+                  {quit}
+                </>
+              ) : (
+                <Button label="ホームへ" onPress={goHome} loading={leaving} />
+              )
             }
           >
             <AppText variant="caption" tone="muted" center>
@@ -178,6 +185,7 @@ export default function PairChild() {
           </MessageView>
         </Screen>
       );
+    }
     case "expired":
       return (
         <Screen title="Slope" scroll={false}>

@@ -9,6 +9,7 @@ import {
   type ChildPairView,
   childPairReducer,
   initialChildPairView,
+  issueFailedText,
   localDeadline,
   PAIR_TTL_MS,
   remainingLabel,
@@ -175,5 +176,41 @@ describe("進み具合を聞くか（usePolling の enabled）", () => {
         { screen: "linked", parentName: null } as const,
       ].map(shouldPoll),
     ).toEqual([false, false, false, false]);
+  });
+});
+
+// 子16: すでに連携済みの子どもが QR を出そうとすると 409（conflict）が返る（実機 A53 で再現: 「通信を確かめて」と出ていた）
+describe("子16 の文とボタン（issueFailedText）", () => {
+  it("連携済み（conflict）は通信のせいにせず、サーバの hint を出してホームへ（もう一度つくっても同じ失敗になる）", () => {
+    const r = issueFailedText({
+      code: "conflict",
+      message: "すでにほかの家族と連携しています",
+      hint: "いまは保護者1人と子ども1人だけで連携できます（2人目は連携できません）",
+    });
+    expect(r.body).not.toContain("通信");
+    expect(r.body).toBe("いまは保護者1人と子ども1人だけで連携できます（2人目は連携できません）");
+    expect(r.next).toBe("home");
+  });
+
+  it("通信できない・時間切れは「通信を確かめて」ともう一度つくる", () => {
+    for (const code of ["network", "timeout"] as const) {
+      const r = issueFailedText(err(code));
+      expect(r.body).toContain("通信を確かめて");
+      expect(r.next).toBe("retry");
+    }
+  });
+
+  it("サーバの一時的な不具合・混み合いは、通信のせいにせず待ってもう一度", () => {
+    for (const code of ["internal", "upstream_failed", "rate_limited"] as const) {
+      const r = issueFailedText(err(code));
+      expect(r.body).not.toContain("通信");
+      expect(r.next).toBe("retry");
+    }
+  });
+
+  it("forbidden・bad_request もサーバの hint を出してホームへ", () => {
+    for (const code of ["forbidden", "bad_request", "not_found"] as const) {
+      expect(issueFailedText(err(code))).toEqual({ body: "y", next: "home" });
+    }
   });
 });
