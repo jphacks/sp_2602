@@ -4,15 +4,15 @@ import {
   InvalidExcludedAppsError,
   readExcludedAppsSnapshot,
   replaceExcludedAppsForParent,
-} from "../../../backend/src/db/excluded-app-settings";
-import { ParentChildLinkRequiredError } from "../../../backend/src/db/family-errors";
-import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state";
-import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods";
-import type { Caller } from "../auth";
-import { db } from "../db";
-import { isMock } from "../env";
-import { AppError } from "../errors";
-import { getStore } from "../mock/store";
+} from "../../../backend/src/db/excluded-app-settings.js";
+import { ParentChildLinkRequiredError } from "../../../backend/src/db/family-errors.js";
+import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state.js";
+import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods.js";
+import type { Caller } from "../auth.js";
+import { db } from "../db/index.js";
+import { isMock } from "../env.js";
+import { AppError } from "../errors.js";
+import { getStore } from "../mock/store.js";
 
 function mapError(error: unknown): never {
   if (error instanceof ExcludedAppsVersionConflictError) {

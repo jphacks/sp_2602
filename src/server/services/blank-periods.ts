@@ -8,15 +8,15 @@ import {
   InvalidBlankPeriodError,
   listBlankPeriods,
   updateBlankPeriod,
-} from "../../../backend/src/db/blank-periods";
-import { C10CalculationInputError } from "../../../backend/src/db/c10-recalculate";
-import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state";
-import type { Caller } from "../auth";
-import { db } from "../db";
-import { isMock } from "../env";
-import { AppError } from "../errors";
-import { getStore } from "../mock/store";
-import { currentC10CalculationVersion } from "./c10-version";
+} from "../../../backend/src/db/blank-periods.js";
+import { C10CalculationInputError } from "../../../backend/src/db/c10-recalculate.js";
+import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state.js";
+import type { Caller } from "../auth.js";
+import { db } from "../db/index.js";
+import { isMock } from "../env.js";
+import { AppError } from "../errors.js";
+import { getStore } from "../mock/store.js";
+import { currentC10CalculationVersion } from "./c10-version.js";
 
 function mapError(error: unknown): never {
   if (error instanceof C10CalculationInputError)

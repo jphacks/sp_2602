@@ -2,8 +2,8 @@
 // 署名（Google の公開鍵）・発行元（accounts.google.com）・宛先（自分の Web のクライアント ID）・期限を jose で確かめる。
 // 確かめられたら、Google の利用者 ID（sub）と表示名を返す。合言葉（セッション）を出すのは handlers/authGoogle.ts。
 import { createRemoteJWKSet, errors, jwtVerify } from "jose";
-import { googleWebClientId } from "../env";
-import { AppError } from "../errors";
+import { googleWebClientId } from "../env.js";
+import { AppError } from "../errors.js";
 
 // Google の公開鍵の一覧。jose が取得結果を覚えておき、鍵が入れ替わったときだけ取り直す
 const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));

@@ -1,10 +1,10 @@
 // C8: preserve each device snapshot and its idempotency key in PostgreSQL.
-import { persistUsageSubmission, UsageSubmissionConflictError } from "../../../backend/src/db/usage-persistence";
-import { db } from "../db";
-import { isMock } from "../env";
-import { AppError } from "../errors";
-import { getStore } from "../mock/store";
-import { handle } from "../route";
+import { persistUsageSubmission, UsageSubmissionConflictError } from "../../../backend/src/db/usage-persistence.js";
+import { db } from "../db/index.js";
+import { isMock } from "../env.js";
+import { AppError } from "../errors.js";
+import { getStore } from "../mock/store.js";
+import { handle } from "../route.js";
 
 export default handle("usageUpload", async (req) => {
   if (isMock()) return getStore().usageUpload(req.childId, req.submissionId, req.days);

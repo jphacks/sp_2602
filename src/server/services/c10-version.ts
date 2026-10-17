@@ -1,5 +1,5 @@
-import { readChildConfigSnapshot } from "../../../backend/src/db/config-snapshot";
-import { db } from "../db";
+import { readChildConfigSnapshot } from "../../../backend/src/db/config-snapshot.js";
+import { db } from "../db/index.js";
 
 /** The existing API uses calculationVersion: 0 when no result matches current C10 inputs. */
 export async function currentC10CalculationVersion(childId: string): Promise<number> {

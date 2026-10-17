@@ -6,8 +6,8 @@
 // 設定を変える操作は「写しを作って変える → C10 で日別上限を作り直す → 全部うまくいったら入れ替えて版を上げる」の1回の処理（Q5）。
 //   途中で失敗したら前の状態のまま（DB のトランザクションの代わり）。
 // MOCK=1 のときは、デモの3人（contracts/fixtures.ts の mockSessions）と、見本の計画・利用記録を用意する。
-import { addDays, datesInRange, todayString } from "../../../contracts/dates";
-import { demoUsageDay, mockSessions } from "../../../contracts/fixtures";
+import { addDays, datesInRange, todayString } from "../../../contracts/dates.js";
+import { demoUsageDay, mockSessions } from "../../../contracts/fixtures.js";
 import type {
   BlankPeriod,
   ConfigResult,
@@ -30,18 +30,18 @@ import type {
   UsageDay,
   UsageDayReport,
   UsageUploadResult,
-} from "../../../contracts/schemas";
-import { isMock } from "../env";
-import { AppError } from "../errors";
+} from "../../../contracts/schemas.js";
+import { isMock } from "../env.js";
+import { AppError } from "../errors.js";
 import {
   computeDailyLimits,
   type DailyLimitOptions,
   LIMIT_HORIZON_DAYS,
   mergeWithFinalized,
   PlanCalcError,
-} from "../plan/daily-limits";
+} from "../plan/daily-limits.js";
 
-export { LIMIT_HORIZON_DAYS } from "../plan/daily-limits";
+export { LIMIT_HORIZON_DAYS } from "../plan/daily-limits.js";
 
 // ── 決まりごと ──
 

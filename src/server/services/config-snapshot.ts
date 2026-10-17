@@ -1,13 +1,13 @@
 import { inArray } from "drizzle-orm";
-import { readChildConfigSnapshot } from "../../../backend/src/db/config-snapshot";
-import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state";
-import { users } from "../../../backend/src/db/schema/users";
-import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods";
-import type { Caller } from "../auth";
-import { db } from "../db";
-import { isMock } from "../env";
-import { AppError } from "../errors";
-import { getStore } from "../mock/store";
+import { readChildConfigSnapshot } from "../../../backend/src/db/config-snapshot.js";
+import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state.js";
+import { users } from "../../../backend/src/db/schema/users.js";
+import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods.js";
+import type { Caller } from "../auth.js";
+import { db } from "../db/index.js";
+import { isMock } from "../env.js";
+import { AppError } from "../errors.js";
+import { getStore } from "../mock/store.js";
 
 export async function getConfigForCaller(caller: Caller, childId: string, knownVersion?: number) {
   if (isMock()) return getStore().configGet(caller, childId, knownVersion);

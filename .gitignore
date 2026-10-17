@@ -30,3 +30,7 @@ local.properties
 # Gradle のビルド生成物
 build/
 .gradle/
+
+.vercel/
+.env.local
+.env.*.local

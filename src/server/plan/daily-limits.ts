@@ -14,8 +14,8 @@
 //   途中は丸めずに計算し、最後に分単位の整数へ丸める
 //   計画がない・テスト期間が0件なら、すべての日を親の通常上限にする（通常上限も未設定なら「上限未設定」）
 //   空白期間の日は、上の計算に関係なく「制限なし」。空白期間が終わった日からは、上の計算の値（元の上限）に戻る（Q7）
-import { addDays, datesInRange, daysBetween } from "../../../contracts/dates";
-import type { DailyLimit } from "../../../contracts/schemas";
+import { addDays, datesInRange, daysBetween } from "../../../contracts/dates.js";
+import type { DailyLimit } from "../../../contracts/schemas.js";
 
 // Existing MVP behavior; exact product horizon remains unresolved in MVP_SPEC.
 export const LIMIT_HORIZON_DAYS = 120;

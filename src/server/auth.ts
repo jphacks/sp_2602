@@ -9,12 +9,12 @@ import {
   userSessions,
   users,
 } from "../../backend/src/db/schema/index.js";
-import type { AuthRule } from "../../contracts/api";
-import type { LinkStatus, PairStatus, PairTicket, Session } from "../../contracts/schemas";
-import { db } from "./db";
-import { isMock } from "./env";
-import { AppError } from "./errors";
-import { getStore } from "./mock/store";
+import type { AuthRule } from "../../contracts/api.js";
+import type { LinkStatus, PairStatus, PairTicket, Session } from "../../contracts/schemas.js";
+import { db } from "./db/index.js";
+import { isMock } from "./env.js";
+import { AppError } from "./errors.js";
+import { getStore } from "./mock/store.js";
 
 export type Caller = Session;
 

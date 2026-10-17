@@ -9,7 +9,7 @@
 //   route.ts が必ず確かめる（紐づけ前の人はどの子どもも扱えない）。handlers の中で書き忘れることはない。
 // 決まりごと: 条件つきの取得も POST（GET で条件を渡す仕組みはない）。path は `/api/<機能>/<名前>`。
 import { z } from "zod";
-import { ApiError } from "./errors";
+import { ApiError } from "./errors.js";
 import {
   BlankPeriodCreate,
   BlankPeriodList,
@@ -46,7 +46,7 @@ import {
   UsageUploadResult,
   UsualLimitSave,
   UsualLimitSaveResult,
-} from "./schemas";
+} from "./schemas.js";
 
 export const Health = z.object({ ok: z.literal(true), mock: z.boolean() });
 export type Health = z.infer<typeof Health>;

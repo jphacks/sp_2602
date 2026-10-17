@@ -4,8 +4,8 @@
 //   - mockExcludedAppCandidates: 親16 で対象外を選ぶ候補（TODO(保留): Q15）
 //   - fixtures: 各 API の返り値の例（画面を作るときの見本・テストの期待値）。日付は Figma の見本に合わせて 2026-10-12 の週
 // 画面の見本データとして使ってよいが、本番の値の代わりに画面へ直書きしない（取れなかった値を見本で埋めない）。
-import type { Res } from "./api";
-import type { AppMinutes, ExcludedAppInput, UsageDayReport } from "./schemas";
+import type { Res } from "./api.js";
+import type { AppMinutes, ExcludedAppInput, UsageDayReport } from "./schemas.js";
 
 // ── ログイン ──
 
