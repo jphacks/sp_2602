@@ -1,0 +1,32 @@
+node_modules/
+*.tsbuildinfo
+.env
+.env.local
+*.log
+.npm-cache/
+tmp/
+
+# Expo / Android（/android/ /ios/ は npx expo prebuild が作り直す生成物。Kotlin の自作部分は modules/ に置く）
+.expo/
+dist/
+/android/
+/ios/
+expo-env.d.ts
+*.jks
+*.keystore
+*.apk
+*.aab
+local.properties
+
+# 実行時の領域と秘密情報（最低限）
+# 先頭の / でリポジトリ直下だけにする（src/lib/state/ のような画面側のフォルダまで Git から消えないように）
+/state/
+/data/
+.env*
+!.env.example
+*.pem
+*.key
+
+# Gradle のビルド生成物
+build/
+.gradle/

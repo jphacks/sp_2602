@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["dev.hackathon.kit.kitnative.KitNativeModule"]
+  }
+}
