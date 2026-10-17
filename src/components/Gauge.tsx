@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { motion, useAnimatedNumber } from "@/lib/motion";
+import { useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 
 // 弧（SVG の円）の線の位置を、JS 側で毎コマ動かす（SVG の属性は端末側で動かせないため）
@@ -39,6 +40,7 @@ const C = 2 * Math.PI * R; // 円周（弧の長さ = 円周 × 割合）
 const MID = SIZE / 2;
 
 export function Gauge({ percent, caption, tone = "primary", valueTone, delay = 0 }: Props) {
+  const colors = useColors();
   const p = percent == null ? null : Math.min(100, Math.max(0, percent));
   const { value, display, reduced } = useAnimatedNumber(p, { delay });
   // 数え上げの途中の数字。値が一度消えて（null）戻ったときは、前の数字から動かす（一瞬 0 を出さない）
@@ -70,15 +72,15 @@ export function Gauge({ percent, caption, tone = "primary", valueTone, delay = 0
       accessibilityLabel={p == null ? "使用量は分かりません" : `${Math.round(p)}パーセント${caption ?? ""}`}
     >
       <Svg width={SIZE} height={SIZE}>
-        <Circle cx={MID} cy={MID} r={R} stroke={tokens.color.track} strokeWidth={STROKE} fill="none" />
+        <Circle cx={MID} cy={MID} r={R} stroke={colors.track} strokeWidth={STROKE} fill="none" />
       </Svg>
       {p != null && (
         <>
           <Animated.View style={[styles.layer, layers.primary]} pointerEvents="none">
-            <Arc color={tokens.color.primary} offset={offset} />
+            <Arc color={colors.primaryFill} offset={offset} />
           </Animated.View>
           <Animated.View style={[styles.layer, layers.danger]} pointerEvents="none">
-            <Arc color={tokens.color.danger} offset={offset} />
+            <Arc color={colors.danger} offset={offset} />
           </Animated.View>
         </>
       )}

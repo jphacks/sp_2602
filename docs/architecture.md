@@ -136,7 +136,7 @@ sequenceDiagram
 | **版で取り違えを防ぐ** | 別の端末が先に変えたのに上書きする・古い設定と新しい設定を混ぜる、を防ぐ（Q6） | 書く API は `expectedVersion` を受け、ずれていたら `conflict`（`store.ts` の `mutate`）。端末は版の違う組を混ぜない（`config-cache.ts` の `reconcileConfig`） |
 | **「今日」は日本時間で1か所だけで出す** | 端末とサーバで日付がずれないように（Q3） | `contracts/dates.ts` の `todayString`（UTC+9・0時区切り） |
 | **計算・判断は画面から切り離した純粋な関数にしてテストする** | 画面を動かさなくても正しさを確かめられるように | C10 `daily-limits.ts`、C3 `usage-calc.ts`、C7 `reconcileConfig`、C8 `createUsageOutbox`、紐づけの表示 `child-flow.ts`・`parent-flow.ts`・`link-check.ts`、画面の文言 `child-view.ts`・`schedule/logic.ts`・`parent/*.ts` |
-| **見た目は `contracts/tokens.ts` の名前だけ** | 色や余白をそろえ、あとで変えやすくする | 画面は `StyleSheet.create` の中で `tokens.color.primary` のように使う。`style={{…}}` と色コードの直書きはない（自動の検査はなく、書く人が守る約束） |
+| **見た目は `contracts/tokens.ts` の名前だけ** | 色や余白をそろえ、あとで変えやすくする | 色はテーマ（白色・黒色）ごとに2組で、画面は `src/lib/theme.tsx` の `makeStyles`・`useColors` から `c.primary` のように使う。`style={{…}}` と色コードの直書きはない（自動の検査はなく、書く人が守る約束） |
 | **Android 固有の処理は窓口を通す** | Kotlin がない環境（テスト・Expo Go）でも落ちない。将来 iOS に差し替えられる | `src/lib/native.ts` が `KitNative` を名前で探し、なければ安全な既定値（権限なし・使用時間は取得不可・制限画面は出せない）を返す |
 
 ## 5. 端末に残すもの
@@ -158,5 +158,5 @@ sequenceDiagram
 ## 6. まだ無いもの
 
 - **DB への保存**。サーバはメモリの store。
-- **ウィジェット（C5）・ダークテーマ**。MVP の後。
+- **ウィジェット（C5）**。MVP の後。ダークテーマ（テーマカラーの「黒色」）はアプリの画面だけで、ウィジェットは白のまま。
 - **画面が出ていないときの予備の取得（15分ごと）**。`src/lib/polling.ts` の `TODO(未決)`。今は画面が前に出ている間だけ取りに行く。

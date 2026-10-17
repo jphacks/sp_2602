@@ -13,6 +13,7 @@ import { useEffect, useRef } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { AppText, Button, Card, FadeIn, Icon, ProgressBar, useRevealDelay } from "@/components";
 import { motion, useAnimatedNumber } from "@/lib/motion";
+import { makeStyles, useColors } from "@/lib/theme";
 import type { UsageMessage as Message, UsageView } from "./child-view";
 import { UsageMessage } from "./UsageMessage";
 
@@ -26,6 +27,8 @@ type Props = {
 };
 
 export function UsageSummaryCard({ view, onDetail, onAction }: Props) {
+  const c = useColors();
+  const styles = useStyles();
   const target = view.kind === "percent" ? view.percent : null;
   const delay = useRevealDelay(target != null, FILL_LEAD);
   const { value, display, reduced } = useAnimatedNumber(target, { duration: motion.duration.fill, delay });
@@ -40,14 +43,14 @@ export function UsageSummaryCard({ view, onDetail, onAction }: Props) {
   return (
     <Card>
       <View style={styles.heading}>
-        <Icon name="insights" size={tokens.size.iconSmall} color={tokens.color.primary} />
+        <Icon name="insights" size={tokens.size.iconSmall} color={c.primary} />
         <AppText variant="title" accessibilityRole="header">
           今日の使用量
         </AppText>
       </View>
       {view.kind === "loading" && (
         <View style={styles.loading}>
-          <ActivityIndicator color={tokens.color.primary} />
+          <ActivityIndicator color={c.primary} />
           <AppText tone="muted">読み込んでいます…</AppText>
         </View>
       )}
@@ -71,24 +74,26 @@ export function UsageSummaryCard({ view, onDetail, onAction }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  heading: { flexDirection: "row", alignItems: "center", gap: tokens.space[2] },
-  // 読み込み中も、割合が出たとき（数字＋間隔＋バー）と同じ高さにしておく。出たときに下のカードがガタッと動かないように
-  loading: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: tokens.space[3],
-    minHeight: tokens.lineHeight.display + tokens.space[3] + tokens.size.progressTrack,
-  },
-  // 数字とバーの間（もとはカードの並びの間隔 space[3]。ひとまとまりにして透明から出すので、ここで同じ間隔をとる）
-  block: { gap: tokens.space[3] },
-  number: { flexDirection: "row", alignItems: "baseline", gap: tokens.space[2] },
-  // AppText の display と同じ見た目。数え上げの間に数字の幅が変わって「％ 使いました」が左右に揺れないよう、数字の幅をそろえる
-  percent: {
-    fontSize: tokens.font.display,
-    lineHeight: tokens.lineHeight.display,
-    fontWeight: tokens.weight.bold,
-    color: tokens.color.primary,
-    fontVariant: ["tabular-nums"],
-  },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    heading: { flexDirection: "row", alignItems: "center", gap: tokens.space[2] },
+    // 読み込み中も、割合が出たとき（数字＋間隔＋バー）と同じ高さにしておく。出たときに下のカードがガタッと動かないように
+    loading: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space[3],
+      minHeight: tokens.lineHeight.display + tokens.space[3] + tokens.size.progressTrack,
+    },
+    // 数字とバーの間（もとはカードの並びの間隔 space[3]。ひとまとまりにして透明から出すので、ここで同じ間隔をとる）
+    block: { gap: tokens.space[3] },
+    number: { flexDirection: "row", alignItems: "baseline", gap: tokens.space[2] },
+    // AppText の display と同じ見た目。数え上げの間に数字の幅が変わって「％ 使いました」が左右に揺れないよう、数字の幅をそろえる
+    percent: {
+      fontSize: tokens.font.display,
+      lineHeight: tokens.lineHeight.display,
+      fontWeight: tokens.weight.bold,
+      color: c.primary,
+      fontVariant: ["tabular-nums"],
+    },
+  }),
+);

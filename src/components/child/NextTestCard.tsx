@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, Animated, Easing, StyleSheet, View } from "react-native";
 import { AppText, Card, Icon, useRevealDelay } from "@/components";
 import { motion, useReducedMotion } from "@/lib/motion";
+import { makeStyles, useColors } from "@/lib/theme";
 import type { NextTestView } from "./child-view";
 
 // 光り始め: 進捗バーが伸び終わったころ（目が「今日の使用量」→「次のテスト」の順に向くように）
@@ -28,6 +29,8 @@ const breathe = Easing.inOut(Easing.sin);
 type Props = { view: NextTestView; emphasis?: boolean };
 
 export function NextTestCard({ view, emphasis = false }: Props) {
+  const c = useColors();
+  const styles = useStyles();
   const glow = useGlow(emphasis);
   const halo = useMemo(
     () => ({
@@ -42,13 +45,13 @@ export function NextTestCard({ view, emphasis = false }: Props) {
       <Animated.View style={[styles.haloInner, halo.inner]} />
       <Card tone="soft">
         <View style={styles.row}>
-          <Icon name="event" size={tokens.size.iconLarge} color={tokens.color.onPrimarySoft} />
+          <Icon name="event" size={tokens.size.iconLarge} color={c.onPrimarySoft} />
           <View style={styles.text}>
             <AppText variant="caption" tone="onPrimarySoft">
               次のテスト
             </AppText>
             {view.kind === "loading" ? (
-              <ActivityIndicator color={tokens.color.onPrimarySoft} />
+              <ActivityIndicator color={c.onPrimarySoft} />
             ) : (
               <>
                 <AppText variant="title" tone="onPrimarySoft">
@@ -92,28 +95,31 @@ function useGlow(on: boolean): Animated.Value {
   return value;
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", gap: tokens.space[4] },
-  text: { flex: 1, gap: tokens.space[1] },
-  // カードの後ろで、カードより少し大きい青い板。はみ出た縁だけが光って見える
-  haloInner: {
-    position: "absolute",
-    top: -tokens.space[1],
-    bottom: -tokens.space[1],
-    left: -tokens.space[1],
-    right: -tokens.space[1],
-    borderRadius: tokens.radius.card + tokens.space[1],
-    backgroundColor: tokens.color.primary,
-    pointerEvents: "none",
-  },
-  haloOuter: {
-    position: "absolute",
-    top: -tokens.space[2],
-    bottom: -tokens.space[2],
-    left: -tokens.space[2],
-    right: -tokens.space[2],
-    borderRadius: tokens.radius.card + tokens.space[2],
-    backgroundColor: tokens.color.primary,
-    pointerEvents: "none",
-  },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    row: { flexDirection: "row", alignItems: "center", gap: tokens.space[4] },
+    text: { flex: 1, gap: tokens.space[1] },
+    // カードの後ろで、カードより少し大きい青い板。はみ出た縁だけが光って見える。
+    // 色は今のテーマの primary（ダークでは明るい青。暗い地の上でも光に見える）
+    haloInner: {
+      position: "absolute",
+      top: -tokens.space[1],
+      bottom: -tokens.space[1],
+      left: -tokens.space[1],
+      right: -tokens.space[1],
+      borderRadius: tokens.radius.card + tokens.space[1],
+      backgroundColor: c.primary,
+      pointerEvents: "none",
+    },
+    haloOuter: {
+      position: "absolute",
+      top: -tokens.space[2],
+      bottom: -tokens.space[2],
+      left: -tokens.space[2],
+      right: -tokens.space[2],
+      borderRadius: tokens.radius.card + tokens.space[2],
+      backgroundColor: c.primary,
+      pointerEvents: "none",
+    },
+  }),
+);

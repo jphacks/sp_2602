@@ -1,9 +1,10 @@
 // 帯の案内（Figma の Banner。アイコン＋文）。tone で色を変える: info（説明）/ warning（古いキャッシュなど）/ danger（エラー）/ success。
 //   <Banner icon="edit" message="テストの名前と期間を入れてください" />
 //   <Banner tone="warning" icon="cloud_off" message="最新でない可能性があります" />
-import { tokens } from "@contracts/tokens";
+import { type ColorName, tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
+import { makeStyles, useColors } from "@/lib/theme";
 import { AppText, type TextTone } from "./AppText";
 import { Icon, type IconName } from "./Icon";
 
@@ -11,17 +12,18 @@ type Tone = "info" | "warning" | "danger" | "success";
 
 type Props = { message: string; hint?: string; icon?: IconName; tone?: Tone; action?: ReactNode };
 
-const bg: Record<Tone, string> = {
-  info: tokens.color.primarySoft,
-  warning: tokens.color.warningSoft,
-  danger: tokens.color.dangerSoft,
-  success: tokens.color.successSoft,
+// 地と文字・アイコンの色（色の名前。値は今のテーマから引く）
+const bg: Record<Tone, ColorName> = {
+  info: "primarySoft",
+  warning: "warningSoft",
+  danger: "dangerSoft",
+  success: "successSoft",
 };
-const fg: Record<Tone, string> = {
-  info: tokens.color.onPrimarySoft,
-  warning: tokens.color.warning,
-  danger: tokens.color.danger,
-  success: tokens.color.success,
+const fg: Record<Tone, ColorName> = {
+  info: "onPrimarySoft",
+  warning: "warning",
+  danger: "danger",
+  success: "success",
 };
 const textTone: Record<Tone, TextTone> = {
   info: "onPrimarySoft",
@@ -37,13 +39,15 @@ const defaultIcon: Record<Tone, IconName> = {
 };
 
 export function Banner({ message, hint, icon, tone = "info", action }: Props) {
+  const toneStyles = useToneStyles();
+  const c = useColors();
   return (
     <View
       style={[styles.box, toneStyles[tone]]}
       accessibilityRole={tone === "danger" ? "alert" : undefined}
       accessibilityLiveRegion="polite"
     >
-      <Icon name={icon ?? defaultIcon[tone]} color={fg[tone]} />
+      <Icon name={icon ?? defaultIcon[tone]} color={c[fg[tone]]} />
       <View style={styles.text}>
         {/* Figma 子03・子11・子14 の帯の文は 14 の太字 */}
         <AppText variant="label" tone={textTone[tone]} strong>
@@ -71,9 +75,11 @@ const styles = StyleSheet.create({
   text: { flex: 1, gap: tokens.space[1] },
 });
 
-const toneStyles = StyleSheet.create({
-  info: { backgroundColor: bg.info },
-  warning: { backgroundColor: bg.warning },
-  danger: { backgroundColor: bg.danger },
-  success: { backgroundColor: bg.success },
-});
+const useToneStyles = makeStyles((c) =>
+  StyleSheet.create({
+    info: { backgroundColor: c[bg.info] },
+    warning: { backgroundColor: c[bg.warning] },
+    danger: { backgroundColor: c[bg.danger] },
+    success: { backgroundColor: c[bg.success] },
+  }),
+);

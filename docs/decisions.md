@@ -114,3 +114,12 @@
 | D-65 | C1 | Google の ID トークンは `exp`（期限）と `sub`（利用者 ID）を必須として確かめる | jose は `exp` がないトークンを「期限なし」として通すため | `tests/verify/google-token.test.ts` › 「期限（exp）がないトークンは 401（jose は exp がないと期限なしとして通すので、requiredClaims で必須にしている）」 |
 | D-66 | C1 | 上限に届いたときに誘導する学習用アプリは1つの一覧（`src/lib/usage-calc.ts` の `LEARNING_PACKAGES`）にし、Kotlin に渡す値と子11 の「お勧めアプリ」の両方で使う（中身は仮） | 2か所に同じ一覧を持つと食い違うため | なし |
 | D-67 | まとめ役 | Android の識別子（`app.json` の `android.package`）は `com.quedotcom.androidslope`。必須例外（`ESSENTIAL_PACKAGES`）の「このアプリ自身」も同じ値。開発版の署名の SHA-1 は Expo の `android/app/debug.keystore` のもの（どの PC でも同じ。値は [google-login-setup.md](google-login-setup.md)） | Google ログインの Android の登録にパッケージ名と SHA-1 が要る | なし |
+
+### ダーク（テーマカラーの「黒色」）
+
+| 番号 | 係 | 何を決めたか | なぜ | 確かめるテスト |
+|---|---|---|---|---|
+| D-68 | ダーク | テーマカラーの「黒色」を選べるようにする（D-35・Q13 の「白だけ」を置き換える）。色は `contracts/tokens.ts` の `palettes.light`・`palettes.dark` の2組（名前は同じ）。値は Figma「ダーク」の画面から読む。Figma のダークに出てこない danger・warning は暗い地で読める近い値（仮） | Figma にダークの画面が全部そろっているため。名前をそろえれば画面のコードはテーマを知らずに済む | `tests/lib/theme.test.ts` › 「ライトとダークは同じ名前を全部持つ（どちらにも抜け・余分がない）」 |
+| D-69 | ダーク | 選んだテーマは端末に保存し（`slope.theme`）、ログアウトでは消さない。保存がない・壊れているときはライト | 人ではなく端末の好みなので。古い版・壊れた値で落ちないように | `tests/lib/theme.test.ts` › 「ログアウト（合言葉・設定のキャッシュ・送信待ちを消す）でも、選んだテーマは消えない（端末の好み）」「保存が壊れている・知らない値のときは落ちずにライト」 |
+| D-70 | ダーク | 色を使うスタイルは `src/lib/theme.tsx` の `makeStyles((c) => StyleSheet.create(…))` で作り、部品の中で `useStyles()` を呼ぶ。スタイル以外の色は `useColors()`。切り替えは context で全画面を描き直す（画面の木は作り直さない） | 今の `StyleSheet.create` の書き方をほぼ残せる・テーマごとに1回だけ作る・作り直すと今の画面から入口へ戻されるため | なし（React の中の仕組み。型と lint で確かめる） |
+| D-71 | ダーク | 青は2つに分ける: 文字・アイコン・枠・スイッチは `primary`（ダーク #AEBDFF）、面を塗る主ボタン・進捗バー・今日の棒・円形ゲージは `primaryFill`（どちらも #3B5BDB）。QR はダークでも白地に黒（`qrBg`・`qrFg`）、カメラの地は黒（`black`） | Figma のダークは主ボタンを同じ青のまま、文字の青だけ明るくしているため。QR は白地でないと読み取りにくいため | `tests/lib/theme.test.ts` › 「主ボタン・進捗バーの青（primaryFill）はダークでもライトと同じ。文字の青（primary）はダークでは明るい青」「QR はダークでも白地に黒の点のまま（読み取りのため）」 |

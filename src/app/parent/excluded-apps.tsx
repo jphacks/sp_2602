@@ -26,6 +26,7 @@ import { AppInitial, Toggle } from "@/components/parent/parts";
 import { call, errorOf } from "@/lib/api";
 import { useParentData } from "@/lib/parent-data";
 import { usePolling } from "@/lib/polling";
+import { makeStyles } from "@/lib/theme";
 
 const TITLE = "制限対象外アプリ";
 
@@ -41,6 +42,7 @@ export default function ParentExcludedApps() {
 }
 
 function ExcludedBody({ childId }: { childId: string }) {
+  const styles = useStyles();
   const { refresh } = useParentData();
   const [view, setView] = useState<ExcludedAppsView | null>(null);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
@@ -179,6 +181,7 @@ function ListStatus({ status }: { status: "applied" | "pending" }) {
 }
 
 function AppRow({ row, onToggle, disabled }: { row: ExcludedRow; onToggle: (on: boolean) => void; disabled: boolean }) {
+  const styles = useStyles();
   return (
     <View style={styles.row}>
       <AppInitial initial={row.initial} />
@@ -206,26 +209,28 @@ function AppRow({ row, onToggle, disabled }: { row: ExcludedRow; onToggle: (on: 
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    minHeight: tokens.size.listItemTall,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: tokens.space[4],
-    paddingHorizontal: tokens.space[4],
-    paddingVertical: tokens.space[3],
-    backgroundColor: tokens.color.surface,
-    borderRadius: tokens.radius.card,
-    borderWidth: tokens.size.border,
-    borderColor: tokens.color.line,
-  },
-  middle: { flex: 1, gap: tokens.space[1] },
-  listHead: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-    gap: tokens.space[2],
-  },
-  chipRow: { flexDirection: "row" },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    row: {
+      minHeight: tokens.size.listItemTall,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space[4],
+      paddingHorizontal: tokens.space[4],
+      paddingVertical: tokens.space[3],
+      backgroundColor: c.surface,
+      borderRadius: tokens.radius.card,
+      borderWidth: tokens.size.border,
+      borderColor: c.line,
+    },
+    middle: { flex: 1, gap: tokens.space[1] },
+    listHead: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: tokens.space[2],
+    },
+    chipRow: { flexDirection: "row" },
+  }),
+);

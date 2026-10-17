@@ -1,7 +1,7 @@
 // 進捗バー（太さ 12・角丸）。percent は 0〜100（はみ出しても 0〜100 に収める。Figma 子04 のはみ出しを起こさない）。
 //   <ProgressBar percent={calc.displayUsedPercent} />
 //   <ProgressBar percent={view.percent} progress={value} />  … 数字の数え上げと同じ Animated.Value で動かすとき（子01）
-// 塗りの幅・色は値で決まるので、ここだけ計算した style を使う（色・寸法は tokens のまま）。
+// 塗りの幅・色は値で決まるので、ここだけ計算した style を使う（寸法は tokens・色は今のテーマ（useColors・makeStyles））。
 // 動き（src/lib/motion.ts の決まり）: 最初に出たときは 0 から値まで伸び、そのあと値が変わったら今の位置から新しい値へ動く。
 //   tone が変わったら（primary ↔ danger）色もなめらかに変える。「動きを減らす」がオンなら最後の形をすぐ出す。
 //   値が分からないときはこの部品を出さない（呼ぶ側が決める。0% のバーを描かない。MVP_SPEC 5.3・AC-09）。
@@ -9,6 +9,7 @@ import { tokens } from "@contracts/tokens";
 import { useEffect, useMemo, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { motion, useReducedMotion } from "@/lib/motion";
+import { makeStyles, useColors } from "@/lib/theme";
 
 type Props = {
   percent: number;
@@ -20,6 +21,8 @@ type Props = {
 };
 
 export function ProgressBar({ percent, progress, tone = "primary", thin = false, accessibilityLabel }: Props) {
+  const styles = useStyles();
+  const c = useColors();
   const p = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
   const reduced = useReducedMotion();
   const own = useFillValue(progress ? null : p, reduced);
@@ -30,10 +33,11 @@ export function ProgressBar({ percent, progress, tone = "primary", thin = false,
       width: value.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"], extrapolate: "clamp" }),
       backgroundColor: danger.interpolate({
         inputRange: [0, 1],
-        outputRange: [tokens.color.primary, tokens.color.danger],
+        // 今のテーマの色のあいだで動かす（テーマを切り替えたら、ここも作り直す）
+        outputRange: [c.primaryFill, c.danger],
       }),
     }),
-    [value, danger],
+    [value, danger, c],
   );
   return (
     <View
@@ -94,13 +98,16 @@ function useToneValue(on: boolean, reduced: boolean): Animated.Value {
   return value;
 }
 
-const styles = StyleSheet.create({
-  track: {
-    height: tokens.size.progressTrack,
-    borderRadius: tokens.radius.pill,
-    backgroundColor: tokens.color.track,
-    overflow: "hidden",
-  },
-  thin: { height: tokens.size.appBarTrack },
-  fill: { height: "100%", borderRadius: tokens.radius.pill },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    track: {
+      height: tokens.size.progressTrack,
+      borderRadius: tokens.radius.pill,
+      backgroundColor: c.track,
+      overflow: "hidden",
+    },
+    thin: { height: tokens.size.appBarTrack },
+    // 塗りの色は tone に合わせて動かすので、ここには書かない（部品の中の useMemo の backgroundColor）
+    fill: { height: "100%", borderRadius: tokens.radius.pill },
+  }),
+);

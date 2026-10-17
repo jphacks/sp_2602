@@ -1,8 +1,10 @@
 // アイコン（Material Icons の形を react-native-svg で描く。Apache License 2.0）。Figma の icon/〇〇 の名前に合わせてある。
 // アイコンの部品（@expo/vector-icons）は依存に入れていないので、使う分だけここに形を置く。足すときは paths に1行足す。
-//   <Icon name="event" />  <Icon name="home" color={tokens.color.primary} size={tokens.size.iconSmall} />
+//   <Icon name="event" />  <Icon name="home" color={c.primary} size={tokens.size.iconSmall} />（c は useColors() の今のテーマの色）
+// color を省くと今のテーマの本文の色（text）
 import { tokens } from "@contracts/tokens";
 import Svg, { Path } from "react-native-svg";
+import { useColors } from "@/lib/theme";
 
 const paths = {
   // 下部タブのアイコン（Figma の TabBar は線のアイコン。Material Icons Outlined の形）
@@ -64,10 +66,11 @@ export type IconName = keyof typeof paths;
 
 type Props = { name: IconName; size?: number; color?: string };
 
-export function Icon({ name, size = tokens.size.icon, color = tokens.color.text }: Props) {
+export function Icon({ name, size = tokens.size.icon, color }: Props) {
+  const c = useColors();
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" accessibilityElementsHidden importantForAccessibility="no">
-      <Path d={paths[name]} fill={color} />
+      <Path d={paths[name]} fill={color ?? c.text} />
     </Svg>
   );
 }

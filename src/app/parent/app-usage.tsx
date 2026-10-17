@@ -11,6 +11,7 @@ import { ChildGate, useUsage } from "@/components/parent/data";
 import { mdw, timeJst } from "@/components/parent/format";
 import { AppInitial } from "@/components/parent/parts";
 import { type AppRow, appUsageRows, limitText, todaySummary } from "@/components/parent/today";
+import { makeStyles } from "@/lib/theme";
 
 export default function ParentAppUsage() {
   return (
@@ -21,6 +22,7 @@ export default function ParentAppUsage() {
 }
 
 function AppUsageBody({ childId }: { childId: string }) {
+  const styles = useStyles();
   const today = todayString();
   const { state, reload } = useUsage(childId, today, today);
   if (state.status === "loading") return <StateView state="loading" />;
@@ -92,6 +94,7 @@ function AppUsageBody({ childId }: { childId: string }) {
 }
 
 function AppUsageRow({ row }: { row: AppRow }) {
+  const styles = useStyles();
   return (
     <View style={styles.row} accessible accessibilityLabel={`${row.label} ${row.minutes}分`}>
       <AppInitial initial={row.initial} />
@@ -104,17 +107,19 @@ function AppUsageRow({ row }: { row: AppRow }) {
   );
 }
 
-const styles = StyleSheet.create({
-  amount: { flexDirection: "row", alignItems: "baseline", gap: tokens.space[2], flexWrap: "wrap" },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: tokens.space[3],
-    padding: tokens.space[4],
-    backgroundColor: tokens.color.surface,
-    borderRadius: tokens.radius.card,
-    borderWidth: tokens.size.border,
-    borderColor: tokens.color.line,
-  },
-  middle: { flex: 1, gap: tokens.space[2] },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    amount: { flexDirection: "row", alignItems: "baseline", gap: tokens.space[2], flexWrap: "wrap" },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space[3],
+      padding: tokens.space[4],
+      backgroundColor: c.surface,
+      borderRadius: tokens.radius.card,
+      borderWidth: tokens.size.border,
+      borderColor: c.line,
+    },
+    middle: { flex: 1, gap: tokens.space[2] },
+  }),
+);

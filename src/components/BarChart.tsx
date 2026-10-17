@@ -2,7 +2,7 @@
 // 1本ごとに「下地（上限）」と「中身（使った量）」を重ねる。value が null の日は中身を描かない（記録なし・未来の日。0 と区別する）。
 //   親（分）: <BarChart bars={days.map(d => ({ key: d.date, label: "月", sublabel: "10/12", value: d.usedMinutes, capacity: d.limitMinutes, topLabel: String(d.limitMinutes) }))} />
 //   子（%） : <BarChart bars={… value: 割合, capacity: 100 …} scaleMax={100} />
-// 棒の高さは値で決まるので、ここだけ計算した style を使う（色・寸法は tokens のまま）。
+// 棒の高さは値で決まるので、ここだけ計算した style を使う（寸法は tokens・色は今のテーマ（makeStyles）のまま）。
 // 動き（src/lib/motion.ts の決まりどおり）:
 //   - 値が最初に分かった棒は、下から 0 → 値まで伸びる。左から順に（motion.stagger ずつ）、今日（highlight）は一拍おいて伸びる
 //     （順番の決め方は src/components/chart-motion.ts）。delay で 1本目の始まりを遅らせられる（子02 はゲージの後）
@@ -13,6 +13,7 @@ import { tokens } from "@contracts/tokens";
 import { useMemo, useRef } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { motion, useAnimatedNumber } from "@/lib/motion";
+import { makeStyles } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { barDelays, remainingDelay } from "./chart-motion";
 
@@ -31,6 +32,7 @@ export type Bar = {
 type Props = { bars: Bar[]; scaleMax?: number; accessibilityLabel?: string; compact?: boolean; delay?: number };
 
 export function BarChart({ bars, scaleMax, accessibilityLabel, compact = false, delay = 0 }: Props) {
+  const styles = useStyles();
   const max =
     scaleMax ?? Math.max(1, ...bars.flatMap((b) => [b.capacity ?? 0, b.value ?? 0]).filter((n) => Number.isFinite(n)));
   const height = compact ? tokens.size.chartHeightSmall : tokens.size.chartHeight;
@@ -88,6 +90,7 @@ type FillProps = {
 
 // 棒の中身（使った量）。値が分かった時点で、予定の残りだけ待ってから伸びる
 function BarFill({ value, max, height, today, plannedDelay, origin }: FillProps) {
+  const styles = useStyles();
   // 待ち時間は値が最初に分かったときに一度だけ決める（あとで変えると、動きがやり直しになる）
   const wait = useRef<number | null>(null);
   if (value != null && wait.current == null) {
@@ -104,6 +107,8 @@ function BarFill({ value, max, height, today, plannedDelay, origin }: FillProps)
 
 // 凡例（色見本＋文字）。幅が足りないときは折り返す（親03 は凡例が3つで1行に入らない）
 export function Legend({ items }: { items: { label: string; tone: "track" | "fill" | "today" }[] }) {
+  const styles = useStyles();
+  const swatch = useSwatch();
   return (
     <View style={styles.legend}>
       {items.map((i) => (
@@ -118,27 +123,31 @@ export function Legend({ items }: { items: { label: string; tone: "track" | "fil
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  col: { alignItems: "center", gap: tokens.space[1] },
-  area: { height: tokens.size.chartHeight, justifyContent: "flex-end" },
-  areaSmall: { height: tokens.size.chartHeightSmall },
-  track: {
-    width: tokens.size.chartBarWidth,
-    backgroundColor: tokens.color.track,
-    borderRadius: tokens.radius.sm,
-    justifyContent: "flex-end",
-    overflow: "hidden",
-  },
-  fill: { width: "100%", backgroundColor: tokens.color.primaryMuted, borderRadius: tokens.radius.sm },
-  today: { backgroundColor: tokens.color.primary },
-  legend: { flexDirection: "row", flexWrap: "wrap", columnGap: tokens.space[3], rowGap: tokens.space[1] },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
-  swatch: { width: tokens.size.legendSwatch, height: tokens.size.legendSwatch, borderRadius: tokens.radius.sm },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+    col: { alignItems: "center", gap: tokens.space[1] },
+    area: { height: tokens.size.chartHeight, justifyContent: "flex-end" },
+    areaSmall: { height: tokens.size.chartHeightSmall },
+    track: {
+      width: tokens.size.chartBarWidth,
+      backgroundColor: c.track,
+      borderRadius: tokens.radius.sm,
+      justifyContent: "flex-end",
+      overflow: "hidden",
+    },
+    fill: { width: "100%", backgroundColor: c.primaryMuted, borderRadius: tokens.radius.sm },
+    today: { backgroundColor: c.primaryFill },
+    legend: { flexDirection: "row", flexWrap: "wrap", columnGap: tokens.space[3], rowGap: tokens.space[1] },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
+    swatch: { width: tokens.size.legendSwatch, height: tokens.size.legendSwatch, borderRadius: tokens.radius.sm },
+  }),
+);
 
-const swatch = StyleSheet.create({
-  track: { backgroundColor: tokens.color.track },
-  fill: { backgroundColor: tokens.color.primaryMuted },
-  today: { backgroundColor: tokens.color.primary },
-});
+const useSwatch = makeStyles((c) =>
+  StyleSheet.create({
+    track: { backgroundColor: c.track },
+    fill: { backgroundColor: c.primaryMuted },
+    today: { backgroundColor: c.primaryFill },
+  }),
+);
