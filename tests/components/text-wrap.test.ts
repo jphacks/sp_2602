@@ -56,7 +56,8 @@ describe("keepTailTogether", () => {
   });
 
   it("句読点・かっこの閉じ・小さい「ゃ」などを行の頭にしない", () => {
-    expect(cuts(keepTailTogether("テスト日程の一覧・変更"))).toBe("テスト日程の/一覧・/変更");
+    // 「・」でつないだ短い組（「一覧・変更」）は割らない（親04 で「テスト日程の一覧・／変更」と切れていた）
+    expect(cuts(keepTailTogether("テスト日程の一覧・変更"))).toBe("テスト日程の/一覧・変更");
     expect(cuts(keepTailTogether("もう一度つくりましょう。あとで"))).toBe("もう一度つくりましょう。/あとで");
     expect(cuts(keepTailTogether("10月24日（土）〜10月25日（日）の中間を登録しました。"))).toBe(
       "10月24日（土）/〜10月25日（日）/の/中間を/登録しました。",
