@@ -137,7 +137,8 @@ if (!args.includes("--skip-android")) {
     let fetched = false;
     if (made) {
       console.log("… Gradle で Kotlin のライブラリを取得（初回は Gradle 本体と合わせて数分〜10分）");
-      const gradle = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
+      // Windows は .\ を付ける（AI のシェルは NoDefaultCurrentDirectoryInExePath=1 で、今いるフォルダの gradlew.bat を名前だけでは探さない）
+      const gradle = process.platform === "win32" ? ".\\gradlew.bat" : "./gradlew";
       fetched =
         spawnSync(`${gradle} :kit-native:dependencies --configuration debugRuntimeClasspath --console=plain`, {
           cwd: p("android"),
