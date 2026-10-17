@@ -14,10 +14,12 @@ import { addDays, todayString } from "@contracts/dates";
 import type { NativePermissionStatus, NativeUsageResult } from "@contracts/native";
 import type { UsageDayReport } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { needsIdentityCheck } from "./api";
 import { type ConfigState, configCache } from "./config-cache";
 import { native } from "./native";
 import { usePolling } from "./polling";
 import { keepIfSame } from "./same";
+import { useSession } from "./session";
 import {
   type CalcInput,
   calcUsage,
@@ -56,6 +58,7 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
   const [today, setToday] = useState(() => todayString());
   const [permissions, setPermissions] = useState<NativePermissionStatus | null>(null);
   const lastSent = useRef<string | null>(null); // 前に送信待ちへ入れた中身（変化がなければ送らない。Q9）
+  const { refresh: recheckSession } = useSession();
 
   // 起動直後は端末に保存してある設定をすぐ出す（通信を待たない）
   useEffect(() => {
@@ -81,6 +84,9 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
     ]);
     setConfig((prev) => keepIfSame(prev, cfg));
     setUsage((prev) => keepIfSame(prev, use));
+    // 自分の設定なのに 403 → サーバ上の自分の id・役割が変わった。確かめ直す（id が変われば child/_layout.tsx が新しい id で作り直し、
+    // 役割がなくなっていれば入口へ戻る。needsIdentityCheck）
+    if (cfg.status !== "fresh" && needsIdentityCheck(cfg.error)) void recheckSession();
     const snapshot = cfg.status === "unavailable" ? null : cfg.snapshot;
     const excluded = snapshot?.excludedApps.map((a) => a.packageName) ?? [];
 
@@ -109,7 +115,7 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
       if (item) lastSent.current = key;
     }
     await usageOutbox.flush().catch(() => undefined);
-  }, [childId]);
+  }, [childId, recheckSession]);
 
   usePolling(refresh);
 

@@ -7,11 +7,12 @@
 import type { ApiError } from "@contracts/errors";
 import type { Child } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { call, errorOf } from "./api";
+import { call, errorOf, needsIdentityCheck } from "./api";
 import { type ConfigState, configCache } from "./config-cache";
 import { useFlow } from "./flow";
 import { usePolling } from "./polling";
 import { keepIfSame } from "./same";
+import { useSession } from "./session";
 
 type ParentData = {
   child: Child | null; // 見ている子ども（連携済みの子どもがいなければ null）
@@ -25,6 +26,7 @@ const ParentDataContext = createContext<ParentData | null>(null);
 
 export function ParentDataProvider({ children }: { children: ReactNode }) {
   const { child, setChild } = useFlow();
+  const { refresh: recheckSession } = useSession();
   const [family, setFamily] = useState<Child[] | null>(null);
   const [familyError, setFamilyError] = useState<ApiError | null>(null);
   const [config, setConfig] = useState<ConfigState | null>(null);
@@ -54,14 +56,17 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
         viewing.current = current?.id ?? null;
       }
     } catch (e) {
-      setFamilyError(errorOf(e));
+      const error = errorOf(e);
+      setFamilyError(error);
+      // 保護者だけの API で 403 → サーバ上の自分の役割が変わった。確かめ直す（保護者でなくなっていれば parent/_layout.tsx が入口へ戻す）
+      if (needsIdentityCheck(error)) void recheckSession();
     }
     if (!current) return;
     const id = current.id;
     const next = await configCache.refresh(id);
     // 待っている間に別の子どもに切り替わっていたら捨てる。中身が同じなら前の値のまま（ウィジェットの保存などをやり直さない）
     if (viewing.current === id) setConfig((prev) => keepIfSame(prev, next));
-  }, [child, setChild]);
+  }, [child, setChild, recheckSession]);
 
   usePolling(refresh);
 

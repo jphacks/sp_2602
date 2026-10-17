@@ -15,7 +15,9 @@ const WORD_JOINER = String.fromCharCode(0x2060); // 目に見えない文字な�
 // この文字の後ろなら、いつでも折り返してよい（句読点・かっこの閉じ・空白）
 // 「を」は言葉の中にほとんど出ないので、次がひらがなでも切ってよい（「人を／えらんで」）。
 // 「・」は入れない（「一覧・変更」のような短い組を「一覧・／変更」と割らない。S22 の親04 の項目名）
-const BREAK_AFTER_ALWAYS = new Set(["、", "。", "，", "．", "！", "？", "」", "』", "）", " ", "　", "を"]);
+// 「〜」は Android（ICU）が前で切らない文字なので、後ろで切れるようにする（「10月24日（土）〜／10月25日（日）」。
+// 第3回のデバッグ: S22 の親05 で「（土）」の後に切れ目を付けても〜の前では切れず、期間全体が1つのまとまりになって「10月2／5日」と数字の途中で切れていた）
+const BREAK_AFTER_ALWAYS = new Set(["、", "。", "，", "．", "！", "？", "」", "』", "）", " ", "　", "を", "〜", "～"]);
 // この文字の後ろは、次がひらがなでなければ折り返してよい（よく使う助詞）。
 // 「も」「や」は言葉の中にも多い（「もらおう」「やすみ」）ので入れない
 const BREAK_AFTER_PARTICLE = new Set(["の", "に", "で", "は", "が", "と", "て", "へ"]);
@@ -37,6 +39,8 @@ const NO_LINE_START = new Set([
   "」",
   "』",
   "）",
+  "〜",
+  "～",
   "ー",
   "ぁ",
   "ぃ",
@@ -67,14 +71,23 @@ const isHiragana = (ch: string | undefined) => !!ch && ch >= "ぁ" && ch <= "ゖ
 // 漢字・カタカナ（言葉の頭になりやすい文字）
 const isWordHead = (ch: string | undefined) => !!ch && /[\p{Script=Han}ァ-ヺー]/u.test(ch);
 
+// chars[k] が言葉の頭の「お」「ご」（前がひらがなでない）か
+const isHonorificHead = (chars: readonly string[], k: number) =>
+  (chars[k] === "お" || chars[k] === "ご") && !isHiragana(chars[k - 1]);
+
 // chars[i] と chars[i + 1] の間で折り返してよいか（文節の切れ目か）
 function isBoundary(chars: readonly string[], i: number): boolean {
   const a = chars[i] ?? "";
   const b = chars[i + 1] ?? "";
   if (NO_LINE_START.has(b)) return false;
   if (BREAK_AFTER_ALWAYS.has(a) || BREAK_BEFORE.has(b)) return true;
+  // かっこの閉じの後の「・」の後は切ってよい（「10月25日（日）・／お子さんが登録」。「一覧・変更」のような短い組は割らない）
+  if (a === "・" && chars[i - 1] === "）") return true;
   if (!BREAK_AFTER_PARTICLE.has(a)) return false;
   if (!isHiragana(b)) return true;
+  // 「でき」は名詞の後でも「できる・できます・できない」の中のことがほとんどなので切らない
+  // （第3回のデバッグ: A53 の子16 で「連携で／きます」と切れていた）
+  if (a === "で" && b === "き") return false;
   // 次も助詞なら「での」「には」のように2文字で1つの助詞なので切らない
   return BREAK_AFTER_NOUN.has(a) && isWordHead(chars[i - 1]) && !PARTICLE_NEXT.has(b);
 }
@@ -92,7 +105,8 @@ function tailStart(chars: readonly string[]): number {
 // 長すぎる文節を、さらに分けてよい所（上から順に試す。chars[k] と chars[k + 1] の間）
 const SUB_SPLITS: ((chars: readonly string[], k: number) => boolean)[] = [
   // ひらがなの後に漢字・カタカナが来る所（新しい言葉の頭が多い。「明日から／少しずつ／下がっていきます」）
-  (chars, k) => isHiragana(chars[k]) && isWordHead(chars[k + 1]),
+  // ただし言葉の頭の「お」「ご」（「お子さん」「ご家族」）は次の漢字と離さない（親05 で「・お／子さんが」と切れていた）
+  (chars, k) => isHiragana(chars[k]) && isWordHead(chars[k + 1]) && !isHonorificHead(chars, k),
   // かっこの開きの前と、名詞の後の「が」の後（「上限が／なくなります／（制限なし）」）
   (chars, k) =>
     chars[k + 1] === "（" || (chars[k] === "が" && isWordHead(chars[k - 1]) && !NO_LINE_START.has(chars[k + 1] ?? "")),

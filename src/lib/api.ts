@@ -63,6 +63,20 @@ export class ApiCallError extends Error {
   }
 }
 
+// 合言葉が無効と言われたか（401）。本文が読めない 401（間にある仕組みが返したもの等）も含める。
+// session.tsx の起動時の確認で、これを「通信できない（offline で続ける）」と取り違えないため
+export function isUnauthorized(e: unknown): boolean {
+  return e instanceof ApiCallError && (e.status === 401 || e.error.code === "unauthorized");
+}
+
+// 自分の役割・自分の子どもの範囲で呼んだのに 403（forbidden）が返ったか。返ったら、サーバに「自分は誰か」を確かめ直す
+// （session.tsx の refresh。child-data.tsx・parent-data.tsx が使う）。
+// なぜ: 合言葉はまだ有効なのに、サーバ側の人の id・役割が変わることがある（#49 の DB 版のサーバでは、デモの人の合言葉は固定のまま
+//   id が uuid になる）。前は起動し直すまで古い id のまま呼び続け、設定は「最新でない可能性」のまま、利用記録は送るたびに隔離されて溜まった
+export function needsIdentityCheck(error: ApiError | null | undefined): boolean {
+  return error?.code === "forbidden";
+}
+
 // どんな例外でも画面に出せる形にする。自分で中断した場合だけ null（エラー表示しない）
 export function errorOf(e: unknown): ApiError | null {
   if (e instanceof ApiCallError) return e.error;
@@ -73,7 +87,9 @@ export function errorOf(e: unknown): ApiError | null {
 async function send(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<Response> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
+  // 送ったときの合言葉（401 が返ったとき、それがまだ今の合言葉かを確かめるため）
+  const sentToken = sessionToken;
+  if (sentToken) headers.Authorization = `Bearer ${sentToken}`;
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
@@ -90,9 +106,12 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
   }
   if (!res.ok) {
     const parsed = ApiError.safeParse(await res.json().catch(() => null));
-    if (res.status === 401 && headers.Authorization && parsed.success && parsed.data.code === "unauthorized") {
-      onUnauthorized?.();
-    }
+    // 401 で「ログアウト扱い」にするのは、次の両方のときだけ。
+    //   - サーバの返事の形（ApiError）で unauthorized（Vercel の保護ページなど、ほかの 401 でログアウトして端末のデータを消さない）
+    //   - 送った合言葉がまだ今の合言葉（ログインし直したあとに、前の合言葉で送っていた呼び出しの 401 が遅れて届いても、
+    //     新しくログインした人までログアウトさせない）。本文を読み終えたあとで比べる（読んでいる間にログインし直すこともあるため）
+    const unauthorized = res.status === 401 && parsed.success && parsed.data.code === "unauthorized";
+    if (unauthorized && sentToken && sentToken === sessionToken) onUnauthorized?.();
     throw new ApiCallError(parsed.success ? parsed.data : { code: "internal", ...errorText.internal }, res.status);
   }
   return res;

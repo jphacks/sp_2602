@@ -9,10 +9,10 @@
 //   /parent/...  保護者用（下部タブ4つ。parent/_layout.tsx）
 import { ThemeProvider as NavigationThemeProvider, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { FlowProvider } from "@/lib/flow";
-import { SessionProvider } from "@/lib/session";
+import { SessionProvider, useSession } from "@/lib/session";
 import { navigationTheme, ThemeProvider, useTheme } from "@/lib/theme";
 import { statusBarStyle } from "@/lib/theme-store";
 
@@ -21,13 +21,19 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider>
         <SessionProvider>
-          <FlowProvider>
+          <SessionFlow>
             <ThemedStack />
-          </FlowProvider>
+          </SessionFlow>
         </SessionProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
+}
+
+// 画面の間の受け渡し（flow）を、ログインしている人ごとにする（ログアウト・401・別の人のログインで、見ていた子どもを持ち越さない）
+function SessionFlow({ children }: { children: ReactNode }) {
+  const { state } = useSession();
+  return <FlowProvider owner={state.status === "signedIn" ? state.session.userId : null}>{children}</FlowProvider>;
 }
 
 function ThemedStack() {

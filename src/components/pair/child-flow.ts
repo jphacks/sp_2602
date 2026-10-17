@@ -81,6 +81,29 @@ export function isUncertain(error: ApiError): boolean {
   );
 }
 
+// 子16（QR をつくれなかった）の本文と、主ボタンの行き先。
+// なぜ: 前は原因にかかわらず「通信を確かめて、もう一度ためしてください。」と「もう一度つくる」を出していた。
+//   すでに家族と連携している子ども（409 conflict。親1↔子1・Q2）や保護者の端末（409）でも通信のせいに見え、
+//   「もう一度つくる」を押しても同じ失敗を繰り返すだけだった。
+//   通信・時間切れ・サーバの一時的な不具合 → 待ってもう一度（retry）。サーバがはっきり断った → サーバの hint を出し、
+//   ホームへ（役割を取り直して入口で振り分け直す。連携済みなら子どものホームへ進める）
+export type IssueFailedText = { body: string; next: "retry" | "home" };
+
+export function issueFailedText(error: ApiError): IssueFailedText {
+  switch (error.code) {
+    case "network":
+    case "timeout":
+      return { body: "通信を確かめて、もう一度ためしてください。", next: "retry" };
+    case "rate_limited":
+      return { body: "混み合っています。少し待ってから、もう一度ためしてください。", next: "retry" };
+    case "internal":
+    case "upstream_failed":
+      return { body: "うまく処理できませんでした。少し待ってから、もう一度ためしてください。", next: "retry" };
+    default:
+      return { body: error.hint, next: "home" };
+  }
+}
+
 // サーバの進み具合（PairStatus）を表示に直す
 function fromStatus(view: ChildPairView, ticket: ShownTicket, status: PairStatus): ChildPairView {
   switch (status.state) {

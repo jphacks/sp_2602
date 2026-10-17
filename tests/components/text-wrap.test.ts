@@ -55,12 +55,32 @@ describe("keepTailTogether", () => {
     expect(cuts(keepTailTogether("今の計画での上限の下がり方を見る"))).toBe("今の/計画での/上限の/下がり方を/見る");
   });
 
+  it("期間の「〜」は前でなく後ろで切る（Android は〜の前で切らないので、期間全体が1つになり「10月2／5日」と数字の途中で切れていた）", () => {
+    const out = cuts(keepTailTogether("10月24日（土）〜10月25日（日）・お子さんが登録"));
+    expect(out).toContain("10月24日（土）〜/10月25日（日）");
+    expect(out).not.toContain("/〜");
+    expect(out).not.toContain("日/（"); // 曜日だけを次の行に落とさない
+  });
+
+  it("言葉の頭の「お」「ご」は次の漢字と離さない（「・お／子さんが」と切れていた）", () => {
+    const out = cuts(keepTailTogether("10月24日（土）〜10月25日（日）・お子さんが登録"));
+    expect(out).not.toContain("お/子");
+    expect(cuts(keepTailTogether("あしたからは少しずつご家族の時間をふやします"))).not.toContain("ご/家族");
+  });
+
+  it("名詞の後の「で」でも、次が「き」なら「できます」の中なので切らない（A53 の子16 で「連携で／きます」と切れていた）", () => {
+    const out = cuts(keepTailTogether("いまは保護者1人と子ども1人だけで連携できます（2人目は連携できません）"));
+    expect(out).not.toContain("連携で/き");
+    expect(out).toContain("連携できます");
+  });
+
   it("句読点・かっこの閉じ・小さい「ゃ」などを行の頭にしない", () => {
     // 「・」でつないだ短い組（「一覧・変更」）は割らない（親04 で「テスト日程の一覧・／変更」と切れていた）
     expect(cuts(keepTailTogether("テスト日程の一覧・変更"))).toBe("テスト日程の/一覧・変更");
     expect(cuts(keepTailTogether("もう一度つくりましょう。あとで"))).toBe("もう一度つくりましょう。/あとで");
+    // 「〜」も行の頭にしない（Android は〜の前では切らないので、前に切れ目を付けても効かない。第3回のデバッグで「〜」の後ろに変えた）
     expect(cuts(keepTailTogether("10月24日（土）〜10月25日（日）の中間を登録しました。"))).toBe(
-      "10月24日（土）/〜10月25日（日）/の/中間を/登録しました。",
+      "10月24日（土）〜/10月25日（日）/の/中間を/登録しました。",
     );
   });
 
