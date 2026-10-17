@@ -4,6 +4,7 @@ import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, type TextProps } from "react-native";
 import { makeStyles } from "@/lib/theme";
+import { keepTailTogether } from "./text-wrap";
 
 export type TextVariant = "display" | "ring" | "headline" | "title" | "body" | "small" | "label" | "caption" | "micro";
 export type TextTone =
@@ -35,7 +36,8 @@ export function AppText({
   const tones = useTones();
   return (
     <Text {...rest} style={[styles[variant], tones[tone], center && styles.center, strong && styles.strong]}>
-      {children}
+      {/* 文の終わりの言葉を1〜2文字だけ次の行に落とさない（手で改行を入れずに、どの幅・文字の大きさでも。text-wrap.ts） */}
+      {typeof children === "string" ? keepTailTogether(children) : children}
     </Text>
   );
 }

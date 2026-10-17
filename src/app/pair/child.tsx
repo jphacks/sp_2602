@@ -164,7 +164,7 @@ export default function PairChild() {
             icon="error"
             iconTone="danger"
             title="QRコードをつくれませんでした"
-            body={"通信を確かめて、\nもう一度ためしてください。"}
+            body="通信を確かめて、もう一度ためしてください。"
             actions={
               <>
                 <Button label="もう一度つくる" onPress={start} />
@@ -212,7 +212,7 @@ export default function PairChild() {
             icon="check_circle"
             iconTone="success"
             title="家族に入りました"
-            body={"保護者がきめた時間のルールが、\nこのスマホに届きます。"}
+            body="保護者がきめた時間のルールが、このスマホに届きます。"
             actions={<Button label="ホームへ" onPress={goHome} loading={leaving} />}
           />
         </Screen>
@@ -235,8 +235,7 @@ export default function PairChild() {
       // 子14（子18 はこの上のダイアログ）
       return (
         <Screen title="Slope" footer={quit}>
-          {/* Figma 子14 と同じ所（「、」のあと）で改行する */}
-          <Banner icon="info" message={"保護者のスマホで、\nこのQRコードを読み取ってもらおう"} />
+          <Banner icon="info" message="保護者のスマホで、このQRコードを読み取ってもらおう" />
           {view.screen === "showing" && view.offline && (
             <Banner
               tone="warning"

@@ -19,17 +19,17 @@ export default function ChildSettings() {
   const [themeOpen, setThemeOpen] = useState(false);
   return (
     <Screen title="設定" onBack={() => router.navigate("/child/home")} bottomInset={false}>
-      {/* Figma 子07: アイコンは青、項目名は太字。項目名は Figma と同じ所で改行する（幅まかせだと「変／更」で切れる） */}
+      {/* Figma 子07: アイコンは青、項目名は太字。項目名は幅まかせで折り返す（「変／更」のような切れ方は AppText が防ぐ） */}
       <ListItem
         icon="event"
-        title={"テスト日程の\n一覧・変更"}
+        title="テスト日程の一覧・変更"
         strong
         value={testCountLabel(config)}
         onPress={() => router.navigate("/child/schedule-list")}
       />
       <ListItem
         icon="palette"
-        title={"テーマカラーの\n変更"}
+        title="テーマカラーの変更"
         strong
         value={themeLabel(theme)}
         onPress={() => setThemeOpen(true)}

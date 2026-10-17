@@ -1,10 +1,11 @@
 // 下部タブのアイコンと見た目（Figma の TabBar: 高さ 80・選ばれたタブは 64×32 の薄い青の丸の中に青いアイコン、文字は青の太字）。
 // 子ども用・保護者用の Tabs（src/app/child/_layout.tsx・parent/_layout.tsx）で同じものを使う。
 import { tokens } from "@contracts/tokens";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { makeStyles, useColors } from "@/lib/theme";
 import { Icon, type IconName } from "./Icon";
+import { tabBarHeight } from "./tab-bar-size";
 
 export function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   const styles = useStyles();
@@ -63,14 +64,15 @@ export function useTabBarOptions() {
   const styles = useStyles();
   const c = useColors();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   return {
     headerShown: false,
     tabBarActiveTintColor: c.primary,
     tabBarInactiveTintColor: c.muted,
-    // 高さと余白は端末ごとの値から計算するので、StyleSheet の固定値に重ねる
+    // 高さと余白は端末ごとの値（ナビゲーションボタンの高さ・文字の大きさ。tab-bar-size.ts）から計算するので、StyleSheet の固定値に重ねる
     tabBarStyle: [
       styles.bar,
-      { height: tokens.size.tabBar + insets.bottom, paddingBottom: tokens.space[3] + insets.bottom },
+      { height: tabBarHeight(insets.bottom, fontScale), paddingBottom: tokens.space[3] + insets.bottom },
     ],
     tabBarLabel: TabLabel,
   } as const;

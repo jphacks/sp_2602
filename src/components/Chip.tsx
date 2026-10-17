@@ -31,10 +31,14 @@ export function Chip({ label, icon, tone = "info", align = "center", small = fal
   return (
     <View style={[styles.chip, toneStyles[tone], align === "start" && styles.start, small && styles.small]}>
       {icon && <Icon name={icon} size={tokens.size.iconSmall} color={c[fg[tone]]} />}
-      {/* Figma の札の文字は太字（子02「ちょうどいいペース！」・子14「あと 9分41秒…」） */}
-      <AppText variant={small ? "caption" : "label"} tone={textTone[tone]} strong>
-        {label}
-      </AppText>
+      {/* Figma の札の文字は太字（子02「ちょうどいいペース！」・子14「あと 9分41秒…」）。
+          長い文（「今の計画は子どものスマホへの反映待ち」）は、文字を大きくした端末で札が画面の外へはみ出さないよう、
+          アイコンの横で折り返す（Text は行の中で縮まないので、縮められる箱に入れる） */}
+      <View style={styles.label}>
+        <AppText variant={small ? "caption" : "label"} tone={textTone[tone]} strong>
+          {label}
+        </AppText>
+      </View>
     </View>
   );
 }
@@ -49,6 +53,7 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.space[1],
     borderRadius: tokens.radius.pill,
   },
+  label: { flexShrink: 1 },
   start: { alignSelf: "flex-start" },
   small: { paddingHorizontal: tokens.space[2], paddingVertical: tokens.space[0] },
 });

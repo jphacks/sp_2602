@@ -130,8 +130,8 @@ export default function PairParent() {
           <MessageView
             icon="camera"
             title="カメラを使わせてください"
-            // 改行は文の区切りで入れる（Figma の「…ために、／カメラを…」だと、文字を大きくした端末で「に、」だけが1行に落ちる）
-            body={"子どものスマホのQRコードを\n読み取るために、カメラを使います。"}
+            // 手で改行しない（端末の幅・文字の大きさで「に、」だけが1行に落ちていた。文の終わりの切れ方は AppText が防ぐ）
+            body="子どものスマホのQRコードを読み取るために、カメラを使います。"
             actions={
               <>
                 {view.canAskAgain ? (
@@ -249,7 +249,7 @@ export default function PairParent() {
             icon="check_circle"
             iconTone="success"
             title={`${view.child.name}さんとつながりました`}
-            body={`${view.child.name}さんの使用状況を\n見られるようになりました。`}
+            body={`${view.child.name}さんの使用状況を見られるようになりました。`}
             // TODO(未決): Figma のボタンは「使用状況を見る」（親01 へ）。Q7 で紐づけ直後に1日の上限を決めることになったので、
             //   先に上限を決める画面へ進む文言にした（決めた後に親01 へ進む）
             actions={<Button label="1日の上限を決める" onPress={next} loading={leaving} />}

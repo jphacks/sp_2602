@@ -23,7 +23,7 @@ export default function ParentSettings() {
       {/* Figma 親04: アイコンは青、項目名は太字（子07 と同じ） */}
       <ListItem
         icon="event"
-        title={"テスト日程の\n一覧・変更"}
+        title="テスト日程の一覧・変更"
         strong
         value={countText(snapshot?.testPeriods.length)}
         onPress={() => router.push("/parent/schedules")}
@@ -37,7 +37,7 @@ export default function ParentSettings() {
       />
       <ListItem
         icon="palette"
-        title={"テーマカラーの\n変更"}
+        title="テーマカラーの変更"
         strong
         value={themeLabel(theme)}
         onPress={() => setThemeOpen(true)}
