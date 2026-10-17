@@ -31,6 +31,8 @@ Docker is not required. For contributors who prefer an isolated local instance, 
 
 `usage_sync_batches.submission_id` is globally unique. `persistUsageSubmission` writes batch metadata and usage rows in one transaction. A retry is acknowledged as a duplicate only when the child and the persisted date/app/minute rows match, independent of row order; reusing the ID for different content raises a conflict. Payload fingerprint metadata is optional because its canonicalization is not yet decided. Aggregation across distinct snapshots is intentionally left to the C8/C6 API design.
 
+`readChildConfigSnapshot` reads the config version, test periods, plan settings, excluded apps, and the latest calculation's daily limits in one read-only repeatable-read transaction. It returns the calculation's source config version and an explicit match flag; a missing version/calculation is represented as missing data, not a zero-minute limit. Writers must increment `child_config_versions` in the same transaction as each relevant configuration change for that marker to remain meaningful. Authentication and parent-child authorization remain service/API responsibilities.
+
 For C10, insert a `plan_calculation_versions` row and write its `daily_limits` in one transaction. The calculation-version foreign key prevents a daily limit from referencing a missing version. A failed transaction leaves the previously committed values in place; deciding which dates are final and which dates may be recalculated remains out of scope.
 
 Endpoint authorization, config revision increments, and cross-table write orchestration are application responsibilities; this foundation does not claim to enforce those policies through triggers.
