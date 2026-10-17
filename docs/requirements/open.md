@@ -2,7 +2,8 @@
 
 形式: `- [ ] 問い — 決める人 — 期限（同期点名）`。決まったら decisions.md に移してチェック。
 
-- [ ] 認証の仕組み。推奨案: 保護者はメールか Google でログインし、子ども端末は保護者が発行するペアリングコードで紐づける — lead — キックオフ
-- [ ] 制限ルールの同期。推奨案: 定期同期（一定時間ごとに取りに行く）。最後に取ったルールは端末に保存し、オフラインでも適用する。Push 通知は Firebase の設定が要るので後回し — lead — キックオフ
-- [ ] 対応 Android バージョン。推奨案: Android 16 のみ。実機で確認する範囲を増やさない — lead — キックオフ
-- [ ] アプリの配布方法。推奨案: APK の直接配布。AccessibilityService を使うと Google Play の審査で注意が要る — lead — キックオフ
+- [x] 認証の仕組み — lead — キックオフ（→ decisions.md 10/17 12:55: 親子とも Google ログイン → QR のペアリングで分ける）
+- [x] 制限ルールの同期 — lead — キックオフ（→ decisions.md 10/17 12:55）
+- [x] 対応 Android バージョン — lead — キックオフ（→ decisions.md 10/17 12:55: Android 16 のみ）
+- [x] アプリの配布方法 — lead — キックオフ（→ decisions.md 10/17 12:55: Android Studio から USB）
+- [ ] Google ログインの実装方法（使う部品と、Google Cloud でのアプリの登録。Android は署名の SHA-1 の登録が要る）— lead — 同期点1
