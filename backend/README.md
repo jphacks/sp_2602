@@ -33,9 +33,11 @@ Docker is not required. For contributors who prefer an isolated local instance, 
 
 `readChildConfigSnapshot` reads the config version, test periods, plan settings, excluded apps, and the latest calculation's daily limits in one read-only repeatable-read transaction. It returns the calculation's source config version and an explicit match flag; a missing version/calculation is represented as missing data, not a zero-minute limit. Writers must increment `child_config_versions` in the same transaction as each relevant configuration change for that marker to remain meaningful. Authentication and parent-child authorization remain service/API responsibilities.
 
+`replaceExcludedAppsForParent` checks the parent-child link in the transaction, replaces the active C9 app set, and increments the shared config version atomically only when the set changes. `savePlanSettingsForParent` applies the same linked-parent check and atomically saves D8 settings with a config-version increment; unchanged settings do not advance the version. Plan saving does not trigger C10 calculation. Both functions require the parent ID to come from an authenticated caller context. Future D3 write paths must also update the shared version in their transaction.
+
 For C10, insert a `plan_calculation_versions` row and write its `daily_limits` in one transaction. The calculation-version foreign key prevents a daily limit from referencing a missing version. A failed transaction leaves the previously committed values in place; deciding which dates are final and which dates may be recalculated remains out of scope.
 
-Endpoint authorization, config revision increments, and cross-table write orchestration are application responsibilities; this foundation does not claim to enforce those policies through triggers.
+HTTP authentication and obtaining a trusted parent identity remain service/API responsibilities. The C9 repository enforces an existing parent-child link and updates the shared config revision; other configuration write paths must do the same. These policies are handled in application transactions rather than database triggers.
 
 ## Migrations and tests
 
