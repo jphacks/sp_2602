@@ -1,5 +1,7 @@
 // 通信クライアント（src/lib/api.ts）のテスト。サーバは起動せず、fetch を差し替えて「どこへ・どう送るか」「どう読むか」を確かめる。
+import type { StreamDef } from "@contracts/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 type Init = RequestInit & { signal?: AbortSignal };
 const calls: { url: string; init: Init }[] = [];
@@ -20,7 +22,18 @@ async function load(url?: string) {
   return import("@/lib/api");
 }
 
-const rules = { childId: "c1", limits: [], updatedAt: "2026-10-17T00:00:00.000Z" };
+// planGet の正しい返事の例
+const planView = { childId: "c1", plan: null, usualLimitMinutes: null, configVersion: 0, childAppliedVersion: null };
+// ストリームの仕組みを試すための、契約の表にない StreamDef（今はストリームの API がない）
+const streamDef: StreamDef = {
+  kind: "stream",
+  method: "POST",
+  path: "/api/test/stream",
+  auth: "signedIn",
+  req: z.object({ childId: z.string() }),
+  chunk: z.object({ text: z.string() }),
+  res: z.object({ done: z.boolean() }),
+};
 const enc = new TextEncoder();
 const streamOf = (parts: Uint8Array[]) =>
   new Response(
@@ -41,32 +54,32 @@ afterEach(() => {
 describe("通信先", () => {
   it("EXPO_PUBLIC_API_URL があればそこへ送る（末尾の / は無視）", async () => {
     const { call } = await load("http://192.168.0.5:3000/");
-    mockFetch(() => Response.json(rules));
-    await call("rulesGet", { childId: "c1" });
-    expect(calls[0]?.url).toBe("http://192.168.0.5:3000/api/rules/get");
+    mockFetch(() => Response.json(planView));
+    await call("planGet", { childId: "c1" });
+    expect(calls[0]?.url).toBe("http://192.168.0.5:3000/api/plan/get");
   });
 
   it("未設定なら Android エミュレータから見た PC（10.0.2.2）", async () => {
     const { call } = await load();
-    mockFetch(() => Response.json(rules));
-    await call("rulesGet", { childId: "c1" });
-    expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/rules/get");
+    mockFetch(() => Response.json(planView));
+    await call("planGet", { childId: "c1" });
+    expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/plan/get");
   });
 
   it("空（.env.example のまま）でも Android エミュレータから見た PC", async () => {
     const { call } = await load("");
-    mockFetch(() => Response.json(rules));
-    await call("rulesGet", { childId: "c1" });
-    expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/rules/get");
+    mockFetch(() => Response.json(planView));
+    await call("planGet", { childId: "c1" });
+    expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/plan/get");
   });
 });
 
 describe("call", () => {
   it("POST は JSON 本文と Content-Type を付け、返事を契約で検証して返す", async () => {
     const { call } = await load("http://h");
-    mockFetch(() => Response.json(rules));
-    const r = await call("rulesGet", { childId: "c1" });
-    expect(r).toEqual(rules);
+    mockFetch(() => Response.json(planView));
+    const r = await call("planGet", { childId: "c1" });
+    expect(r).toEqual(planView);
     expect(calls[0]?.init.method).toBe("POST");
     expect(calls[0]?.init.body).toBe(JSON.stringify({ childId: "c1" }));
     expect(calls[0]?.init.headers).toEqual({ "Content-Type": "application/json" });
@@ -84,13 +97,13 @@ describe("call", () => {
   it("契約と違う返事は例外にする", async () => {
     const { call } = await load("http://h");
     mockFetch(() => Response.json({ childId: 1 }));
-    await expect(call("rulesGet", { childId: "c1" })).rejects.toBeDefined();
+    await expect(call("planGet", { childId: "c1" })).rejects.toBeDefined();
   });
 
   it("HTTP エラーは ApiError の形を ApiCallError にして投げる", async () => {
     const { call, ApiCallError } = await load("http://h");
     mockFetch(() => Response.json({ code: "not_found", message: "m", hint: "h" }, { status: 404 }));
-    const e = await call("rulesGet", { childId: "c1" }).catch((x) => x);
+    const e = await call("planGet", { childId: "c1" }).catch((x) => x);
     expect(e).toBeInstanceOf(ApiCallError);
     expect(e.status).toBe(404);
     expect(e.error).toEqual({ code: "not_found", message: "m", hint: "h" });
@@ -99,44 +112,70 @@ describe("call", () => {
   it("形が読めない HTTP エラーは internal", async () => {
     const { call, errorOf } = await load("http://h");
     mockFetch(() => new Response("<html>", { status: 502 }));
-    const e = await call("rulesGet", { childId: "c1" }).catch((x) => x);
+    const e = await call("planGet", { childId: "c1" }).catch((x) => x);
     expect(errorOf(e)?.code).toBe("internal");
   });
 
   it("つながらないときは network", async () => {
     const { call, errorOf } = await load("http://h");
     vi.stubGlobal("fetch", () => Promise.reject(new TypeError("Network request failed")));
-    const e = await call("rulesGet", { childId: "c1" }).catch((x) => x);
+    const e = await call("planGet", { childId: "c1" }).catch((x) => x);
     expect(errorOf(e)?.code).toBe("network");
   });
 });
 
 describe("stream", () => {
-  const ok = { type: "done", data: rules };
+  const ok = { type: "done", data: { done: true } };
 
   it("日本語が塊の途中で切れても欠けずに読み、chunk を順に渡して done の結果を返す", async () => {
-    const { stream } = await load("http://h");
+    const { streamRoute } = await load("http://h");
     const all = lines({ type: "chunk", data: { text: "こんにちは" } }, { type: "chunk", data: { text: "世界" } }, ok);
     const cut = 7; // 「こ」の途中（UTF-8 は1文字3バイト）で切る
     mockFetch(() => streamOf([all.slice(0, cut), all.slice(cut)]));
     const got: string[] = [];
-    const r = await stream("rulesSyncStream", { childId: "c1" }, (c) => got.push(c.text));
+    const r = await streamRoute(streamDef, { childId: "c1" }, (c) => got.push((c as { text: string }).text));
     expect(got.join("")).toBe("こんにちは世界");
-    expect(r).toEqual(rules);
-    expect(calls[0]?.url).toBe("http://h/api/rules/sync-stream");
+    expect(r).toEqual({ done: true });
+    expect(calls[0]?.url).toBe("http://h/api/test/stream");
   });
 
   it("error の行は ApiCallError にする", async () => {
-    const { stream } = await load("http://h");
+    const { streamRoute } = await load("http://h");
     mockFetch(() => streamOf([lines({ type: "error", error: { code: "upstream_failed", message: "m", hint: "h" } })]));
-    const e = await stream("rulesSyncStream", { childId: "c1" }, () => undefined).catch((x) => x);
-    expect(e.error.code).toBe("upstream_failed");
+    const { errorOf } = await import("@/lib/api");
+    const e = await streamRoute(streamDef, { childId: "c1" }, () => undefined).catch((x) => x);
+    expect(errorOf(e)?.code).toBe("upstream_failed");
   });
 
   it("done が来ないまま切れたら network", async () => {
-    const { stream, errorOf } = await load("http://h");
+    const { streamRoute, errorOf } = await load("http://h");
     mockFetch(() => streamOf([lines({ type: "chunk", data: { text: "a" } })]));
-    const e = await stream("rulesSyncStream", { childId: "c1" }, () => undefined).catch((x) => x);
+    const e = await streamRoute(streamDef, { childId: "c1" }, () => undefined).catch((x) => x);
     expect(errorOf(e)?.code).toBe("network");
+  });
+});
+
+describe("合言葉", () => {
+  it("setSessionToken で覚えた合言葉を Authorization に付ける。null で外す", async () => {
+    const { call, setSessionToken } = await load("http://h");
+    mockFetch(() => Response.json(planView));
+    setSessionToken("tok");
+    await call("planGet", { childId: "c1" });
+    expect(((calls[0]?.init.headers ?? {}) as Record<string, string>).Authorization).toBe("Bearer tok");
+    setSessionToken(null);
+    await call("planGet", { childId: "c1" });
+    expect(((calls[1]?.init.headers ?? {}) as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it("合言葉を付けて 401 が返ったら、登録した関数を呼ぶ（session.tsx がログアウト扱いにする）", async () => {
+    const { call, setSessionToken, setUnauthorizedHandler } = await load("http://h");
+    const seen: string[] = [];
+    setUnauthorizedHandler(() => seen.push("401"));
+    mockFetch(() => Response.json({ code: "unauthorized", message: "m", hint: "h" }, { status: 401 }));
+    setSessionToken("old");
+    await call("planGet", { childId: "c1" }).catch(() => undefined);
+    expect(seen).toEqual(["401"]);
+    setSessionToken(null);
+    setUnauthorizedHandler(null);
   });
 });

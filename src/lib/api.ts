@@ -1,12 +1,15 @@
-// 型付きクライアント（lead の担当）。画面はここ経由でだけサーバと通信する（パスを手書きしない）。
-//   const r = await call("rulesGet", { childId });
-//   const r = await stream("rulesSyncStream", { childId }, (chunk) => setText((t) => t + chunk.text));
+// 型付きクライアント。画面はここ経由でだけサーバと通信する（パスを手書きしない。画面で fetch を書かない）。
+//   const r = await call("planGet", { childId });
+//   const r = await stream(<ストリームの API 名>, 入力, (chunk) => …);（今はストリームの API がない）
 // 失敗は必ず ApiCallError で投げられる。画面は catch で setError(errorOf(e)) とし、message と hint を出せばよい。
 // つなぎ先は環境変数 EXPO_PUBLIC_API_URL（.env に書く）。未設定なら Android エミュレータから見た手元の PC（http://10.0.2.2:3000）。
 //   実機で試すときは、PC の LAN の IP（例 http://192.168.0.5:3000）を .env に書く（同じ Wi-Fi につなぐ）。
 // 中断: 時間制限は { signal: timeoutSignal(ミリ秒) } → 「時間切れ」。
 //       自分で止めた（画面を離れた等）は AbortController.abort() → errorOf が null を返すので何も出ない。
 // fetch は expo/fetch（少しずつ届く応答を読める。標準の fetch は React Native では読めない）を使う。
+// 合言葉: ログイン（call("authGoogle", …)）で受け取った Session の token を setSessionToken() で覚えると、
+//   以降の call() / stream() が Authorization: Bearer <token> を付ける。端末への保存とログイン状態は src/lib/session.tsx が持つ。
+//   サーバが 401（合言葉が無効）を返したら setUnauthorizedHandler() で渡した関数を呼ぶ（session.tsx がログアウト扱いにする）。
 import {
   api,
   type Chunk,
@@ -36,6 +39,19 @@ export function timeoutSignal(ms: number): AbortSignal {
   return controller.signal;
 }
 
+let sessionToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+// ログインしたら合言葉を覚える（ログアウト・合言葉が無効になったら null）
+export function setSessionToken(token: string | null): void {
+  sessionToken = token;
+}
+
+// 合言葉を付けて送ったのに 401 が返ったときに呼ぶ関数（session.tsx が登録する。null で外す）
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+  onUnauthorized = fn;
+}
+
 const isAbort = (e: unknown) => (e as { name?: string } | null)?.name === "AbortError";
 
 export class ApiCallError extends Error {
@@ -55,12 +71,15 @@ export function errorOf(e: unknown): ApiError | null {
 }
 
 async function send(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       signal,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers: Object.keys(headers).length ? headers : undefined,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (e) {
@@ -70,6 +89,7 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
     throw new ApiCallError({ code: "network", ...errorText.network }, 0);
   }
   if (!res.ok) {
+    if (res.status === 401 && headers.Authorization) onUnauthorized?.();
     const parsed = ApiError.safeParse(await res.json().catch(() => null));
     throw new ApiCallError(parsed.success ? parsed.data : { code: "internal", ...errorText.internal }, res.status);
   }
@@ -92,7 +112,18 @@ export async function stream<K extends StreamRoute>(
   onChunk: (chunk: Chunk<K>) => void,
   opts: { signal?: AbortSignal } = {},
 ): Promise<Res<K>> {
-  const r = api[name] as unknown as StreamDef;
+  return streamRoute(api[name] as unknown as StreamDef, body, onChunk as (chunk: unknown) => void, opts) as Promise<
+    Res<K>
+  >;
+}
+
+// stream() の中身。契約の表にない StreamDef でも使える（テストで仕組みを確かめるため）
+export async function streamRoute(
+  r: StreamDef,
+  body: unknown,
+  onChunk: (chunk: unknown) => void,
+  opts: { signal?: AbortSignal } = {},
+): Promise<unknown> {
   const res = await send(r.path, r.method, body, opts.signal);
   if (!res.body) throw new ApiCallError({ code: "internal", ...errorText.internal }, res.status);
 
@@ -108,8 +139,8 @@ export async function stream<K extends StreamRoute>(
     for (const raw of lines) {
       if (!raw.trim()) continue;
       const msg = line.parse(JSON.parse(raw));
-      if (msg.type === "chunk") onChunk(msg.data as Chunk<K>);
-      else if (msg.type === "done") return msg.data as Res<K>;
+      if (msg.type === "chunk") onChunk(msg.data);
+      else if (msg.type === "done") return msg.data;
       else throw new ApiCallError(msg.error, res.status);
     }
     if (done) break;

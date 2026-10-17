@@ -1,16 +1,17 @@
-// 画面間の受け渡し（lead の担当）。contracts/screens.md の「前の画面から受け取る / 次の画面へ渡す」をここで実装する。
-// 画面同士は直接 import し合わず、必ずここを経由する。
-// アプリのメモリにだけ持つ（アプリを閉じると消える）。端末に残したいもの（制限ルールなど）は、画面ではなく Kotlin 側・端末の保存領域で持つ。
-// 受け渡すものを足すときは、Saved と setter を1つずつ足す。
+// 画面の間の受け渡し（メモリだけ。アプリを閉じると消える）。画面同士は直接 import し合わず、ここを経由する。
+// 持ち物:
+//   child     : 保護者が今見ている子ども（親の画面。parent-data.tsx が家族の1人目を入れる。QR の紐づけ直後はその子ども）
+//   editTest  : 日程の一覧から編集画面へ渡すテスト期間（子05・親05。編集画面は id でも取り直せるが、すぐ出すために渡す）
+// 受け渡すものを足すときは、Saved と setter を1つずつ足す。端末に残したいもの（合言葉・設定のキャッシュ）は storage.ts へ。
+import type { Child, TestPeriod } from "@contracts/schemas";
+import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
 
-import type { Rules } from "@contracts/schemas";
-import { createContext, type ReactNode, useContext, useState } from "react";
-
-type Saved = { rules: Rules | null };
-const empty: Saved = { rules: null };
+type Saved = { child: Child | null; editTest: TestPeriod | null };
+const empty: Saved = { child: null, editTest: null };
 
 type Flow = Saved & {
-  setRules: (r: Rules | null) => void;
+  setChild: (c: Child | null) => void;
+  setEditTest: (t: TestPeriod | null) => void;
   reset: () => void;
 };
 
@@ -18,12 +19,15 @@ const FlowContext = createContext<Flow | null>(null);
 
 export function FlowProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<Saved>(empty);
-
-  const value: Flow = {
-    ...state,
-    setRules: (rules) => setState((s) => ({ ...s, rules })),
-    reset: () => setState(empty),
-  };
+  const value = useMemo<Flow>(
+    () => ({
+      ...state,
+      setChild: (child) => setState((s) => ({ ...s, child })),
+      setEditTest: (editTest) => setState((s) => ({ ...s, editTest })),
+      reset: () => setState(empty),
+    }),
+    [state],
+  );
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }
 

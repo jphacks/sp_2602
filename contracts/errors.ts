@@ -3,6 +3,8 @@ import { z } from "zod";
 
 export const ErrorCode = z.enum([
   "bad_request", // 入力が契約と合わない
+  "unauthorized", // 合言葉がない・無効（ログインしていない）
+  "forbidden", // ログインしているが、その操作をしてよい役割ではない（子どもが保護者の操作をした等）
   "not_found", // 対象がない
   "conflict", // 状態が合わない（二重登録など）
   "upstream_failed", // 外部サービス（AI・DB など）が失敗した
@@ -23,6 +25,8 @@ export type ApiError = z.infer<typeof ApiError>;
 
 export const errorStatus: Record<ErrorCode, number> = {
   bad_request: 400,
+  unauthorized: 401,
+  forbidden: 403,
   not_found: 404,
   conflict: 409,
   upstream_failed: 502,
@@ -35,6 +39,8 @@ export const errorStatus: Record<ErrorCode, number> = {
 // 既定の文。サーバは状況に合った文で上書きしてよい。
 export const errorText: Record<ErrorCode, { message: string; hint: string }> = {
   bad_request: { message: "入力の内容を受け付けられませんでした", hint: "入力を見直して、もう一度送ってください" },
+  unauthorized: { message: "ログインが確認できませんでした", hint: "もう一度 Google でログインしてください" },
+  forbidden: { message: "この操作はできません", hint: "保護者の端末から操作してください" },
   not_found: { message: "見つかりませんでした", hint: "最初の画面からやり直してください" },
   conflict: { message: "すでに処理されています", hint: "画面を更新してください" },
   upstream_failed: { message: "外部のサービスが応答しませんでした", hint: "少し待ってから、もう一度押してください" },

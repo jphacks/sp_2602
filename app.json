@@ -1,15 +1,27 @@
 {
   "expo": {
-    "name": "hackathon-kit",
-    "slug": "hackathon-kit",
+    "name": "Slope",
+    "slug": "slope",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "hackathonkit",
+    "scheme": "slope",
     "platforms": ["android"],
     "android": {
-      "package": "dev.hackathon.kit",
+      "package": "com.quedotcom.androidslope",
       "predictiveBackGestureEnabled": false
     },
-    "plugins": ["expo-router", "expo-status-bar"]
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "子どものスマホに出ている QR コードを読み取るためにカメラを使います",
+          "recordAudioAndroid": false
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      ["@react-native-google-signin/google-signin", { "iosUrlScheme": "com.googleusercontent.apps.ios-not-used-yet" }]
+    ]
   }
 }
