@@ -242,9 +242,14 @@ export const TestPeriod = z.object({
 export type TestPeriod = z.infer<typeof TestPeriod>;
 
 // テスト期間の一覧（取得結果）
+// periodsChangedVersion: テスト期間の一覧（名前・期間）が最後に変わった設定の版。一度も変わっていなければ 0。
+//   親05 の「反映済み／反映待ち」は、childAppliedVersion がこれ以上かで決める（ExcludedAppsView の appsChangedVersion と同じ考え方）。
+//   なぜ: configVersion（設定全体の版）で決めると、計画・通常上限・対象外アプリ・空白期間を保存しただけでも、
+//   テストの日程は何も変わっていないのにテストの一覧が「反映待ち」になったため（10/17 デバッグ第2回）
 export const TestPeriodList = z.object({
   childId: z.string().min(1),
   testPeriods: z.array(TestPeriod), // 開始日の早い順
+  periodsChangedVersion: ConfigVersion,
   configVersion: ConfigVersion,
   childAppliedVersion: ChildAppliedVersion,
 });
@@ -287,9 +292,12 @@ export const BlankPeriod = z.object({
 });
 export type BlankPeriod = z.infer<typeof BlankPeriod>;
 
+// blankChangedVersion: 空白期間の一覧（名前・期間）が最後に変わった設定の版。一度も変わっていなければ 0
+//   （TestPeriodList の periodsChangedVersion と同じ考え方。空白期間の一覧の「反映済み／反映待ち」に使う）
 export const BlankPeriodList = z.object({
   childId: z.string().min(1),
   blankPeriods: z.array(BlankPeriod), // 開始日の早い順
+  blankChangedVersion: ConfigVersion,
   configVersion: ConfigVersion,
   childAppliedVersion: ChildAppliedVersion,
 });

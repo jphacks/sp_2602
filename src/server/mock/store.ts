@@ -84,7 +84,9 @@ type ChildConfig = {
   usualLimitMinutes: number | null;
   plan: PlanSettings | null;
   testPeriods: TestPeriod[];
+  testPeriodsChangedVersion: number; // テスト期間の一覧が最後に変わった版（一度も変わっていなければ 0。親05 の反映済み／反映待ち）
   blankPeriods: BlankPeriod[];
+  blankPeriodsChangedVersion: number; // 空白期間の一覧が最後に変わった版（一度も変わっていなければ 0）
   dailyLimits: DailyLimit[];
   excludedApps: ExcludedApp[];
   removedExcludedApps: RemovedExcludedApp[]; // 対象外から外したアプリと、外した版（親16 の反映済み／反映待ち）
@@ -117,6 +119,12 @@ const measuredMs = (iso: string) => {
   const ms = Date.parse(iso);
   return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms;
 };
+
+// 期間の一覧の中身（名前・期間）を比べるための形。作った人は更新で変わらないので見ない
+const periodsKey = (periods: readonly { id: string; name: string; startDate: string; endDate: string }[]) =>
+  JSON.stringify(
+    periods.map((p) => [p.id, p.name, p.startDate, p.endDate]).sort((a, b) => ((a[0] ?? "") < (b[0] ?? "") ? -1 : 1)),
+  );
 
 // 対象外アプリの一覧の中身（アプリの組と名前）を比べるための形
 const appsKey = (apps: readonly ExcludedAppInput[]) =>
@@ -403,7 +411,9 @@ export class MemoryStore {
         usualLimitMinutes: null,
         plan: null,
         testPeriods: [],
+        testPeriodsChangedVersion: 0,
         blankPeriods: [],
+        blankPeriodsChangedVersion: 0,
         dailyLimits: [],
         excludedApps: [],
         removedExcludedApps: [],
@@ -431,6 +441,12 @@ export class MemoryStore {
     draft.blankPeriods.sort(byStart);
     if (opts.recalc) this.recalculate(draft);
     draft.configVersion = current.configVersion + 1;
+    // 期間の一覧が変わったときだけ「最後に変わった版」を進める（計画・通常上限・対象外アプリ・もう一方の期間の保存、
+    // 同じ中身での更新では進めない）。親05・空白期間の一覧の「反映済み／反映待ち」は、設定全体の版ではなくこれで決める
+    if (periodsKey(draft.testPeriods) !== periodsKey(current.testPeriods))
+      draft.testPeriodsChangedVersion = draft.configVersion;
+    if (periodsKey(draft.blankPeriods) !== periodsKey(current.blankPeriods))
+      draft.blankPeriodsChangedVersion = draft.configVersion;
     this.configs.set(childId, draft);
     return draft;
   }
@@ -538,6 +554,7 @@ export class MemoryStore {
     return {
       childId,
       testPeriods: c.testPeriods,
+      periodsChangedVersion: c.testPeriodsChangedVersion,
       configVersion: c.configVersion,
       childAppliedVersion: c.childAppliedVersion,
     };
@@ -611,6 +628,7 @@ export class MemoryStore {
     return {
       childId,
       blankPeriods: c.blankPeriods,
+      blankChangedVersion: c.blankPeriodsChangedVersion,
       configVersion: c.configVersion,
       childAppliedVersion: c.childAppliedVersion,
     };
@@ -851,7 +869,7 @@ export class MemoryStore {
     this.sessions = new Map(list(c.sessions).map((s) => [s.token, s]));
     this.pairs = new Map(list(c.pairs).map((p) => [p.pairId, p]));
     this.links = new Set(list(c.links));
-    this.configs = new Map(list(c.configs));
+    this.configs = new Map(list(c.configs).map(([childId, config]) => [childId, fillMissingConfig(config)]));
     this.batches = new Map(list(c.batches));
     this.usage = new Map(list(c.usage).map(([childId, byDate]) => [childId, new Map(list(byDate))]));
     this.lastUploadedAt = new Map(list(c.lastUploadedAt));
@@ -897,6 +915,26 @@ export class MemoryStore {
       this.usageUpload(childId, randomId(), [demoUsageDay(date, `${date}T12:00:00.000Z`)]);
     }
   }
+}
+
+// 前の版のサーバが書き出したファイル（state/mock-store.json）には、あとから足した項目がない。読み込むときに補う。
+// なぜ: 書き出しの形の版（STORE_DUMP_FORMAT）を上げると前のファイルを読まずに空から始めるので、ログイン・QR の紐づけを
+//   人の手でやり直すことになる。項目を足しただけなら、版は上げずにここで補う。
+// 「最後に変わった版」が分からないときは今の版（configVersion）とみなす。子どもの端末がその版を取りに来るまで「反映待ち」と出るが、
+// 0（一度も変わっていない＝反映済み）とみなすと、届いていない変更を「反映済み」と出してしまうため（取りに来れば 30 秒ほどで反映済みになる）
+function fillMissingConfig(raw: ChildConfig): ChildConfig {
+  const c = raw as Partial<ChildConfig> & { configVersion: number };
+  const version = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : c.configVersion);
+  return {
+    ...raw,
+    testPeriods: Array.isArray(c.testPeriods) ? c.testPeriods : [],
+    testPeriodsChangedVersion: version(c.testPeriodsChangedVersion),
+    blankPeriods: Array.isArray(c.blankPeriods) ? c.blankPeriods : [],
+    blankPeriodsChangedVersion: version(c.blankPeriodsChangedVersion),
+    excludedApps: Array.isArray(c.excludedApps) ? c.excludedApps : [],
+    removedExcludedApps: Array.isArray(c.removedExcludedApps) ? c.removedExcludedApps : [],
+    excludedAppsChangedVersion: version(c.excludedAppsChangedVersion),
+  };
 }
 
 // プロセスに1つだけ持つ（開発中の再読み込みでも消えないよう globalThis に置く）
