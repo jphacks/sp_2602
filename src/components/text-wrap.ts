@@ -89,18 +89,28 @@ function tailStart(chars: readonly string[]): number {
   return n - TAIL_FALLBACK;
 }
 
-// 文節 chars[from..to] の文字の間に印を入れる。長すぎる文節は、ひらがなの後に漢字・カタカナが来る所（新しい言葉の頭が多い。
-// 「明日から／少しずつ／下がっていきます」）でさらに分け、短い所だけまとめる（それでも長い所はまとめない）
-function glueUnit(chars: readonly string[], glue: boolean[], from: number, to: number): void {
+// 長すぎる文節を、さらに分けてよい所（上から順に試す。chars[k] と chars[k + 1] の間）
+const SUB_SPLITS: ((chars: readonly string[], k: number) => boolean)[] = [
+  // ひらがなの後に漢字・カタカナが来る所（新しい言葉の頭が多い。「明日から／少しずつ／下がっていきます」）
+  (chars, k) => isHiragana(chars[k]) && isWordHead(chars[k + 1]),
+  // かっこの開きの前と、名詞の後の「が」の後（「上限が／なくなります／（制限なし）」）
+  (chars, k) =>
+    chars[k + 1] === "（" || (chars[k] === "が" && isWordHead(chars[k - 1]) && !NO_LINE_START.has(chars[k + 1] ?? "")),
+];
+
+// 文節 chars[from..to] の文字の間に印を入れる。長すぎる文節は SUB_SPLITS の順にさらに分け、短くなった所だけまとめる
+// （分けても長い所はまとめない。まとめると行の右が大きく空く）
+function glueUnit(chars: readonly string[], glue: boolean[], from: number, to: number, level = 0): void {
   if (to + 1 - from <= LONG_UNIT) {
     for (let k = from; k < to; k++) glue[k] = true;
     return;
   }
+  const split = SUB_SPLITS[level];
+  if (!split) return;
   let start = from;
   for (let k = from; k <= to; k++) {
-    const head = k < to && isHiragana(chars[k]) && isWordHead(chars[k + 1]);
-    if (k < to && !head) continue;
-    if (k + 1 - start <= LONG_UNIT) for (let j = start; j < k; j++) glue[j] = true;
+    if (k < to && !split(chars, k)) continue;
+    glueUnit(chars, glue, start, k, level + 1);
     start = k + 1;
   }
 }
