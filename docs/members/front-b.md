@@ -9,7 +9,7 @@
 
 ## front-a（UI）との分け方
 画面は「front-a が見た目の部品（`src/components/`）を作り、front-b が画面の本体でそれを並べ、状態・イベント・通信をつなぐ」。同じファイルを2人で触らない。
-- Kotlin の機能（使用時間の取得・制限の状態など）は、画面から `src/lib/native.ts` の窓口だけを通して呼ぶ。Android の機能を直接触らない（Kotlin は back-a）
+- Kotlin の機能（使用時間の取得・制限の状態など）は、画面から `src/lib/native.ts` の窓口だけを通して呼ぶ。Android の機能を直接触らない（Kotlin は lead）
 - 画面の本体の仕事: 今どの状態か（読み込み中・成功・失敗・データなし）を持つ、`call()` / `stream()` でサーバとやり取りする、`useFlow()` で次の画面にデータを渡す、`contracts/screens.md` どおりに画面を移る
 - 見た目は部品に任せる。画面の本体には並べ方（余白・順番）だけを書く。足りない部品・状態は front-a に Issue
 - まだ部品がない時は、`src/components/ui/` の共通部品で仮に組んでよい（後で front-a の部品に差し替える）
@@ -32,7 +32,7 @@
 
 ## 触らないファイル（よく間違えるもの）
 - contracts/ 全部（画面遷移の `screens.md` も。変えたい時は change-request Issue）
-- 部品 `src/components/`（front-a）、`modules/kit-native/`（Kotlin は back-a）、`docs/design/`（front-a）、`docs/DEMO.md`・`docs/pitch/`（lead）
+- 部品 `src/components/`（front-a）、`modules/kit-native/`（Kotlin は lead）、`docs/design/`（front-a）、`docs/DEMO.md`・`docs/pitch/`（lead）
 
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。

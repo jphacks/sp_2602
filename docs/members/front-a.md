@@ -34,7 +34,7 @@
 
 ## 触らないファイル（よく間違えるもの）
 - contracts/ 全部（色・角丸・書体の `tokens.ts` も。変えたい時は change-request Issue）
-- 画面の本体 `src/app/<画面id>/`（front-b）、`docs/flow/`（front-b）、`modules/kit-native/`（Kotlin は back-a）、`docs/DEMO.md`・`docs/pitch/`（lead）
+- 画面の本体 `src/app/<画面id>/`（front-b）、`docs/flow/`（front-b）、`modules/kit-native/`（Kotlin は lead）、`docs/DEMO.md`・`docs/pitch/`（lead）
 
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。

@@ -39,7 +39,7 @@ src/server/<機能>/       サーバ処理（その機能の back）。route.ts�
 src/server/db/           DB。schema.ts = テーブル定義（共有の場所。サーバ担当の back-a が足す）/ index.ts = 接続 db()（back-a）
 src/lib/                 api クライアント・画面間の受け渡し（lead）
 src/components/ui/       共通部品（front-a）。欲しい部品は Issue で依頼
-modules/kit-native/      Kotlin（監視・制限エンジンなど Android 固有の処理）。React Native の画面が動いていなくても動く独立した部品にする（lead が窓口の型を決め、中身は担当が足す）。/android/ は npx expo prebuild が作る生成物で Git に入らないので、ここに書かない
+modules/kit-native/      Kotlin（監視・制限エンジンなど Android 固有の処理）。React Native の画面が動いていなくても動く独立した部品にする（窓口の型も中身も lead）。/android/ は npx expo prebuild が作る生成物で Git に入らないので、ここに書かない
 ```
 
 ## 書き方の約束

@@ -1,7 +1,7 @@
 # チームの組み方（4人＋デバッガー）
 
 ```
-        lead（つなぎ役：通信・API・セキュリティ／契約・main ＋ DFD・ER図 ＋ 発表 ＋ まとめ役）
+        lead（つなぎ役：通信・API・セキュリティ／契約・main ＋ Kotlin ＋ DFD・ER図 ＋ 発表 ＋ まとめ役）
        ／                    │                         ＼
   back-a（サーバ全部：     front-a（UI＝見た目：        front-b（UX＝流れ：
   機能A・B の処理・DB・     Figma Design・部品）          FigJam のフローチャート・
@@ -15,7 +15,7 @@
   - front-a: Figma Design（線画・画面遷移の試作・作り込み・トークン案）と、`src/components/`（共通部品 `ui/` と画面ごとの見た目の部品 `<画面id>/`）。部品は表示だけ（`call()` / `stream()` / `useFlow()` を使わない）。
   - front-b: FigJam のフローチャート（状態遷移図）と状態・イベントの表（`docs/flow/`。**チームの流れの元**）と、画面の本体 `src/app/<画面id>/`（状態・イベント・通信・useFlow・部品を並べる）、e2e（`tests/e2e/`）。
   - 部品が受け取るデータの形（props）は、状態・イベントの表の行に合わせる。変える時は Issue で相手に知らせてから。
-- 機能をまたぐもの（契約・API の入口の仕組み・通信・エラー・認証）は lead が持つ。画面とサーバの受け渡しは必ず契約を通す。
+- 機能をまたぐもの（契約・API の入口の仕組み・通信・エラー・認証）と、Android 固有の処理（Kotlin。`modules/kit-native/`）は lead が持つ。画面とサーバの受け渡しは必ず契約を通す。
 - **発表は lead**（DEMO.md・資料・紹介動画・バックアップ録画。`docs/DEMO.md`・`docs/pitch/`）。
 - **まとめ役も lead**（kit.config.json の `facilitator`）：同期点の進行・合流（手伝い）の判断・時刻表のずれの修正・change-request の採否。lead は役を兼ねるので、契約の問い合わせ → 同期点 → 発表 → 自分のステップの順に優先する。
 - **つなぎ役は lead**（members の1人目）：契約の窓口・change-request の宛先。
@@ -46,7 +46,7 @@
 
 | 人 | 主に作る場所 |
 |---|---|
-| lead | `contracts/`・`src/lib/`・`src/server/route.ts`・`src/server/errors.ts`・`src/server/app.ts`・`src/server/handlers/health.ts`・`server.ts`・`tests/server/api.test.ts`・設定・`scripts/`・`docs/rules/`・`docs/DEMO.md`・`docs/pitch/` など |
+| lead | `contracts/`・`src/lib/`・`src/server/route.ts`・`src/server/errors.ts`・`src/server/app.ts`・`src/server/handlers/health.ts`・`server.ts`・`modules/kit-native/`（Kotlin）・`tests/server/api.test.ts`・設定・`scripts/`・`docs/rules/`・`docs/DEMO.md`・`docs/pitch/` など |
 | back-a | `src/server/a/`・`src/server/b/`・`src/server/handlers/<API名>.ts`（機能A・B の API の1本ごとの処理）・`tests/server/a/`・`tests/server/b/`・`src/server/db/index.ts`・`src/server/` 直下の共通の処理。テーブル定義 `src/server/db/schema.ts` は共有の場所だが、サーバ担当は1人なので実際には back-a だけが足す |
 | front-a | `src/components/`・`docs/design/` |
 | front-b | 画面の本体（`src/app/<画面id>/`）・`docs/flow/`・`tests/e2e/` |

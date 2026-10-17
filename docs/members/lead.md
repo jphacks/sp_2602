@@ -1,9 +1,9 @@
-# lead — つなぎ役（通信・API の入口・セキュリティ・Kotlin の窓口の型／契約・main）＋発表＋まとめ役
+# lead — つなぎ役（通信・API の入口・セキュリティ／契約・main）＋Kotlin（Android 固有の処理）＋発表＋まとめ役
 
 ## 人間向け（最初に読む）
 - ミッション: 画面とサーバが契約（contracts/）どおりにつながって安全に動く状態を保ち、チーム全体を時間内に DEMO.md まで届けて、それを発表で伝える
-- 担当の場所: 契約（`contracts/`。Kotlin の窓口の型も）・API の共通部分（`server.ts`・`src/server/app.ts` / `route.ts` / `errors.ts`・`src/server/handlers/health.ts`）・アプリの共通部分（`src/lib/`（`api.ts`・`flow.tsx`・`native.ts`）・`src/app/_layout.tsx`）・`app.json`・設定と scripts・`docs/DEMO.md`・`docs/pitch/`。依存パッケージの追加（package.json）も lead
-- 動作確認: `.env` を MOCK=1 にして `npm run dev:server`（API）を動かし、`npm run api -- <契約名>` で叩く。アプリは `npm run android`（Android 16 の実機に入れて起動）、見た目は `npm run shot`
+- 担当の場所: 契約（`contracts/`。Kotlin の窓口の型も）・API の共通部分（`server.ts`・`src/server/app.ts` / `route.ts` / `errors.ts`・`src/server/handlers/health.ts`）・アプリの共通部分（`src/lib/`（`api.ts`・`flow.tsx`・`native.ts`）・`src/app/_layout.tsx`）・`app.json`・設定と scripts・`docs/DEMO.md`・`docs/pitch/`。依存パッケージの追加（package.json）も lead。Kotlin = `modules/kit-native/`（端末の使用時間の取得・使用中アプリの検出・制限画面の表示など。画面が動いていなくても動く独立した部品。窓口の型 `contracts/native.ts` も中身も自分。TypeScript 側の呼び口は `src/lib/native.ts`）
+- 動作確認: `.env` を MOCK=1 にして `npm run dev:server`（API）を動かし、`npm run api -- <契約名>` で叩く。アプリと Kotlin は `npm run android`（Android 16 の実機に入れて起動）、見た目・制限画面は `npm run shot`（adb で画面を撮る）
 - 詰まったら: 自分の作業は 30分で解決しなければ全員に声をかける（まとめ役が止まると進行が止まる）。契約の問い合わせは最優先で返す（契約が止まると全員が止まる）
 - チームの組み方とキックオフでの書き換え: docs/rules/team.md（4人＋デバッガー）
 
@@ -33,7 +33,7 @@
 - 進みが時計とずれたら `npm run kit:schedule` で目安を直す（運営の締め切りは動かない）。直したら decisions.md に1行
 - 最初に: `npm run kit:deadlines -- issues` で締め切りのやることを Issue にする
 - 手が空いた人に次の仕事を渡す（`npm run now` で「すべて完了」と出た人が来る）
-- 3つの役を兼ねるので、優先は「契約の問い合わせ → 同期点の進行 → 発表 → 自分のステップ」の順
+- 役を兼ねるので、優先は「契約の問い合わせ → 同期点の進行 → 発表 → 自分のステップ」の順。Kotlin が重い時は debug に手伝いを頼む（docs/rules/help.md）
 
 ## 発表
 - DEMO.md（課題1文・数字・90秒の台本）は lead が持つ。front-a（UI）・front-b（UX）と合意して、契約凍結と同時に凍結する
@@ -43,10 +43,12 @@
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。
 
 - S1 `npm run kit:reset` でひな型の例を消し、機能A・B の分け方と画面 id を docs/rules/team.md の手順で決める。DEMO.md の下書き（課題1文・数字・台本） — 完了確認: `npm run check`
-- S2 contracts を確定して凍結（API の path は `/api/<機能>/<名前>`。画面と受け渡すデータは front-b の `docs/flow/README.md` の状態・イベントの表から: 分かれ道の条件に使う値は schemas.ts の項目に、状態ごとの MOCK の固定データは fixtures.ts に。トークンの値は front-a の案から tokens.ts に。Kotlin の窓口の型も back-a と決めてここで足す）→ `npm run kit:stub`。DEMO.md も凍結 — 完了確認: `npm run check`
+- S2 contracts を確定して凍結（API の path は `/api/<機能>/<名前>`。画面と受け渡すデータは front-b の `docs/flow/README.md` の状態・イベントの表から: 分かれ道の条件に使う値は schemas.ts の項目に、状態ごとの MOCK の固定データは fixtures.ts に。トークンの値は front-a の案から tokens.ts に。Kotlin の窓口の型（`contracts/native.ts`）もここで足す）→ `npm run kit:stub`。DEMO.md も凍結 — 完了確認: `npm run check`
 - S3 同期点1 を進行し、採用した change-request を contracts/ に反映（docs/rules/sync.md） — 完了確認: `npm run check`
 - S4 セキュリティの確認（上の約束。キーがアプリ側に出ていない・ルールを変える API が保護者を検証している・AI の API の回数上限） — 完了確認: `npm run check`
-- S5 発表資料と台本を90秒に（`docs/pitch/`）。DEMO.md どおりの画面を実機でバックアップ録画 — 完了確認: `npm run check`
+- S5 Kotlin の監視・制限エンジンの最小版（`modules/kit-native/android/…/engine/`。使用中アプリの検出 → 端末内の制限ルールで判定 → 制限画面を出す。窓口の型は契約どおり、画面が動いていなくても動く）。実機で確かめる — 完了確認: `npm run check`
+- S6 Kotlin に最後に取った制限ルールと使用履歴を保存し（端末内。Room）、オフラインでも止まるようにする。定期同期で API から取ったルールを渡す — 完了確認: `npm run check`
+- S7 発表資料と台本を90秒に（`docs/pitch/`）。DEMO.md どおりの画面を実機でバックアップ録画 — 完了確認: `npm run check`
 
 ## 追記（同期点での変更）
 （まとめ役が同期点の決定をここに追記する。上のステップ本体は書き換えない）
