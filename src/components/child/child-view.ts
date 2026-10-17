@@ -39,6 +39,16 @@ export function nextTestView(config: ConfigState | null, test: NextTest): NextTe
   return { kind: "test", headline, detail: `あと${test.daysUntil}日`, ongoing: false };
 }
 
+// 子01 の「次のテスト」のカードを、少しだけ光らせて目立たせるか（Figma にない動き）。
+// テストまで NEXT_TEST_SOON_DAYS 日以内か、テスト期間中なら光らせる（期間中は日数を数えないが、一番大事な時期なので目立たせる）。
+// テストがない・設定が取れていない（test が null）ときは光らせない（分からないものを強調しない）
+export const NEXT_TEST_SOON_DAYS = 3;
+
+export function nextTestEmphasis(test: NextTest): boolean {
+  if (!test) return false;
+  return test.ongoing || test.daysUntil <= NEXT_TEST_SOON_DAYS;
+}
+
 // ── 子01・子02・子11「今日の使用量」 ───────────────────────────
 
 // 割合が出せないときに出す案内（action: permission = 使用状況へのアクセスの設定を開く / retry = 取り直す）

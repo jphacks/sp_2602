@@ -6,13 +6,16 @@
 // 表示の決め方は src/components/child/child-view.ts（usageView・paceView・weekBars）。
 // 進む先: 「←」「ホームに戻る」→ /child/home（子01）。権限なしなら使用状況へのアクセスの設定を開く。
 // 割合を出せない状態（上限未設定・制限なし・権限なし・取得不可）はゲージを出さず、その状態の文を出す（0% と出さない）。
+// 動きの順番（src/components/child/usage-timeline.ts）: ゲージが伸びる → 伸び終わるころにペースの札が「ぽん」と出る →
+//   週の棒が左から順に伸び、今日が一拍おいて最後。全体で 1.5 秒ほど。値が分からないものは動かさない。
+//   「ホームに戻る」は動きの途中でもすぐ押せる（動きは見た目だけで、押せる部品を止めない）。
 import { formatDateJa } from "@contracts/dates";
 import type { NativeUsageResult } from "@contracts/native";
 import { tokens } from "@contracts/tokens";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { AppText, Banner, BarChart, Button, Chip, Gauge, Screen } from "@/components";
+import { AppText, Banner, BarChart, Button, Chip, Gauge, PopIn, Screen } from "@/components";
 import {
   dayCalc,
   paceView,
@@ -23,9 +26,14 @@ import {
   weekDates,
 } from "@/components/child/child-view";
 import { UsageMessage } from "@/components/child/UsageMessage";
+import { usageTimeline } from "@/components/child/usage-timeline";
 import { useChildData } from "@/lib/child-data";
+import { motion } from "@/lib/motion";
 import { native } from "@/lib/native";
 import type { UsageCalc } from "@/lib/usage-calc";
+
+// 出る順番（ミリ秒）。値が分かった時点から数える
+const timeline = usageTimeline({ ...motion.duration, stagger: motion.stagger });
 
 export default function ChildUsage() {
   const { config, calc, blank, today, refresh } = useChildData();
@@ -88,15 +96,33 @@ export default function ChildUsage() {
         ) : (
           // 読み込み中は「--」（0% にしない）
           // 中央の数字は黒（Figma 子02。子01 の青い数字と違う）
-          <Gauge percent={view.kind === "percent" ? view.percent : null} caption="使いました" valueTone="default" />
+          // 弧の色は到達しても青のまま（Figma 子02。子どもに赤を見せて責めない）。到達は 100 の数字と小さな弾みで伝える
+          <Gauge
+            percent={view.kind === "percent" ? view.percent : null}
+            caption="使いました"
+            valueTone="default"
+            delay={timeline.gauge}
+          />
         )}
       </View>
-      {pace && <Chip tone={pace.tone} icon={pace.icon} label={pace.label} />}
+      {/* 札はゲージと同じ時点（割合が分かったとき）に出るので、ゲージが伸び終わるころに合わせて出す。文言が変わったら小さく弾む */}
+      {pace && (
+        <PopIn delay={timeline.chip} replayKey={pace.label}>
+          <Chip tone={pace.tone} icon={pace.icon} label={pace.label} />
+        </PopIn>
+      )}
       <View style={styles.week}>
         <AppText variant="label" strong>
           今週の使用割合
         </AppText>
-        <BarChart bars={bars} scaleMax={100} accessibilityLabel={weekBarsLabel(bars)} compact />
+        {/* ゲージがあるときはゲージと札の後に、ないとき（文を出しているとき）は待たずに伸ばす */}
+        <BarChart
+          bars={bars}
+          scaleMax={100}
+          accessibilityLabel={weekBarsLabel(bars)}
+          compact
+          delay={view.kind === "percent" ? timeline.bars : timeline.barsAlone}
+        />
       </View>
     </Screen>
   );
