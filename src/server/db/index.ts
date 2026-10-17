@@ -64,14 +64,6 @@ async function connect(): Promise<RuntimeDb> {
   return { db: local as unknown as Db, kind: "pglite", close: () => client.close() };
 }
 
-// テスト用: 開いている DB を閉じ、次の db() で開き直させる（サーバの再起動のまね。LOCAL_DB_DIR のフォルダの DB は残る）
-export async function closeDatabaseForTests(): Promise<void> {
-  if (!process.env.VITEST) throw new Error("closeDatabaseForTests はテストでだけ使えます");
-  const opened = await g.__slopeRuntimeDb?.catch(() => undefined);
-  g.__slopeRuntimeDb = undefined;
-  await opened?.close?.();
-}
-
 // テスト用: 手元の DB（PGlite）を空にして、seed なら見本を入れ直す。Neon には決して使わない（本物のデータを消さないように）
 export async function resetDatabaseForTests(opts: { seed: boolean }): Promise<Db> {
   if (process.env.DATABASE_URL || process.env.LOCAL_DB_DIR || !process.env.VITEST)
