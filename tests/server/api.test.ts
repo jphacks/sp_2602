@@ -117,6 +117,20 @@ describe("ログインと合言葉（層1）", () => {
     expect(res.status).toBe(403);
   });
 
+  it("子どもは自分の childId のルールを読める", async () => {
+    const res = await app.request("/api/rules/get", json({ childId: "demo-child" }, CHILD));
+    expect(res.status).toBe(200);
+  });
+
+  it("子どもがほかの子どもの childId を指定すると 403（読む・送る・ストリームのどれも）", async () => {
+    const other = { childId: "someone-else" };
+    const get = await app.request("/api/rules/get", json(other, CHILD));
+    const report = await app.request("/api/usage/report", json({ ...other, date: "2026-10-17", apps: [] }, CHILD));
+    const sync = await app.request("/api/rules/sync-stream", json(other, CHILD));
+    expect([get.status, report.status, sync.status]).toEqual([403, 403, 403]);
+    expect(ApiError.parse(await sync.json()).code).toBe("forbidden");
+  });
+
   it("合言葉の確認は入力の検査より先（ログインしていない人に入力の詳細を返さない）", async () => {
     const res = await app.request("/api/rules/get", json({ childId: "" }, null));
     expect(res.status).toBe(401);

@@ -86,7 +86,7 @@
     },
     "tests/server/api.test.ts": {
       "action": "replace",
-      "sha": "0a71b9e090434a585b8f1040bcd6afd5898e0e558825d345ae93e39e5fe88289"
+      "sha": "02ff9f87f9db5703da5baab428b44c7f6061229f612f4f588ad794cf4b2d8f3f"
     },
     "tests/server/db.test.ts": {
       "action": "replace",

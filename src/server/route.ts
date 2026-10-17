@@ -12,7 +12,7 @@ import {
   type StreamDef,
   type StreamRoute,
 } from "../../contracts/api";
-import { authorize, type Caller } from "./auth";
+import { authorize, type Caller, checkOwnChild } from "./auth";
 import { badRequest, toApiError } from "./errors";
 
 // 処理に渡す、入力以外の情報。caller は auth が "none" の API でだけ null
@@ -44,6 +44,7 @@ export function handle<K extends JsonRoute>(name: K, fn: (req: Req<K>, ctx: Ctx)
       return Response.json(body, { status });
     }
     try {
+      checkOwnChild(ctx.caller, parsed.data);
       const result = route.res.parse(await fn(parsed.data as Req<K>, ctx));
       return Response.json(result);
     } catch (e) {
@@ -66,6 +67,13 @@ export function handleStream<K extends StreamRoute>(
     const parsed = route.req.safeParse(await readInput(request, route.method));
     if (!parsed.success) {
       const { status, body } = badRequest(parsed.error);
+      return Response.json(body, { status });
+    }
+    // 流し始める前に確かめる（流し始めると HTTP 200 のまま途中の error になってしまう）
+    try {
+      checkOwnChild(ctx.caller, parsed.data);
+    } catch (e) {
+      const { status, body } = toApiError(e);
       return Response.json(body, { status });
     }
     const encoder = new TextEncoder();
