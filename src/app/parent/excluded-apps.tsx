@@ -9,7 +9,7 @@ import type { ApiError } from "@contracts/errors";
 import { mockExcludedAppCandidates } from "@contracts/fixtures";
 import type { ExcludedAppsView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Chip, ErrorBanner, Screen, StateView } from "@/components";
@@ -75,6 +75,16 @@ function ExcludedBody({ childId }: { childId: string }) {
     }
   }, [childId]);
   usePolling(load);
+  // 画面を離れたら「保存しました」の帯を消す（なぜ: この画面はタブの中にあり、離れても消えずに残るので、
+  //   あとで開き直したときに、今の操作の結果のように古い「保存しました」が出たままになっていた）
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        setSavedOk(false);
+      },
+      [],
+    ),
+  );
 
   const toggle = (packageName: string, on: boolean) => {
     setDraft((d) => {
