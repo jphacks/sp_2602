@@ -39,6 +39,7 @@ export function DurationField({ label, value, onChange, error, hint, editable = 
               placeholderTextColor={c.muted}
               cursorColor={c.primary}
               selectionColor={c.primarySoft}
+              selectionHandleColor={c.primary}
               accessibilityLabel={`${label}、時間`}
               style={styles.input}
             />
@@ -53,6 +54,7 @@ export function DurationField({ label, value, onChange, error, hint, editable = 
               placeholderTextColor={c.muted}
               cursorColor={c.primary}
               selectionColor={c.primarySoft}
+              selectionHandleColor={c.primary}
               accessibilityLabel={`${label}、分`}
               style={styles.input}
             />
