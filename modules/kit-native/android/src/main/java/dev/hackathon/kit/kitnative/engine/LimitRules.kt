@@ -81,8 +81,14 @@ object LimitRules {
     }
   }
 
+  // 案内だけを出さないアプリ（使用時間には数える。数えないアプリは UsageReader.ignoredPackages）。
+  // 設定アプリ: 上限に届いたあとも Wi-Fi の接続や Slope の許可の設定をできるようにする（2026-10-17 決定。docs/decisions.md）。
+  //   子どもが設定から許可を外しに行けるようになるが、アンインストールは Device Owner で止め、
+  //   許可を外されたことは Slope が「許可なし」として見分けられる。
+  val PROMPT_EXEMPT_PACKAGES: Set<String> = setOf("com.android.settings")
+
   // 前面のアプリに「時間は終わりです」の案内を出してよいか。
-  // 出さないもの: 前面のアプリが分からない・Slope 自身・ランチャー（ホーム画面）・システムの画面・対象外アプリ・必須例外。
+  // 出さないもの: 前面のアプリが分からない・Slope 自身・ランチャー（ホーム画面）・システムの画面・設定アプリ・対象外アプリ・必須例外。
   // なぜランチャーで出さないか: ホーム画面でも出すと、電話などの必須例外のアプリを開くことすらできなくなるため。
   fun shouldPrompt(
     foreground: String?,
@@ -93,6 +99,7 @@ object LimitRules {
     if (foreground == null) return false
     if (foreground == selfPackage) return false
     if (foreground in ignoredPackages) return false
+    if (foreground in PROMPT_EXEMPT_PACKAGES) return false
     return !rule.isExcluded(foreground)
   }
 }

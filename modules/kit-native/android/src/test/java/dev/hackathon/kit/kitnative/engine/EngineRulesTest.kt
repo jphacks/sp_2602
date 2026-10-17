@@ -164,6 +164,8 @@ class EngineRulesTest {
     assertFalse(LimitRules.shouldPrompt("study", r, "self", ignored)) // 対象外
     assertFalse(LimitRules.shouldPrompt("phone", r, "self", ignored)) // 必須例外
     assertFalse(LimitRules.shouldPrompt(null, r, "self", ignored))
+    // 設定アプリは案内を出さない（使用時間には数える）
+    assertFalse(LimitRules.shouldPrompt("com.android.settings", r, "self", ignored))
   }
 
   @Test
