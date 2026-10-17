@@ -68,6 +68,7 @@ flowchart TD
 | `pairStatus` | POST `/api/pair/status` | signedIn | `{ pairId }` | `PairStatus` | 404（自分が関わっていないペアリングも 404。あるかどうかを漏らさない） |
 | `pairClaim` | POST `/api/pair/claim` | signedIn | `{ code }` | `PairStatus`（`claimed`） | 403（子どもの端末）、404（知らない番号）、409（期限切れ・使用済み・自分の QR・どちらかが連携済み） |
 | `pairConfirm` | POST `/api/pair/confirm` | signedIn | `{ pairId, accept }` | `PairStatus`（`linked` か `rejected`） | 403（QR を出した子ども以外）、404、409（期限切れ・まだ読まれていない・役割が合わない・連携済み） |
+| `pairCancel` | POST `/api/pair/cancel` | signedIn | `{ pairId }` | `PairStatus`（`waiting`・`claimed` は `expired` にする。`expired`・`rejected` はそのまま） | 403（QR を出した子ども以外）、404（関わっていないペアリング）、409（もう `linked`） |
 | `linkStatus` | GET `/api/link/status` | signedIn | なし | `LinkStatus`（`state`・`role`・`partners`） | — |
 | `familyGet` | GET `/api/family/get` | parent | なし | `Family`（`children`。MVP は最大1人） | 403（保護者以外） |
 
@@ -109,18 +110,20 @@ flowchart TD
 
 **子どもが呼んだとき**は、送った `knownVersion` を「子どもの端末が使っている版」（`childAppliedVersion`）として覚えます（サーバの版より大きい値は覚えない）。保護者が呼んでも変わりません。
 
+日別上限の残りが 60 日を切っていたら、`configGet` が今日から 120 日先まで作り足します（中身が変わったときだけ版が 1 上がる。[flows.md の 5章](flows.md)）。そのため、**読む API でも版が上がることがあります**。保護者がその前に読んだ版で保存すると conflict になるので、画面は読み直して保存し直します。
+
 ### 利用記録（C8・C6）
 
 | 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
 |---|---|---|---|---|---|
-| `usageUpload` | POST `/api/usage/upload` | child | `{ submissionId（UUID）, childId, days（1〜7日分）}` | `UsageUploadResult`（`submissionId`・`status: accepted / duplicate`・`appliedDates`） | 400、403（保護者・ほかの子ども）、409（同じ送信 ID で中身が違う・ほかの子どもの送信 ID） |
+| `usageUpload` | POST `/api/usage/upload` | child | `{ submissionId（UUID）, childId, days（1〜7日分）}` | `UsageUploadResult`（`submissionId`・`status: accepted / duplicate`・`appliedDates`） | 400（形が違う・`measuredAt` がタイムゾーンつきの日時でない）、403（保護者・ほかの子ども）、409（同じ送信 ID で中身が違う・ほかの子どもの送信 ID） |
 | `usageGet` | POST `/api/usage/get` | parent | `{ childId, from, to }`（両端を含む。190日未満） | `ParentUsageView`（`days`（from〜to の全日）・`lastUploadedAt`） | 400（from > to・長すぎる）、403 |
 
 ### 制限対象外アプリ（C9）
 
 | 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
 |---|---|---|---|---|---|
-| `excludedAppsGet` | POST `/api/excluded-apps/get` | signedIn | `{ childId }` | `ExcludedAppsView`（`apps`・`configVersion`・`childAppliedVersion`） | 403 |
+| `excludedAppsGet` | POST `/api/excluded-apps/get` | signedIn | `{ childId }` | `ExcludedAppsView`（`apps`・`removedApps`（外したアプリと外した版）・`appsChangedVersion`（一覧が最後に変わった版）・`configVersion`・`childAppliedVersion`） | 403 |
 | `excludedAppsSave` | POST `/api/excluded-apps/save` | parent | `{ childId, expectedVersion, apps（全件。500件まで）}` | `ExcludedAppsSaveResult`（`apps`・`configVersion`） | 403（子どもは保存できない）、409 |
 
 子どもの端末のアプリ一覧をサーバへ送る API は**ありません**（Q15 保留。`tests/server/api.test.ts` の「子どもの端末のアプリ一覧を送る API はない（Q15 保留）」で確かめている）。
@@ -172,14 +175,15 @@ flowchart TD
 
 | 決まり | 担当 |
 |---|---|
-| 版は 0 から始まる（0 = まだ何も保存していない）。紐づけの確定で器ができる | `store.configFor` |
+| 版は 0 から始まる（0 = まだ何も保存していない）。紐づけの確定で器ができる。例外: 手元の開発サーバでは、**デモの子ども**の版をサーバの起動時刻（ミリ秒）から数える（MOCK のサーバを再起動しても版が前より大きくなり、子どもの端末が新しい設定を取り込めるように。`startupVersionBase`） | `store.configFor`・`getStore` |
 | 設定を変える9種類の API（`planSave`・`usualLimitSave`・`testPeriodCreate/Update/Delete`・`blankPeriodCreate/Update/Delete`・`excludedAppsSave`）は、成功すると版をちょうど **1** 上げる | `store.mutate` |
 | これらは `expectedVersion` を受け取り、今の版と**違えば**（古くても新しくても）`409 conflict`「ほかの端末で先に変更されました」。何も変えない | `store.mutate` |
 | 日別上限を作り直した保存では `calculationVersion` も 1 上がる（`excludedAppsSave` は作り直さないので上がらない） | `store.recalculate` |
 | 読む API（`planGet`・`testPeriodList`・`blankPeriodList`・`excludedAppsGet`・`configGet`）は今の `configVersion` を返す。画面はこれを次の `expectedVersion` に使う | 各 store の関数 |
 | `configGet` に `knownVersion` を送ると、同じ版なら中身を省く | `store.configGet` |
 | 子どもが送った `knownVersion` は `childAppliedVersion` として覚え、読む API で返す（「反映済み／反映待ち」に使う） | `store.configGet` |
-| 保存した計画の `plan.version`、対象外アプリの `sinceVersion` は、その変更が入った版 | `store.planSave`・`store.excludedAppsSave` |
+| `configGet` は日別上限の残りが 60 日を切っていたら作り足し、中身が変わったときだけ `configVersion`・`calculationVersion` を 1 上げる | `store.topUpDailyLimits` |
+| 保存した計画の `plan.version`、対象外アプリの `sinceVersion`（対象外になった版）・`removedVersion`（外した版）・`appsChangedVersion`（一覧が最後に変わった版。同じ中身の保存では進まない）は、その変更が入った版 | `store.planSave`・`store.excludedAppsSave` |
 
 画面がどの版を送るか:
 

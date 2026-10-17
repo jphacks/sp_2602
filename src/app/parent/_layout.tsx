@@ -3,11 +3,12 @@
 // ParentDataProvider で、見ている子ども（MVP は1人。Q2）とその設定の組（C7）を、どのタブからも同じ値で使えるようにする。
 // タブに出ない画面（タブは出たまま）: schedules（親05）・app-usage（親09）・excluded-apps（親16）・blank-periods（空白期間。Q7）
 import { Redirect, Tabs } from "expo-router";
-import { TabIcon, tabBarOptions } from "@/components/TabIcon";
+import { TabIcon, useTabBarOptions } from "@/components/TabIcon";
 import { ParentDataProvider } from "@/lib/parent-data";
 import { useSession } from "@/lib/session";
 
 export default function ParentLayout() {
+  const tabBarOptions = useTabBarOptions();
   const { state } = useSession();
   if (state.status !== "signedIn" || state.session.role !== "parent") return <Redirect href="/" />;
   return (

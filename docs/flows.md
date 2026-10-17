@@ -57,8 +57,10 @@ sequenceDiagram
 | 合言葉の保存 | `session.tsx` の `adopt`：`setSessionToken`（以後の `call()` に付く）と端末への保存 |
 | 使っている途中の 401 | `src/lib/api.ts` が `setUnauthorizedHandler` で登録された関数を呼ぶ → `session.tsx` がログアウト状態にし、ログイン画面に「ログインの期限が切れました」の帯（`login-view.ts` の `loginNotice`） |
 | 失敗 | 子09 のダイアログ。Google で「やめた」はエラーにしない（`login-view.ts` の `googleOutcome`） |
+| ログアウト | 設定の「ログアウト」→ 確認（`src/components/LogoutListItem.tsx`）→ `session.tsx` の `signOut`：Google のログインを外す → `src/lib/sign-out.ts` の `clearLocalDataFor(userId)`（設定のキャッシュを全部と、その人の送信待ちを消す）→ 合言葉を消す → 入口 |
 
 合言葉の期限は「最後に使ってから30日（使うたびに延長）」です（`store.ts` の `SESSION_IDLE_MS`・`findSession`）。
+合言葉の期限切れ（401）のときは合言葉だけを消し、設定のキャッシュと送信待ちは残します（同じ人がログインし直して、残った記録を送れるように）。
 
 ## 2. 役割選び
 
@@ -103,18 +105,20 @@ stateDiagram-v2
   waiting --> claimed: pairClaim（保護者が読んだ）
   claimed --> linked: pairConfirm accept=true
   claimed --> rejected: pairConfirm accept=false
-  waiting --> expired: 10分たった・出し直した
-  claimed --> expired: 10分たった・出し直した
+  waiting --> expired: 10分たった・出し直した・pairCancel
+  claimed --> expired: 10分たった・出し直した・pairCancel
   linked --> [*]
   rejected --> [*]
   expired --> [*]
 ```
 
-- 担当は `src/server/mock/store.ts` の `pairStart`・`pairClaim`・`pairConfirm`・`pairStatus`。期限切れは「聞かれたときに確かめる」（`refreshExpiry`）。
+- 担当は `src/server/mock/store.ts` の `pairStart`・`pairClaim`・`pairConfirm`・`pairCancel`・`pairStatus`。期限切れは「聞かれたときに確かめる」（`refreshExpiry`）。
 - QR は10分・1回だけ・出し直したら前の QR は無効（Q10）。`rejected` の QR も、もう読めない。
 - `pairClaim` で断るもの: 子どもの端末（forbidden）、知らない番号（not_found）、期限切れ・使用済み・自分の QR・すでに誰かと連携済み（conflict）。
 - `pairConfirm` で断るもの: QR を出した子ども以外（forbidden）、期限切れ・まだ読まれていない・役割が合わない・その間に別の相手と連携した（conflict）。
+- `pairCancel`（子どもの「やめる」）: `waiting`・`claimed` の QR を `expired` にする（保護者が読んだ後でも、子どもが「はい」を押す前なら取り消せる）。`expired`・`rejected` はそのまま返す（何度呼んでも同じ）。もう `linked` なら conflict。QR を出した子ども以外は forbidden（関わっていない人は not_found）。
 - 親1人↔子1人（Q2）: すでに連携している人は QR を出せない・読めない・確定できない（`oneToOne` の conflict）。
+- 確定（`linked`）のとき、QR を出すときに入れた呼び名（`PairStart.name`。省けば Google のアカウント名）を子どもの名前として残す。以後の `familyGet`・`linkStatus`・`authMe` も同じ名前になる。
 
 ### 子どもの画面の移り変わり（`src/components/pair/child-flow.ts` の `childPairReducer`）
 
@@ -141,7 +145,7 @@ stateDiagram-v2
 - `showing` の間に通信できないと「通信できません」の帯を足す（QR は出したまま）。
 - 子14 の残り時間は端末の時計で数える（`localDeadline`・`remainingLabel`）。端末の時計がずれて期限がおかしく見えるときは「受け取ってから10分」にする。
 - 進み具合は `PAIR_POLL_MS`（3秒）ごとに `pairStatus` で聞く（`shouldPoll` が true の間だけ）。
-- 「やめる」は役割選びに戻るだけ。**QR を取り消す API はない**ので、出した QR は期限まで残る（子どもが「はい」を押さない限りつながらない）。
+- 「やめる」は、出した QR を `call("pairCancel")` で取り消してから役割選びに戻る（以後その QR は読めない）。取り消しの応答は 3 秒だけ待ち（`CANCEL_TIMEOUT_MS`）、取り消せなくても画面は戻る（子どもが「はい」を押さない限りつながらず、QR も10分で切れるため）。QR をまだ受け取っていない（つくっている途中）なら送らない。
 - 「はい」の応答が届かない（通信・時間切れ・サーバの不具合）ときは、成功とも失敗とも言わず **子17** で照会を続ける（MVP_SPEC 4.1）。
 
 ### 保護者の画面の移り変わり（`src/components/pair/parent-flow.ts` の `parentPairReducer`）
@@ -229,6 +233,7 @@ sequenceDiagram
 - 担当: `src/server/mock/store.ts` の `mutate`（全体）と `recalculate`（C10）。途中で失敗したら何も変えない（前の正式な版を保つ。Q5・AC-07）。
 - C10 の式と例は [data.md の 4章](data.md) にあります。
 - **今日から先だけ**を計算し直し、昨日以前の日別上限は変えません（Q4。`mergeWithFinalized`）。
+- 日別上限は保存した日から 120 日先まで作ります（`LIMIT_HORIZON_DAYS`）。設定を変えないまま日がたって、残りが 60 日（`LIMIT_TOPUP_MIN_DAYS`）を切ったら、次の `configGet` のときに今日から 120 日先まで作り足します（`store.ts` の `topUpDailyLimits`。昨日以前は変えない。中身が変わったときだけ `configVersion`・`calculationVersion` が 1 上がる）。
 - 計画の開始日は**今日以降**でないと保存できません（`store.planSave`。デモの見本だけ例外 `allowPastStart`）。
 - 対象外アプリの保存（C9）は C10 を計算し直しませんが、版は上がります。
 - 画面側:
@@ -261,7 +266,7 @@ flowchart TD
 C7 の決まり（`src/lib/config-cache.ts`）:
 
 1. 起動直後は、端末に保存した組をすぐ出す（`load`。通信を待たない。理由 `not_checked` の stale だが、帯は出さない）。
-2. `configGet` に手元の版を `knownVersion` として送る。サーバは、子どもが送った版を「子どもの端末が使っている版」（`childAppliedVersion`）として覚える（Q6）。
+2. `configGet` に手元の版を `knownVersion` として送る。サーバは、子どもが送った版を「子どもの端末が使っている版」（`childAppliedVersion`）として覚える（Q6）。そのあと日別上限の残りが少なければ作り足してから（5章）、版を比べて返す。
 3. 応答の扱いは純粋な関数 `reconcileConfig`:
 
 | 応答 | 判断 |
@@ -291,16 +296,16 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 2. その日の上限を `limitForDate(snapshot, date)` で取り出す: 組がない＝`unknown`、日付がない＝`unset`（未設定）、空白期間＝`unlimited`、それ以外＝`set`。
 3. 制限対象の合計 = 対象外アプリ（C9）と必須例外（`ESSENTIAL_PACKAGES`。電話など）を除いた分の合計（`restrictedMinutes`）。
 4. 上限 0 分 → 到達・表示 100%・残り 0%（0 で割らない）。
-5. それ以外 → 実際の使用率 = 使用 ÷ 上限 × 100（100 を超えてもそのまま持つ）。表示は 0〜100 に収めて四捨五入。残り％ = max(0, 100 − 表示)。到達は「使用 ≥ 上限」（Q17 は未決。仮）。
+5. それ以外 → 実際の使用率 = 使用 ÷ 上限 × 100（100 を超えてもそのまま持つ）。到達は実際の分数で決める（「使用 ≥ 上限」。Q17 は未決で仮）。表示は 0〜100 に収めて四捨五入し、**到達していなければ最大 99、到達したら 100**（99.5% 以上が四捨五入で 100 になり「100% なのにまだ使える」と見えないように。表示が 100 ⇔ 到達）。残り％ = max(0, 100 − 表示)。
 
 画面（`src/components/child/child-view.ts` の `usageView`）は、割合が出せない状態（上限未設定・制限なし・権限なし・取得不可）では数字を出さず、それぞれの文を出します。子どもには分数を主に見せません（割合が主。MVP_SPEC 4.2）。
 子02 の今週の棒グラフは、過去の日の端末の記録（`native.getDailyUsage(日付)`）とその日の日別上限から、同じ計算で割合を出します（`dayCalc`・`weekBars`）。
 
 ## 8. 上限に届いたとき（C4）
 
-- 判定の値: `child-data.tsx` の `refresh` が毎回 `native.saveRestriction({ date, limit, excludedPackages, essentialPackages, learningPackages, configVersion })` で Kotlin に渡す。`limit` は `limited`／`unlimited`／`unset` を分けて渡す。設定が分からないときは渡さない（前の値で判定を続ける）。
+- 判定の値: `child-data.tsx` の `refresh` が毎回 `native.saveRestriction({ date, limit, excludedPackages, essentialPackages, learningPackages, configVersion })` で Kotlin に渡す。`learningPackages` は子11 の「お勧めアプリ」と同じ1つの一覧（`src/lib/usage-calc.ts` の `LEARNING_PACKAGES`。今は仮に Google Classroom・Duolingo）。`limit` は `limited`／`unlimited`／`unset` を分けて渡す。設定が分からないときは渡さない（前の値で判定を続ける）。
 - **今の画面の動き**: 子01 ホーム（`src/app/child/home.tsx`）が見えている間に `calc` が到達になったら、その日に1回だけ `native.showLimitReached()` を呼び（Kotlin がなければ何もしない）、子11（`/child/limit-reached`）へ進む（`child-view.ts` の `shouldOpenLimitScreen`）。
-- 子11（`src/app/child/limit-reached.tsx`）: 「今日のスマホの時間は終わりです。続きはあしたにしよう」・今日の使用量・次のテスト・「お勧めアプリはこちらです ›」（`RECOMMENDED_APP_PACKAGES` を上から順に `native.openApp` で試す。開けなければ案内のダイアログ）・「閉じる」。
+- 子11（`src/app/child/limit-reached.tsx`）: 「今日のスマホの時間は終わりです。続きはあしたにしよう」・今日の使用量・次のテスト・「お勧めアプリはこちらです ›」（`LEARNING_PACKAGES` を上から順に `native.openApp` で試す。開けなければ案内のダイアログ）・「閉じる」。
 - Android は他のアプリを無条件には止められません（MVP_SPEC 2章）。子11 は「案内」で、遮断は約束しない文にしています。
 - Kotlin の監視（`startEngine` など）は窓口だけで、今のコードからは呼んでいません。
 
@@ -308,9 +313,10 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 
 担当: `src/lib/usage-outbox.ts`（送信待ち）、`src/lib/usage-calc.ts` の `toUsageDayReport`（記録の形）、`src/server/mock/store.ts` の `usageUpload`。
 
-1. 記録の中身（Q8）: その日の**アプリ別の累計**・**測った時刻**・**制限対象の合計分**（C3 と同じ判定）。毎回「今日と昨日」の2日分（取れた日だけ）。
+1. 記録の中身（Q8）: その日の**アプリ別の累計**・**測った時刻**・**制限対象の合計分**（C3 と同じ判定）。毎回「今日と昨日」の2日分（取れた日だけ）。`toUsageDayReport` は記録が必ず契約に合うようにする: アプリ名は 120 文字までに切る（空ならアプリの識別子で代用）、識別子が空・255 文字を超えるアプリは一覧に入れない（合計の分数には入れる）、アプリは 1000 個まで（超えたら使った時間の多い順）。
 2. 送る頻度（Q9）: C7 と同じきっかけ（30秒ごとなど）。前に送信待ちへ入れた中身と比べ、変わっていなければ入れない（測った時刻だけの違いは無視）。この「前の中身」はメモリにだけ持つので、アプリを開き直した最初の1回は必ず入れる。
-3. `enqueue`: 送信 ID（UUID）を**1回だけ**作って端末に保存する。送り直しても同じ ID を使う。
+3. `enqueue`: 送信 ID（UUID）を**1回だけ**作って端末に保存する。送り直しても同じ ID を使う。入れるときに記録を1日ずつ契約（`UsageDayReport`）で確かめ、合う記録は送る1件に（7日分ずつ）、合わない記録は別の1件にして隔離する（`lastError` は `bad_request`）。
+   読むときも1件ずつ確かめ、合わない1件だけを隔離する（1件が壊れていても、ほかの送信待ちは消えない）。
 4. `flush`: 送れるものを順に送る（同時に2回呼ばれても1回だけ動く）。
 
 | 結果 | 動き |
@@ -323,8 +329,9 @@ C7 の決まり（`src/lib/config-cache.ts`）:
    - 同じ送信 ID・同じ中身 → `duplicate`（二重に保存しない）。日やアプリの並びだけが違うのは同じ中身とみなす（`fingerprintOf`）。
    - 同じ送信 ID で中身が違う・別の子ども → `conflict`。
    - 日ごとに「測った時刻が一番新しい記録」を正とする（古い記録が後から届いても上書きしない）。採用した日を `appliedDates` で返す。
-6. 送信待ちの一覧（`list`）と隔離の解除（`retryQuarantined`）の関数はあるが、今の画面からは使っていない（未送信の件数は画面に出ていない）。
-7. ログアウトしても送信待ちは消さない（`storage.ts` の `clearSessionData` は合言葉だけを消す）。
+6. 送信待ちの一覧（`list`）と隔離の解除（`retryQuarantined`。契約に合わない記録だけの1件は戻さない）の関数はあるが、今の画面からは使っていない（未送信の件数は画面に出ていない）。
+7. ログアウトしたら、その子どもの送信待ちを消す（`usageOutbox.removeChild`。`sign-out.ts` から）。合言葉の期限切れ（401）では消さない。
+8. `measuredAt` などの日時は、タイムゾーンつきの本当の日時だけを受け付ける（契約の `IsoDateTime`）。読めない日時はサーバが 400 で断る。
 
 ## 10. 保護者の画面（C6）
 
@@ -356,7 +363,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 - 画面: 親16（`src/app/parent/excluded-apps.tsx`）。保存できるのは保護者だけ（サーバも `auth: "parent"` で確かめる）。
 - 候補の一覧は **MOCK の固定値**（`contracts/fixtures.ts` の `mockExcludedAppCandidates`：学習ノート・英単語カード・動画アプリ・ゲーム）＋保存済みのアプリ。子どもの端末のアプリ一覧をサーバへ送る API は作っていません（Q15 保留）。
 - 保存は `call("excludedAppsSave", { childId, expectedVersion, apps: 全件 })`（差分ではなく全件の置き換え。`excluded.ts` の `appsToSave`）。
-- サーバは、前から対象外だったアプリの `sinceVersion`（対象外になった版）を変えず、新しく入ったアプリには新しい版を付ける（`store.excludedAppsSave`）。
+- サーバは、前から対象外だったアプリの `sinceVersion`（対象外になった版）を変えず、新しく入ったアプリには新しい版を付ける（`store.excludedAppsSave`）。外したアプリは `removedApps`（外した版 `removedVersion`）に残し、もう一度対象外にしたら消す。一覧（アプリの組と名前）が変わったときだけ `appsChangedVersion`（一覧が最後に変わった版）を進める。
 - 子どもの端末は次の C7 で新しい組を受け取り、以後の C3（合計から除く）と C4（`excludedPackages`）で使う。
 
 ### 反映済み／反映待ち（Q6）
@@ -367,6 +374,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 |---|---|---|
 | 親02 計画 | 計画を保存した版（`plan.version`） | `plan-form.ts` の `reflectState` |
 | 親05 テスト日程・空白期間の一覧 | 今の最新の版（`configVersion`）。ほかの種類の変更でも版が上がるので、その間は「反映待ち」になる | `schedule/logic.ts` の `appliedStatus` |
-| 親16 対象外アプリ | アプリごとの `sinceVersion`。外したアプリは、この画面で保存したときの版を覚えて比べる（開き直すと分からなくなり「反映済み」とみなす。`TODO(未決)`） | `parent/excluded.ts` の `excludedRows` |
+| 親16 対象外アプリ（行ごと） | 対象外のアプリは `sinceVersion`、外したアプリは `removedApps` の `removedVersion`。一度も対象外になっていないアプリは「反映済み」。どれもサーバの値なので、画面を開き直しても正しく出る | `parent/excluded.ts` の `excludedRows`・`removedVersions` |
+| 親16 対象外アプリ（一覧の全体。見出しの横の札） | `appsChangedVersion`（一度も変えていなければ 0 で「反映済み」） | `parent/excluded.ts` の `excludedListStatus` |
 
 子どもの端末がまだ一度も取りに来ていない（`childAppliedVersion` が `null`）ときは「反映待ち」です。

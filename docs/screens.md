@@ -34,7 +34,7 @@ flowchart TD
 | `src/app/index.tsx` | — | 入口。ログイン状態と役割で振り分ける | `/login`・`/pair`・`/child/home`・`/parent/home` | `useSession()` |
 | `src/app/login.tsx` | 子08（108:6969）・子09（108:6983 ダイアログ） | Google ログイン。設定がなければ MOCK のボタン3つ | 入口 | `src/lib/google.ts`・`useSession().signIn` |
 | `src/app/pair/index.tsx` | なし（Q1。共01 を流用） | 役割選び。先に連携状態を照会する | `/pair/parent`・`/pair/child`・ログアウト | `linkStatus` |
-| `src/app/pair/child.tsx` | 子13（108:8926）〜子19（108:9037） | QR を出し、保護者の読み取りを待ち、「はい／いいえ」で確定 | 入口（子19）・`/pair`（やめる・いいえ） | `pairStart`・`pairStatus`・`pairConfirm` |
+| `src/app/pair/child.tsx` | 子13（108:8926）〜子19（108:9037） | QR を出し、保護者の読み取りを待ち、「はい／いいえ」で確定。「やめる」は QR を取り消してから戻る | 入口（子19）・`/pair`（やめる・いいえ） | `pairStart`・`pairStatus`・`pairConfirm`・`pairCancel` |
 | `src/app/pair/parent.tsx` | 親10（108:9050）〜親15（108:9130） | カメラの許可・QR の読み取り・子どもの確認待ち | `/pair/usual-limit`（親15）・`/pair/status`・`/pair` | `pairClaim`・`pairStatus` |
 | `src/app/pair/status.tsx` | 共01（108:9143）・共02（108:9156）・共03（108:9171） | 結果が分からないときの照会 | 入口・同じ役割の紐づけ | `linkStatus` |
 | `src/app/pair/usual-limit.tsx` | なし（Q7） | 紐づけ直後に通常上限を決める（親01 の帯からも来る） | 入口（→ 親01） | `familyGet`・`planGet`・`usualLimitSave` |
@@ -49,7 +49,7 @@ flowchart TD
 | `child/schedule-list.tsx`（タブ: 日程一覧） | 子10（108:7005） | テスト期間の一覧（近い順） | 項目 → 子05、「＋ テストを追加する」→ 子03 | `testPeriodList`（取れなければ C7 の組） |
 | `child/settings.tsx`（タブ: 設定） | 子07（108:6944）・子06（108:6906 ダイアログ） | テスト日程・テーマカラー（白だけ）・ログアウト（Q13） | 子10・ログアウト → 入口 | `config` の件数 |
 | `child/schedule-edit/[id].tsx`（タブなし・タブは出たまま） | 子05（108:6878） | テスト期間の変更・削除（削除は Figma にないので足した） | 子10 | `flow` の `editTest`・`testPeriodList`・`testPeriodUpdate`・`Delete` |
-| `child/limit-reached.tsx`（タブなし・タブは出たまま） | 子11（108:7024） | 上限に届いたときの案内・お勧めアプリ | 「閉じる」→ 子01 | `calc`・`config`・`test`・`native.openApp` |
+| `child/limit-reached.tsx`（タブなし・タブは出たまま） | 子11（108:7024） | 上限に届いたときの案内・お勧めアプリ | 「閉じる」→ 子01 | `calc`・`config`・`test`・`LEARNING_PACKAGES`（`child-data.tsx` から）・`native.openApp` |
 
 ### 保護者用（下部タブ4つ。`src/app/parent/_layout.tsx`）
 
@@ -62,7 +62,7 @@ flowchart TD
 | `parent/schedules.tsx`（タブなし） | 親05（108:7529） | テスト期間の一覧と追加・変更・削除を1画面で切り替える | 「←」→ 親04 | `testPeriodList`・`Create`・`Update`・`Delete` |
 | `parent/blank-periods.tsx`（タブなし） | なし（Q7。親05 と同じ見た目） | 空白期間の一覧と追加・変更・削除 | 「←」→ 前の画面 | `blankPeriodList`・`Create`・`Update`・`Delete` |
 | `parent/app-usage.tsx`（タブなし） | 親09（108:7663） | 今日のアプリごとの利用時間（対象と対象外に分ける） | 「←」→ 来た画面 | `usageGet`（今日） |
-| `parent/excluded-apps.tsx`（タブなし） | 親16（108:9446） | 制限対象外アプリのスイッチ・反映済み／反映待ち | 「←」→ 親04 | `excludedAppsGet`・`excludedAppsSave` |
+| `parent/excluded-apps.tsx`（タブなし） | 親16（108:9446） | 制限対象外アプリのスイッチ・行ごとの反映済み／反映待ち・見出しの横に一覧の全体の反映の札 | 「←」→ 親04 | `excludedAppsGet`（`removedApps`・`appsChangedVersion` も使う）・`excludedAppsSave` |
 
 ### Figma にあって作っていないもの
 
@@ -109,19 +109,19 @@ flowchart TD
 |---|---|---|
 | `Screen` | 画面の枠（上のバー・左右の余白・下に固定する主ボタンの場所 `footer`） | `<Screen title="設定" onBack={…} footer={<Button …/>}>…</Screen>` |
 | `AppText` | 文字。大きさは `variant`、色は `tone` で選ぶ | `<AppText variant="title">今日の使用量</AppText>` |
-| `Button` | ボタン。`primary`／`outline`／`soft`／`text`。`loading` の間は押せない | `<Button label="登録する" onPress={save} loading={saving} />` |
+| `Button` | ボタン。`primary`／`outline`／`soft`／`text`／`pill`（枠付きの小さい丸いボタン。ダイアログの「OK」「キャンセル」「ログアウト」。高さは押せる高さの下限 44。Figma は 40）。`loading` の間は押せない | `<Button label="登録する" onPress={save} loading={saving} />`・`<Button variant="pill" label="OK" onPress={close} />` |
 | `Card` | カード。`tone="soft"` は薄い青の地 | `<Card>…</Card>` |
 | `Banner` | 帯の案内。`info`／`warning`／`danger`／`success` | `<Banner tone="warning" icon="cloud_off" message="最新でない可能性があります" />` |
 | `ErrorBanner` | API の失敗の帯（`message` と `hint` をそのまま出す）。`null` なら何も出さない | `<ErrorBanner error={error} onRetry={load} />` |
 | `StateView` | 状態の出し分け（下の表） | `<StateView state={configViewState(config)} onRetry={refresh}>…</StateView>` |
-| `Dialog` | ダイアログ（完了・ログイン失敗・削除やログアウトの確認） | `<Dialog visible={open} title="登録しました" onClose={close} actions={…} />` |
-| `MessageView` | 大きいアイコン＋題名＋本文＋ボタンの1画面（QR・連携の画面）。`spinner` で待ち | `<MessageView icon="check_circle" tone="success" title="…" actions={…} />` |
-| `ListItem` | リストの1行（設定・一覧）。`onPress` があれば › を出す | `<ListItem icon="event" title="テスト日程の一覧・変更" value="2件" onPress={…} />` |
-| `LogoutListItem` | 「ログアウト」の行と確認のダイアログ（親07。子07 でも同じ） | `<LogoutListItem />` |
+| `Dialog` | ダイアログ（完了・ログイン失敗・削除やログアウトの確認）。地は薄い紫（`tokens.color.dialog`）。`centered` で題名・本文・ボタンを中央にそろえる（Figma 子04・子06・子09・親07）。`iconTone` は `primary`／`success`／`danger` | `<Dialog visible={open} title="登録しました。" centered onClose={close} actions={<Button variant="pill" label="OK" onPress={close} />} />` |
+| `MessageView` | 大きいアイコン＋題名＋本文＋ボタンの1画面（QR・連携の画面）。`spinner` で待ち。`tone` は丸の色、`iconTone` はアイコンの色（Figma は丸を薄い青のまま、アイコンだけ赤・緑にする） | `<MessageView icon="check_circle" iconTone="success" title="…" actions={…} />` |
+| `ListItem` | リストの1行（設定・一覧）。`onPress` があれば › を出す。アイコンは既定で青（`iconTone`）、`strong` で題名を太字（Figma 子07・親04） | `<ListItem icon="event" title="テスト日程の一覧・変更" strong value="2件" onPress={…} />` |
+| `LogoutListItem` | 「ログアウト」の行と確認のダイアログ（親07。子07 でも同じ。ボタンは `pill` の「キャンセル」「ログアウト」）。ログアウトすると端末の設定のキャッシュとその人の送信待ちも消える（`src/lib/sign-out.ts`） | `<LogoutListItem />` |
 | `TextField` | 入力欄。`error` で赤い枠と文 | `<TextField label="テストの名前" value={name} onChangeText={setName} />` |
-| `DateField` | 日付の入力（Android の日付の選択を開く）。値は `"YYYY-MM-DD"` | `<DateField label="開始日" value={d} onChange={setD} />` |
+| `DateField` | 日付の入力（Android の日付の選択を開く）。値は `"YYYY-MM-DD"`。表示はいつも年つきの「2026年10月28日（水）」（`contracts/dates.ts` の `formatDateLongJa`） | `<DateField label="開始日" value={d} onChange={setD} />` |
 | `ProgressBar` | 進捗バー（0〜100 に収める） | `<ProgressBar percent={calc.displayUsedPercent} />` |
-| `Gauge` | 円形ゲージ（子02）。`null` なら「--」（0% と出さない） | `<Gauge percent={null} caption="使いました" />` |
+| `Gauge` | 円形ゲージ（子02）。`null` なら「--」（0% と出さない）。`tone` は弧の色、`valueTone` は中央の数字の色 | `<Gauge percent={null} caption="使いました" />` |
 | `BarChart`・`Legend` | 週の棒グラフ。値が `null` の日は中身を描かない | `<BarChart bars={…} scaleMax={100} />` |
 | `Chip` | 小さい札（「ちょうどいいペース！」「反映待ち」「あと 9分41秒…」） | `<Chip tone="warning" label="反映待ち" />` |
 | `Icon`・`IconBadge` | アイコン（Material Icons の形を SVG で描く。足すときは `paths` に1行）・大きいアイコンの丸 | `<Icon name="event" />` |
@@ -154,7 +154,8 @@ C7 の設定の状態は `configViewState(config)` で変換できます（`null
 
 - 色・余白・角丸・文字の大きさ・部品の寸法は **`contracts/tokens.ts` の名前だけ**を使う。画面は `StyleSheet.create` の中で `tokens.color.primary`・`tokens.space[4]` のように書く。
 - `style={{…}}` を書かない。色コード（`#3B5BDB` など）や数値の余白を画面に直書きしない。例外は、値で大きさが決まる所（`BarChart`・`ProgressBar`・`WeekBars` の棒の高さ・幅）だけで、そこも色と寸法は tokens を使う。
-- 色の3つは MVP_SPEC 5章の値: 背景 `bg` `#FAF9FD`・アクセント `primary` `#3B5BDB`・薄い青 `primarySoft` `#DDE4FF`。ほかの色は Figma の見た目から近い値を置いた。
+- 色の3つは MVP_SPEC 5章の値: 背景 `bg` `#FAF9FD`・アクセント `primary` `#3B5BDB`・薄い青 `primarySoft` `#DDE4FF`。ほかの色は Figma の見た目から近い値を置いた（ダイアログの地 `dialog`・枠付きボタンの枠 `outline` など）。
+- 画面に出す日付の文言は `contracts/dates.ts` の `formatDateJa`・`formatDateLongJa`・`formatSlashDate`・`formatSlashDateWeekday` だけで作る。
 - 寸法は Figma の画面（360×800）: 左右の余白 24（`layout.gutter`）、カードの間 16、ボタンの高さ 56、押せる部品の高さは 44 以上（`size.touch`）。
 - 文字は責めない言い方にする（「ちょうどいいペース！」「続きはあしたにしよう」）。子どもには分数より割合を見せ、保護者には分数を見せる。
 - ダークテーマは MVP の後。

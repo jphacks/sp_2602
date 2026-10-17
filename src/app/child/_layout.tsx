@@ -4,11 +4,12 @@
 // タブに出ない画面（タブは出たまま）: limit-reached（子11）・schedule-edit/[id]（子05）
 
 import { Redirect, Tabs } from "expo-router";
-import { TabIcon, tabBarOptions } from "@/components/TabIcon";
+import { TabIcon, useTabBarOptions } from "@/components/TabIcon";
 import { ChildDataProvider } from "@/lib/child-data";
 import { useSession } from "@/lib/session";
 
 export default function ChildLayout() {
+  const tabBarOptions = useTabBarOptions();
   const { state } = useSession();
   if (state.status !== "signedIn" || state.session.role !== "child") return <Redirect href="/" />;
   return (

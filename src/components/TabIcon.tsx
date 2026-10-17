@@ -2,6 +2,7 @@
 // 子ども用・保護者用の Tabs（src/app/child/_layout.tsx・parent/_layout.tsx）で同じものを使う。
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Icon, type IconName } from "./Icon";
 
 export function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
@@ -31,11 +32,20 @@ const styles = StyleSheet.create({
   label: { fontSize: tokens.font.xs, fontWeight: tokens.weight.medium },
 });
 
-// Tabs の screenOptions（上のバーは各画面の <Screen> が描くので出さない）
-export const tabBarOptions = {
-  headerShown: false,
-  tabBarActiveTintColor: tokens.color.primary,
-  tabBarInactiveTintColor: tokens.color.muted,
-  tabBarStyle: styles.bar,
-  tabBarLabelStyle: styles.label,
-} as const;
+// Tabs の screenOptions（上のバーは各画面の <Screen> が描くので出さない）。
+// Android 15 以降は画面が端まで広がる（edge-to-edge）ので、下のナビゲーションボタン（|||・○・＜）の高さ（insets.bottom）を
+// タブの高さと下の余白に足す。足さないと、タブの文字がナビゲーションボタンの下に隠れる（実機 SC-53C・Android 16 で確認）。
+export function useTabBarOptions() {
+  const insets = useSafeAreaInsets();
+  return {
+    headerShown: false,
+    tabBarActiveTintColor: tokens.color.primary,
+    tabBarInactiveTintColor: tokens.color.muted,
+    // 高さと余白は端末ごとの値から計算するので、StyleSheet の固定値に重ねる
+    tabBarStyle: [
+      styles.bar,
+      { height: tokens.size.tabBar + insets.bottom, paddingBottom: tokens.space[3] + insets.bottom },
+    ],
+    tabBarLabelStyle: styles.label,
+  } as const;
+}

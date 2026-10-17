@@ -9,6 +9,6 @@
       "@contracts/*": ["./contracts/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "include": ["**/*.ts", "**/*.tsx"],
   "exclude": ["node_modules", "tmp", "android", "ios", "dist", "backend"]
 }

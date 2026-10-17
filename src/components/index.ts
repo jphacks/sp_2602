@@ -18,5 +18,5 @@ export { MessageView } from "./MessageView";
 export { ProgressBar } from "./ProgressBar";
 export { Screen } from "./Screen";
 export { configViewState, StateView, type ViewState } from "./StateView";
-export { TabIcon, tabBarOptions } from "./TabIcon";
+export { TabIcon, useTabBarOptions } from "./TabIcon";
 export { TextField } from "./TextField";

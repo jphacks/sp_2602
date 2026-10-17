@@ -11,7 +11,7 @@
 | 型 | 形 | 決まり |
 |---|---|---|
 | `IsoDate` | `"2026-10-17"` | 実在する日付だけ。日本時間の「その日」 |
-| `IsoDateTime` | `"2026-10-17T10:00:00.000Z"` | 今は「空でない文字列」としか検査していない |
+| `IsoDateTime` | `"2026-10-17T10:00:00.000Z"`・`"2026-10-17T19:00:00+09:00"` | タイムゾーンつきの本当の日時だけ（`z.iso.datetime({ offset: true })`）。タイムゾーンのない日時は端末の地域で意味が変わるので受け付けない |
 | `Minutes` | 整数 | 0〜1440。**0 分は有効な上限**（その日は使えない） |
 | `ConfigVersion` | 整数 | 0 以上。設定の版 |
 | `PackageName` | `"com.google.android.youtube"` | Android のアプリの識別子（1〜255 文字） |
@@ -23,7 +23,7 @@
 | 型 | 中身 | 説明 |
 |---|---|---|
 | `Role` | `"parent"` / `"child"` | 役割 |
-| `Session` | `token`・`userId`・`name`・`role`（`null` あり） | ログインの結果。`role` は紐づけが確定するまで `null` |
+| `Session` | `token`・`userId`・`name`・`role`（`null` あり） | ログインの結果。`role` は紐づけが確定するまで `null`。子どもの `name` は、紐づけの確定後は QR を出すときに入れた呼び名（`PairStart.name`。省けば Google のアカウント名） |
 | `Child` | `id`・`name` | 子ども1人（`id` は子どもの userId） |
 | `PairState` | `waiting`・`claimed`・`linked`・`expired`・`rejected` | QR の紐づけの進み具合 |
 | `PairTicket` | `pairId`・`code`・`expiresAt` | QR に入れるのは `code`（使い捨ての番号）だけ。合言葉や個人情報は入れない |
@@ -44,6 +44,8 @@
 | `TestPeriod` | `id`・`name`・`startDate`・`endDate`・`createdByUserId`・`createdByRole` | テスト期間（D3）。名前は前後の空白を取って 1〜120 文字、終了日 ≥ 開始日 |
 | `BlankPeriod` | `id`・`name`・`startDate`・`endDate` | 空白期間（夏休みなど）。期間中は「制限なし」 |
 | `ExcludedApp` | `packageName`・`label`・`sinceVersion` | 制限対象外アプリ（D7）。`sinceVersion` は対象外になった版 |
+| `RemovedExcludedApp` | `packageName`・`label`・`removedVersion` | 対象外から外したアプリと、外した版。もう一度対象外にしたら一覧から消える |
+| `ExcludedAppsView` | `childId`・`apps`・`removedApps`・`appsChangedVersion`・`configVersion`・`childAppliedVersion` | 対象外アプリの取得結果。`appsChangedVersion` は一覧（アプリの組と名前）が最後に変わった版（一度も変わっていなければ 0）。親16 の「反映済み／反映待ち」をサーバの値だけで決めるため |
 
 ### 設定の組（C7）
 
@@ -122,6 +124,12 @@
 | `datesInRange(from, to)` | from〜to（両端を含む）の日付の一覧 |
 | `mondayOf(日付)` | その週の月曜日（週は月曜〜日曜） |
 | `weekdayJa(日付)` | 曜日の1文字（月・火…） |
+| `formatDateJa(日付)` | 「10月28日（水）」 |
+| `formatDateLongJa(日付)` | 「2026年10月28日（水）」（日付の入力欄 `DateField` はいつもこの年つきの形） |
+| `formatSlashDate(日付)` | 「10/12」（グラフの下の日付・期間の帯） |
+| `formatSlashDateWeekday(日付)` | 「10/15（木）」 |
+
+画面に出す日付の文言は、このファイルの関数だけで作ります（日付の文字列をそのまま読むので、端末の時計の地域に左右されない）。
 
 - テスト期間・空白期間の**終了日はその日を含む**として計算しています（`TODO(未決)`。[open-questions.md](open-questions.md)）。
 - 画面の日付の入力（`src/components/DateField.tsx`）も、日本時間の「その日」として受け渡します（正午で受け渡す）。
@@ -160,7 +168,7 @@
 | テスト期間どうし・空白期間どうしが重なる | 計算できない入力（保存は `bad_request`。前の版を保つ） |
 | D = 0（計画開始日に最後のテストが始まる） | S = G ならすべて S。S ≠ G なら計算できない入力 |
 | 空白期間の日 | 上の計算に関係なく「制限なし」。終わった日から元の上限に戻る |
-| 何日先まで作るか | 今日から 120 日先まで（仮。`store.ts` の `LIMIT_HORIZON_DAYS`）。それより先は「上限未設定」 |
+| 何日先まで作るか | 保存した日から 120 日先まで（仮。`store.ts` の `LIMIT_HORIZON_DAYS`）。それより先は「上限未設定」。残りが 60 日（`LIMIT_TOPUP_MIN_DAYS`）を切ったら、`configGet` のときに今日から 120 日先まで作り足す（`topUpDailyLimits`。昨日以前は変えない。中身が変わったときだけ版が 1 上がる） |
 | 計算し直す範囲 | 今日から先だけ。昨日以前は前の値のまま（`mergeWithFinalized`。Q4） |
 
 仮の点は [open-questions.md](open-questions.md) の Q16 にまとめてあります。
@@ -206,7 +214,7 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 | `sessions` | 合言葉 → userId・最後に使った時刻（30日使わなければ無効） | — |
 | `pairs` | pairId → code・子ども・保護者・状態・期限 | （QR の一時的な番号） |
 | `links` | `"<親の id>\|<子の id>"` の集まり | D2 |
-| `configs` | 子どもごとの設定: 版・計算の版・通常上限・計画・テスト期間・空白期間・日別上限・対象外アプリ・子どもが使っている版 | D3・D6・D7・D8 |
+| `configs` | 子どもごとの設定: 版・計算の版・通常上限・計画・テスト期間・空白期間・日別上限・対象外アプリ・外した対象外アプリ（`removedExcludedApps`）・対象外アプリの一覧が最後に変わった版（`excludedAppsChangedVersion`）・子どもが使っている版 | D3・D6・D7・D8 |
 | `batches` | 送信 ID → 子ども・中身の指紋・採用した日 | （C8 の重複防止） |
 | `usage` | 子ども → 日付 → その日の正の記録 | D4 |
 | `lastUploadedAt` | 子ども → 最後に記録が届いた時刻 | — |
@@ -221,6 +229,7 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 
 - デモの保護者と子どもは、はじめから連携済み。
 - デモの子どもの設定: 通常上限 180 分、計画（開始日 = 14日前・S = 300・G = 120。見本だけ過去の開始日を許している）、テスト「数学」（今日の 11日後〜13日後）、対象外アプリ「学習ノート」、過去14日ぶんの日別上限、過去6日ぶんの利用記録（`contracts/fixtures.ts` の `demoAppMinutes`）。
+- 手元の開発サーバ（`getStore`）では、デモの子どもの設定の版を**サーバの起動時刻（ミリ秒）から**数える（`startupVersionBase`。`StoreOptions.versionBase`）。MOCK のサーバを再起動しても版が前より大きくなるので、子どもの端末は古い版の手元の設定を捨てて新しい設定を取り込める。はじめての人は再起動で別の ID になるので 0 から数える。テストで `resetStore` したときは 0 から。
 - アプリの MOCK のログインの「はじめての人（この端末: xxxx）」は `mock-new-<端末の番号>` を送るので、端末ごとに別の「はじめての人」が作られる（2台で QR の紐づけを試すため）。`mock-` で始まり上の3つでないものは、みな新しい人になる。
 
 ### 端末に残すもの
@@ -236,13 +245,13 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 | 利用者 `Session`・`users` | `users`（`id`・`role`・`display_name`） | 役割は parent／child | DB は `role` が必須。紐づけ前の `role: null` を入れられない。Google の利用者 ID・合言葉の表がない |
 | QR の `pairs` | なし | — | QR の一時的な番号の表がない（MVP_SPEC 6章も「別途確定」） |
 | `links` | `family_links`（`parent_id`・`child_id`） | 親子のつながり | 親1人↔子1人（Q2）は DB では縛らない。サーバの処理で断る |
-| `configVersion` | `child_config_versions`（`version`。既定 1） | 子ども1人に版1本（Q6） | store は 0 から始まる |
+| `configVersion` | `child_config_versions`（`version`。既定 1） | 子ども1人に版1本（Q6） | store は 0 から始まる（デモの子どもだけ起動時刻から） |
 | 計画・通常上限 | `plan_settings`（`plan_start_date`・`start_limit_minutes`・`final_goal_minutes`・`usual_limit_minutes`） | S・G・開始日 | DB は通常上限が必須で、計画と同じ行。store は「計画なしで通常上限だけ」「通常上限が未設定」を持てる |
 | `calculationVersion` | `plan_calculation_versions` | 計算の版 | — |
 | 日別上限 `DailyLimit` | `daily_limits`（`limit_date`・`limit_minutes`・`calculation_version`） | 1日1行・0 分も有効 | `limit_minutes` は必須の整数なので、空白期間の**「制限なし」を表せない**。空白期間の表もない |
 | テスト期間 `TestPeriod` | `test_periods`（`name`・`start_date`・`end_date`・`created_by_user_id`） | 名前・期間・作った人 | `createdByRole` の列がない。重なりを禁じる決まりはない（サーバで断る） |
 | 空白期間 `BlankPeriod` | なし | — | 表がない |
-| 対象外アプリ `ExcludedApp` | `excluded_apps`（`app_id`・`enabled`） | アプリの識別子 | `label`・`sinceVersion` の列がない |
+| 対象外アプリ `ExcludedApp`・`RemovedExcludedApp` | `excluded_apps`（`app_id`・`enabled`） | アプリの識別子 | `label`・`sinceVersion`・`removedVersion` の列と、一覧が最後に変わった版（`appsChangedVersion`）がない |
 | 送信 ID `batches` | `usage_sync_batches`（`submission_id`・`payload_hash`） | 送信 ID と中身の指紋で重複を防ぐ | — |
 | 利用記録 `UsageDayReport` | `usage_records`（`usage_date`・`app_id`・`used_minutes`） | 日付・アプリ・分数 | 測った時刻・制限対象の合計・`label`・`excluded` がない。「日ごとに一番新しい測定が正」の決まりを表に持てない |
 
@@ -251,3 +260,5 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 ### `src/server/db/` について
 
 `src/server/db/`（Neon / PGlite への接続と、例の表 `rules`・`usage`）は、アプリのひな型から残っているものです。`drizzle.config.ts` と `npm run db:push` はこれを使いますが、**今の API は使っていません**（`tests/server/db.test.ts` が接続を確かめるだけ）。DB につなぐときに、`backend/` の表の設計と合わせて決め直します。
+
+DB につなぐときにやることは、[open-questions.md](open-questions.md) の「4. 次の段階（DB につなぐ）でやること」にまとめてあります。

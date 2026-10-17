@@ -52,13 +52,13 @@ flowchart LR
 - **本番は Vercel の Hono** です。リポジトリ直下の `server.ts` が `src/server/app.ts` をそのまま公開します（Vercel は直下の `server.ts` の default export を使う）。
 - **手元**では `npm run dev:server`（`src/server/dev.ts`）が `http://localhost:3000` にサーバを立てます。同じネットワークのすべてのアドレスで待つので、実機やエミュレータからも届きます。
 - **`backend/`** は試験用の PostgreSQL（Docker Compose でも立てられる）と Drizzle の表の設計です。独立した npm のプロジェクトで、ルートの型の検査・整形の検査（`npm run check`）からは外してあります（`tsconfig.json`・`biome.json` の `backend` の除外）。
-- 注意: 今のサーバはデータを**プロセスのメモリ**に持ちます。`src/server/db/index.ts` のコメントのとおり、Vercel では関数のメモリにデータを置いても残らない（呼ぶたびに別のインスタンスになりうる）ので、**DB につなぐまでは手元の PC のサーバで試します**。
+- 注意: 今のサーバはデータを**プロセスのメモリ**に持ちます。`src/server/db/index.ts` のコメントのとおり、Vercel では関数のメモリにデータを置いても残らない（呼ぶたびに別のインスタンスになりうる）ので、**DB につなぐまでは手元の PC のサーバで試します**。DB につなぐときにやることは [open-questions.md の「次の段階（DB につなぐ）でやること」](open-questions.md) にまとめました。
 
 ## 2. フォルダごとの役割
 
 | フォルダ・ファイル | 役割 |
 |---|---|
-| `contracts/` | **契約（型）**。アプリとサーバの両方がここだけを見てつながる。`api.ts`（API の表）・`schemas.ts`（データの形）・`errors.ts`（エラーの形と文言）・`dates.ts`（日付の計算）・`fixtures.ts`（MOCK の人と見本のデータ）・`native.ts`（Kotlin の窓口の型）・`tokens.ts`（色・余白・文字の大きさ） |
+| `contracts/` | **契約（型）**。アプリとサーバの両方がここだけを見てつながる。`api.ts`（API の表）・`schemas.ts`（データの形）・`errors.ts`（エラーの形と文言）・`dates.ts`（日付の計算と、画面に出す日付の文言）・`fixtures.ts`（MOCK の人と見本のデータ）・`native.ts`（Kotlin の窓口の型）・`tokens.ts`（色・余白・文字の大きさ） |
 | `src/server/app.ts` | サーバの入口。`contracts/api.ts` の表をそのまま Hono の道につなぐ（道を手書きしない） |
 | `src/server/route.ts` | API 1本ぶんの処理の枠（`handle()`）。ログインの確認 → 入力の検査 → 子どもの範囲の確認 → 処理 → 出力の検査、の順に必ず通す |
 | `src/server/auth.ts`・`auth/google.ts` | 合言葉から「呼んだ人」を決める・役割を確かめる・子どもの範囲を確かめる。Google の ID トークンの検証 |
@@ -67,7 +67,7 @@ flowchart LR
 | `src/server/plan/daily-limits.ts` | C10 の日別上限の計算（純粋な関数） |
 | `src/server/env.ts`・`errors.ts`・`dev.ts` | 環境変数の読み取り・サーバのエラー（`AppError`）・手元用のサーバ |
 | `src/server/db/` | ひな型から残っている DB の接続口（Neon / PGlite）と例の表（`rules`・`usage`）。**今の API は使っていない**（`tests/server/db.test.ts` だけが使う） |
-| `src/lib/` | アプリ側の仕組み。`api.ts`（通信）・`session.tsx`（ログイン状態）・`google.ts`（Google ログイン）・`storage.ts`（端末の保存）・`config-cache.ts`（C7）・`usage-calc.ts`（C3）・`usage-outbox.ts`（C8）・`native.ts`（Kotlin の窓口）・`polling.ts`（30秒ごとの取得）・`flow.tsx`（画面の間の受け渡し）・`child-data.tsx`・`parent-data.tsx`（子ども用・保護者用のデータの共有） |
+| `src/lib/` | アプリ側の仕組み。`api.ts`（通信）・`session.tsx`（ログイン状態）・`google.ts`（Google ログイン）・`storage.ts`（端末の保存）・`config-cache.ts`（C7）・`usage-calc.ts`（C3）・`usage-outbox.ts`（C8）・`native.ts`（Kotlin の窓口）・`polling.ts`（30秒ごとの取得）・`flow.tsx`（画面の間の受け渡し）・`child-data.tsx`・`parent-data.tsx`（子ども用・保護者用のデータの共有）・`sign-out.ts`（ログアウトで端末のデータを消す） |
 | `src/components/` | 共通の部品（`Screen`・`Card`・`Button`・`StateView` など）。`child/`・`pair/`・`parent/`・`schedule/` は機能ごとの部品と、画面の判断をまとめた純粋な関数 |
 | `src/app/` | 画面（Expo Router。ファイルの場所がそのまま道になる）。`index.tsx`（入口）・`login.tsx`・`pair/`・`child/`・`parent/` |
 | `modules/kit-native/` | Kotlin のモジュール（Expo Modules）。今は `ping` だけ |
@@ -146,11 +146,14 @@ sequenceDiagram
 | キー | 中身 | 消えるとき |
 |---|---|---|
 | `slope.session` | ログインした人（合言葉を含む `Session`） | ログアウト・サーバが 401 を返したとき |
-| `slope.config.<childId>` | C7 の最後に正常だったスナップショット | 今のコードでは消す処理を呼んでいない（`configCache.clear` はあるが使われていない） |
-| `slope.usage-outbox` | C8 の送信待ち | 送れた分だけ消える。ログアウトしても消さない（子どもの記録を失わないため） |
+| `slope.config.<childId>` | C7 の最後に正常だったスナップショット | ログアウトのとき全部（`configCache.clearAll`）。401 では消さない |
+| `slope.config-index` | 設定のキャッシュを持っている子どもの一覧（`clearAll` で全部消すため。保存の仕組みにキーの一覧を取る手段がないので自分で持つ） | ログアウトのとき |
+| `slope.usage-outbox` | C8 の送信待ち | 送れた分だけ消える。ログアウトのときは、その人（子ども）の分だけ消す（`usageOutbox.removeChild`）。401 では消さない（同じ人がログインし直して送れるように） |
 | `slope.mock-device-id` | MOCK の「はじめての人」をこの端末だけの人にする番号 | 消さない |
 
 読むときは Zod で形を確かめ、壊れていたら「ない」として扱います（`readJson`）。
+
+**ログアウトで消すもの**（`src/lib/sign-out.ts` の `clearLocalDataFor`。`session.tsx` の `signOut` が呼ぶ）: 設定のキャッシュ全部と、ログアウトした人の送信待ち。同じ端末で別の人がログインし直したときに、前の人の設定や記録が混ざらないようにするためです。合言葉の期限切れ（401）では呼びません。
 
 ## 6. まだ無いもの
 
