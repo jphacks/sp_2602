@@ -1,10 +1,5 @@
-// 保護者が、子どもの一番新しい使用状況を見る。
-import { fixtures } from "../../../contracts/fixtures";
-import { isMock } from "../env";
+// C6: 保護者が、連携済みの子どもの期間の実績（分）と日別上限を見る（D2 の確認は route.ts が済ませている）。
+import { getStore } from "../mock/store";
 import { handle } from "../route";
-import { getLatestUsage } from "../usage";
 
-export default handle("usageGet", async (req) => {
-  if (isMock()) return { ...fixtures.usageGet, childId: req.childId };
-  return getLatestUsage(req.childId);
-});
+export default handle("usageGet", async (req) => getStore().usageView(req.childId, req.from, req.to));

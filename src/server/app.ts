@@ -1,4 +1,4 @@
-// サーバの入口（lead の担当）。契約（contracts/api.ts）の API の表どおりに、handlers/ の処理を Hono につなぐ。
+// サーバの入口。契約（contracts/api.ts）の API の表どおりに、handlers/ の処理を Hono につなぐ。
 // 手元は npm run dev:server（src/server/dev.ts）、Vercel では最上位の server.ts がこれを公開する。
 // パスの手書きはしない。API を足すときは契約に足し、handlers/ に同じ名前の処理を置いて index.ts から export する。
 import { Hono } from "hono";
@@ -9,7 +9,7 @@ import * as handlers from "./handlers";
 
 type Handler = (request: Request) => Promise<Response>;
 
-// 契約にある API に処理が足りないと、ここで型エラーになる（npm run typecheck）。npm run kit:stub が仮の処理を置いて埋める。
+// 契約にある API に処理が足りないと、ここで型エラーになる（npm run typecheck）。
 const table: { [K in keyof typeof api]: Handler } = handlers;
 
 const app = new Hono();
