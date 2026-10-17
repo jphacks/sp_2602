@@ -25,11 +25,11 @@ Docker is not required. For contributors who prefer an isolated local instance, 
 | `plan_settings` | D8 plan start date, S, G, and usual limit in minutes |
 | `plan_calculation_versions` | C10 calculation revision and source configuration revision |
 | `daily_limits` | D6 one current value per child/date, with its calculation revision; zero is valid |
-| `usage_sync_batches` | C8 client submission ID and payload fingerprint for retry deduplication |
+| `usage_sync_batches` | C8 client submission ID and optional payload fingerprint metadata |
 | `usage_records` | D4 per-submission, child, date, and app usage snapshot in minutes |
 | `excluded_apps` | D7 parent-managed excluded-app settings; system safety exceptions remain separate |
 
-`usage_sync_batches.submission_id` is globally unique. A retry can insert its detail rows with `ON CONFLICT DO NOTHING`; the API must compare the stored payload fingerprint before acknowledging a repeated key with a different payload. Batch metadata and usage rows must be written in the same transaction. Aggregation across distinct snapshots is intentionally left to the C8/C6 API design.
+`usage_sync_batches.submission_id` is globally unique. `persistUsageSubmission` writes batch metadata and usage rows in one transaction. A retry is acknowledged as a duplicate only when the child and the persisted date/app/minute rows match, independent of row order; reusing the ID for different content raises a conflict. Payload fingerprint metadata is optional because its canonicalization is not yet decided. Aggregation across distinct snapshots is intentionally left to the C8/C6 API design.
 
 For C10, insert a `plan_calculation_versions` row and write its `daily_limits` in one transaction. The calculation-version foreign key prevents a daily limit from referencing a missing version. A failed transaction leaves the previously committed values in place; deciding which dates are final and which dates may be recalculated remains out of scope.
 
