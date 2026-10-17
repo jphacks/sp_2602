@@ -3,9 +3,19 @@
 //   - 日別上限の残りが少なくなったら、configGet のときに作り足す（Q4: 今日から先を作り直す・昨日以前は変えない）
 //   - 子どもの「やめる」で QR を取り消す（pairCancel。以後その code は使えない）
 //   - 対象外アプリの一覧が最後に変わった版と、外したアプリの版（親16 の反映済み／反映待ちを、開き直しても正しく出す）
+//   - テスト期間・空白期間の一覧が最後に変わった版（親05・空白期間の一覧の反映済み／反映待ち。ほかの設定の保存では進まない）
 import { addDays } from "@contracts/dates";
 import { mockSessions } from "@contracts/fixtures";
-import type { ConfigResult, ConfigSnapshot, ExcludedAppsView, Session } from "@contracts/schemas";
+import type {
+  BlankPeriodList,
+  ConfigChange,
+  ConfigResult,
+  ConfigSnapshot,
+  ExcludedAppsView,
+  Session,
+  TestPeriodList,
+  TestPeriodSaveResult,
+} from "@contracts/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 import { reconcileConfig } from "@/lib/config-cache";
 import { LIMIT_HORIZON_DAYS, LIMIT_TOPUP_MIN_DAYS, MemoryStore, startupVersionBase } from "@/server/mock/store";
@@ -203,5 +213,72 @@ describe("対象外アプリの一覧が最後に変わった版と、外した�
     const v = await view();
     expect(v).toMatchObject({ appsChangedVersion: 5, removedApps: [] });
     expect(v.apps.find((a) => a.packageName === A.packageName)?.sinceVersion).toBe(5);
+  });
+});
+
+describe("テスト期間・空白期間の一覧が最後に変わった版（親05 の反映済み／反映待ちを、テスト日程だけで決める）", () => {
+  beforeEach(() => {
+    fresh("2026-10-15T03:00:00Z");
+  });
+
+  it("期間を足す・変える・消したときだけ進む。計画・通常上限・対象外アプリ・もう一方の期間・同じ中身の更新では進まない", async () => {
+    const { child, parent } = await newFamily("period-ver");
+    const childId = child.userId;
+    const tests = () => ok<TestPeriodList>(post("/api/test-period/list", { childId }, parent.token));
+    const blanks = () => ok<BlankPeriodList>(post("/api/blank-period/list", { childId }, parent.token));
+    const changed = async () => [(await tests()).periodsChangedVersion, (await blanks()).blankChangedVersion];
+
+    expect(await changed()).toEqual([0, 0]); // 一度も変えていない
+    await ok(post("/api/plan/usual-limit", { childId, expectedVersion: 0, usualLimitMinutes: 120 }, parent.token));
+    expect(await changed()).toEqual([0, 0]);
+
+    const period = { name: "数学", startDate: "2026-11-02", endDate: "2026-11-04" };
+    const created = await ok<TestPeriodSaveResult>(
+      post("/api/test-period/create", { childId, expectedVersion: 1, ...period }, child.token),
+    );
+    expect(created.configVersion).toBe(2);
+    expect(await changed()).toEqual([2, 0]);
+
+    const plan = { planStartDate: "2026-10-20", startLimitMinutes: 200, finalGoalMinutes: 100 };
+    await ok(post("/api/plan/save", { childId, expectedVersion: 2, ...plan }, parent.token));
+    const app = { packageName: "com.example.a", label: "A" };
+    await ok(post("/api/excluded-apps/save", { childId, expectedVersion: 3, apps: [app] }, parent.token));
+    expect((await tests()).configVersion).toBe(4);
+    expect(await changed()).toEqual([2, 0]); // 設定の版は 4 まで上がったが、テスト期間は版 2 のまま
+
+    const blank = { name: "冬休み", startDate: "2026-12-24", endDate: "2027-01-07" };
+    await ok(post("/api/blank-period/create", { childId, expectedVersion: 4, ...blank }, parent.token));
+    expect(await changed()).toEqual([2, 5]);
+
+    const id = created.testPeriod.id;
+    await ok(post("/api/test-period/update", { childId, expectedVersion: 5, id, ...period }, parent.token));
+    expect(await changed()).toEqual([2, 5]); // 同じ中身の更新: 版は 6 になったが、一覧は変わっていない
+    await ok(
+      post(
+        "/api/test-period/update",
+        { childId, expectedVersion: 6, id, ...period, endDate: "2026-11-05" },
+        parent.token,
+      ),
+    );
+    expect(await changed()).toEqual([7, 5]);
+    await ok<ConfigChange>(post("/api/test-period/delete", { childId, expectedVersion: 7, id }, parent.token));
+    expect(await changed()).toEqual([8, 5]);
+  });
+
+  it("失敗した保存（重なり・版のずれ）では進まない", async () => {
+    const { child, parent } = await newFamily("period-ver-fail");
+    const childId = child.userId;
+    const period = { name: "数学", startDate: "2026-11-02", endDate: "2026-11-04" };
+    await ok(post("/api/test-period/create", { childId, expectedVersion: 0, ...period }, parent.token));
+    const overlap = await post("/api/test-period/create", { childId, expectedVersion: 1, ...period }, parent.token);
+    expect(await codeOf(overlap)).toBe("bad_request");
+    const stale = await post(
+      "/api/test-period/create",
+      { childId, expectedVersion: 0, ...period, startDate: "2026-12-01", endDate: "2026-12-01" },
+      parent.token,
+    );
+    expect(await codeOf(stale)).toBe("conflict");
+    const list = await ok<TestPeriodList>(post("/api/test-period/list", { childId }, parent.token));
+    expect(list).toMatchObject({ periodsChangedVersion: 1, configVersion: 1 });
   });
 });

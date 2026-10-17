@@ -37,6 +37,7 @@ import {
   PlanSaveResult,
   PlanView,
   Session,
+  SignOutResult,
   TestPeriodCreate,
   TestPeriodList,
   TestPeriodSaveResult,
@@ -66,6 +67,18 @@ export const api = {
   authGoogle: post("/api/auth/google", "none", GoogleSignIn, Session),
   // 今の合言葉の持ち主（役割を含む）。アプリの起動時に、どの画面に進むかを決めるのに使う
   authMe: { kind: "json", method: "GET", path: "/api/auth/me", auth: "signedIn", req: z.void(), res: Session },
+  // ログアウト: 今の合言葉をサーバでも無効にする（入力なし。本文を付けずに POST する）。以後その合言葉は 401。
+  // 足した理由: 前はログアウトしても端末の合言葉を消すだけで、サーバでは最後に使ってから30日まで使えるまま残った
+  //   （端末から抜き出された・どこかに写っていた合言葉で、ログアウトした後も呼べてしまう。10/17 のセキュリティの残り）。
+  // アプリは端末のデータを消す前に呼ぶが、通信できなくてもログアウトは進める（session.tsx）。401 で自動でログアウトしたときは呼ばない
+  authSignOut: {
+    kind: "json",
+    method: "POST",
+    path: "/api/auth/sign-out",
+    auth: "signedIn",
+    req: z.void(),
+    res: SignOutResult,
+  },
 
   // ── C1: QR の紐づけ。役割がまだない人（role: null）が使う。MVP は親1人↔子1人（2人目は conflict。Q2）──
   // 子ども: QR を出す（保護者・連携済みの子どもは conflict。前に出した未使用の QR は無効になる。Q10）

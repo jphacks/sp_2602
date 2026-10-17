@@ -131,6 +131,28 @@ describe("ログインと合言葉（C1）", () => {
     expect(res.status).toBe(401);
   });
 
+  it("authSignOut（本文なしの POST）はその合言葉を無効にする。以後その合言葉は 401。同じ人のほかの端末の合言葉は残る", async () => {
+    const phone = await newPerson("signout");
+    const tablet = await newPerson("signout"); // 同じ人が別の端末でもログインした
+    expect(tablet.userId).toBe(phone.userId);
+    const res = await app.request("/api/auth/sign-out", { method: "POST", headers: auth(phone.token) });
+    expect(res.status).toBe(200);
+    expect(api.authSignOut.res.parse(await res.json())).toEqual({ ok: true });
+    expect((await get("/api/auth/me", phone.token)).status).toBe(401);
+    expect((await post("/api/pair/start", {}, phone.token)).status).toBe(401);
+    expect((await get("/api/auth/me", tablet.token)).status).toBe(200);
+    // もう一度呼んでも（合言葉はもう無効なので）401
+    const again = await app.request("/api/auth/sign-out", { method: "POST", headers: auth(phone.token) });
+    expect(again.status).toBe(401);
+  });
+
+  it("authSignOut は合言葉なしでは 401。本文に何か入れると bad_request（入力なしの API）で、合言葉は消さない", async () => {
+    expect((await app.request("/api/auth/sign-out", { method: "POST" })).status).toBe(401);
+    const withBody = await post("/api/auth/sign-out", { token: "x" }, NEW);
+    expect(await codeOf(withBody)).toBe("bad_request");
+    expect((await get("/api/auth/me", NEW)).status).toBe(200);
+  });
+
   it("30日使われなかった合言葉は無効になる", async () => {
     nowMs += 31 * 86_400_000;
     expect((await get("/api/auth/me", PARENT)).status).toBe(401);

@@ -125,6 +125,7 @@ export const fixtures = {
   health: { ok: true, mock: true } satisfies Res<"health">,
   authGoogle: mockSessions["mock-google-parent"] satisfies Res<"authGoogle">,
   authMe: mockSessions["mock-google-parent"] satisfies Res<"authMe">,
+  authSignOut: { ok: true } satisfies Res<"authSignOut">,
   pairStart: mockPair.ticket,
   pairStatus: mockPair.waiting,
   pairClaim: mockPair.claimed,
@@ -147,6 +148,7 @@ export const fixtures = {
   testPeriodList: {
     childId: "demo-child",
     testPeriods,
+    periodsChangedVersion: 2, // 数学を足した版
     configVersion: 3,
     childAppliedVersion: 3,
   } satisfies Res<"testPeriodList">,
@@ -168,6 +170,7 @@ export const fixtures = {
   blankPeriodList: {
     childId: "demo-child",
     blankPeriods,
+    blankChangedVersion: 3, // 冬休みを足した版
     configVersion: 3,
     childAppliedVersion: 3,
   } satisfies Res<"blankPeriodList">,

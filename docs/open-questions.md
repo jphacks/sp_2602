@@ -43,7 +43,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 
 ### Q20. 子どもの端末のログアウト
 
-- 今の仮の動き: 子07 にログアウトがある（確認のダイアログつき。`src/components/LogoutListItem.tsx`）。ログアウトで合言葉・設定のキャッシュ全部・その子どもの送信待ちを消す（`src/lib/sign-out.ts`）。**まだ送っていない利用記録は、ログアウトすると失われる**。監視（Kotlin）はまだないので、ログアウトで監視が止まるかは決めていない。
+- 今の仮の動き: 子07 にログアウトがある（確認のダイアログつき。`src/components/LogoutListItem.tsx`）。ログアウトで、まず合言葉をサーバでも無効にし（`authSignOut`。D-90）、合言葉・設定のキャッシュ全部・その子どもの送信待ちを消す（`src/lib/sign-out.ts`）。**まだ送っていない利用記録は、ログアウトすると失われる**。監視（Kotlin）はまだないので、ログアウトで監視が止まるかは決めていない。
 - 変える場所: 子どもの画面から外すなら `src/app/child/settings.tsx`。ログアウトで消すものは `src/lib/sign-out.ts` の `clearLocalDataFor`（合言葉は `src/lib/storage.ts` の `clearSessionData`）。
 
 ### Q21. 安全上の「必須例外」アプリの一覧（C3・C4）
@@ -151,7 +151,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | QR の一時的な番号（ペアリング） | 表がない | Q10: 10分・1回だけ・出し直しで無効・取り消し（`pairCancel`） |
 | 空白期間と、その日の「制限なし」 | 空白期間の表がない。`daily_limits.limit_minutes` が必須の整数 | Q7 |
 | 計画なしで通常上限だけ・通常上限が未設定 | `plan_settings` は通常上限が必須で、計画と同じ行 | Q7 |
-| テスト期間を作った人の役割 | `test_periods` に `createdByRole` がない | Q11 |
+| テスト期間を作った人の役割・テスト期間と空白期間の一覧が最後に変わった版 | `test_periods` に `createdByRole` がない。一覧の版（`periodsChangedVersion`・`blankChangedVersion`）を持つ所がない | Q11・Q6（D-88） |
 | 対象外アプリの名前・対象外になった版・外した版・一覧が最後に変わった版 | `excluded_apps` に `label`・`sinceVersion`・`removedVersion`、一覧の版がない | Q6・親16 |
 | 利用記録の測った時刻・制限対象の合計・アプリ名・対象外だったか | `usage_records` に列がない。「日ごとに一番新しい測定が正」を表に持てない | Q8 |
 | 設定の版が 0 から始まる | `child_config_versions.version` は既定 1 | Q6 |
@@ -161,3 +161,14 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 - デモの子どもの版をサーバの起動時刻から数える仕組み（`startupVersionBase`）は、メモリの store が再起動で消えるためのものです。DB では版が戻らないので要らなくなります。
 - `src/server/db/`（ひな型の接続口と例の表 `rules`・`usage`）は今の API が使っていません。`backend/` の表と合わせて、どちらを使うか決め直します。
 - `configGet`（読む API）の中で日別上限を作り足して版を上げている（`topUpDailyLimits`）。DB では、読むときに書き込むのか、決まった時刻にまとめて作るのかを決めます。
+
+## 5. デバッグで残った、判断が要るもの（2026-10-17）
+
+実機のデバッグ（第1回・第2回）で見つけたが、色・Kotlin・作り直しが要るなどで直していないものです。
+
+| # | 何が起きるか | なぜ直していないか（判断が要ること） | 直すときに触る所 |
+|---|---|---|---|
+| 1 | 黒色のテーマで、進捗バー・今日の棒（`primaryFill` #3B5BDB）が下地（`track` #2F3036）の上で見えにくい。明るさの比は 2.3 で、部品の目安 3 に届かない | Figma のダークの値どおり。`contracts/tokens.ts` の色は画面の係では変えない決まりなので、どの色を変えるか（`track` を明るくする・棒だけ別の青にする）を決める必要がある | `contracts/tokens.ts` の `palettes.dark`（`track` か `primaryFill`）。`tests/lib/theme-contrast.test.ts` の部品の組に「`primaryFill` が `track` の上で見える」を足す（今はコメントで外してある） |
+| 2 | Android の画面の下のナビゲーションバー（戻る・ホームのボタンの帯）の色が、アプリのテーマ（白色・黒色）に合わない | JavaScript からは変えられず、Kotlin（`MainActivity` で窓の帯の色・ボタンの明暗を変える）か、ネイティブのライブラリを足して、開発用のアプリ（dev client）を作り直す必要がある。実機の作り直しの手間とどちらを先にするか | Kotlin の `MainActivity`（または `expo-navigation-bar` などを足して `app.json` の plugins）。テーマを変えたときに `src/lib/theme.tsx` から呼ぶ窓口を `contracts/native.ts` に足す |
+| 3 | アプリを起動した直後、白い地が一瞬見える（黒色のテーマでも） | 選んだテーマは端末の保存（`slope.theme`）を JavaScript が読んでから決まるので、その前の窓の地（Android のテーマの既定の白）が見える。起動画面（splash）の色・窓の地の色を決めて、作り直す必要がある。黒色を選んだ人にだけ黒にするのは、ネイティブ側でも保存を読む必要がある | `app.json`（`expo-splash-screen` の設定・`android` の窓の地の色）と、作り直し。ネイティブで保存を読むなら Kotlin |
+| 4 | サーバが覚える送信 ID の記録（C8 の二重保存を防ぐもの）が、消されずに増え続ける。`MOCK=1` では `state/mock-store.json` も大きくなり続ける | 何日分（何件）覚えておけば送り直しを見分けられるか（端末の送信待ちの最長の期間）を決める必要がある。DB に移すときの表の作り方（期限つきで消す）とも関わる | `src/server/mock/store.ts` の `batches`（`usageUpload` で古いものを消す）。DB では送信 ID の表に期限を付ける。送り直しの間隔は Q22（`usage-outbox.ts` の `backoffMs`） |

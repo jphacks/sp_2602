@@ -1,11 +1,16 @@
 // ログアウトで、設定のキャッシュ（C7）とその人の送信待ち（C8）を消すテスト（src/lib/sign-out.ts）。
 // 別の人で入り直したときに、前の人の設定やまだ送っていない記録が混ざらないこと、ほかの子どもの送信待ちは消さないことを確かめる。
+// あわせて、ログアウトで合言葉をサーバでも無効にすること（revokeServerSession。失敗してもログアウトは進める）を確かめる。
+import { mockSessions } from "@contracts/fixtures";
 import type { ConfigSnapshot, UsageDayReport } from "@contracts/schemas";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiCallError, call, DEFAULT_TIMEOUT_MS, errorOf, setSessionToken, setUnauthorizedHandler } from "@/lib/api";
 import { createConfigCache } from "@/lib/config-cache";
-import { clearLocalDataFor } from "@/lib/sign-out";
+import { clearLocalDataFor, REVOKE_TIMEOUT_MS, revokeServerSession } from "@/lib/sign-out";
 import { type KeyValueStorage, storageKeys } from "@/lib/storage";
 import { createUsageOutbox } from "@/lib/usage-outbox";
+import app from "@/server/app";
+import { resetStore } from "@/server/mock/store";
 
 function memoryStorage(): KeyValueStorage & { keys: () => string[] } {
   const data = new Map<string, string>();
@@ -99,5 +104,59 @@ describe("ログアウトで端末のデータを消す", () => {
     await configCache.refresh("child-b");
     await configCache.clear("child-a");
     expect(JSON.parse((await storage.getItem(storageKeys.configIndex)) ?? "[]")).toEqual(["child-b"]);
+  });
+});
+
+describe("ログアウトで合言葉をサーバでも無効にする（revokeServerSession）", () => {
+  afterEach(() => {
+    setSessionToken(null);
+    setUnauthorizedHandler(null);
+    vi.unstubAllGlobals();
+  });
+
+  it("サーバとつないで: 呼んだあとは、その合言葉で呼ぶと 401（端末から抜き出された合言葉でも使えない）", async () => {
+    resetStore({ seed: true });
+    vi.stubGlobal("fetch", (url: string, init: RequestInit) => app.request(url, init));
+    const token = mockSessions["mock-google-parent"].token;
+    setSessionToken(token);
+    await expect(call("authMe")).resolves.toMatchObject({ role: "parent" });
+
+    await revokeServerSession();
+
+    const e = await call("authMe").then(
+      () => null,
+      (x: unknown) => x,
+    );
+    expect(e).toBeInstanceOf(ApiCallError);
+    expect(errorOf(e)?.code).toBe("unauthorized");
+  });
+
+  it("通信できない・もう無効（401）・サーバの失敗でも、例外を投げずに終わる（ログアウトは進める）", async () => {
+    for (const make of [
+      () => Promise.reject(new TypeError("Network request failed")),
+      () => Promise.resolve(Response.json({ code: "unauthorized", message: "x", hint: "y" }, { status: 401 })),
+      () => Promise.resolve(new Response("oops", { status: 500 })),
+    ]) {
+      vi.stubGlobal("fetch", make);
+      setSessionToken("some-token");
+      await expect(revokeServerSession()).resolves.toBeUndefined();
+    }
+  });
+
+  it("サーバが応答しないときは、待つ時間（REVOKE_TIMEOUT_MS）で切り上げる", async () => {
+    let waitedMs = -1;
+    const started = revokeServerSession({
+      revoke: (signal) =>
+        new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("timeout")))),
+      timeout: (ms) => {
+        waitedMs = ms;
+        const c = new AbortController();
+        setTimeout(() => c.abort(), 1);
+        return c.signal;
+      },
+    });
+    await expect(started).resolves.toBeUndefined();
+    expect(waitedMs).toBe(REVOKE_TIMEOUT_MS);
+    expect(REVOKE_TIMEOUT_MS).toBeLessThan(DEFAULT_TIMEOUT_MS); // ふつうの呼び出しの時間切れより短い
   });
 });

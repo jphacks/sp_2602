@@ -283,14 +283,20 @@ export function saveFailure(error: ApiError, kind: PeriodKind): SaveFailure {
 
 // ── 反映済み／反映待ち（Q6。保護者の一覧に出す）──────────────────────
 
-export function appliedStatus(configVersion: number, childAppliedVersion: number | null) {
+// changedVersion は、その一覧（テスト期間・空白期間）が最後に変わった設定の版（サーバの periodsChangedVersion・blankChangedVersion）。
+// 設定全体の版（configVersion）では決めない。なぜ: 計画や対象外アプリを保存しただけでも設定の版は上がるので、テストの日程は
+// 何も変わっていないのにテストの一覧が「反映待ち」になったため（10/17 デバッグ第2回。親16 の excludedListStatus と同じ考え方）。
+// 0（一度も変えていない）なら、子どもの端末に届けるものがないので反映済み
+export function appliedStatus(changedVersion: number, childAppliedVersion: number | null) {
+  if (changedVersion === 0)
+    return { tone: "success" as const, label: "反映済み", hint: "お子さんの端末に反映されています" };
   if (childAppliedVersion == null)
     return {
       tone: "warning" as const,
       label: "反映待ち",
       hint: "お子さんの端末がまだ設定を受け取っていません",
     };
-  if (childAppliedVersion < configVersion)
+  if (childAppliedVersion < changedVersion)
     return {
       tone: "warning" as const,
       label: "反映待ち",
@@ -301,8 +307,13 @@ export function appliedStatus(configVersion: number, childAppliedVersion: number
 
 // ── 一覧の取得結果の状態 ────────────────────────────────────────
 
-// サーバから取った一覧と、そのときの設定の版（保存のときの expectedVersion に使う）
-export type PeriodSource = { periods: Period[]; configVersion: number; childAppliedVersion: number | null };
+// サーバから取った一覧と、そのときの設定の版（保存のときの expectedVersion に使う）・一覧が最後に変わった版（反映済み／反映待ち）
+export type PeriodSource = {
+  periods: Period[];
+  configVersion: number;
+  changedVersion: number;
+  childAppliedVersion: number | null;
+};
 
 //   loading     : まだ一度も取れていない
 //   fresh       : サーバから取れた

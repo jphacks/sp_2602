@@ -101,6 +101,60 @@ describe("MOCK のサーバを立て直しても、データが残る", () => {
     expect(view.days[0]?.usedMinutes).toBe(42);
   });
 
+  it("前の版のサーバが書き出したファイル（期間・対象外アプリの「最後に変わった版」がない）も読み込み、今の版で補う", async () => {
+    const persistence = enableMockPersistence(file, quiet);
+    const { parent, child, configVersion } = await setupFamily();
+    const childId = child.userId;
+    const created = api.testPeriodCreate.res.parse(
+      await (
+        await post(
+          "/api/test-period/create",
+          { childId, expectedVersion: configVersion, name: "数学", startDate: "2026-11-02", endDate: "2026-11-04" },
+          parent.token,
+        )
+      ).json(),
+    );
+    persistence.saveNow();
+
+    // あとから足した項目を消して、前の版のファイルにする
+    const old = JSON.parse(readFileSync(file, "utf8"));
+    for (const [, config] of old.configs) {
+      delete config.testPeriodsChangedVersion;
+      delete config.blankPeriodsChangedVersion;
+      delete config.excludedAppsChangedVersion;
+      delete config.removedExcludedApps;
+    }
+    writeFileSync(file, JSON.stringify(old), "utf8");
+
+    resetStore({ seed: false });
+    expect(enableMockPersistence(file, quiet).restored).toBe(true);
+    const tests = api.testPeriodList.res.parse(
+      await (await post("/api/test-period/list", { childId }, parent.token)).json(),
+    );
+    // いつ変わったか分からないので今の版とみなす（届いていない変更を「反映済み」と出さない）
+    expect(tests).toMatchObject({ periodsChangedVersion: created.configVersion, configVersion: created.configVersion });
+    const blanks = api.blankPeriodList.res.parse(
+      await (await post("/api/blank-period/list", { childId }, parent.token)).json(),
+    );
+    expect(blanks.blankChangedVersion).toBe(created.configVersion);
+    const excluded = api.excludedAppsGet.res.parse(
+      await (await post("/api/excluded-apps/get", { childId }, parent.token)).json(),
+    );
+    expect(excluded).toMatchObject({ removedApps: [], appsChangedVersion: created.configVersion });
+
+    // 読み込んだあとも、保存はそのまま続けられる（空白期間を足しても、テスト期間の版は動かない）
+    const blank = { childId, expectedVersion: created.configVersion, name: "冬休み", startDate: "2026-12-24" };
+    const saved = await post("/api/blank-period/create", { ...blank, endDate: "2027-01-07" }, parent.token);
+    expect(saved.status).toBe(200);
+    const after = api.testPeriodList.res.parse(
+      await (await post("/api/test-period/list", { childId }, parent.token)).json(),
+    );
+    expect(after).toMatchObject({
+      periodsChangedVersion: created.configVersion,
+      configVersion: created.configVersion + 1,
+    });
+  });
+
   it("同じ人がログインし直すと、立て直した後も同じ人（同じ userId・役割）になる", async () => {
     const persistence = enableMockPersistence(file, quiet);
     const { parent } = await setupFamily();
