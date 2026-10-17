@@ -30,3 +30,6 @@ local.properties
 # Gradle のビルド生成物
 build/
 .gradle/
+
+# Claude Code のサブエージェントが使う作業用の写し（git worktree）
+.claude/worktrees/

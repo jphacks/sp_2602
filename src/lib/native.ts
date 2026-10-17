@@ -100,4 +100,7 @@ export const native: NativeEngine & {
   showLimitReached: () => callSafe("showLimitReached", false),
   openApp: (packageName) => callSafe("openApp", false, packageName),
   clearLocalData: () => callSafe("clearLocalData", undefined),
+
+  // ── C5（保護者のウィジェット）──
+  saveParentWidget: (data) => callSafe("saveParentWidget", undefined, data),
 };

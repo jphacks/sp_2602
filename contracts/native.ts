@@ -54,6 +54,20 @@ export type NativeRestriction = {
   configVersion: number; // どの版の設定から作ったか
 };
 
+// 保護者のウィジェット（Figma 親08）の左「初日から」に出す、ある日の上限の減り。
+// ok: 「40 分 減」「上限 300→260分」（reducedMinutes が負なら増えた）。数字を出せない日は message の文を出す（0 と出さない）
+export type NativeParentReduction =
+  | { kind: "ok"; reducedMinutes: number; fromLimit: number; toLimit: number }
+  | { kind: "message"; title: string; body: string };
+
+// 保護者のウィジェットの値。保護者のアプリが振り返り（src/components/parent/review.ts の limitReduction）と C7 の設定から作り、
+// Kotlin が端末に保存する（"slope.widget"）。日ごとの値を先の日の分まで渡すのは、保護者が Slope を開かない日が続いても、
+// ウィジェットがその日の値を出せるようにするため（一覧にない日は「Slope を開くと出ます」）
+export type NativeParentWidget = {
+  days: { date: string; reduction: NativeParentReduction }[]; // 今日から先の日ごとの減り
+  testPeriods: NativeTestPeriod[]; // 右「テストまで」（子どものウィジェットと同じ決め方で次のテストを選ぶ）
+};
+
 // 監視・制限エンジンの状態
 export type EngineStatus = {
   running: boolean;
@@ -83,4 +97,9 @@ export interface NativeEngine {
   openApp(packageName: string): boolean;
   // ログアウトのときに、端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットの値を消して描き直す）
   clearLocalData(): void;
+
+  // ── C5（保護者のウィジェット・親08）──
+  // 保護者のウィジェットの値を端末に保存し、ウィジェットを保護者の形で描き直す。
+  // ウィジェットは1つ（SlopeWidget）で、最後に保存した役割（saveRestriction = 子ども・saveParentWidget = 保護者）の形で描く
+  saveParentWidget(data: NativeParentWidget): void;
 }

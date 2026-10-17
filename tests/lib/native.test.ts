@@ -36,6 +36,7 @@ describe("native（モジュールなし）", () => {
         configVersion: 0,
         testPeriods: [],
       });
+      native.saveParentWidget({ days: [], testPeriods: [] }); // 保護者のウィジェット（親08）
     }).not.toThrow();
   });
 

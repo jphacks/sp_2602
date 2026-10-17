@@ -30,6 +30,7 @@ import java.util.TimeZone
 // Function の名前・引数・戻り値は contracts/native.ts の NativeEngine と1対1（中身は engine/ の部品）:
 //   C2: getPermissions・openPermissionSettings・getDailyUsage
 //   C4: saveRestriction・startEngine・stopEngine・getEngineStatus・showLimitReached・openApp・clearLocalData
+//   C5: saveParentWidget（保護者のウィジェット。子どものウィジェットの値は saveRestriction と監視が保存する）
 class KitNativeModule : Module() {
   private val context: Context
     get() = appContext.reactContext?.applicationContext ?: throw Exceptions.ReactContextLost()
@@ -97,6 +98,7 @@ class KitNativeModule : Module() {
         EngineStore.saveRestriction(ctx, rule)
         MonitorService.checkNow() // 上限が変わったら、次の回を待たずに判定し直す
         json.optJSONArray("testPeriods")?.let { WidgetStore.saveTests(ctx, testsFromJson(it)) }
+        WidgetStore.markChild(ctx) // ウィジェットを子どもの形（子12）で描く
         SlopeWidget.requestUpdate(ctx)
         true
       } catch (e: Exception) {
@@ -128,6 +130,24 @@ class KitNativeModule : Module() {
       LimitPrompt.cancelLimitNotification(ctx)
       WidgetStore.clear(ctx)
       SlopeWidget.requestUpdate(ctx)
+    }
+
+    // ── C5（保護者のウィジェット・Figma 親08）──────────────────────
+
+    // 保護者のウィジェットの値（contracts/native.ts の NativeParentWidget）を端末に保存し、ウィジェットを保護者の形で描き直す。
+    // 形が違うときは保存せず false（前の値のまま。JS の画面の処理は止めない）
+    Function("saveParentWidget") { data: Map<String, Any?> ->
+      val ctx = context
+      try {
+        val json = JSONObject(data)
+        val days = json.optJSONArray("days") ?: JSONArray()
+        val tests = json.optJSONArray("testPeriods")?.let { testsFromJson(it) } ?: emptyList()
+        WidgetStore.saveParent(ctx, days, tests)
+        SlopeWidget.requestUpdate(ctx)
+        true
+      } catch (e: Exception) {
+        false
+      }
     }
 
     // 監視の状態 { running, restrictionDate }

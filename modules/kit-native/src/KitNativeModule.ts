@@ -1,5 +1,6 @@
 import type {
   EngineStatus,
+  NativeParentWidget,
   NativePermission,
   NativePermissionStatus,
   NativeRestriction,
@@ -24,6 +25,8 @@ declare class KitNativeModule extends NativeModule {
   showLimitReached(): boolean;
   openApp(packageName: string): boolean;
   clearLocalData(): void;
+  // ── C5（保護者のウィジェット）──
+  saveParentWidget(data: NativeParentWidget): boolean;
 }
 
 export default requireNativeModule<KitNativeModule>("KitNative");

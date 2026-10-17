@@ -25,7 +25,8 @@ import org.json.JSONObject
 //     EngineStore.loadToday() で読む（engine/EngineStore.kt の「共有の約束」）。割合は K-A が C3 と同じ規則（LimitRules.judge）で
 //     出した usedPercent をそのまま使い、ここでは計算し直さない。
 //   - テストの日程は K-A の保存に無いので、ウィジェット用の "slope.widget" に置く（WidgetKeys・WidgetStore.saveTests）。
-//     書くのは JS の窓口から（まだ無い。案は報告に書いた）。
+//     書くのは JS の窓口 saveRestriction（KitNativeModule.kt）。
+//   - 保護者の端末（Figma 親08）の「初日からの減り」は JS の saveParentWidget が "slope.widget" に置く（WidgetKeys.PARENT_DAYS）。
 //   - 「取れない値を 0 にしない」（docs/architecture.md 4章）: データが無い・権限が無い・制限なし・上限未設定は、
 //     0% ではなくそれぞれの文を出す。
 //   - 日付は K-A の DayWindow（日本時間・0時区切り。contracts/dates.ts の todayString と同じ）。
@@ -38,6 +39,21 @@ object WidgetKeys {
   // 次のテストは描くたびにここから選ぶ（日がたっても、アプリを開かずに「あと◯日」が正しく減るように）
   const val TEST_PERIODS = "tests.periods"
   const val TESTS_KNOWN = "tests.known" // Boolean。設定を一度でも取れたか（false = テストがあるか分からない。「予定なし」と言わない）
+
+  // String。この端末でログインしている人の役割 "child" / "parent"（無い = ログアウト中・まだ分からない → 子どもの形で「まだ分かりません」）。
+  // ウィジェットは1つ（SlopeWidget）で、役割に合わせて子12（今日の残り）か親08（初日からの減り）の形で描く。
+  // 書くのは JS の窓口: saveRestriction（子ども）・saveParentWidget（保護者）。clearLocalData で消える
+  const val ROLE = "role"
+
+  // String。保護者のウィジェット（親08）の左「初日から」の、今日から先の日ごとの値（contracts/native.ts の NativeParentWidget.days）
+  // [{"date":"2026-10-15","reduction":{"kind":"ok","reducedMinutes":40,"fromLimit":300,"toLimit":260}}, …]
+  // {"kind":"message","title":"…","body":"…"} は数字を出せない日の文
+  const val PARENT_DAYS = "parent.days"
+}
+
+object WidgetRole {
+  const val CHILD = "child"
+  const val PARENT = "parent"
 }
 
 // 1つのテスト期間（contracts/schemas.ts の testPeriods の一部）
@@ -50,7 +66,17 @@ data class WidgetSnapshot(
   val todayUsage: TodaySummary?, // K-A の "today_usage"。無い・壊れている = null
   val testsKnown: Boolean,
   val tests: List<WidgetTest>,
+  val role: String? = null, // WidgetRole.CHILD / PARENT。null = 分からない（子どもの形で描く）
+  val parentDays: List<ParentDay>? = null, // 保護者の日ごとの減り。null = まだ保存されていない
 )
+
+// 保護者のウィジェットの、ある日の「初日から」（contracts/native.ts の NativeParentReduction）
+sealed class ParentReduction {
+  data class Ok(val reducedMinutes: Double, val fromLimit: Double, val toLimit: Double) : ParentReduction()
+  data class Message(val title: String, val body: String) : ParentReduction()
+}
+
+data class ParentDay(val date: String, val reduction: ParentReduction)
 
 // 読む側の関数（ここ1か所だけ）。保存の形が変わったら、この中身だけを直す
 fun readWidgetSnapshot(context: Context, nowMillis: Long = System.currentTimeMillis()): WidgetSnapshot {
@@ -61,6 +87,8 @@ fun readWidgetSnapshot(context: Context, nowMillis: Long = System.currentTimeMil
     todayUsage = EngineStore.loadToday(context),
     testsKnown = p.getBoolean(WidgetKeys.TESTS_KNOWN, false),
     tests = parseTests(p.getString(WidgetKeys.TEST_PERIODS, null)),
+    role = p.getString(WidgetKeys.ROLE, null),
+    parentDays = p.getString(WidgetKeys.PARENT_DAYS, null)?.let { parseParentDays(it) },
   )
 }
 
@@ -73,6 +101,24 @@ object WidgetStore {
     val arr = JSONArray()
     for (t in tests) arr.put(JSONObject().put("name", t.name).put("startDate", t.startDate).put("endDate", t.endDate))
     prefs(context).edit()
+      .putString(WidgetKeys.TEST_PERIODS, arr.toString())
+      .putBoolean(WidgetKeys.TESTS_KNOWN, true)
+      .apply()
+  }
+
+  // 子どもの端末として描く（JS の saveRestriction のとき）
+  fun markChild(context: Context) {
+    prefs(context).edit().putString(WidgetKeys.ROLE, WidgetRole.CHILD).apply()
+  }
+
+  // 保護者のウィジェットの値（JS の saveParentWidget）。days は NativeParentWidget.days の JSON 配列そのまま。
+  // 役割を保護者にして、テストの日程も子どもと同じ場所に置く（右「テストまで」は同じ決め方で選ぶ）
+  fun saveParent(context: Context, days: JSONArray, tests: List<WidgetTest>) {
+    val arr = JSONArray()
+    for (t in tests) arr.put(JSONObject().put("name", t.name).put("startDate", t.startDate).put("endDate", t.endDate))
+    prefs(context).edit()
+      .putString(WidgetKeys.ROLE, WidgetRole.PARENT)
+      .putString(WidgetKeys.PARENT_DAYS, days.toString())
       .putString(WidgetKeys.TEST_PERIODS, arr.toString())
       .putBoolean(WidgetKeys.TESTS_KNOWN, true)
       .apply()
@@ -128,6 +174,32 @@ fun usageCardView(s: WidgetSnapshot): UsageCardView {
   }
 }
 
+// 保護者の左「初日から」: 「40 分 減」「上限 300→260分」。増えた日は「分 増」
+sealed class ReductionCardView {
+  data class Minutes(val minutes: String, val increased: Boolean, val fromLimit: String, val toLimit: String) : ReductionCardView()
+  data class Message(val title: String, val body: String) : ReductionCardView()
+}
+
+val UNKNOWN_REDUCTION = ReductionCardView.Message("まだ分かりません", "Slope を開くと出ます")
+
+// 今日の分を選ぶ。保存が無い・今日の分が無い（保護者が長く Slope を開いていない）なら「まだ分かりません」（0 分減と言わない）
+fun reductionCardView(s: WidgetSnapshot): ReductionCardView {
+  val day = s.parentDays?.firstOrNull { it.date == s.today } ?: return UNKNOWN_REDUCTION
+  return when (val r = day.reduction) {
+    is ParentReduction.Message -> ReductionCardView.Message(r.title, r.body)
+    is ParentReduction.Ok -> ReductionCardView.Minutes(
+      minutes = minutesText(Math.abs(r.reducedMinutes)),
+      increased = r.reducedMinutes < 0,
+      fromLimit = minutesText(r.fromLimit),
+      toLimit = minutesText(r.toLimit),
+    )
+  }
+}
+
+// 分の表示（整数ならそのまま、端数があれば小数1桁）
+fun minutesText(m: Double): String =
+  if (m == Math.floor(m) && !m.isInfinite()) m.toLong().toString() else String.format(java.util.Locale.ROOT, "%.1f", m)
+
 // 次のテスト: 終わっていない（終了日 ≥ 今日）もので、いちばん早く始まるもの。期間中は日数を数えない（child-view.ts の nextTestView と同じ）
 fun testCardView(s: WidgetSnapshot): TestCardView {
   if (!s.testsKnown) return UNKNOWN_TEST
@@ -153,6 +225,33 @@ private fun parseTests(json: String?): List<WidgetTest> {
     }
   } catch (_: Exception) {
     emptyList() // 壊れていたら「無い」として扱う（src/lib/storage.ts の readJson と同じ考え）
+  }
+}
+
+// 保護者の日ごとの減り（WidgetKeys.PARENT_DAYS）。壊れた要素は飛ばし、全体が壊れていたら「無い」（null）
+private fun parseParentDays(json: String): List<ParentDay>? {
+  return try {
+    val arr = JSONArray(json)
+    (0 until arr.length()).mapNotNull { i ->
+      val o = arr.optJSONObject(i) ?: return@mapNotNull null
+      val date = o.optString("date", "")
+      val r = o.optJSONObject("reduction") ?: return@mapNotNull null
+      if (!DayWindow.isDate(date)) return@mapNotNull null
+      val reduction = when (r.optString("kind")) {
+        "ok" -> {
+          val reduced = r.optDouble("reducedMinutes", Double.NaN)
+          val from = r.optDouble("fromLimit", Double.NaN)
+          val to = r.optDouble("toLimit", Double.NaN)
+          if (reduced.isNaN() || from.isNaN() || to.isNaN()) return@mapNotNull null
+          ParentReduction.Ok(reduced, from, to)
+        }
+        "message" -> ParentReduction.Message(r.optString("title", ""), r.optString("body", ""))
+        else -> return@mapNotNull null
+      }
+      ParentDay(date, reduction)
+    }
+  } catch (_: Exception) {
+    null
   }
 }
 
