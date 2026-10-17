@@ -1,10 +1,12 @@
 // C4: Kotlin に渡す判定の値（toNativeRestriction。src/lib/usage-calc.ts）と、子01 の「見守りのための許可」（permissionGuide。
 // src/components/child/child-view.ts）のテスト。
 // 確かめること: 上限 0 分・制限なし・未設定を取り違えずに渡す（data.md 2章）・先の日の上限も渡す・対象外アプリを渡す・
-// 許可していないものだけを、許可してほしい順に出す（Kotlin がない端末では出さない）。
+// 許可していないものだけを、許可してほしい順に出す（Kotlin がない端末では出さない）・制限する Web サイトを渡し、
+// ユーザー補助の案内は Web サイトが登録されているときだけ出す（D-111）。
 import type { ConfigSnapshot } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
 import { permissionGuide } from "@/components/child/child-view";
+import type { ConfigState } from "@/lib/config-cache";
 import {
   ESSENTIAL_PACKAGES,
   LEARNING_PACKAGES,
@@ -35,6 +37,7 @@ const snapshot: ConfigSnapshot = {
     { date: "2026-10-19", kind: "limited", limitMinutes: 90 },
   ],
   excludedApps: [{ packageName: "com.example.studynote", label: "学習ノート", sinceVersion: 3 }],
+  blockedSites: [],
   generatedAt: "2026-10-17T00:00:00.000Z",
 };
 
@@ -61,6 +64,21 @@ describe("toNativeRestriction（C4 で Kotlin に渡す値）", () => {
     expect(r.learningPackages).toEqual([...LEARNING_PACKAGES]);
   });
 
+  it("制限する Web サイト（D-111）の登録を、そのまま Kotlin に渡す（なければ空）", () => {
+    expect(r.blockedSites).toEqual([]);
+    const withSites = toNativeRestriction(
+      {
+        ...snapshot,
+        blockedSites: [
+          { pattern: "youtube.com/shorts", sinceVersion: 5 },
+          { pattern: "tiktok.com", sinceVersion: 7 },
+        ],
+      },
+      "2026-10-17",
+    );
+    expect(withSites.blockedSites).toEqual(["youtube.com/shorts", "tiktok.com"]);
+  });
+
   it("テスト期間をウィジェット用に渡す（名前と期間だけ。作った人などは渡さない）", () => {
     expect(r.testPeriods).toEqual([{ name: "数学", startDate: "2026-10-28", endDate: "2026-10-30" }]);
     expect(toNativeRestriction({ ...snapshot, testPeriods: [] }, "2026-10-17").testPeriods).toEqual([]);
@@ -68,7 +86,12 @@ describe("toNativeRestriction（C4 で Kotlin に渡す値）", () => {
 });
 
 describe("permissionGuide（子01 の見守りのための許可）", () => {
-  const all = { usageAccess: true, overlay: true, notifications: true, batteryOptimization: true };
+  const all = { usageAccess: true, overlay: true, notifications: true, batteryOptimization: true, accessibility: true };
+  const fresh = (blockedSites: ConfigSnapshot["blockedSites"]): ConfigState => ({
+    status: "fresh",
+    snapshot: { ...snapshot, blockedSites },
+    savedAt: "2026-10-17T00:00:00.000Z",
+  });
 
   it("許可していないものだけを、重ねて表示 → 通知 → 電池 の順に出す", () => {
     const items = permissionGuide({ ...all, overlay: false, batteryOptimization: false }, true);
@@ -85,5 +108,24 @@ describe("permissionGuide（子01 の見守りのための許可）", () => {
     expect(permissionGuide(null, true)).toEqual([]);
     expect(permissionGuide({ ...all, overlay: false }, false)).toEqual([]);
     expect(permissionGuide({ ...all, usageAccess: false }, true)).toEqual([]);
+  });
+
+  it("ユーザー補助（D-111）は、制限する Web サイトが1つ以上あるときだけ、最後に出す（登録がない・設定が分からないときは求めない）", () => {
+    const off = { ...all, accessibility: false };
+    expect(permissionGuide(off, true)).toEqual([]);
+    expect(permissionGuide(off, true, fresh([]))).toEqual([]);
+    expect(permissionGuide(off, true, { status: "unavailable", error: null })).toEqual([]);
+    const sites = fresh([{ pattern: "youtube.com", sinceVersion: 3 }]);
+    expect(permissionGuide(off, true, sites).map((i) => i.permission)).toEqual(["accessibility"]);
+    expect(permissionGuide({ ...off, overlay: false }, true, sites).map((i) => i.permission)).toEqual([
+      "overlay",
+      "accessibility",
+    ]);
+    // 古い（stale）組でも、登録があれば案内する（通信できない間も、端末は前の登録で止める）
+    const stale: ConfigState = { ...sites, status: "stale", reason: "network", error: null } as ConfigState;
+    expect(permissionGuide(off, true, stale).map((i) => i.permission)).toEqual(["accessibility"]);
+    // 許可済み・Kotlin がない端末では出さない
+    expect(permissionGuide(all, true, sites)).toEqual([]);
+    expect(permissionGuide(off, false, sites)).toEqual([]);
   });
 });

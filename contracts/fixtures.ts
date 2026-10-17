@@ -116,6 +116,12 @@ const excludedApps = [
   { packageName: "com.example.wordcards", label: "英単語カード", sinceVersion: 3 },
 ] satisfies Res<"excludedAppsGet">["apps"];
 
+// 制限する Web サイト（D-111）。ショート動画だけを止める登録と、サイト全体を止める登録
+const blockedSites = [
+  { pattern: "youtube.com/shorts", sinceVersion: 2 },
+  { pattern: "tiktok.com", sinceVersion: 3 },
+] satisfies Res<"blockedSitesGet">["sites"];
+
 const week = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"];
 const weekLimits = [300, 287, 273, 260, 247, 233, 220];
 const weekUsed = [255, 243, 222, 120, null, null, null];
@@ -130,6 +136,7 @@ const snapshot = {
   blankPeriods,
   dailyLimits: week.map((date, i) => ({ date, kind: "limited" as const, limitMinutes: weekLimits[i] ?? 0 })),
   excludedApps,
+  blockedSites,
   generatedAt: "2026-10-15T09:00:00.000Z",
 } satisfies Extract<Res<"configGet">, { changed: true }>["snapshot"];
 
@@ -240,6 +247,14 @@ export const fixtures = {
     childAppliedVersion: 2, // 英単語カード（sinceVersion 3）は「反映待ち」
   } satisfies Res<"excludedAppsGet">,
   excludedAppsSave: { apps: excludedApps, configVersion: 3 } satisfies Res<"excludedAppsSave">,
+  blockedSitesGet: {
+    childId: demoUserIds.child,
+    sites: blockedSites,
+    sitesChangedVersion: 3, // tiktok.com を足した版
+    configVersion: 3,
+    childAppliedVersion: 2, // tiktok.com（sinceVersion 3）は「反映待ち」
+  } satisfies Res<"blockedSitesGet">,
+  blockedSitesSave: { sites: blockedSites, sitesChangedVersion: 3, configVersion: 3 } satisfies Res<"blockedSitesSave">,
   childAppsUpload: {
     appCount: 4,
     receivedAt: "2026-10-15T09:00:00.000Z",

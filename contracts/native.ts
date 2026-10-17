@@ -11,8 +11,11 @@
 //   overlay             = 他のアプリの上に表示（SYSTEM_ALERT_WINDOW。C4 で裏から「時間は終わりです」の画面を前に出す）
 //   notifications       = 通知（POST_NOTIFICATIONS。見守り中の通知と、overlay がないときの案内の通知。C4）
 //   batteryOptimization = 電池の最適化から外す（OS が監視を止めにくくする。C4）
-// 前面アプリの検出にユーザー補助（accessibility）は使わない（使用状況のイベントで足りる。ユーザー補助はストアの審査が厳しい）
-export type NativePermission = "usageAccess" | "overlay" | "notifications" | "batteryOptimization";
+//   accessibility       = ユーザー補助（Slope の AccessibilityService。制限する Web サイトだけに使う。D-111）。
+//                         ブラウザのアドレス欄を読み、上限に達したあと登録したサイトを開いたらブラウザを1つ前に戻す。
+//                         保護者が Web サイトを1つも登録していない子どもには案内しない（要らない許可を求めない）
+// 前面アプリの検出にユーザー補助は使わない（使用状況のイベントで足りる。ユーザー補助はストアの審査が厳しい）
+export type NativePermission = "usageAccess" | "overlay" | "notifications" | "batteryOptimization" | "accessibility";
 
 export type NativePermissionStatus = Record<NativePermission, boolean>;
 
@@ -49,6 +52,9 @@ export type NativeRestriction = {
   // C7 のテスト期間（判定には使わない。ウィジェット C5 の「次のテスト」に出すため、Kotlin がウィジェットの保存へ渡す）
   testPeriods: NativeTestPeriod[];
   excludedPackages: string[]; // 制限対象外アプリ（C9）
+  // 制限する Web サイト（D-111。C7 の blockedSites の pattern）。上限に達したあと、ブラウザでこのサイトを開くと止める。
+  // ブラウザが対象外アプリでも止める（対象外は「使用時間に数えない」で、このサイトは別の決まり）
+  blockedSites: string[];
   essentialPackages: string[]; // 安全上の必須例外（電話など。C9 とは別管理）
   learningPackages: string[]; // 上限に達したとき誘導する学習用アプリ（C4）
   configVersion: number; // どの版の設定から作ったか

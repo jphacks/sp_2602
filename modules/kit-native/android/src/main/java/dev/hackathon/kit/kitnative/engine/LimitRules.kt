@@ -28,6 +28,9 @@ data class Restriction(
   val configVersion: Long,
   val upcoming: Map<String, DayLimit>, // date の翌日から先の日別上限（電波がなく Slope を開かなくても、次の日も判定できるように）
   val savedAt: Long, // 端末に保存した時刻（エポックからのミリ秒）
+  // 制限する Web サイト（D-111。WebSites.normalizePattern でそろえた形）。上限に達したあと、WebGuardService がブラウザで止める。
+  // 使用時間の判定（isExcluded・shouldPrompt）には使わない。既定は空（この項目を足す前に保存した値も読めるように）
+  val blockedSites: List<String> = emptyList(),
 ) {
   // その日の上限。ルールが分からない日（保存した日より前・先の一覧にない日）は null（＝判定しない）
   fun limitOn(day: String): DayLimit? = if (day == date) limit else upcoming[day]

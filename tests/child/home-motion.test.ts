@@ -20,6 +20,7 @@ const snapshot = (testPeriods: ConfigSnapshot["testPeriods"]): ConfigSnapshot =>
   blankPeriods: [],
   dailyLimits: [],
   excludedApps: [],
+  blockedSites: [],
   generatedAt: "2026-10-15T00:00:00.000Z",
 });
 const period = (startDate: string, endDate = startDate) => ({

@@ -92,6 +92,8 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | `src/lib/config-cache.ts` の `StaleReason` | 古い版の応答を捨てたとき（手元のほうが新しい）にも「最新でない可能性あり」と出すか | 出す（FigJam の図どおり。理由 `older_response`） | `config-cache.ts` の `refresh`（`discard` のとき `fresh` で返す）か、`child-view.ts` の `staleNotice` で `older_response` を除く |
 | `src/lib/polling.ts`（先頭） | 画面が出ていないときの予備の取得（15分ごと） | 作っていない。画面が前に出ている間だけ取る | Kotlin（WorkManager など）側で作る |
 | `src/lib/usage-calc.ts` の `LEARNING_PACKAGES` | C4 で誘導する学習用アプリ（Kotlin に渡す一覧と、子11 の「お勧めアプリ」で上から順に開く一覧は同じもの） | Google Classroom・Duolingo | `LEARNING_PACKAGES` |
+| `modules/kit-native/.../engine/WebSites.kt` の `WebBlockGate`（D-111） | 制限する Web サイトを開いたときの間隔（戻す・案内を出す） | 戻すのは同じ登録に 2 秒あける。案内（子11）は同じ登録に 60 秒・どの登録にも 10 秒あける（間の回は戻すだけ） | `WebBlockGate` の `backGapMs`・`promptGapMs`・`anyPromptGapMs`（実機で子どもに試してもらって決める。`PromptThrottle` と同じ） |
+| `modules/kit-native/.../engine/WebGuardService.kt` の `URL_BAR_IDS`（D-111） | 対応するブラウザとアドレス欄の id（ブラウザの版で変わることがある） | Chrome・Samsung Internet・Firefox・Edge（SelfLock の id を出発点にした。実機ではまだ確かめていない） | `URL_BAR_IDS` と `res/xml/slope_web_guard.xml` の `packageNames`（両方そろえる） |
 | `src/lib/child-data.tsx` の `refresh` | 対象外アプリの設定がまだ取れていない（組がない）ときの利用記録 | すべてのアプリを制限の対象として送る（必須例外は除く） | `refresh` の `excluded` の作り方 |
 
 ### 画面

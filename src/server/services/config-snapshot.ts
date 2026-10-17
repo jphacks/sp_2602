@@ -93,6 +93,7 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
           label: app.label,
           sinceVersion: app.sinceVersion,
         })),
+      blockedSites: snapshot.blockedSites,
       generatedAt: new Date().toISOString(),
     },
   };

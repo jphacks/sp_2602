@@ -18,6 +18,7 @@ import org.json.JSONObject
 //        {"date":"2026-10-17",
 //         "limit":{"kind":"limited","limitMinutes":60} | {"kind":"unlimited"} | {"kind":"unset"},
 //         "excludedPackages":["…"], "essentialPackages":["…"], "learningPackages":["…"],
+//         "blockedSites":["youtube.com/shorts", …],                       // 制限する Web サイト（D-111。WebGuardService が読む）
 //         "configVersion":3,
 //         "upcoming":[{"date":"2026-10-18","limit":{…上と同じ形…}}, …],   // 翌日から先（なければ []）
 //         "savedAt":1760659200000}                                        // 保存した時刻（ミリ秒）
@@ -60,6 +61,16 @@ object EngineStore {
 
   private fun prefs(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+  // 値が変わったら知らせてもらう（WebGuardService が、覚えた判定の値・今日の使用量を読み直すため）。
+  // SharedPreferences は受け手を弱い参照で持つので、呼ぶ側は listener をフィールドに持ち続けること
+  fun registerListener(context: Context, listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+    prefs(context).registerOnSharedPreferenceChangeListener(listener)
+  }
+
+  fun unregisterListener(context: Context, listener: SharedPreferences.OnSharedPreferenceChangeListener) {
+    prefs(context).unregisterOnSharedPreferenceChangeListener(listener)
+  }
 
   // ── 判定の値 ──
   fun saveRestriction(context: Context, rule: Restriction) {
@@ -140,6 +151,8 @@ object EngineStore {
       configVersion = o.optLong("configVersion", 0L),
       upcoming = upcoming,
       savedAt = savedAt ?: o.optLong("savedAt", 0L),
+      // 念のためもう一度そろえる（そろわない登録は使わない。同じものは1つに）。古い形の値（項目がない）は空
+      blockedSites = stringList(o.optJSONArray("blockedSites")).mapNotNull { WebSites.normalizePattern(it) }.distinct(),
     )
   }
 
@@ -150,6 +163,7 @@ object EngineStore {
       .put("excludedPackages", JSONArray(r.excludedPackages.toList()))
       .put("essentialPackages", JSONArray(r.essentialPackages.toList()))
       .put("learningPackages", JSONArray(r.learningPackages))
+      .put("blockedSites", JSONArray(r.blockedSites))
       .put("configVersion", r.configVersion)
       .put(
         "upcoming",

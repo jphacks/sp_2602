@@ -38,6 +38,7 @@ const snapshot = (childId: string): ConfigSnapshot => ({
   blankPeriods: [],
   dailyLimits: [{ date: "2026-10-15", kind: "limited", limitMinutes: 120 }],
   excludedApps: [],
+  blockedSites: [],
   generatedAt: "2026-10-15T03:00:00.000Z",
 });
 

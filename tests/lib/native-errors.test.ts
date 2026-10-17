@@ -36,6 +36,7 @@ describe("native（Kotlin が例外を出す）", () => {
       overlay: false,
       notifications: false,
       batteryOptimization: false,
+      accessibility: false,
     });
     expect(native.showLimitReached()).toBe(false);
     const usage = await native.getDailyUsage("2026-10-17");
@@ -55,6 +56,7 @@ describe("native（Kotlin が例外を出す）", () => {
         learningPackages: [],
         configVersion: 1,
         testPeriods: [],
+        blockedSites: [],
       });
     }).not.toThrow();
   });

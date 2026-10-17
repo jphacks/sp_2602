@@ -1,8 +1,9 @@
 // 子01 ホームの「見守りのための許可」のカード（C4。Figma にない。実機で案内を出すには OS の許可が要るので足した）。
-// まだ許可していないもの（ほかのアプリの上に表示・通知・電池の最適化）を並べ、押すとその設定画面を開く。
+// まだ許可していないもの（ほかのアプリの上に表示・通知・電池の最適化・ユーザー補助）を並べ、押すとその設定画面を開く。
+// ユーザー補助は、保護者が制限する Web サイトを登録しているときだけ並ぶ（D-111。child-view.ts の permissionGuide）。
 // 何を出すかは child-view.ts の permissionGuide が決める（全部許可済みなら items が空で、このカードは出ない）。
 // 設定画面で許可して戻ってくると、child-data.tsx の refresh が権限を読み直して、その行が消える。
-//   <PermissionGuideCard items={permissionGuide(permissions, native.available)} onOpen={(p) => native.openPermissionSettings(p)} />
+//   <PermissionGuideCard items={permissionGuide(permissions, native.available, config)} onOpen={(p) => native.openPermissionSettings(p)} />
 import type { NativePermission } from "@contracts/native";
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";

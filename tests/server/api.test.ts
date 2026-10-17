@@ -1,7 +1,7 @@
 // サーバの API が契約どおりに応答するかのテスト。サーバは Hono の app.request で、本物のネットワークを使わずに呼ぶ。
 // 状態は手元の DB（PGlite）。テストごとに空にしてデモの3人と見本を入れ直し、時計（Date）を固定する（tests/verify/helpers.ts の fresh）。
 // 確かめること: auth の 401/403・子どもは自分だけ・親は連携済みの子どもだけ・ペアリングの状態の進み方と失敗（期限切れ・使用済み・二重読取・
-// 親1↔子1）・計画と空白期間・C8 の重複防止・C9 は親だけ・C7 の版・エラーの形・ストリームの仕組み。
+// 親1↔子1）・計画と空白期間・C8 の重複防止・C9 は親だけ・制限する Web サイト（D-111）・C7 の版・エラーの形・ストリームの仕組み。
 
 import { createHash } from "node:crypto";
 import { api, type StreamDef, streamLine } from "@contracts/api";
@@ -17,6 +17,7 @@ import {
   PairTicket,
   Session,
 } from "@contracts/schemas";
+import { MAX_BLOCKED_SITES, MAX_SITE_PATTERN_LENGTH } from "@contracts/web-sites";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import app from "@/server/app";
@@ -526,6 +527,132 @@ describe("C9: 対象外アプリ", () => {
     const body = { childId: CHILD_ID, expectedVersion: view.configVersion, apps: [] };
     expect((await post("/api/excluded-apps/save", body, CHILD)).status).toBe(403);
     expect((await post("/api/excluded-apps/save", body, PARENT)).status).toBe(200);
+  });
+});
+
+describe("制限する Web サイト（D-111）", () => {
+  const read = (childId: string, token: string | null) => post("/api/blocked-sites/get", { childId }, token);
+  const save = (childId: string, expectedVersion: number, sites: unknown, token: string | null) =>
+    post("/api/blocked-sites/save", { childId, expectedVersion, sites }, token);
+  const view = async (token = PARENT, childId = CHILD_ID) =>
+    api.blockedSitesGet.res.parse(await (await read(childId, token)).json());
+  const config = async (token: string, childId: string, knownVersion?: number) =>
+    ConfigResult.parse(await (await post("/api/config/get", { childId, knownVersion }, token)).json());
+
+  it("保護者だけが保存できる。子どもは閲覧だけ（保存は 403）。連携していない子ども・紐づけ前の人は 403", async () => {
+    const v = await view(CHILD);
+    expect(v.sites).toEqual([]);
+    expect(v.sitesChangedVersion).toBe(0);
+    expect((await save(CHILD_ID, v.configVersion, ["youtube.com"], CHILD)).status).toBe(403);
+    const stranger = await newPerson("sites-stranger");
+    expect((await read(stranger.userId, PARENT)).status).toBe(403);
+    expect((await save(stranger.userId, 0, ["youtube.com"], PARENT)).status).toBe(403);
+    expect((await read(CHILD_ID, NEW)).status).toBe(403);
+    expect((await save(CHILD_ID, v.configVersion, ["youtube.com"], PARENT)).status).toBe(200);
+  });
+
+  it("合言葉の確認は入力の検査より先（形の違う入力でも、合言葉がなければ 401）", async () => {
+    expect((await save("", -1, "not-a-list", null)).status).toBe(401);
+    expect((await read("", null)).status).toBe(401);
+  });
+
+  it("保存すると版が上がり、C7 の組に入る。子どもが取りに来るまで「反映待ち」、取りに来たら「反映済み」", async () => {
+    const first = await config(CHILD, CHILD_ID);
+    if (!first.changed) throw new Error("changed のはず");
+    const v0 = first.snapshot.configVersion;
+    expect(first.snapshot.blockedSites).toEqual([]);
+    await config(CHILD, CHILD_ID, v0); // 子どもの端末は版 v0 を使っている
+
+    const res = await save(CHILD_ID, v0, ["youtube.com/shorts", "tiktok.com"], PARENT);
+    expect(res.status).toBe(200);
+    const saved = api.blockedSitesSave.res.parse(await res.json());
+    expect(saved.configVersion).toBe(v0 + 1);
+    expect(saved.sitesChangedVersion).toBe(v0 + 1);
+    expect(saved.sites).toEqual([
+      { pattern: "tiktok.com", sinceVersion: v0 + 1 },
+      { pattern: "youtube.com/shorts", sinceVersion: v0 + 1 },
+    ]);
+    const pending = await view();
+    expect(pending.childAppliedVersion).toBe(v0);
+    expect(pending.sitesChangedVersion).toBe(v0 + 1);
+
+    const next = await config(CHILD, CHILD_ID, v0);
+    if (!next.changed) throw new Error("changed のはず");
+    expect(next.snapshot.blockedSites.map((s) => s.pattern)).toEqual(["tiktok.com", "youtube.com/shorts"]);
+    await config(CHILD, CHILD_ID, next.snapshot.configVersion);
+    expect((await view()).childAppliedVersion).toBe(v0 + 1);
+  });
+
+  it("足した登録だけが新しい版になり、もとからある登録の版は変わらない。外すと一覧の版が上がる。同じ中身なら版を上げない", async () => {
+    const v0 = (await view()).configVersion;
+    await save(CHILD_ID, v0, ["youtube.com"], PARENT);
+    const added = api.blockedSitesSave.res.parse(
+      await (await save(CHILD_ID, v0 + 1, ["youtube.com", "tiktok.com"], PARENT)).json(),
+    );
+    expect(added.sites).toEqual([
+      { pattern: "youtube.com", sinceVersion: v0 + 1 },
+      { pattern: "tiktok.com", sinceVersion: v0 + 2 },
+    ]);
+    // 外す
+    const removed = api.blockedSitesSave.res.parse(await (await save(CHILD_ID, v0 + 2, ["tiktok.com"], PARENT)).json());
+    expect(removed.configVersion).toBe(v0 + 3);
+    expect(removed.sitesChangedVersion).toBe(v0 + 3);
+    expect(removed.sites).toEqual([{ pattern: "tiktok.com", sinceVersion: v0 + 2 }]);
+    // 同じ中身（順番だけ違っても同じ）
+    const same = api.blockedSitesSave.res.parse(await (await save(CHILD_ID, v0 + 3, ["tiktok.com"], PARENT)).json());
+    expect(same.configVersion).toBe(v0 + 3);
+    expect((await view()).configVersion).toBe(v0 + 3);
+  });
+
+  it("Web サイトを保存しても、対象外アプリの一覧の版（親16 の「反映待ち」）は変わらない", async () => {
+    const apps = api.excludedAppsGet.res.parse(
+      await (await post("/api/excluded-apps/get", { childId: CHILD_ID }, PARENT)).json(),
+    );
+    await save(CHILD_ID, apps.configVersion, ["youtube.com"], PARENT);
+    const after = api.excludedAppsGet.res.parse(
+      await (await post("/api/excluded-apps/get", { childId: CHILD_ID }, PARENT)).json(),
+    );
+    expect(after.configVersion).toBe(apps.configVersion + 1);
+    expect(after.appsChangedVersion).toBe(apps.appsChangedVersion);
+  });
+
+  it("版がずれていたら conflict で、前の一覧は変わらない", async () => {
+    const v0 = (await view()).configVersion;
+    await save(CHILD_ID, v0, ["youtube.com"], PARENT);
+    const res = await save(CHILD_ID, v0, ["tiktok.com"], PARENT);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("conflict");
+    expect((await view()).sites.map((s) => s.pattern)).toEqual(["youtube.com"]);
+  });
+
+  it("そろえていない形・ドメインでないもの・同じものが2つ・数と長さの上限は bad_request で、前の一覧は変わらない", async () => {
+    const v0 = (await view()).configVersion;
+    await save(CHILD_ID, v0, ["youtube.com"], PARENT);
+    const bad = [
+      ["https://www.youtube.com/"],
+      ["YouTube.com"],
+      ["youtube.com/shorts/"],
+      ["youtube"],
+      ["192.168.0.1"],
+      ["youtube.com/watch?v=1"],
+      [""],
+      ["youtube.com", "youtube.com"],
+      Array.from({ length: MAX_BLOCKED_SITES + 1 }, (_, i) => `site${i}.example.com`),
+      [`example.com/${"a".repeat(MAX_SITE_PATTERN_LENGTH)}`],
+    ];
+    for (const sites of bad) {
+      const res = await save(CHILD_ID, v0 + 1, sites, PARENT);
+      expect(res.status, JSON.stringify(sites).slice(0, 60)).toBe(400);
+      expect(await codeOf(res)).toBe("bad_request");
+    }
+    expect((await view()).sites.map((s) => s.pattern)).toEqual(["youtube.com"]);
+  });
+
+  it(`上限ちょうど（${MAX_BLOCKED_SITES} 件）は受け付ける`, async () => {
+    const v0 = (await view()).configVersion;
+    const many = Array.from({ length: MAX_BLOCKED_SITES }, (_, i) => `site${i}.example.com`);
+    expect((await save(CHILD_ID, v0, many, PARENT)).status).toBe(200);
+    expect((await view()).sites).toHaveLength(MAX_BLOCKED_SITES);
   });
 });
 
