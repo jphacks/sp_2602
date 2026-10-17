@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { makeStyles } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Icon } from "./Icon";
 import { nextKeyboardAvoid } from "./keyboard-avoid";
@@ -57,6 +58,7 @@ type Props = {
 
 export function Screen({ title, onBack, right, footer, scroll = true, bottomInset = true, children }: Props) {
   const avoidKeyboard = useKeyboardAvoid();
+  const colorStyles = useColorStyles();
   const body = scroll ? (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {children}
@@ -65,7 +67,7 @@ export function Screen({ title, onBack, right, footer, scroll = true, bottomInse
     <View style={[styles.content, styles.fill]}>{children}</View>
   );
   return (
-    <SafeAreaView style={styles.root} edges={bottomInset ? ["top", "bottom"] : ["top"]}>
+    <SafeAreaView style={[styles.root, colorStyles.root]} edges={bottomInset ? ["top", "bottom"] : ["top"]}>
       <View style={styles.appBar}>
         {onBack && (
           <Pressable
@@ -97,7 +99,7 @@ export function Screen({ title, onBack, right, footer, scroll = true, bottomInse
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: tokens.color.bg },
+  root: { flex: 1 },
   fill: { flex: 1 },
   appBar: {
     height: tokens.size.appBar,
@@ -120,3 +122,10 @@ const styles = StyleSheet.create({
     gap: tokens.layout.cardGap,
   },
 });
+
+// 色だけはテーマで変わるので分けて持つ（src/lib/theme.tsx）
+const useColorStyles = makeStyles((c) =>
+  StyleSheet.create({
+    root: { backgroundColor: c.bg },
+  }),
+);

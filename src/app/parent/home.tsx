@@ -16,6 +16,7 @@ import { limitText, todaySummary } from "@/components/parent/today";
 import { WeekBars } from "@/components/parent/WeekBars";
 import type { ConfigState } from "@/lib/config-cache";
 import { useParentData } from "@/lib/parent-data";
+import { useColors } from "@/lib/theme";
 import { currentBlankPeriod, nextTest } from "@/lib/usage-calc";
 
 export default function ParentHome() {
@@ -61,10 +62,11 @@ function HomeBody({ childId }: { childId: string }) {
 
 // 「今日の使用量」: 120 分 ／ 上限 260分・進捗バー・詳しく見る
 function TodayCard(props: { state: UsageState; today: string; snapshot: ConfigSnapshot | null; onRetry: () => void }) {
+  const c = useColors();
   const { state, today, snapshot, onRetry } = props;
   const header = (
     <View style={styles.header}>
-      <Icon name="insights" color={tokens.color.primary} />
+      <Icon name="insights" color={c.primary} />
       <AppText variant="title">今日の使用量</AppText>
     </View>
   );
@@ -164,6 +166,7 @@ function WeekCard({ state, today, onRetry }: { state: UsageState; today: string;
 
 // 「次のテスト」: 10月28日（水） 数学・あと13日
 function NextTestCard(props: { config: ConfigState | null; snapshot: ConfigSnapshot | null; today: string }) {
+  const c = useColors();
   const { config, snapshot, today } = props;
   const next = nextTest(snapshot, today);
   let main: string;
@@ -178,7 +181,7 @@ function NextTestCard(props: { config: ConfigState | null; snapshot: ConfigSnaps
   return (
     <Card tone="soft">
       <View style={styles.nextRow}>
-        <Icon name="event" color={tokens.color.onPrimarySoft} size={tokens.size.iconLarge} />
+        <Icon name="event" color={c.onPrimarySoft} size={tokens.size.iconLarge} />
         <View style={styles.flex}>
           <AppText variant="label" tone="onPrimarySoft">
             次のテスト

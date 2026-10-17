@@ -4,6 +4,7 @@
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
 import { AppText, Button, Icon } from "@/components";
+import { useColors } from "@/lib/theme";
 import type { UsageMessage as Message } from "./child-view";
 
 type Props = {
@@ -13,7 +14,8 @@ type Props = {
 };
 
 export function UsageMessage({ message, onAction, center = false }: Props) {
-  const color = message.tone === "warning" ? tokens.color.warning : tokens.color.primary;
+  const c = useColors();
+  const color = message.tone === "warning" ? c.warning : c.primary;
   return (
     <View style={[styles.box, center && styles.center]} accessibilityLiveRegion="polite">
       <View style={[styles.row, center && styles.rowCenter]}>

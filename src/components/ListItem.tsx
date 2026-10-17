@@ -4,9 +4,10 @@
 //   <ListItem title="ログアウト" icon="logout" danger onPress={confirmLogout} />
 // アイコンの色は既定で primary（Figma 子07・子10・親04 の青いアイコン）。iconTone="default" で黒にできる。
 // strong で題名を太字にする（Figma 子07・子10 の項目名）
-import { tokens } from "@contracts/tokens";
+import { type ColorName, tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
+import { makeStyles, useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Icon, type IconName } from "./Icon";
 
@@ -25,7 +26,11 @@ type Props = {
   accessibilityLabel?: string;
 };
 
-const iconColors = { primary: tokens.color.primary, default: tokens.color.text, muted: tokens.color.muted } as const;
+const iconColors: Record<NonNullable<Props["iconTone"]>, ColorName> = {
+  primary: "primary",
+  default: "text",
+  muted: "muted",
+};
 
 export function ListItem({
   title,
@@ -41,9 +46,11 @@ export function ListItem({
   chevron = true,
   accessibilityLabel,
 }: Props) {
+  const styles = useStyles();
+  const c = useColors();
   const content = (
     <>
-      {leading ?? (icon && <Icon name={icon} color={danger ? tokens.color.danger : iconColors[iconTone]} />)}
+      {leading ?? (icon && <Icon name={icon} color={danger ? c.danger : c[iconColors[iconTone]]} />)}
       <View style={styles.text}>
         {/* Figma の項目名は 16 の中くらいの太さ（カードの見出しより小さい） */}
         <AppText variant="body" strong={strong} tone={danger ? "danger" : "default"}>
@@ -60,7 +67,7 @@ export function ListItem({
           {value}
         </AppText>
       ) : null}
-      {trailing ?? (onPress && !danger && chevron ? <Icon name="chevron_right" color={tokens.color.muted} /> : null)}
+      {trailing ?? (onPress && !danger && chevron ? <Icon name="chevron_right" color={c.muted} /> : null)}
     </>
   );
   if (!onPress)
@@ -81,20 +88,22 @@ export function ListItem({
   );
 }
 
-const styles = StyleSheet.create({
-  item: {
-    minHeight: tokens.size.listItem,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: tokens.space[4],
-    paddingHorizontal: tokens.space[5],
-    paddingVertical: tokens.space[3],
-    backgroundColor: tokens.color.surface,
-    borderRadius: tokens.radius.card,
-    borderWidth: tokens.size.border,
-    borderColor: tokens.color.line,
-  },
-  tall: { minHeight: tokens.size.listItemTall },
-  text: { flex: 1, gap: tokens.space[1] },
-  pressed: { backgroundColor: tokens.color.surfaceDim },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    item: {
+      minHeight: tokens.size.listItem,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space[4],
+      paddingHorizontal: tokens.space[5],
+      paddingVertical: tokens.space[3],
+      backgroundColor: c.surface,
+      borderRadius: tokens.radius.card,
+      borderWidth: tokens.size.border,
+      borderColor: c.line,
+    },
+    tall: { minHeight: tokens.size.listItemTall },
+    text: { flex: 1, gap: tokens.space[1] },
+    pressed: { backgroundColor: c.surfaceDim },
+  }),
+);

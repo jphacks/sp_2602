@@ -3,10 +3,13 @@
 import { tokens } from "@contracts/tokens";
 import { Pressable, StyleSheet, View } from "react-native";
 import { AppText, Icon, type IconName } from "@/components";
+import { makeStyles, useColors } from "@/lib/theme";
 
 type Props = { icon: IconName; title: string; description: string; onPress: () => void };
 
 export function RoleChoice({ icon, title, description, onPress }: Props) {
+  const styles = useStyles();
+  const c = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -15,7 +18,7 @@ export function RoleChoice({ icon, title, description, onPress }: Props) {
       accessibilityHint={description}
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <Icon name={icon} size={tokens.size.iconLarge} color={tokens.color.primary} />
+      <Icon name={icon} size={tokens.size.iconLarge} color={c.primary} />
       <View style={styles.text}>
         <AppText variant="title">{title}</AppText>
         <AppText tone="muted">{description}</AppText>
@@ -25,18 +28,20 @@ export function RoleChoice({ icon, title, description, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    minHeight: tokens.size.listItemTall,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: tokens.space[4],
-    padding: tokens.layout.cardPadding,
-    backgroundColor: tokens.color.surface,
-    borderRadius: tokens.radius.card,
-    borderWidth: tokens.size.border,
-    borderColor: tokens.color.line,
-  },
-  pressed: { backgroundColor: tokens.color.primarySoft },
-  text: { flex: 1, gap: tokens.space[1] },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    card: {
+      minHeight: tokens.size.listItemTall,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space[4],
+      padding: tokens.layout.cardPadding,
+      backgroundColor: c.surface,
+      borderRadius: tokens.radius.card,
+      borderWidth: tokens.size.border,
+      borderColor: c.line,
+    },
+    pressed: { backgroundColor: c.primarySoft },
+    text: { flex: 1, gap: tokens.space[1] },
+  }),
+);

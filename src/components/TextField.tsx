@@ -4,6 +4,7 @@
 //   <TextField label="開始上限（分）" value={s} onChangeText={setS} keyboardType="number-pad" error={errors.s} />
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, TextInput, type TextInputProps, View } from "react-native";
+import { makeStyles, useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Icon, type IconName } from "./Icon";
 
@@ -14,9 +15,12 @@ type Props = Omit<TextInputProps, "style" | "placeholderTextColor"> & {
 };
 
 export function TextField({ label, error, trailingIcon, ...input }: Props) {
+  const styles = useStyles();
+  const fieldStyles = useFieldStyles();
+  const c = useColors();
   return (
     <View style={styles.wrap}>
-      <View style={[styles.field, error ? styles.fieldError : null]}>
+      <View style={[fieldStyles.field, error ? fieldStyles.fieldError : null]}>
         <View style={styles.text}>
           <AppText variant="caption" tone={error ? "danger" : "muted"}>
             {label}
@@ -24,14 +28,14 @@ export function TextField({ label, error, trailingIcon, ...input }: Props) {
           <TextInput
             {...input}
             accessibilityLabel={input.accessibilityLabel ?? label}
-            placeholderTextColor={tokens.color.muted}
+            placeholderTextColor={c.muted}
             // カーソルと選択の色をアクセントに合わせる（Android の既定は緑）
-            cursorColor={tokens.color.primary}
-            selectionColor={tokens.color.primarySoft}
+            cursorColor={c.primary}
+            selectionColor={c.primarySoft}
             style={styles.input}
           />
         </View>
-        {trailingIcon && <Icon name={trailingIcon} color={tokens.color.muted} />}
+        {trailingIcon && <Icon name={trailingIcon} color={c.muted} />}
       </View>
       {error ? (
         <AppText variant="caption" tone="danger">
@@ -42,32 +46,34 @@ export function TextField({ label, error, trailingIcon, ...input }: Props) {
   );
 }
 
-export const fieldStyles = StyleSheet.create({
-  // DateField などの「押すと選ぶ」入力欄でも同じ見た目にするため外に出す
-  field: {
-    minHeight: tokens.size.field,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: tokens.space[3],
-    paddingHorizontal: tokens.space[4],
-    // Figma の TextField（outlined）: 地なし・枠 #777680
-    borderRadius: tokens.radius.sm,
-    borderWidth: tokens.size.border,
-    borderColor: tokens.color.outline,
-  },
-  fieldError: { borderColor: tokens.color.danger },
-});
+// DateField などの「押すと選ぶ」入力欄でも同じ見た目にするため外に出す（部品の中で const fieldStyles = useFieldStyles();）
+export const useFieldStyles = makeStyles((c) =>
+  StyleSheet.create({
+    field: {
+      minHeight: tokens.size.field,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space[3],
+      paddingHorizontal: tokens.space[4],
+      // Figma の TextField（outlined）: 地なし・枠 outline
+      borderRadius: tokens.radius.sm,
+      borderWidth: tokens.size.border,
+      borderColor: c.outline,
+    },
+    fieldError: { borderColor: c.danger },
+  }),
+);
 
-const styles = StyleSheet.create({
-  wrap: { gap: tokens.space[1] },
-  field: fieldStyles.field,
-  fieldError: fieldStyles.fieldError,
-  text: { flex: 1, justifyContent: "center" },
-  // Android の TextInput は既定で左右に余白があり、ラベルと値の左端がずれるので 0 にする
-  input: {
-    fontSize: tokens.font.base,
-    color: tokens.color.text,
-    paddingVertical: tokens.space[0],
-    paddingHorizontal: tokens.space[0],
-  },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    wrap: { gap: tokens.space[1] },
+    text: { flex: 1, justifyContent: "center" },
+    // Android の TextInput は既定で左右に余白があり、ラベルと値の左端がずれるので 0 にする
+    input: {
+      fontSize: tokens.font.base,
+      color: c.text,
+      paddingVertical: tokens.space[0],
+      paddingHorizontal: tokens.space[0],
+    },
+  }),
+);

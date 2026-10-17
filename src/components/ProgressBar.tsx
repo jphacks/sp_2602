@@ -3,10 +3,12 @@
 // 塗りの幅は値で決まるので、ここだけ計算した style を使う（色・寸法は tokens のまま）。
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
+import { makeStyles } from "@/lib/theme";
 
 type Props = { percent: number; tone?: "primary" | "danger"; thin?: boolean; accessibilityLabel?: string };
 
 export function ProgressBar({ percent, tone = "primary", thin = false, accessibilityLabel }: Props) {
+  const styles = useStyles();
   const p = Math.min(100, Math.max(0, Number.isFinite(percent) ? percent : 0));
   const width = { width: `${p}%` } as const;
   return (
@@ -21,14 +23,16 @@ export function ProgressBar({ percent, tone = "primary", thin = false, accessibi
   );
 }
 
-const styles = StyleSheet.create({
-  track: {
-    height: tokens.size.progressTrack,
-    borderRadius: tokens.radius.pill,
-    backgroundColor: tokens.color.track,
-    overflow: "hidden",
-  },
-  thin: { height: tokens.size.appBarTrack },
-  fill: { height: "100%", borderRadius: tokens.radius.pill, backgroundColor: tokens.color.primary },
-  danger: { backgroundColor: tokens.color.danger },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    track: {
+      height: tokens.size.progressTrack,
+      borderRadius: tokens.radius.pill,
+      backgroundColor: c.track,
+      overflow: "hidden",
+    },
+    thin: { height: tokens.size.appBarTrack },
+    fill: { height: "100%", borderRadius: tokens.radius.pill, backgroundColor: c.primaryFill },
+    danger: { backgroundColor: c.danger },
+  }),
+);

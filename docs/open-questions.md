@@ -125,6 +125,8 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | 10 | MVP_SPEC 5.1 の子07 に「親設定の閲覧専用導線」がある | Q13 で「足さない」と決まったので作っていない | `src/app/child/settings.tsx` |
 | 11 | MVP_SPEC 5章の Figma の node id（`148:…`、ファイル「ハッカソン練習向け」）と、画面のコメントの node id（`108:…`、ファイル `UGp5tyARKxFRWzOl6KeKVP`）が違う | 画面は `108:…` の「最新」の画面を見て作った | Figma のファイルを1つに決めたら、画面の先頭のコメントと [screens.md](screens.md) を直す |
 | 12 | MVP_SPEC 9章の QR の期限は「例：5分（提案値で未承認）」 | 10分（Q10） | `store.ts` の `PAIR_TTL_MS`・`child-flow.ts` の `PAIR_TTL_MS`（2か所をそろえる） |
+| 13 | MVP_SPEC 2章ではダークテーマは MVP の後。Figma にはダークの画面がそろっているが、エラー・注意（赤・黄）の色はダークの画面に出てこない | 「黒色」を選べるようにした（D-68）。ダークの `danger`・`warningSoft` などは暗い地で読める近い値（仮） | `contracts/tokens.ts` の `dark` |
+| 14 | FigJam（`UGp5tyARKxFRWzOl6KeKVP`）の画面の node id が `108:…` から `112:…` に付け直されている（例: 子01 最新 `112:12771`・ダーク `112:13883`）。画面のコメントは古い `108:…` のまま | コメントは直していない（ダークの係は tokens.ts とテーマの部品だけ新しい id を書いた） | 各画面の先頭のコメント |
 
 解消した食い違い（commit `fab490f`）: Android の識別子は `com.quedotcom.androidslope` に決まった（`app.json`・`ESSENTIAL_PACKAGES`）。`docs/rules/stack.md` を指していたコメントは直った。ログアウトで設定のキャッシュを消すようになった（`src/lib/sign-out.ts`）。`backend/` の DB の表との食い違いは、下の 4章にまとめた。
 

@@ -295,9 +295,4 @@ export function testCountLabel(config: ConfigState | null): string | undefined {
   return `${config.snapshot.testPeriods.length}件`;
 }
 
-// テーマカラーの選択肢（子06）。Q13: 選べるのは白だけ（黒はダークテーマで、MVP の後）
-export const THEME_OPTIONS = [
-  { key: "white", label: "白色", enabled: true },
-  { key: "black", label: "黒色", enabled: false },
-] as const;
-export type ThemeKey = (typeof THEME_OPTIONS)[number]["key"];
+// テーマカラーの選択肢・文言（子06）は子と親で同じなので src/lib/theme-store.ts の THEME_OPTIONS・themeLabel にある

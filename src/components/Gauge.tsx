@@ -5,6 +5,7 @@
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
+import { useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 
 type Props = {
@@ -15,12 +16,13 @@ type Props = {
 };
 
 export function Gauge({ percent, caption, tone = "primary", valueTone }: Props) {
+  const colors = useColors();
   const size = tokens.size.ring;
   const stroke = tokens.size.ringStroke;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const p = percent == null ? 0 : Math.min(100, Math.max(0, percent));
-  const color = tone === "danger" ? tokens.color.danger : tokens.color.primary;
+  const color = tone === "danger" ? colors.danger : colors.primaryFill;
   const numberTone = valueTone ?? tone;
   return (
     <View
@@ -29,7 +31,7 @@ export function Gauge({ percent, caption, tone = "primary", valueTone }: Props) 
       accessibilityLabel={percent == null ? "使用量は分かりません" : `${Math.round(p)}パーセント${caption ?? ""}`}
     >
       <Svg width={size} height={size}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={tokens.color.track} strokeWidth={stroke} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={colors.track} strokeWidth={stroke} fill="none" />
         {percent != null && (
           <Circle
             cx={size / 2}
