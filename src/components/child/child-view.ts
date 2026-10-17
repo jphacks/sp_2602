@@ -258,7 +258,9 @@ export function shouldOpenLimitScreen(calc: UsageCalc | null, today: string, sho
 
 // 上限に届いたときに案内を出すための許可のうち、まだのもの（許可してほしい順）。Figma にない案内（実機の都合で足した）。
 // 使用状況へのアクセス（usageAccess）は「今日の使用量」のカードが案内するので、ここには入れない（同じ案内を2回出さない）。
-// Kotlin の部品がない端末（available = false。Expo Go・テスト）では出さない（許可しても何も変わらないため）
+// Kotlin の部品がない端末（available = false。Expo Go・テスト）では出さない（許可しても何も変わらないため）。
+// ユーザー補助（accessibility）は、保護者が制限する Web サイトを1つ以上登録しているときだけ出す（D-111。
+//   要らない許可を求めない。登録が分かるのは C7 の組（config）なので、config を渡さなければ出さない）
 export type PermissionGuideItem = {
   permission: Exclude<NativePermission, "usageAccess">;
   title: string;
@@ -281,11 +283,30 @@ const PERMISSION_GUIDE: readonly PermissionGuideItem[] = [
     title: "電池の最適化をオフ",
     body: "見守りが途中で止まらないようにします",
   },
+  {
+    // 押すと Android の「ユーザー補助」の設定が開く。そこで「Slope」を選んでオンにする（D-111）
+    permission: "accessibility",
+    title: "ユーザー補助（Slope）",
+    body: "時間が終わったあと、おうちの人が決めた Web サイトを開かないようにします。開いた画面で「Slope」をオンにしてください",
+  },
 ];
 
-export function permissionGuide(permissions: NativePermissionStatus | null, available: boolean): PermissionGuideItem[] {
+// 保護者が制限する Web サイトを登録しているか（設定が分からないときは「していない」として、許可を求めない）
+export function hasBlockedSites(config: ConfigState | null): boolean {
+  if (!config || config.status === "unavailable") return false;
+  return config.snapshot.blockedSites.length > 0;
+}
+
+export function permissionGuide(
+  permissions: NativePermissionStatus | null,
+  available: boolean,
+  config: ConfigState | null = null,
+): PermissionGuideItem[] {
   if (!available || !permissions) return [];
-  return PERMISSION_GUIDE.filter((item) => !permissions[item.permission]);
+  const webSites = hasBlockedSites(config);
+  return PERMISSION_GUIDE.filter(
+    (item) => !permissions[item.permission] && (item.permission !== "accessibility" || webSites),
+  );
 }
 
 // ── 子11「お勧めアプリはこちらです」 ──────────────────────────

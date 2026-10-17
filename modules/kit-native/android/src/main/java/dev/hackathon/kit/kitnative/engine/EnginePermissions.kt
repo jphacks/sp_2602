@@ -3,6 +3,7 @@ package dev.hackathon.kit.kitnative.engine
 import android.app.Activity
 import android.app.NotificationManager
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -17,7 +18,9 @@ import android.provider.Settings
 //   overlay             … 他のアプリの上に表示（SYSTEM_ALERT_WINDOW。C4。裏から Slope の案内画面を前に出すのに要る）
 //   notifications       … 通知（POST_NOTIFICATIONS。Android 13 から実行時の許可。見守り中の通知・許可がないときの案内の通知）
 //   batteryOptimization … 電池の最適化から外す（OS が監視を止めにくくする）
-// なぜどれも「設定画面を開く」だけか: 使用状況・重ねて表示は OS がアプリからの許可の画面を用意していない（設定画面でしか許可できない）。
+//   accessibility       … ユーザー補助（Slope の WebGuardService。制限する Web サイトだけに使う。D-111）。
+//                         設定の「ユーザー補助」の画面でユーザーがオンにする（アプリから許可の画面は出せない）
+// なぜどれも「設定画面を開く」だけか: 使用状況・重ねて表示・ユーザー補助は OS がアプリからの許可の画面を用意していない（設定画面でしか許可できない）。
 //   通知も、2回断られると OS が許可の画面を出さなくなるので、いつでも効く「このアプリの通知の設定」を開く。
 //   許可して戻ってきたら、JS がアプリが前に戻ったときに getPermissions を読み直す（child-data.tsx）。
 object EnginePermissions {
@@ -25,6 +28,7 @@ object EnginePermissions {
   const val OVERLAY = "overlay"
   const val NOTIFICATIONS = "notifications"
   const val BATTERY = "batteryOptimization"
+  const val ACCESSIBILITY = "accessibility"
 
   fun status(context: Context): Map<String, Boolean> =
     mapOf(
@@ -32,6 +36,7 @@ object EnginePermissions {
       OVERLAY to canDrawOverlays(context),
       NOTIFICATIONS to canNotify(context),
       BATTERY to ignoresBatteryOptimization(context),
+      ACCESSIBILITY to webGuardEnabled(context),
     )
 
   fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
@@ -49,6 +54,19 @@ object EnginePermissions {
   fun ignoresBatteryOptimization(context: Context): Boolean {
     val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     return pm.isIgnoringBatteryOptimizations(context.packageName)
+  }
+
+  // ユーザー補助で Slope の WebGuardService がオンか。設定の「有効なユーザー補助サービス」の一覧（パッケージ名/クラス名を : でつないだ文字）を読む
+  // （AccessibilityManager の一覧は、サービスが動き始めるまで少し遅れることがあるので、設定の値を直接見る）
+  fun webGuardEnabled(context: Context): Boolean {
+    val enabled =
+      try {
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+      } catch (e: Exception) {
+        null
+      } ?: return false
+    val mine = ComponentName(context, WebGuardService::class.java)
+    return enabled.split(':').any { ComponentName.unflattenFromString(it) == mine }
   }
 
   // その権限の設定画面を開く。開けたら true。activity があればそこから開く（なければ新しいタスクで開く）
@@ -79,6 +97,9 @@ object EnginePermissions {
             Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkgUri),
             Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
           )
+        // 「ユーザー補助」の一覧の画面。Slope の項目を直接開く画面（ACTION_ACCESSIBILITY_DETAILS_SETTINGS）は
+        // ほかのアプリからは開けない（OS の権限が要る）ので、一覧を開いて「Slope」を選んでもらう
+        ACCESSIBILITY -> listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         else -> emptyList()
       }
     for (intent in candidates) {

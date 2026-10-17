@@ -3,6 +3,7 @@
 // 人間が決めた「仕様の決定 Q1〜Q15」（空白期間・親1↔子1 など）に合わせた。
 // 名前と項目は backend/src/db/schema の表にそろえている（ただし DB の型ではなく API の形。id は文字列、日付は "YYYY-MM-DD"）。
 import { z } from "zod";
+import { isNormalizedSitePattern, MAX_BLOCKED_SITES, MAX_SITE_PATTERN_LENGTH } from "./web-sites.js";
 
 // ── 共通の部品 ──────────────────────────────────────────────
 
@@ -27,8 +28,8 @@ export const IsoDateTime = z.iso.datetime({ offset: true });
 // 1日の分数（0〜1440 の整数）。0 分は「有効な上限」（MVP_SPEC 4.2: 0 分上限は到達扱い）
 export const Minutes = z.number().int().min(0).max(1440);
 
-// 設定の版（C7 の configVersion）。子ども1人に1本の数で、計画・通常上限・テスト期間・空白期間・日別上限・対象外アプリの
-// どれかが変わるたびに 1 増える（Q6。backend の child_config_versions と同じ考え方）。0 は「まだ何も保存していない」
+// 設定の版（C7 の configVersion）。子ども1人に1本の数で、計画・通常上限・テスト期間・空白期間・日別上限・対象外アプリ・
+// 制限する Web サイト（D-111）のどれかが変わるたびに 1 増える（Q6。backend の child_config_versions と同じ考え方）。0 は「まだ何も保存していない」
 export const ConfigVersion = z.number().int().min(0);
 
 // Android のアプリ識別子（例: com.google.android.youtube）
@@ -393,6 +394,56 @@ export const ExcludedAppsSaveResult = z.object({
 });
 export type ExcludedAppsSaveResult = z.infer<typeof ExcludedAppsSaveResult>;
 
+// ── 制限する Web サイト（親だけが変える。D-111）──────────────────────
+// 上限に達したあと、子どもの端末のブラウザでこのサイトを開くと、Kotlin がブラウザを1つ前に戻して「時間は終わりです」を出す。
+// 上限なし・未設定・空白期間中は止めない（C4 と同じ）。登録の形と一致の規則は contracts/web-sites.ts
+
+// 登録1つ（"youtube.com" か "youtube.com/shorts"）。保存できるのは normalizeSitePattern でそろえた形だけ
+// （画面が保存の前にそろえる。そろっていない形はサーバの入口で bad_request）
+export const SitePattern = z
+  .string()
+  .min(1)
+  .max(MAX_SITE_PATTERN_LENGTH)
+  .refine(isNormalizedSitePattern, "Web サイトの形が違います（例: youtube.com・youtube.com/shorts）");
+
+// 保存済みの登録。sinceVersion はこの登録を足した設定の版（子どもの端末の版がこれ以上なら「反映済み」）。
+// 読むときの pattern は形を確かめ直さない（なぜ: そろえ方の規則をあとで変えても、保存済みの組（C7）が読めなくならないように。
+//   子どもの端末の Kotlin は、受け取った登録をもう一度そろえ、そろわないものは使わない）
+export const BlockedSite = z.object({
+  pattern: z.string().min(1).max(MAX_SITE_PATTERN_LENGTH),
+  sinceVersion: ConfigVersion.min(1),
+});
+export type BlockedSite = z.infer<typeof BlockedSite>;
+
+// 親子: 登録の一覧（子どもは閲覧のみ）。sitesChangedVersion は一覧が最後に変わった（足した・外した）設定の版。
+// 一度も変えていなければ 0。childAppliedVersion がこれ以上なら、一覧の全体が子どもの端末に届いている（ExcludedAppsView と同じ考え方）
+export const BlockedSitesView = z.object({
+  childId: z.string().min(1),
+  sites: z.array(BlockedSite),
+  sitesChangedVersion: ConfigVersion,
+  configVersion: ConfigVersion,
+  childAppliedVersion: ChildAppliedVersion,
+});
+export type BlockedSitesView = z.infer<typeof BlockedSitesView>;
+
+// 保存（親だけ。全件の置き換え）。expectedVersion は画面が読んだときの configVersion（ずれていたら conflict）
+export const BlockedSitesSave = z.object({
+  childId: z.string().min(1),
+  expectedVersion: ConfigVersion,
+  sites: z
+    .array(SitePattern)
+    .max(MAX_BLOCKED_SITES)
+    .refine((sites) => new Set(sites).size === sites.length, "同じサイトが2回入っています"),
+});
+export type BlockedSitesSave = z.infer<typeof BlockedSitesSave>;
+
+export const BlockedSitesSaveResult = z.object({
+  sites: z.array(BlockedSite),
+  sitesChangedVersion: ConfigVersion,
+  configVersion: ConfigVersion,
+});
+export type BlockedSitesSaveResult = z.infer<typeof BlockedSitesSaveResult>;
+
 // ── Q15: 子どもの端末のアプリ一覧とアイコン（親16 の候補・親09 と親16 のアイコン。D-110）────────────────
 
 // 子どもの端末から送るアプリの数の上限。ホーム画面に出るアプリはふつう数十〜300 ほどなので、余裕をみて 1000
@@ -510,6 +561,9 @@ export const ConfigSnapshot = z.object({
   // 日付の早い順。一覧にない日は「上限未設定」。空白期間の日は kind: "unlimited"
   dailyLimits: z.array(DailyLimit),
   excludedApps: z.array(ExcludedApp),
+  // 制限する Web サイト（D-111。登録の順）。.default([]): この項目を足す前に端末へ保存した組（CachedConfig）も読めるように
+  // （足す前は登録がなかったので、空と同じ意味）
+  blockedSites: z.array(BlockedSite).default([]),
   generatedAt: IsoDateTime, // サーバがこの組を作った時刻
 });
 export type ConfigSnapshot = z.infer<typeof ConfigSnapshot>;

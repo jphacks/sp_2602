@@ -16,6 +16,7 @@ const snap = (configVersion: number, limit = 60): ConfigSnapshot => ({
   blankPeriods: [],
   dailyLimits: [{ date: "2026-10-15", kind: "limited", limitMinutes: limit }],
   excludedApps: [],
+  blockedSites: [],
   generatedAt: `2026-10-15T00:00:0${configVersion}.000Z`,
 });
 const EPOCH = "epoch-a";
@@ -252,5 +253,16 @@ describe("createConfigCache", () => {
     expect(r.snapshot.usualLimitMinutes).toBe(15);
     expect(sent).toEqual([undefined]);
     expect(JSON.parse(storage.data.get(storageKeys.config("c1")) ?? "{}").epoch).toBe(EPOCH);
+  });
+
+  it("制限する Web サイト（D-111）を足す前に保存した組（blockedSites がない）も読め、登録なし（空）として扱う。同じ版の応答とも食い違わない", async () => {
+    const storage = memoryStorage();
+    const { blockedSites: _, ...old } = snap(2);
+    storage.data.set(storageKeys.config("c1"), JSON.stringify({ snapshot: old, savedAt: "x", epoch: EPOCH }));
+    const cache = createConfigCache({ storage, fetchConfig: async () => changed(snap(2)) });
+    const loaded = await cache.load("c1");
+    expect(loaded.status === "stale" && loaded.snapshot.blockedSites).toEqual([]);
+    const r = await cache.refresh("c1");
+    expect(r.status).toBe("fresh");
   });
 });

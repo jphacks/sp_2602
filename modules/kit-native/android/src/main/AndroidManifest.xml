@@ -98,6 +98,25 @@
         android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
         android:value="Parental screen-time monitoring: measures the child's daily app usage and shows a notice when the parent-set daily limit is reached" />
     </service>
+    <!-- ── D-111: 制限する Web サイト。engine/WebGuardService.kt（ユーザー補助のサービス）──
+         上限に達したあと、ブラウザで保護者の登録したサイトを開いたら、ブラウザを1つ前に戻して「時間は終わりです」を出す。
+         設定の「ユーザー補助」で子どもの端末の人がオンにする（EnginePermissions.ACCESSIBILITY）。
+         BIND_ACCESSIBILITY_SERVICE: OS だけがこのサービスにつなげる（ほかのアプリからは呼べない）。exported="false" でも OS はつなげる。
+         読む範囲（ブラウザ4つのアドレス欄だけ）は res/xml/slope_web_guard.xml。
+         参考: SelfLock（https://github.com/EtashTyagi/SelfLock 。MIT License。modules/kit-native/LICENSE-SelfLock）の AndroidManifest の宣言 -->
+    <service
+      android:name="dev.hackathon.kit.kitnative.engine.WebGuardService"
+      android:exported="false"
+      android:label="@string/slope_web_guard_label"
+      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      <meta-data
+        android:name="android.accessibilityservice"
+        android:resource="@xml/slope_web_guard" />
+    </service>
+
     <!-- 端末の再起動・Slope の更新のあとに監視を再開する（どちらも OS しか送れない放送）。engine/BootReceiver.kt -->
     <receiver
       android:name="dev.hackathon.kit.kitnative.engine.BootReceiver"

@@ -72,7 +72,7 @@ flowchart LR
 | `src/lib/` | アプリ側の仕組み。`api.ts`（通信）・`session.tsx`（ログイン状態）・`google.ts`（Google ログイン）・`storage.ts`（端末の保存）・`config-cache.ts`（C7）・`usage-calc.ts`（C3）・`usage-outbox.ts`（C8）・`native.ts`（Kotlin の窓口）・`polling.ts`（30秒ごとの取得）・`flow.tsx`（画面の間の受け渡し）・`child-data.tsx`・`parent-data.tsx`（子ども用・保護者用のデータの共有）・`sign-out.ts`（ログアウトで端末のデータを消す） |
 | `src/components/` | 共通の部品（`Screen`・`Card`・`Button`・`StateView` など）。`child/`・`pair/`・`parent/`・`schedule/` は機能ごとの部品と、画面の判断をまとめた純粋な関数 |
 | `src/app/` | 画面（Expo Router。ファイルの場所がそのまま道になる）。`index.tsx`（入口）・`login.tsx`・`pair/`・`child/`・`parent/` |
-| `modules/kit-native/` | Kotlin のモジュール（Expo Modules）。`engine/`（C2 使用時間・C4 監視の Foreground Service と案内・再起動後の再開）、`widget/`（C5）、`admin/`（Device Owner。デモ専用） |
+| `modules/kit-native/` | Kotlin のモジュール（Expo Modules）。`engine/`（C2 使用時間・C4 監視の Foreground Service と案内・再起動後の再開・制限する Web サイトのユーザー補助のサービス（D-111））、`widget/`（C5）、`admin/`（Device Owner。デモ専用） |
 | `tests/` | Vitest のテスト。フォルダの分け方は [development.md](development.md#テストの構成) |
 | `backend/` | DB の表の設計・保存の処理・migration（別のプロジェクト） |
 | `scripts/seed-demo.ts` | 本番・プレビューの DB に見本を入れる（`npm run db:seed-demo`。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)） |

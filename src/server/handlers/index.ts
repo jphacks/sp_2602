@@ -8,6 +8,8 @@ export { default as blankPeriodCreate } from "./blankPeriodCreate.js";
 export { default as blankPeriodDelete } from "./blankPeriodDelete.js";
 export { default as blankPeriodList } from "./blankPeriodList.js";
 export { default as blankPeriodUpdate } from "./blankPeriodUpdate.js";
+export { default as blockedSitesGet } from "./blockedSitesGet.js";
+export { default as blockedSitesSave } from "./blockedSitesSave.js";
 export { default as childAppIconsGet } from "./childAppIconsGet.js";
 export { default as childAppIconsUpload } from "./childAppIconsUpload.js";
 export { default as childAppsGet } from "./childAppsGet.js";

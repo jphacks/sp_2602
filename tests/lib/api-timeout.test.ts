@@ -44,6 +44,7 @@ const snap = (configVersion: number): ConfigSnapshot => ({
   blankPeriods: [],
   dailyLimits: [{ date: "2026-10-17", kind: "limited", limitMinutes: 60 }],
   excludedApps: [],
+  blockedSites: [],
   generatedAt: "2026-10-17T00:00:00.000Z",
 });
 

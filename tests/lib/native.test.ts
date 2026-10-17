@@ -11,12 +11,14 @@ describe("native（モジュールなし）", () => {
     setFakeUsage(false);
     expect(native.available).toBe(false);
     expect(native.ping()).toBeNull();
-    // 権限の種類は contracts/native.ts の NativePermission（K-A で accessibility をやめ、notifications・batteryOptimization を足した）
+    // 権限の種類は contracts/native.ts の NativePermission（K-A で accessibility をやめ、notifications・batteryOptimization を足した。
+    // D-111 で、制限する Web サイトのためだけに accessibility を足し直した）
     expect(native.getPermissions()).toEqual({
       usageAccess: false,
       overlay: false,
       notifications: false,
       batteryOptimization: false,
+      accessibility: false,
     });
     expect((await native.getDailyUsage("2026-10-17")).status).toBe("unavailable");
     // アプリ一覧も 0 個ではなく unavailable（空の一覧を送って親16 の候補を消さないように。Q15）
@@ -37,6 +39,7 @@ describe("native（モジュールなし）", () => {
         learningPackages: [],
         configVersion: 0,
         testPeriods: [],
+        blockedSites: [],
       });
       native.saveParentWidget({ days: [], testPeriods: [] }); // 保護者のウィジェット（親08）
     }).not.toThrow();

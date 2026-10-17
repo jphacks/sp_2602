@@ -132,6 +132,20 @@ flowchart TD
 | `excludedAppsGet` | POST `/api/excluded-apps/get` | signedIn | `{ childId }` | `ExcludedAppsView`（`apps`・`removedApps`（外したアプリと外した版）・`appsChangedVersion`（一覧が最後に変わった版）・`configVersion`・`childAppliedVersion`） | 403 |
 | `excludedAppsSave` | POST `/api/excluded-apps/save` | parent | `{ childId, expectedVersion, apps（全件。500件まで）}` | `ExcludedAppsSaveResult`（`apps`・`configVersion`） | 403（子どもは保存できない）、409 |
 
+### 制限する Web サイト（D-111）
+
+上限に達したあと、子どもの端末のブラウザで開くと止めるサイト（Kotlin のユーザー補助 `engine/WebGuardService.kt` が止める）。子どもの端末へは C7 の組の `blockedSites` で届きます。
+
+| 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
+|---|---|---|---|---|---|
+| `blockedSitesGet` | POST `/api/blocked-sites/get` | signedIn | `{ childId }` | `BlockedSitesView`（`sites`（`pattern`・`sinceVersion`。登録した版の古い順）・`sitesChangedVersion`（一覧が最後に変わった版。0 = 一度も変えていない）・`configVersion`・`childAppliedVersion`） | 403 |
+| `blockedSitesSave` | POST `/api/blocked-sites/save` | parent | `{ childId, expectedVersion, sites（全件。100件まで。そろえた形の文字）}` | `BlockedSitesSaveResult`（`sites`・`sitesChangedVersion`・`configVersion`） | 400（そろえていない形・ドメインでない・同じものが2つ・数と長さの上限）、403（子どもは保存できない）、409 |
+
+- 登録の形は `"youtube.com"`（サイト全体。サブドメインもふくむ）か `"youtube.com/shorts"`（ドメインが合い、パスがその前置きで始まるページだけ。区切りの `/` で比べるので `/shortstory` は当たらない）。
+- 入力は `contracts/web-sites.ts` の `normalizeSitePattern` でそろえた形だけを受け付けます（https://・www.・大文字・末尾の `/` を外した形。200 文字まで。`?`・`#`・ポート番号・IP アドレス・日本語のドメインは断る）。画面が保存の前にそろえ、サーバは「そろえ直しても同じか」を入口で確かめます（`SitePattern`）。
+- 読むときの `pattern` は形を確かめ直しません（そろえ方の規則をあとで変えても、保存済みの C7 の組が読めなくならないように）。子どもの端末の Kotlin は受け取った登録をもう一度そろえ、そろわないものは使いません。
+- 中身が同じ保存（順番だけ違うものもふくむ）は版を上げません。外した登録は消し、外したことが届いたかは `sitesChangedVersion` で見ます。
+
 ### 子どもの端末のアプリ一覧とアイコン（Q15・D-110）
 
 親16 の候補（子どもの端末のホーム画面に出るアプリ）と、親09・親16 のアプリの本物のアイコン。送るのは packageName・表示名・アイコン（PNG）だけで、使用時間は C8 で別に送ります。設定の版は上げません（親の設定ではないので、親05・親16 が「反映待ち」にならない）。
@@ -197,15 +211,16 @@ flowchart TD
 | 決まり | 担当 |
 |---|---|
 | 版は 0 から始まる（0 = まだ何も保存していない。DB の `child_config_versions.version` の既定 0。D-104）。紐づけの確定で器ができる | `src/server/auth.ts` の `confirmPair`・`backend/src/db/*.ts` |
-| 設定を変える9種類の API（`planSave`・`usualLimitSave`・`testPeriodCreate/Update/Delete`・`blankPeriodCreate/Update/Delete`・`excludedAppsSave`）は、成功すると版をちょうど **1** 上げる | `backend/src/db/*.ts` の保存の処理（版の確かめ・変更・版を上げるを1回のトランザクションで） |
+| 設定を変える10種類の API（`planSave`・`usualLimitSave`・`testPeriodCreate/Update/Delete`・`blankPeriodCreate/Update/Delete`・`excludedAppsSave`・`blockedSitesSave`）は、成功すると版をちょうど **1** 上げる（中身の変わらない `excludedAppsSave`・`blockedSitesSave` は上げない） | `backend/src/db/*.ts` の保存の処理（版の確かめ・変更・版を上げるを1回のトランザクションで） |
 | これらは `expectedVersion` を受け取り、今の版と**違えば**（古くても新しくても）`409 conflict`「ほかの端末で先に変更されました」。何も変えない | 同上 |
-| 日別上限を作り直した保存では `calculationVersion` も 1 上がる（`excludedAppsSave` は作り直さないので上がらない） | `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction` |
-| 読む API（`planGet`・`testPeriodList`・`blankPeriodList`・`excludedAppsGet`・`configGet`）は今の `configVersion` を返す。画面はこれを次の `expectedVersion` に使う | `src/server/services/*.ts` |
+| 日別上限を作り直した保存では `calculationVersion` も 1 上がる（`excludedAppsSave`・`blockedSitesSave` は作り直さないので上がらない） | `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction` |
+| 読む API（`planGet`・`testPeriodList`・`blankPeriodList`・`excludedAppsGet`・`blockedSitesGet`・`configGet`）は今の `configVersion` を返す。画面はこれを次の `expectedVersion` に使う | `src/server/services/*.ts` |
 | `configGet` に `knownVersion` を送ると、同じ版なら中身を省く | `src/server/services/config-snapshot.ts` の `getConfigForCaller` |
 | `configGet` の応答には、どちらの形にも DB の `epoch` を入れる（D-109） | 同上（`backend/src/db/server-epoch.ts` の `readServerEpoch`） |
 | 子どもが送った `knownVersion` は `childAppliedVersion` として覚え、読む API で返す（「反映済み／反映待ち」に使う） | 同上（表 `child_applied_versions`） |
 | `configGet` で日別上限を作り足したとき（残り 60 日を切ったとき。D-54） | `topUpDailyLimits` |
 | 保存した計画の `plan.version`、対象外アプリの `sinceVersion`（対象外になった版）・`removedVersion`（外した版）・`appsChangedVersion`（一覧が最後に変わった版。同じ中身の保存では進まない）は、その変更が入った版 | `backend/src/db/plan-settings.ts`・`excluded-app-settings.ts` |
+| 制限する Web サイトの `sinceVersion`（足した版。もとからある登録は変わらない）・`sitesChangedVersion`（足した・外したが最後にあった版。同じ中身の保存では進まない）は、その変更が入った版 | `backend/src/db/blocked-sites.ts`（表 `blocked_sites`・`blocked_site_states`） |
 | テスト期間の `periodsChangedVersion`・空白期間の `blankChangedVersion` は、その一覧（名前・期間）が最後に変わった版（一度も変わっていなければ 0）。ほかの設定の保存・同じ中身の更新・失敗した保存では進まない。親05・空白期間の一覧の「反映済み／反映待ち」は、`childAppliedVersion` がこれ以上かで決める（0 なら反映済み。`schedule/logic.ts` の `appliedStatus`） | `backend/src/db/test-periods.ts`・`blank-periods.ts`（DB の列 `test_periods_changed_version`・`blank_periods_changed_version`） |
 
 画面がどの版を送るか:
@@ -214,6 +229,7 @@ flowchart TD
 - 計画（親02）: 画面を開いて最初に読んだ版。保存できたら、または conflict のあと、取り直した版に替える（`plan.tsx`）。入力は残す。
 - 通常上限: `planGet` で読んだ版（`usual-limit.tsx`）。conflict なら取り直す。
 - 対象外アプリ（親16）: スイッチを読み込んだときの版。
+- 制限する Web サイト: 下書きを読み込んだときの版（保存していない変更がなければ、30 秒ごとの取り直しで今の版に合わせ直す。`parent/blocked-sites.ts` の `syncSitesDraft`）。
 
 ## 6. API を足すとき
 

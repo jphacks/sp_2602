@@ -85,6 +85,7 @@ export const native: NativeEngine & {
       overlay: false,
       notifications: false,
       batteryOptimization: false,
+      accessibility: false,
     }),
   openPermissionSettings: (permission) => callSafe("openPermissionSettings", undefined, permission),
   getDailyUsage: async (date) => {

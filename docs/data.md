@@ -51,7 +51,7 @@
 
 | 型 | 中身 | 説明 |
 |---|---|---|
-| `ConfigSnapshot` | `childId`・`configVersion`・`calculationVersion`・`usualLimitMinutes`・`plan`・`testPeriods`・`blankPeriods`・`dailyLimits`・`excludedApps`・`generatedAt` | 端末が丸ごと採用する1組。中はすべて同じ版のもの |
+| `ConfigSnapshot` | `childId`・`configVersion`・`calculationVersion`・`usualLimitMinutes`・`plan`・`testPeriods`・`blankPeriods`・`dailyLimits`・`excludedApps`・`blockedSites`・`generatedAt` | 端末が丸ごと採用する1組。中はすべて同じ版のもの。`blockedSites`（制限する Web サイト。D-111）は既定が空（足す前に端末へ保存した組も読めるように） |
 | `ConfigQuery` | `childId`・`knownVersion?` | 取得の入力 |
 | `ConfigEpoch` | 文字列（サーバは uuid） | サーバの DB ごとに決まる値（D-109）。DB を作り直すと変わり、再起動では変わらない |
 | `ConfigResult` | `{ changed: false, configVersion, epoch }` または `{ changed: true, snapshot, epoch }` | 取得の結果。epoch はどちらにも入る |
@@ -68,6 +68,21 @@
 | `UsageQuery` | `childId`・`from`・`to` | 親が見る期間（両端を含む。190日未満） |
 | `UsageDay` | `date`・`recorded`・`usedMinutes`・`measuredAt`・`limit`・`apps` | 親が見る1日ぶん。記録がない日は `recorded: false`・`usedMinutes: null` |
 | `ParentUsageView` | `childId`・`from`・`to`・`days`・`lastUploadedAt` | 親が見る実績。`days` は from〜to の全日 |
+
+### 制限する Web サイト（D-111）
+
+| 型 | 中身 | 説明 |
+|---|---|---|
+| `SitePattern` | 文字（`MAX_SITE_PATTERN_LENGTH` = 200 文字まで） | 保存の入力の1つ。`contracts/web-sites.ts` の `normalizeSitePattern` でそろえた形だけ（`"youtube.com"`・`"youtube.com/shorts"`） |
+| `BlockedSite` | `pattern`・`sinceVersion` | 保存済みの登録。`sinceVersion` は足した版。読むときは形を確かめ直さない |
+| `BlockedSitesView` | `childId`・`sites`・`sitesChangedVersion`・`configVersion`・`childAppliedVersion` | 親子が読む一覧（子どもの画面には今は出していない） |
+| `BlockedSitesSave` | `childId`・`expectedVersion`・`sites`（`MAX_BLOCKED_SITES` = 100 件まで。同じものは2回入れられない） | 保存（全件の置き換え） |
+| `BlockedSitesSaveResult` | `sites`・`sitesChangedVersion`・`configVersion` | 保存の結果 |
+
+登録の形と一致の規則（`contracts/web-sites.ts`。Kotlin の `engine/WebSites.kt` も同じ規則で、同じ例の表 `modules/kit-native/android/src/test/resources/web-site-cases.tsv` で確かめる）:
+
+- そろえ方: 全角を半角（NFKC）・小文字・前後の空白を外す → `http://`・`https://` を外す（ほかの scheme は断る）→ ドメインの頭の `www.`・末尾の `.` を外す → パスの末尾の `/` を外す。`?`・`#`・`@`・`:`（ポート）・空白・日本語のドメイン・IP アドレス・区切りが1つのもの（`youtube`）は断る。
+- 一致: アドレス欄の文字からドメインとパスを取り出し（`user@` の後ろが本当のドメイン・ポートと `?` `#` より後ろは見ない）、ドメインが登録と**同じ**か **`.` ＋登録で終わる**とき。パスつきの登録は、パスが登録と同じか **登録 ＋ `/`** で始まるとき（`/shorts` は `/shorts/abc` に当たり `/shortstory` には当たらない）。アドレスらしくない文字（空白が入る・`chrome://` など）は判定しない。
 
 ### 子どもの端末のアプリ一覧とアイコン（Q15・D-110）
 
@@ -86,7 +101,7 @@
 | 型 | 場所 | 説明 |
 |---|---|---|
 | `NativeUsageResult` | `contracts/native.ts` | C2 の結果。`ok`（`apps` が空 = 本当に使っていない）／`permission_denied`／`unavailable` |
-| `NativeRestriction` | `contracts/native.ts` | C4 の判定に Kotlin へ渡す値。`limit` は `limited`／`unlimited`／`unset` |
+| `NativeRestriction` | `contracts/native.ts` | C4 の判定に Kotlin へ渡す値。`limit` は `limited`／`unlimited`／`unset`。`blockedSites`（制限する Web サイトの登録。D-111）も入る |
 | `LimitInput` | `src/lib/usage-calc.ts` | C3 に入れる当日の上限。`set`／`unlimited`／`unset`／`unknown` |
 | `UsageCalc` | `src/lib/usage-calc.ts` | C3 の結果。`ok`／`unlimited`／`permission_denied`／`usage_unavailable`／`limit_unset`／`limit_unknown`／`limit_invalid` |
 | `ConfigState` | `src/lib/config-cache.ts` | 端末が持つ設定。`fresh`／`stale`（理由つき）／`unavailable` |
@@ -257,8 +272,8 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 
 | ファイル / キー | 中身 | 書く | 読む |
 |---|---|---|---|
-| `slope_engine` / `restriction` | JSON。`saveRestriction` で受け取った判定の値（`date`・`limit`・`upcoming`・`excludedPackages`・`essentialPackages`・`learningPackages`・`configVersion`・`savedAt`） | `saveRestriction` | 監視・`getEngineStatus`・再起動後 |
-| `slope_engine` / `today_usage` | JSON。今日のまとめ `{date, status, restrictedMinutes, limit, usedPercent, reached, measuredAt}`。`usedPercent` は C3 と同じ規則、出せない状態は `null` | 監視（30 秒ごと）・`getDailyUsage`（今日の分） | ウィジェット（`EngineStore.loadToday`） |
+| `slope_engine` / `restriction` | JSON。`saveRestriction` で受け取った判定の値（`date`・`limit`・`upcoming`・`excludedPackages`・`essentialPackages`・`learningPackages`・`blockedSites`・`configVersion`・`savedAt`）。`blockedSites` は Kotlin がもう一度そろえ、そろわないものは捨てる | `saveRestriction` | 監視・`getEngineStatus`・再起動後・Web サイトの制限（`WebGuardService`。D-111） |
+| `slope_engine` / `today_usage` | JSON。今日のまとめ `{date, status, restrictedMinutes, limit, usedPercent, reached, measuredAt}`。`usedPercent` は C3 と同じ規則、出せない状態は `null` | 監視（30 秒ごと）・`getDailyUsage`（今日の分） | ウィジェット（`EngineStore.loadToday`）・Web サイトの制限（`reached` が今日の分で true のときだけ止める。D-111） |
 | `slope_engine` / `engine_enabled` | Boolean。監視を続けるか | `startEngine`・`stopEngine`・`clearLocalData` | 再起動後・監視 |
 | `slope.widget`（K-B） | テストの日程 | `saveRestriction` の `testPeriods` → `WidgetStore.saveTests` | ウィジェット |
 
@@ -277,6 +292,7 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 | D3/D8/空白期間 | `test_periods`, `plan_settings`, `child_usual_limits`, `blank_periods` | 日付順序などの構造制約あり。C10入力に矛盾する重複はrepository transaction内で拒否 |
 | D6計算履歴 | `plan_calculation_versions`, `daily_limits` | 日付・計算版単位で履歴を保持。新規上限は0〜1440。過去の範囲外値も確定済み履歴として保持し、再計算で値を変えない。入力版と計算版を同一トランザクションで更新 |
 | D7 | `excluded_apps`, `excluded_app_states`, `removed_excluded_apps` | label・追加版・削除版・最終変更版を保持 |
+| 制限する Web サイト（D-111） | `blocked_sites`, `blocked_site_states` | `blocked_sites` は子どもと登録（`pattern`。そろえた形・200 文字まで）の組に1行、`since_version`（足した版）。外した登録は行を消す。`blocked_site_states` は子ども1人に1行で `sites_changed_version`（一覧が最後に変わった版。行がない = 0）。保存は版の確かめ・版を 1 上げる・入れ替えを1回のトランザクションで（`backend/src/db/blocked-sites.ts`。migration `0014_blocked_sites.sql`）。C7 の組を読むトランザクションでも一緒に読む |
 | Q15（子どもの端末のアプリ一覧とアイコン） | `child_app_lists`, `child_app_list_items`, `child_app_icons` | `child_app_lists` は子ども1人に1行の「届いた」印（`received_at`。行がない = まだ届いていない）。`child_app_list_items` は packageName・表示名（全件の置き換え）。`child_app_icons` はアイコンの PNG（base64・20KB まで）と `icon_hash`（中身の SHA-256。サーバが計算し直して確かめた値）。一覧から消えたアプリのアイコンは一覧の置き換えのときに消す。下の2つは `child_app_lists` を消すと一緒に消える。設定の版とは別（migration `0013_child_app_lists.sql`。D-110） |
 | C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない。サーバの時計より先の測定時刻はサーバの時計で保存する（送り直しを見分ける指紋は送られたままの中身で作る。`backend/src/db/usage-persistence.ts`） |
 

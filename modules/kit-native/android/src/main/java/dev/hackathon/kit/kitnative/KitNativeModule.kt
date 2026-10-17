@@ -51,7 +51,8 @@ class KitNativeModule : Module() {
 
     // ── C2 ──────────────────────────────────────────────
 
-    // 権限の状態 { usageAccess, overlay, notifications, batteryOptimization }（engine/EnginePermissions.kt）
+    // 権限の状態 { usageAccess, overlay, notifications, batteryOptimization, accessibility }（engine/EnginePermissions.kt）。
+    // accessibility は制限する Web サイト（D-111）のユーザー補助のサービス（engine/WebGuardService.kt）がオンか
     Function("getPermissions") {
       EnginePermissions.status(context)
     }
@@ -115,6 +116,7 @@ class KitNativeModule : Module() {
     // 判定に使う値（NativeRestriction）を端末に保存する。以後は電波がなくてもこれで判定する。保存できたら true。
     // 形が違うときは保存せず false（前の値で判定を続ける。JS の画面の処理は止めない）。
     // テストの日程（testPeriods）は判定には使わず、ウィジェット（C5。K-B の widget/）の保存へ渡して描き直させる
+    // 制限する Web サイト（blockedSites。D-111）も一緒に保存し、ユーザー補助のサービス（engine/WebGuardService.kt）が読む
     Function("saveRestriction") { restriction: Map<String, Any?> ->
       val ctx = context
       try {

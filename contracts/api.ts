@@ -15,6 +15,9 @@ import {
   BlankPeriodList,
   BlankPeriodSaveResult,
   BlankPeriodUpdate,
+  BlockedSitesSave,
+  BlockedSitesSaveResult,
+  BlockedSitesView,
   ChildAppIconsQuery,
   ChildAppIconsUpload,
   ChildAppIconsUploadResult,
@@ -135,7 +138,7 @@ export const api = {
   blankPeriodUpdate: post("/api/blank-period/update", "parent", BlankPeriodUpdate, BlankPeriodSaveResult),
   blankPeriodDelete: post("/api/blank-period/delete", "parent", PeriodDelete, PeriodDeleteResult),
 
-  // ── C7: 設定のスナップショット（通常上限・計画・日程・空白期間・日別上限・対象外アプリ・版を1組で）──
+  // ── C7: 設定のスナップショット（通常上限・計画・日程・空白期間・日別上限・対象外アプリ・制限する Web サイト・版を1組で）──
   // 親子: knownVersion と同じ版なら中身を省く。子どもが呼ぶと「子どもの端末が使っている版」として記録する（Q6）
   configGet: post("/api/config/get", "signedIn", ConfigQuery, ConfigResult),
 
@@ -150,6 +153,14 @@ export const api = {
   excludedAppsGet: post("/api/excluded-apps/get", "signedIn", ChildQuery, ExcludedAppsView),
   // 保護者: 対象外アプリを保存する（全件の置き換え。子どもは forbidden。版がずれていたら conflict）
   excludedAppsSave: post("/api/excluded-apps/save", "parent", ExcludedAppsSave, ExcludedAppsSaveResult),
+
+  // ── 制限する Web サイト（docs/decisions.md D-111）──
+  // 上限に達したあと、子どもの端末のブラウザでこのサイトを開くと止める（C7 の blockedSites で子どもの端末へ届く）。
+  // 親子: 登録の一覧（子どもは閲覧のみ。今の子どもの画面には出していない）
+  blockedSitesGet: post("/api/blocked-sites/get", "signedIn", ChildQuery, BlockedSitesView),
+  // 保護者: 登録を保存する（全件の置き換え。子どもは forbidden。版がずれていたら conflict。
+  //   登録は contracts/web-sites.ts の normalizeSitePattern でそろえた形だけ。数・長さの上限を超える・同じものが2つは bad_request）
+  blockedSitesSave: post("/api/blocked-sites/save", "parent", BlockedSitesSave, BlockedSitesSaveResult),
 
   // ── Q15: 子どもの端末のアプリ一覧とアイコン（親16 の候補・親09 と親16 のアイコン。docs/decisions.md D-110）──
   // 子ども: ホーム画面に出るアプリの一覧（packageName・表示名・アイコンのハッシュ）を送る。全件の置き換え（差分ではない）。

@@ -135,6 +135,7 @@ describe("C7 の組から当日の上限・次のテストを取り出す", () =
       { date: "2026-10-16", kind: "unlimited", blankPeriodId: "b1" },
     ],
     excludedApps: [],
+    blockedSites: [],
     generatedAt: "2026-10-15T00:00:00.000Z",
   };
 
