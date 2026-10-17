@@ -34,7 +34,11 @@ describe("日別上限の作り足し", () => {
     // （合言葉は30日使わないと切れるので、20日ごとに取りに来る。子どもの端末は30秒ごとに取りに来る）
     for (const at of ["2026-11-04", "2026-11-24", "2026-12-13"]) {
       clock.set(`${at}T03:00:00Z`);
-      expect(await configGet(child.userId, child.token, 1)).toEqual({ changed: false, configVersion: 1 });
+      expect(await configGet(child.userId, child.token, 1)).toEqual({
+        changed: false,
+        configVersion: 1,
+        epoch: expect.any(String),
+      });
     }
 
     // 70 日後（残り 50 日）: 作り足す
@@ -49,7 +53,11 @@ describe("日別上限の作り足し", () => {
     expect(parentAgain.userId).toBe(parent.userId);
     expect(await versionOf(child.userId, parentAgain.token)).toBe(2);
     // 続けて取りに来ても、もう作り足さない（版が上がり続けない）
-    expect(await configGet(child.userId, child.token, 2)).toEqual({ changed: false, configVersion: 2 });
+    expect(await configGet(child.userId, child.token, 2)).toEqual({
+      changed: false,
+      configVersion: 2,
+      epoch: expect.any(String),
+    });
   });
 
   it("一度も日別上限を作っていない子ども（紐づけ直後）は作り足さない（版は 0 のまま・未設定）", async () => {

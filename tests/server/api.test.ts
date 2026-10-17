@@ -481,7 +481,7 @@ describe("通常上限・計画・空白期間（D8・Q7・Q14）と C7", () => 
     const first = await config(CHILD, CHILD_ID);
     if (!first.changed) throw new Error("changed のはず");
     const v = first.snapshot.configVersion;
-    expect(await config(CHILD, CHILD_ID, v)).toEqual({ changed: false, configVersion: v });
+    expect(await config(CHILD, CHILD_ID, v)).toEqual({ changed: false, configVersion: v, epoch: expect.any(String) });
     const view = api.excludedAppsGet.res.parse(
       await (await post("/api/excluded-apps/get", { childId: CHILD_ID }, PARENT)).json(),
     );

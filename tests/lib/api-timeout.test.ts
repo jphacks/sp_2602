@@ -118,7 +118,9 @@ describe("C7: サーバが止まった・遅いとき、手元の組を stale �
     expect(state.snapshot.dailyLimits[0]).toEqual({ date: "2026-10-17", kind: "limited", limitMinutes: 60 });
 
     // サーバが戻ったら、次の取得で新しい組を採用する（前の呼び出しが終わっているので、次が走れる）
-    vi.stubGlobal("fetch", () => Promise.resolve(Response.json({ changed: true, snapshot: snap(6) })));
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve(Response.json({ changed: true, snapshot: snap(6), epoch: "epoch-1" })),
+    );
     const next = await cache.refresh("c1");
     expect(next.status).toBe("fresh");
     if (next.status === "fresh") expect(next.snapshot.configVersion).toBe(6);

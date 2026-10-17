@@ -135,7 +135,11 @@ describe("V: Q5・Q6 保存と C10 は1回の処理・版は子ども1人に1本
         .childAppliedVersion,
     ).toBeNull();
     // 2回目に「今使っている版」を送る → 反映済み
-    expect(await snapshotOf(CHILD_ID, CHILD, v)).toEqual({ changed: false, configVersion: v });
+    expect(await snapshotOf(CHILD_ID, CHILD, v)).toEqual({
+      changed: false,
+      configVersion: v,
+      epoch: expect.any(String),
+    });
     for (const path of ["/api/plan/get", "/api/test-period/list", "/api/blank-period/list", "/api/excluded-apps/get"]) {
       const r = await ok<{ childAppliedVersion: number | null; configVersion: number }>(
         post(path, { childId: CHILD_ID }, PARENT),

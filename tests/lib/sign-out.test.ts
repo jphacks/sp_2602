@@ -50,7 +50,7 @@ function setup() {
   const storage = memoryStorage();
   const configCache = createConfigCache({
     storage,
-    fetchConfig: async (childId) => ({ changed: true, snapshot: snapshot(childId) }),
+    fetchConfig: async (childId) => ({ changed: true, snapshot: snapshot(childId), epoch: "epoch-1" }),
   });
   const usageOutbox = createUsageOutbox({
     storage,

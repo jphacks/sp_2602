@@ -53,7 +53,9 @@
 |---|---|---|
 | `ConfigSnapshot` | `childId`・`configVersion`・`calculationVersion`・`usualLimitMinutes`・`plan`・`testPeriods`・`blankPeriods`・`dailyLimits`・`excludedApps`・`generatedAt` | 端末が丸ごと採用する1組。中はすべて同じ版のもの |
 | `ConfigQuery` | `childId`・`knownVersion?` | 取得の入力 |
-| `ConfigResult` | `{ changed: false, configVersion }` または `{ changed: true, snapshot }` | 取得の結果 |
+| `ConfigEpoch` | 文字列（サーバは uuid） | サーバの DB ごとに決まる値（D-109）。DB を作り直すと変わり、再起動では変わらない |
+| `ConfigResult` | `{ changed: false, configVersion, epoch }` または `{ changed: true, snapshot, epoch }` | 取得の結果。epoch はどちらにも入る |
+| `CachedConfig` | `snapshot`・`savedAt`・`epoch?` | 端末に保存する組（`slope.config.<childId>`）。`epoch` は組をくれた DB の値。epoch を足す前に保存した組には `epoch` がなく、「epoch が違う」として次の取得で置き換える |
 
 ### 利用記録（C8・C6・D4）
 
@@ -228,7 +230,7 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 - デモの保護者と子どもは、はじめから連携済み。
 - デモの子どもの設定: 通常上限 180 分、計画（開始日 = 14日前・S = 300・G = 120。見本だけ過去の開始日を許している）、テスト「数学」（今日の 11日後〜13日後）、対象外アプリ「学習ノート」、過去14日ぶんの日別上限、過去6日ぶんの利用記録（`contracts/fixtures.ts` の `demoUsageDay`・`demoAppMinutes`）。
 - 同じ見本（デモの人の合言葉は除く）は、本番・プレビューの DB にも `npm run db:seed-demo` で、Google でログインして紐づけた親子に入れられる（`scripts/seed-demo.ts`。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。
-- 設定の版は DB に残るので、手元のサーバを立て直しても数え直さない（`state/pglite` を消したときは見本の版から）。
+- 設定の版は DB に残るので、手元のサーバを立て直しても数え直さない（`state/pglite` を消したときは見本の版から）。版を数え直したときは DB の `epoch` も変わるので、端末は手元の組を捨てて新しい組を取り込む（D-109）。
 - アプリの MOCK のログインの「はじめての人（この端末: xxxx）」は `mock-new-<端末の番号>` を送るので、端末ごとに別の「はじめての人」が作られる（2台で QR の紐づけを試すため）。`mock-` で始まり上の3つでないものは、みな新しい人になる。
 
 ### 端末に残すもの
@@ -256,6 +258,7 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 |---|---|---|
 | ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull。合言葉は SHA-256 の hash でだけ保存し（`src/server/auth/digest.ts`）、最後に使ってから30日で無効（使うたびに延長。D-1）。ログアウトで失効（`otherDevices: true` なら同じ人のほかの合言葉も）。子どもを外すと、その子どもの合言葉はすべて失効 |
 | 親子関係・QR | `family_links`, `pair_tickets`, `pair_claim_failures` | 親1人↔子1人（Q2）。QRは10分・1回だけ・出し直しで前を無効（Q10）。QRコードそのものではなくhashを保存。番号のまちがい（`pairClaim` の not_found・conflict）を人ごとに `pair_claim_failures` に数え、10分に10回で `rate_limited`。成功したら消す（Vercel のインスタンスはメモリを共有しないので表に数える） |
+| DB の epoch（C7） | `server_meta` | 1行だけ（`id` は必ず 1）。`epoch` は uuid で、最初に読んだときに作る（`backend/src/db/server-epoch.ts` の `readServerEpoch`。migration `0012_server_meta_epoch.sql`）。DB を作り直す・PGlite と Neon を切り替えると別の値、再起動では同じ値。`configGet` の応答に入れる（D-109）。手で書き換えない（書き換えると全部の端末が設定を取り直す） |
 | 設定版・反映版 | `child_config_versions`, `child_applied_versions` | 全体 `version` とC10入力専用 `c10_input_version` を別管理。`version` は 0 から（0 = まだ一度も保存していない。0 以上の決まりつき）。一覧が最後に変わった版 `test_periods_changed_version`・`blank_periods_changed_version` が API の `periodsChangedVersion`・`blankChangedVersion` になる |
 | D3/D8/空白期間 | `test_periods`, `plan_settings`, `child_usual_limits`, `blank_periods` | 日付順序などの構造制約あり。C10入力に矛盾する重複はrepository transaction内で拒否 |
 | D6計算履歴 | `plan_calculation_versions`, `daily_limits` | 日付・計算版単位で履歴を保持。新規上限は0〜1440。過去の範囲外値も確定済み履歴として保持し、再計算で値を変えない。入力版と計算版を同一トランザクションで更新 |

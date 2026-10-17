@@ -108,7 +108,9 @@ flowchart TD
 
 | 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
 |---|---|---|---|---|---|
-| `configGet` | POST `/api/config/get` | signedIn | `{ childId, knownVersion? }` | `ConfigResult`：同じ版なら `{ changed: false, configVersion }`、違えば `{ changed: true, snapshot }` | 403 |
+| `configGet` | POST `/api/config/get` | signedIn | `{ childId, knownVersion? }` | `ConfigResult`：同じ版なら `{ changed: false, configVersion, epoch }`、違えば `{ changed: true, snapshot, epoch }` | 403 |
+
+`epoch` は**サーバの DB ごとに決まる値**（文字列。DB を作ったときに1回だけ作る uuid。表 `server_meta`）で、どちらの応答にも必ず入ります（D-109）。DB を作り直す・PGlite と Neon を切り替えると変わり、サーバを再起動しても変わりません。版（`configVersion`）は DB の中の数なので、DB が変わると 0 から数え直します。端末は手元の組の epoch と違えば版を比べずに手元を捨て、`changed: false` なら `knownVersion` なしで取り直します（[flows.md の C7](flows.md)）。
 
 **子どもが呼んだとき**は、送った `knownVersion` を「子どもの端末が使っている版」（`childAppliedVersion`）として覚えます（サーバの版より大きい値は覚えない）。保護者が呼んでも変わりません。
 
@@ -185,6 +187,7 @@ flowchart TD
 | 日別上限を作り直した保存では `calculationVersion` も 1 上がる（`excludedAppsSave` は作り直さないので上がらない） | `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction` |
 | 読む API（`planGet`・`testPeriodList`・`blankPeriodList`・`excludedAppsGet`・`configGet`）は今の `configVersion` を返す。画面はこれを次の `expectedVersion` に使う | `src/server/services/*.ts` |
 | `configGet` に `knownVersion` を送ると、同じ版なら中身を省く | `src/server/services/config-snapshot.ts` の `getConfigForCaller` |
+| `configGet` の応答には、どちらの形にも DB の `epoch` を入れる（D-109） | 同上（`backend/src/db/server-epoch.ts` の `readServerEpoch`） |
 | 子どもが送った `knownVersion` は `childAppliedVersion` として覚え、読む API で返す（「反映済み／反映待ち」に使う） | 同上（表 `child_applied_versions`） |
 | `configGet` で日別上限を作り足したとき（残り 60 日を切ったとき。D-54） | `topUpDailyLimits` |
 | 保存した計画の `plan.version`、対象外アプリの `sinceVersion`（対象外になった版）・`removedVersion`（外した版）・`appsChangedVersion`（一覧が最後に変わった版。同じ中身の保存では進まない）は、その変更が入った版 | `backend/src/db/plan-settings.ts`・`excluded-app-settings.ts` |

@@ -1,6 +1,6 @@
 // 確かめ役（V）: C3・C7・C8 の境界（MVP_SPEC 4.2・4.3、AC-09・AC-12・AC-14・AC-16）。
 //   C3: 上限 0・未設定・制限なし・取得不可・権限なしを取り違えない。0 分と表示しない
-//   C7: 古い応答を捨てる・通信失敗で stale・版を混ぜない。サーバの configGet とつないで確かめる
+//   C7: 古い応答を捨てる・通信失敗で stale・版を混ぜない・DB が変わったら（epoch が違えば）版を比べずに取り直す。サーバの configGet とつないで確かめる
 //   C8: 同じ送信 ID の再送・新しい測定が勝つ・検証エラーの隔離。サーバの usageUpload とつないで確かめる
 
 import { ApiError } from "@contracts/errors";
@@ -15,8 +15,8 @@ import {
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiCallError } from "@/lib/api";
 import { createConfigCache } from "@/lib/config-cache";
-import type { KeyValueStorage } from "@/lib/storage";
-import { calcUsage, ESSENTIAL_PACKAGES, limitForDate, toUsageDayReport } from "@/lib/usage-calc";
+import { type KeyValueStorage, storageKeys } from "@/lib/storage";
+import { calcUsage, ESSENTIAL_PACKAGES, limitForDate, toNativeRestriction, toUsageDayReport } from "@/lib/usage-calc";
 import { createUsageOutbox } from "@/lib/usage-outbox";
 import { resetDatabaseForTests } from "@/server/db";
 import { CHILD, CHILD_ID, clock, fresh, ok, PARENT, post, versionOf } from "./helpers";
@@ -118,9 +118,10 @@ describe("V: C3 の境界", () => {
 
 // ── サーバとつなぐための道具 ──
 
-function memoryStorage(): KeyValueStorage {
+function memoryStorage(): KeyValueStorage & { data: Map<string, string> } {
   const data = new Map<string, string>();
   return {
+    data,
     getItem: async (k) => data.get(k) ?? null,
     setItem: async (k, v) => {
       data.set(k, v);
@@ -140,6 +141,18 @@ async function asCall<T>(res: Response, parse: (x: unknown) => T): Promise<T> {
 
 const serverConfig = (token: string) => (childId: string, knownVersion: number | undefined) =>
   post("/api/config/get", { childId, knownVersion }, token).then((r) => asCall(r, (b) => ConfigResult.parse(b)));
+
+// 親が通常上限を変えて、設定の版を 1 上げる
+const bump = async (minutes: number) => {
+  const v = await versionOf(CHILD_ID, PARENT);
+  await ok(
+    post("/api/plan/usual-limit", { childId: CHILD_ID, expectedVersion: v, usualLimitMinutes: minutes }, PARENT),
+  );
+};
+
+// 端末に保存してある組の epoch（D-109）
+const storedEpoch = (storage: KeyValueStorage & { data: Map<string, string> }): string | undefined =>
+  JSON.parse(storage.data.get(storageKeys.config(CHILD_ID)) ?? "{}").epoch;
 
 describe("V: C7 をサーバとつないで確かめる", () => {
   beforeEach(async () => {
@@ -206,14 +219,15 @@ describe("V: C7 をサーバとつないで確かめる", () => {
     expect((await other.refresh(CHILD_ID)).status).toBe("stale");
   });
 
-  it("遅れて届いた古い版の応答は捨て（older_response）、手元の新しい組を保つ", async () => {
+  it("（同じ epoch のとき）遅れて届いた古い版の応答は捨て（older_response）、手元の新しい組を保つ", async () => {
     const storage = memoryStorage();
-    // 古い版の応答を先に取っておく
+    // 古い版の応答を先に取っておく（同じ DB なので epoch は同じ）
     const oldResult = await serverConfig(CHILD)(CHILD_ID, undefined);
     const v = await versionOf(CHILD_ID, PARENT);
     await ok(post("/api/plan/usual-limit", { childId: CHILD_ID, expectedVersion: v, usualLimitMinutes: 33 }, PARENT));
     const cache = createConfigCache({ storage, fetchConfig: serverConfig(CHILD) });
     await cache.refresh(CHILD_ID); // 新しい版を保存
+    expect(storedEpoch(storage)).toBe(oldResult.epoch);
     const late = createConfigCache({ storage, fetchConfig: async () => oldResult });
     const s = await late.refresh(CHILD_ID);
     expect(s).toMatchObject({ status: "stale", reason: "older_response" });
@@ -222,36 +236,87 @@ describe("V: C7 をサーバとつないで確かめる", () => {
     expect(s.snapshot.usualLimitMinutes).toBe(33);
   });
 
-  it("【注意・MOCK だけ】サーバを再起動して版の番号が戻ると、子どもの端末は新しい設定を取り込めない", async () => {
-    // 仕様どおりの動き（古い版の応答は捨てる・同じ版なら手元を使う）だが、メモリ上の MOCK のサーバを再起動したデモでは困る。
-    // 本物の DB では版が戻らないので起きない。デモで再起動したら、子どもの端末の設定のキャッシュを消す（ログアウト等）こと
+  it("DB を作り直して版の番号が小さく戻っても、epoch が変わるので、子どもの端末は新しい設定を取り込み、Kotlin へ渡す値も新しくなる（D-109）", async () => {
+    // 前は「古い版の応答」として捨て続けた（PGlite のフォルダを消す・Neon と切り替えると版は 0 から数え直す）
     const storage = memoryStorage();
     const cache = createConfigCache({ storage, fetchConfig: serverConfig(CHILD) });
-    const bump = async (minutes: number) => {
-      const v = await versionOf(CHILD_ID, PARENT);
-      await ok(
-        post("/api/plan/usual-limit", { childId: CHILD_ID, expectedVersion: v, usualLimitMinutes: minutes }, PARENT),
-      );
-    };
     await bump(11);
     await bump(12);
     const cached = await cache.refresh(CHILD_ID);
     if (cached.status !== "fresh") throw new Error(cached.status);
     const cachedVersion = cached.snapshot.configVersion;
+    const epochBefore = storedEpoch(storage);
+    expect(epochBefore).toEqual(expect.any(String));
 
-    // (a) 再起動後、サーバの版が手元より小さい → 「古い応答」として捨て、stale のまま
-    await resetDatabaseForTests({ seed: true });
+    await resetDatabaseForTests({ seed: true }); // DB を作り直した
     await bump(21);
     expect(await versionOf(CHILD_ID, PARENT)).toBe(cachedVersion - 1);
-    expect(await cache.refresh(CHILD_ID)).toMatchObject({ status: "stale", reason: "older_response" });
+    const s = await cache.refresh(CHILD_ID);
+    if (s.status !== "fresh") throw new Error(`fresh のはずが ${s.status}`);
+    expect(s.snapshot.configVersion).toBe(cachedVersion - 1);
+    expect(s.snapshot.usualLimitMinutes).toBe(21);
+    expect(storedEpoch(storage)).not.toBe(epochBefore);
+    // Kotlin へ渡す値（child-data.tsx が native.saveRestriction に渡すもの）も、新しい DB の組から作られる
+    const latest = await serverConfig(CHILD)(CHILD_ID, undefined);
+    if (!latest.changed) throw new Error("changed: true のはず");
+    expect(toNativeRestriction(s.snapshot, TODAY)).toEqual(toNativeRestriction(latest.snapshot, TODAY));
+    expect(toNativeRestriction(s.snapshot, TODAY).configVersion).toBe(cachedVersion - 1);
+  });
 
-    // (b) 再起動後、サーバの版が手元と同じ番号になる → サーバは「変わっていない」と返し、手元の古い中身を fresh として使い続ける
+  it("DB を作り直して版がたまたま手元と同じ番号になり、サーバが「変わっていない」と返しても、epoch が違えば版を送らずに取り直して新しい中身を使う（D-109）", async () => {
+    // 前は手元の古い中身（DB を作り直す前の設定）を fresh として使い続けた
+    const storage = memoryStorage();
+    const replies: { known: number | undefined; changed: boolean }[] = [];
+    const cache = createConfigCache({
+      storage,
+      fetchConfig: async (childId, known) => {
+        const r = await serverConfig(CHILD)(childId, known);
+        replies.push({ known, changed: r.changed });
+        return r;
+      },
+    });
+    await bump(11);
+    const cached = await cache.refresh(CHILD_ID);
+    if (cached.status !== "fresh") throw new Error(cached.status);
+    const cachedVersion = cached.snapshot.configVersion;
+
+    await resetDatabaseForTests({ seed: true }); // DB を作り直した
     await bump(22);
     expect(await versionOf(CHILD_ID, PARENT)).toBe(cachedVersion);
+    replies.length = 0;
     const s = await cache.refresh(CHILD_ID);
-    expect(s.status).toBe("fresh");
-    if (s.status === "unavailable") throw new Error("x");
-    expect(s.snapshot.usualLimitMinutes).toBe(12); // サーバは 22
+    if (s.status !== "fresh") throw new Error(`fresh のはずが ${s.status}`);
+    expect(s.snapshot.usualLimitMinutes).toBe(22); // 手元は 11 だった
+    // 1回目は手元の版を送り「変わっていない」と返ったが、epoch が違うので版を送らずに取り直した
+    expect(replies).toEqual([
+      { known: cachedVersion, changed: false },
+      { known: undefined, changed: true },
+    ]);
+    // 次からは同じ epoch・同じ版なので、中身を省いた応答で fresh のまま
+    replies.length = 0;
+    expect((await cache.refresh(CHILD_ID)).status).toBe("fresh");
+    expect(replies).toEqual([{ known: cachedVersion, changed: false }]);
+  });
+
+  it("epoch のない古いキャッシュ（epoch を足す前に保存した組）は、版が大きくても捨てて、サーバの組で置き換える（D-109）", async () => {
+    const storage = memoryStorage();
+    const now = await serverConfig(CHILD)(CHILD_ID, undefined);
+    if (!now.changed) throw new Error("changed: true のはず");
+    // 前の形（epoch なし）で、今のサーバより大きな版の古い中身を置いておく
+    await storage.setItem(
+      storageKeys.config(CHILD_ID),
+      JSON.stringify({
+        snapshot: { ...now.snapshot, configVersion: now.snapshot.configVersion + 50, usualLimitMinutes: 1 },
+        savedAt: "2026-10-14T00:00:00.000Z",
+      }),
+    );
+    const cache = createConfigCache({ storage, fetchConfig: serverConfig(CHILD) });
+    expect(await cache.load(CHILD_ID)).toMatchObject({ status: "stale", reason: "not_checked" }); // 読めはする
+    const s = await cache.refresh(CHILD_ID);
+    if (s.status !== "fresh") throw new Error(`fresh のはずが ${s.status}`);
+    expect(s.snapshot.configVersion).toBe(now.snapshot.configVersion);
+    expect(s.snapshot.usualLimitMinutes).toBe(now.snapshot.usualLimitMinutes);
+    expect(storedEpoch(storage)).toBe(now.epoch);
   });
 });
 

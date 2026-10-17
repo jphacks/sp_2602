@@ -151,7 +151,7 @@ sequenceDiagram
 | キー | 中身 | 消えるとき |
 |---|---|---|
 | `slope.session` | ログインした人（合言葉を含む `Session`） | ログアウト・サーバが 401 を返したとき |
-| `slope.config.<childId>` | C7 の最後に正常だったスナップショット | ログアウトのとき全部（`configCache.clearAll`）。401 では消さない |
+| `slope.config.<childId>` | C7 の最後に正常だったスナップショットと、それをくれたサーバの DB の `epoch`（`CachedConfig`。epoch が違う応答が来たら置き換える。D-109） | ログアウトのとき全部（`configCache.clearAll`）。401 では消さない |
 | `slope.config-index` | 設定のキャッシュを持っている子どもの一覧（`clearAll` で全部消すため。保存の仕組みにキーの一覧を取る手段がないので自分で持つ） | ログアウトのとき |
 | `slope.usage-outbox` | C8 の送信待ち | 送れた分だけ消える。ログアウトのときは、その人（子ども）の分だけ消す（`usageOutbox.removeChild`）。401 では消さない（同じ人がログインし直して送れるように） |
 | `slope.mock-device-id` | MOCK の「はじめての人」をこの端末だけの人にする番号 | 消さない |
