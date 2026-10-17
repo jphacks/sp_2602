@@ -3,7 +3,7 @@
 // やめたので、どの幅・文字の大きさでも「変／更」「くだ／さい」「ため／に、」のように切れないことを確かめる。
 import { describe, expect, it } from "vitest";
 import { tabBarHeight } from "@/components/tab-bar-size";
-import { keepTailTogether } from "@/components/text-wrap";
+import { keepTailTogether, plainTextOf } from "@/components/text-wrap";
 
 const WJ = String.fromCharCode(0x2060); // U+2060 WORD JOINER（目に見えない）
 
@@ -63,6 +63,12 @@ describe("keepTailTogether", () => {
     );
   });
 
+  it("長すぎる文節は、ひらがなの後に漢字・カタカナが来る所で分けてまとめる（親03 で「少／しずつ」と切れていた）", () => {
+    expect(cuts(keepTailTogether("今日の上限は 180分 です。明日から少しずつ下がっていきます。"))).toBe(
+      "今日の/上限は/ /180分 /です。/明日から/少しずつ/下がっていきます。",
+    );
+  });
+
   it("長すぎる文節はまとめない（行の右が大きく空くので）。ただし行の終わりの4文字はまとめる", () => {
     expect(cuts(keepTailTogether("ABCDEFGHIJKLMNOP"))).toBe("A/B/C/D/E/F/G/H/I/J/K/L/MNOP");
   });
@@ -82,6 +88,22 @@ describe("keepTailTogether", () => {
   it("印を除けば、もとの文字と同じ（見た目の文字は変えない）", () => {
     const text = "子どものスマホのQRコードを読み取るために、カメラを使います。";
     expect(keepTailTogether(text).replaceAll(WJ, "")).toBe(text);
+  });
+});
+
+describe("plainTextOf", () => {
+  it("値を差し込んだ文（文字と数の配列）も1つの文字列にする（親03 の「今日の上限は {分}分 です。…」に印が入っていなかった）", () => {
+    expect(plainTextOf(["今日の上限は ", 180, "分 です。明日から少しずつ下がっていきます。"])).toBe(
+      "今日の上限は 180分 です。明日から少しずつ下がっていきます。",
+    );
+    expect(plainTextOf("設定")).toBe("設定");
+  });
+
+  it("文字でないもの（入れ子の文字・部品）が混ざっていれば触らない", () => {
+    expect(plainTextOf(["あ", { type: "Text" }])).toBeNull();
+    expect(plainTextOf(46)).toBeNull();
+    expect(plainTextOf([])).toBeNull();
+    expect(plainTextOf(null)).toBeNull();
   });
 });
 

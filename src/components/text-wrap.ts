@@ -7,7 +7,8 @@
 // やり方: 文字の間に、目に見えない「ここでは改行しない」印（U+2060 WORD JOINER）を入れる。折り返しが要らない幅なら見た目は何も変わらない。
 //   - 切ってよい所（文節の切れ目）: 句読点・かっこの閉じ・空白の後、かぎかっこの開きの前、助詞（の・を・に…）の後（ただし次がひらがななら
 //     「ときに」「できる」「ながら」のような言葉の中のことが多いので切らない。前が漢字・カタカナなら名詞の後の助詞なので切ってよい）
-//   - 切れ目と切れ目の間（文節）は、短ければ（LONG_UNIT 文字まで）まとめる。長すぎる文節は、まとめると行の右が大きく空くのでまとめない
+//   - 切れ目と切れ目の間（文節）は、短ければ（LONG_UNIT 文字まで）まとめる。長すぎる文節は、ひらがなの後に漢字・カタカナが来る所で
+//     さらに分けてからまとめる（そのまま全部まとめると行の右が大きく空く）
 //   - 行の終わりの言葉（最後の区切りの後の 2〜6 文字。見つからなければ最後の4文字）は、文節の長さによらずまとめる（1〜2文字だけ落とさない）
 //   - 1行に入りきらないほど長いまとまりは、Android が仕方なく途中で切るので、文字が画面の外へはみ出すことはない
 const WORD_JOINER = String.fromCharCode(0x2060); // 目に見えない文字なので、ソースには番号で書く
@@ -62,6 +63,8 @@ const TAIL_MAX = 6;
 const TAIL_FALLBACK = 4;
 
 const isHiragana = (ch: string | undefined) => !!ch && ch >= "ぁ" && ch <= "ゖ";
+// 漢字・カタカナ（言葉の頭になりやすい文字）
+const isWordHead = (ch: string | undefined) => !!ch && /[\p{Script=Han}ァ-ヺー]/u.test(ch);
 
 // chars[i] と chars[i + 1] の間で折り返してよいか（文節の切れ目か）
 function isBoundary(chars: readonly string[], i: number): boolean {
@@ -72,7 +75,7 @@ function isBoundary(chars: readonly string[], i: number): boolean {
   if (!BREAK_AFTER_PARTICLE.has(a)) return false;
   if (!isHiragana(b)) return true;
   // 次も助詞なら「での」「には」のように2文字で1つの助詞なので切らない
-  return BREAK_AFTER_NOUN.has(a) && i > 0 && !isHiragana(chars[i - 1]) && !PARTICLE_NEXT.has(b);
+  return BREAK_AFTER_NOUN.has(a) && isWordHead(chars[i - 1]) && !PARTICLE_NEXT.has(b);
 }
 
 // 行の終わりの言葉が始まる位置（最後の区切りの後の 2〜6 文字。なければ最後の4文字）
@@ -85,6 +88,22 @@ function tailStart(chars: readonly string[]): number {
   return n - TAIL_FALLBACK;
 }
 
+// 文節 chars[from..to] の文字の間に印を入れる。長すぎる文節は、ひらがなの後に漢字・カタカナが来る所（新しい言葉の頭が多い。
+// 「明日から／少しずつ／下がっていきます」）でさらに分け、短い所だけまとめる（それでも長い所はまとめない）
+function glueUnit(chars: readonly string[], glue: boolean[], from: number, to: number): void {
+  if (to + 1 - from <= LONG_UNIT) {
+    for (let k = from; k < to; k++) glue[k] = true;
+    return;
+  }
+  let start = from;
+  for (let k = from; k <= to; k++) {
+    const head = k < to && isHiragana(chars[k]) && isWordHead(chars[k + 1]);
+    if (k < to && !head) continue;
+    if (k + 1 - start <= LONG_UNIT) for (let j = start; j < k; j++) glue[j] = true;
+    start = k + 1;
+  }
+}
+
 function glueLine(line: string): string {
   const chars = Array.from(line);
   const n = chars.length;
@@ -95,7 +114,7 @@ function glueLine(line: string): string {
   for (let i = 0; i < n; i++) {
     const end = i === n - 1 || isBoundary(chars, i);
     if (!end) continue;
-    if (i + 1 - unitStart <= LONG_UNIT) for (let k = unitStart; k < i; k++) glue[k] = true;
+    glueUnit(chars, glue, unitStart, i);
     unitStart = i + 1;
   }
   for (let k = Math.max(0, tailStart(chars)); k < n - 1; k++) glue[k] = true;
@@ -107,4 +126,14 @@ function glueLine(line: string): string {
 export function keepTailTogether(text: string): string {
   if (text.includes(WORD_JOINER)) return text; // もう入れてある
   return text.split("\n").map(glueLine).join("\n");
+}
+
+// AppText の children から、折り返しを決める文字列を取り出す（文字だけでできているときだけ。そうでなければ null）。
+// なぜ: 「今日の上限は {r.todayLimit}分 です。…」のように値を差し込んだ文は、children が文字と数の配列になるので、
+//   文字列だけを見ていると折り返しの印が入らず、親03 で「少／しずつ」と切れていた
+export function plainTextOf(children: unknown): string | null {
+  if (typeof children === "string") return children;
+  if (!Array.isArray(children) || children.length === 0) return null;
+  if (!children.every((c) => typeof c === "string" || typeof c === "number")) return null;
+  return children.join("");
 }
