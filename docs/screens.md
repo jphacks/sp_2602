@@ -61,8 +61,8 @@ flowchart TD
 | `parent/settings.tsx`（タブ: 設定） | 親04（108:7496）・親06（108:7548）・親07（108:7584） | テスト日程・制限対象外アプリ・テーマカラー（白色・黒色。選ぶとすぐ切り替わる）・ログアウト（Q13） | 親05・親16・ログアウト → 入口 | `config` の件数 |
 | `parent/schedules.tsx`（タブなし） | 親05（108:7529） | テスト期間の一覧と追加・変更・削除を1画面で切り替える | 「←」→ 親04 | `testPeriodList`・`Create`・`Update`・`Delete` |
 | `parent/blank-periods.tsx`（タブなし） | なし（Q7。親05 と同じ見た目） | 空白期間の一覧と追加・変更・削除 | 「←」→ 前の画面 | `blankPeriodList`・`Create`・`Update`・`Delete` |
-| `parent/app-usage.tsx`（タブなし） | 親09（108:7663） | 今日のアプリごとの利用時間（対象と対象外に分ける） | 「←」→ 来た画面 | `usageGet`（今日） |
-| `parent/excluded-apps.tsx`（タブなし） | 親16（108:9446） | 制限対象外アプリのスイッチ・行ごとの反映済み／反映待ち・見出しの横に一覧の全体の反映の札 | 「←」→ 親04 | `excludedAppsGet`（`removedApps`・`appsChangedVersion` も使う）・`excludedAppsSave` |
+| `parent/app-usage.tsx`（タブなし） | 親09（108:7663） | 今日のアプリごとの利用時間（対象と対象外に分ける） | 「←」→ 来た画面 | `usageGet`（今日）・アイコン（`useAppIcons`：`childAppsGet`（10 分使い回す）・`childAppIconsGet`（端末にないものだけ）。届いていないアプリは頭文字） |
+| `parent/excluded-apps.tsx`（タブなし） | 親16（108:9446） | 制限対象外アプリのスイッチ・行ごとの反映済み／反映待ち・見出しの横に一覧の全体の反映の札。候補は子どもの端末から届いたアプリ一覧（表示名の順）＋一覧にない保存済みのアプリ（「子どものスマホに見つかりません」）。一覧がまだ届いていなければ「子どもの端末からアプリの一覧がまだ届いていません（子どもの端末で Slope を開くと届きます）」の帯と保存済みのアプリだけ（見本で埋めない）。名前で絞り込む入力欄。アイコンは本物（なければ頭文字）（Q15・D-110） | 「←」→ 親04 | `excludedAppsGet`（`removedApps`・`appsChangedVersion` も使う）・`excludedAppsSave`・`childAppsGet`（開いたとき・画面に戻ったとき。届くまでは 30 秒ごと）・`childAppIconsGet` |
 
 ### Figma にあって作っていないもの
 

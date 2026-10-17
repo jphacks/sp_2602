@@ -6,7 +6,9 @@
 //   （どれもサーバの値だけで決まるので、画面を開き直しても正しく出る）
 //   一覧の全体: appsChangedVersion（一覧が最後に変わった版）が子どもの版以下なら反映済み（画面の上の札）
 //   スイッチを動かしてまだ保存していない行は「未保存」
-// 候補の一覧は TODO(保留): Q15（子どもの端末のアプリ一覧の得かたは保留）。MOCK の候補＋保存済みのアプリを並べる。
+// 候補の一覧（Q15・D-110）: 子どもの端末から届いたアプリ一覧（childAppsGet）を表示名の順に並べ、保存済みの対象外アプリで
+//   一覧にないもの（子どもが消したアプリなど）を後ろに足す（スイッチを OFF にできるように）。一覧がまだ届いていなければ、
+//   保存済みのアプリだけ（見本の候補では埋めない）。アプリが多いので、名前で絞り込める（filterRows）。
 import type { ExcludedApp, ExcludedAppInput, ExcludedAppsView, RemovedExcludedApp } from "@contracts/schemas";
 import { reflectState } from "./plan-form";
 
@@ -18,29 +20,61 @@ export type ExcludedRow = {
   initial: string;
   on: boolean; // 画面のスイッチ（対象外にするか）
   status: RowStatus;
+  missing: boolean; // 保存済みだが、子どもの端末の一覧にない（消されたかもしれない）。一覧がまだ届いていなければ false
 };
 
-// 並べる候補: MOCK の候補の順に、保存済みだが候補にないアプリを後ろに足す（保存済みのものが画面から消えないように）
+// 候補1つ。missing は「子どもの端末の一覧にない保存済みのアプリ」
+export type Candidate = ExcludedAppInput & { missing: boolean };
+
+// 表示名の順（日本語の並べ方。同じ名前なら packageName の順。サーバの並べ方と同じ）
+const collator = new Intl.Collator("ja");
+const byLabel = (a: ExcludedAppInput, b: ExcludedAppInput) =>
+  collator.compare(a.label, b.label) || (a.packageName < b.packageName ? -1 : a.packageName > b.packageName ? 1 : 0);
+
+// 並べる候補: 子どもの端末のアプリ一覧（表示名の順）のあとに、保存済みだが一覧にないアプリ（表示名の順）を足す
+// （保存済みのものが画面から消えて OFF にできなくならないように）。childApps が null（まだ届いていない）なら保存済みのアプリだけ。
+// 同じアプリが一覧と保存済みの両方にあれば、一覧の名前を使う（子どもの端末の今の名前）
 export function candidateApps(
-  candidates: readonly ExcludedAppInput[],
+  childApps: readonly ExcludedAppInput[] | null,
   saved: readonly ExcludedApp[],
-): ExcludedAppInput[] {
-  const known = new Set(candidates.map((c) => c.packageName));
+): Candidate[] {
+  const listed = new Map<string, ExcludedAppInput>();
+  for (const a of childApps ?? []) if (!listed.has(a.packageName)) listed.set(a.packageName, a);
+  const extra = saved
+    .filter((a) => !listed.has(a.packageName))
+    .map((a) => ({ packageName: a.packageName, label: a.label }))
+    .sort(byLabel);
   return [
-    ...candidates,
-    ...saved.filter((a) => !known.has(a.packageName)).map((a) => ({ packageName: a.packageName, label: a.label })),
+    ...[...listed.values()].sort(byLabel).map((a) => ({ packageName: a.packageName, label: a.label, missing: false })),
+    ...extra.map((a) => ({ ...a, missing: childApps != null })),
   ];
 }
 
+// 絞り込みの文字をそろえる（全角・半角、大文字・小文字、ひらがな・カタカナの違いを無視する）
+function foldForSearch(s: string): string {
+  return s
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\u3041-\u3096]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60))
+    .trim();
+}
+
+// 名前（または packageName）に query を含む行だけ。query が空なら全部
+export function filterRows<T extends { label: string; packageName: string }>(rows: readonly T[], query: string): T[] {
+  const q = foldForSearch(query);
+  if (!q) return [...rows];
+  return rows.filter((r) => foldForSearch(r.label).includes(q) || r.packageName.toLowerCase().includes(q));
+}
+
 export function excludedRows(input: {
-  candidates: readonly ExcludedAppInput[];
+  childApps: readonly ExcludedAppInput[] | null; // 子どもの端末のアプリ一覧（null = まだ届いていない）
   saved: readonly ExcludedApp[]; // サーバに保存されている対象外アプリ
   draft: ReadonlySet<string>; // 画面のスイッチが ON のアプリ（packageName）
   childAppliedVersion: number | null;
   removedAt: ReadonlyMap<string, number>; // 対象外から外したアプリと、外した版（removedVersions(view.removedApps)）
 }): ExcludedRow[] {
   const savedBy = new Map(input.saved.map((a) => [a.packageName, a]));
-  return candidateApps(input.candidates, input.saved).map((c) => {
+  return candidateApps(input.childApps, input.saved).map((c) => {
     const savedApp = savedBy.get(c.packageName);
     const on = input.draft.has(c.packageName);
     let status: RowStatus;
@@ -50,7 +84,14 @@ export function excludedRows(input: {
       const removed = input.removedAt.get(c.packageName);
       status = removed == null ? "applied" : reflectState(input.childAppliedVersion, removed);
     }
-    return { packageName: c.packageName, label: c.label, initial: Array.from(c.label)[0] ?? "?", on, status };
+    return {
+      packageName: c.packageName,
+      label: c.label,
+      initial: Array.from(c.label)[0] ?? "?",
+      on,
+      status,
+      missing: c.missing,
+    };
   });
 }
 
@@ -69,11 +110,11 @@ export function excludedListStatus(
 
 // 保存する全件（契約の ExcludedAppsSave は差分ではなく全件の置き換え）
 export function appsToSave(
-  candidates: readonly ExcludedAppInput[],
+  childApps: readonly ExcludedAppInput[] | null,
   saved: readonly ExcludedApp[],
   draft: ReadonlySet<string>,
 ): ExcludedAppInput[] {
-  return candidateApps(candidates, saved)
+  return candidateApps(childApps, saved)
     .filter((c) => draft.has(c.packageName))
     .map((c) => ({ packageName: c.packageName, label: c.label }));
 }

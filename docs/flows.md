@@ -378,10 +378,30 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 ### 対象外アプリ
 
 - 画面: 親16（`src/app/parent/excluded-apps.tsx`）。保存できるのは保護者だけ（サーバも `auth: "parent"` で確かめる）。
-- 候補の一覧は **MOCK の固定値**（`contracts/fixtures.ts` の `mockExcludedAppCandidates`：学習ノート・英単語カード・動画アプリ・ゲーム）＋保存済みのアプリ。子どもの端末のアプリ一覧をサーバへ送る API は作っていません（Q15 保留）。
+- 候補の一覧は **子どもの端末から届いたアプリ一覧**（`childAppsGet`。表示名の順）＋一覧にない保存済みの対象外アプリ（消されたアプリなど。後ろに「子どものスマホに見つかりません」と出し、OFF にできるようにする）。一覧がまだ届いていなければ、見本で埋めずに「まだ届いていません」の帯と保存済みのアプリだけを出す（`src/components/parent/excluded.ts` の `candidateApps`・`filterRows`。Q15・D-110）。
 - 保存は `call("excludedAppsSave", { childId, expectedVersion, apps: 全件 })`（差分ではなく全件の置き換え。`excluded.ts` の `appsToSave`）。
 - サーバは、前から対象外だったアプリの `sinceVersion`（対象外になった版）を変えず、新しく入ったアプリには新しい版を付ける（`backend/src/db/excluded-app-settings.ts` の `replaceExcludedAppsForParent`）。外したアプリは `removedApps`（外した版 `removedVersion`）に残し、もう一度対象外にしたら消す。一覧（アプリの組と名前）が変わったときだけ `appsChangedVersion`（一覧が最後に変わった版）を進める。
 - 子どもの端末は次の C7 で新しい組を受け取り、以後の C3（合計から除く）と C4（`excludedPackages`）で使う。
+
+### 子どもの端末のアプリ一覧とアイコン（Q15・D-110）
+
+```
+子どもの端末（child-data.tsx の refresh。30 秒ごとに呼ぶが、確かめるのは起動して最初の回と、そのあと 1 日 1 回だけ）
+  → Kotlin getLauncherApps（ホーム画面に出るアプリ。<queries> の MAIN/LAUNCHER で見える分。Slope 自身は除く。
+      アイコンは 96px の PNG（20KB に収まらなければ 72px・48px）と SHA-256）
+  → 整える（child-apps-sync.ts の prepareChildApps。契約の長さ・件数・アイコンの形）
+  → 前に送った中身（slope.child-apps.<childId>）と同じで、C7 の epoch も同じなら何もしない
+  → childAppsUpload（一覧＋アイコンのハッシュ）→ 応答の iconsNeeded のアイコンだけ childAppIconsUpload（50 枚ずつ）
+  → 全部送れたら「送った中身」を覚える。送れなかったら覚えずに 30 分あとにもう一度（画面は止めない）
+保護者の端末
+  親16: childAppsGet（開いたとき・画面に戻ったとき）→ 候補。アイコンは useAppIcons
+  親09: useAppIcons（childAppsGet を 10 分使い回し、端末にない・ハッシュが変わったアイコンだけ childAppIconsGet で 50 個ずつ）
+  アイコンがないアプリは頭文字の仮のアイコンのまま。読んだアイコンはメモリに置き、ログアウトで消す
+```
+
+- 一覧が取れない（Kotlin がない・OS のエラー）ときは送らない（空の一覧で親16 の候補を消さない）。
+- サーバの DB が作り直された（C7 の `epoch` が変わった。D-109）ときは、同じ中身でも送り直す。
+- アイコンが変わったアプリは、名前が同じでもハッシュが変わるので一覧ごと送り直し、そのアイコンだけを送る。
 
 ### 反映済み／反映待ち（Q6）
 

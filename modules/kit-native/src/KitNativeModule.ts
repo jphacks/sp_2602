@@ -1,5 +1,6 @@
 import type {
   EngineStatus,
+  NativeLauncherAppsResult,
   NativeParentWidget,
   NativePermission,
   NativePermissionStatus,
@@ -17,6 +18,8 @@ declare class KitNativeModule extends NativeModule {
   getPermissions(): NativePermissionStatus;
   openPermissionSettings(permission: NativePermission): boolean;
   getDailyUsage(date: string): Promise<NativeUsageResult>;
+  // ── Q15 ──
+  getLauncherApps(): Promise<NativeLauncherAppsResult>;
   // ── C4 ──
   saveRestriction(restriction: NativeRestriction): boolean;
   startEngine(): boolean;

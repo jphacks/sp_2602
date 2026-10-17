@@ -58,6 +58,13 @@ const childBodies = (childId: string, v: number) => ({
   "/api/usage/get": { childId, from: TODAY, to: TODAY },
   "/api/excluded-apps/get": { childId },
   "/api/excluded-apps/save": { childId, expectedVersion: v, apps: [] },
+  "/api/child-apps/get": { childId },
+  "/api/child-apps/upload": { childId, apps: [{ packageName: "com.example.game", label: "ゲーム" }] },
+  "/api/child-apps/icons/get": { childId, packageNames: ["com.example.game"] },
+  "/api/child-apps/icons/upload": {
+    childId,
+    icons: [{ packageName: "com.example.game", iconHash: "a".repeat(64), png: "iVBORw0KGgo=" }],
+  },
   "/api/usage/upload": {
     submissionId: crypto.randomUUID(),
     childId,

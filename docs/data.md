@@ -69,6 +69,18 @@
 | `UsageDay` | `date`・`recorded`・`usedMinutes`・`measuredAt`・`limit`・`apps` | 親が見る1日ぶん。記録がない日は `recorded: false`・`usedMinutes: null` |
 | `ParentUsageView` | `childId`・`from`・`to`・`days`・`lastUploadedAt` | 親が見る実績。`days` は from〜to の全日 |
 
+### 子どもの端末のアプリ一覧とアイコン（Q15・D-110）
+
+| 型 | 中身 | 説明 |
+|---|---|---|
+| `ChildApp` | `packageName`・`label`・`iconHash?` | 子どもの端末のホーム画面に出るアプリ1つ（送る形）。`iconHash` は PNG の SHA-256（16進 64 文字）。作れなかったアプリは省く |
+| `ChildAppsUpload` | `childId`・`apps`（`MAX_CHILD_APPS` = 1000 件まで。同じ packageName は2回入れられない） | 一覧の送信（全件の置き換え） |
+| `ChildAppsUploadResult` | `appCount`・`receivedAt`・`iconsNeeded` | `iconsNeeded` はサーバにない・中身が違うアイコンのアプリ |
+| `ChildAppIcon` | `packageName`・`iconHash`・`png`（base64。`MAX_APP_ICON_BYTES` = 20KB まで） | アイコン1枚（送る・読むの両方） |
+| `ChildAppIconsUpload` / `ChildAppIconsQuery` | `childId`・`icons` / `packageNames`（どちらも `MAX_APP_ICONS_PER_CALL` = 50 個まで） | アイコンを送る / 読む |
+| `ChildAppEntry` | `packageName`・`label`・`iconHash`（なければ `null`） | 保護者が読む一覧の1つ |
+| `ChildAppsView` | `childId`・`apps`（表示名の順）・`receivedAt`（まだ届いていなければ `null`） | 保護者が読む一覧 |
+
 ### 端末の中だけの型（サーバとは受け渡さない）
 
 | 型 | 場所 | 説明 |
@@ -78,6 +90,7 @@
 | `LimitInput` | `src/lib/usage-calc.ts` | C3 に入れる当日の上限。`set`／`unlimited`／`unset`／`unknown` |
 | `UsageCalc` | `src/lib/usage-calc.ts` | C3 の結果。`ok`／`unlimited`／`permission_denied`／`usage_unavailable`／`limit_unset`／`limit_unknown`／`limit_invalid` |
 | `ConfigState` | `src/lib/config-cache.ts` | 端末が持つ設定。`fresh`／`stale`（理由つき）／`unavailable` |
+| `NativeLauncherAppsResult` | `contracts/native.ts` | Q15 のアプリ一覧。`ok`（`apps`: packageName の順。`iconPng`・`iconHash` つき）／`unavailable`（0 個の一覧にしない＝送らない） |
 
 ## 2. 「制限なし／未設定／0 分」の区別
 
@@ -229,6 +242,7 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 - userId は DB の形（uuid）にそろえた固定の値。DB を空にして入れ直しても同じ人になる。
 - デモの保護者と子どもは、はじめから連携済み。
 - デモの子どもの設定: 通常上限 180 分、計画（開始日 = 14日前・S = 300・G = 120。見本だけ過去の開始日を許している）、テスト「数学」（今日の 11日後〜13日後）、対象外アプリ「学習ノート」、過去14日ぶんの日別上限、過去6日ぶんの利用記録（`contracts/fixtures.ts` の `demoUsageDay`・`demoAppMinutes`）。
+- デモの子どもの「端末のアプリ一覧」（Q15）: `mockExcludedAppCandidates`（学習ノート・英単語カード・動画アプリ・ゲーム）＋`demoAppMinutes` のアプリ。アイコンはなし（親09・親16 は頭文字の仮のアイコン）。`seedMockAccounts` だけが入れる（`seedDemoFamily` は本番の本物の親子にも使うので、届いていない一覧を見本で埋めないよう入れない。D-110）。
 - 同じ見本（デモの人の合言葉は除く）は、本番・プレビューの DB にも `npm run db:seed-demo` で、Google でログインして紐づけた親子に入れられる（`scripts/seed-demo.ts`。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。
 - 設定の版は DB に残るので、手元のサーバを立て直しても数え直さない（`state/pglite` を消したときは見本の版から）。版を数え直したときは DB の `epoch` も変わるので、端末は手元の組を捨てて新しい組を取り込む（D-109）。
 - アプリの MOCK のログインの「はじめての人（この端末: xxxx）」は `mock-new-<端末の番号>` を送るので、端末ごとに別の「はじめての人」が作られる（2台で QR の紐づけを試すため）。`mock-` で始まり上の3つでないものは、みな新しい人になる。
@@ -263,6 +277,7 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 | D3/D8/空白期間 | `test_periods`, `plan_settings`, `child_usual_limits`, `blank_periods` | 日付順序などの構造制約あり。C10入力に矛盾する重複はrepository transaction内で拒否 |
 | D6計算履歴 | `plan_calculation_versions`, `daily_limits` | 日付・計算版単位で履歴を保持。新規上限は0〜1440。過去の範囲外値も確定済み履歴として保持し、再計算で値を変えない。入力版と計算版を同一トランザクションで更新 |
 | D7 | `excluded_apps`, `excluded_app_states`, `removed_excluded_apps` | label・追加版・削除版・最終変更版を保持 |
+| Q15（子どもの端末のアプリ一覧とアイコン） | `child_app_lists`, `child_app_list_items`, `child_app_icons` | `child_app_lists` は子ども1人に1行の「届いた」印（`received_at`。行がない = まだ届いていない）。`child_app_list_items` は packageName・表示名（全件の置き換え）。`child_app_icons` はアイコンの PNG（base64・20KB まで）と `icon_hash`（中身の SHA-256。サーバが計算し直して確かめた値）。一覧から消えたアプリのアイコンは一覧の置き換えのときに消す。下の2つは `child_app_lists` を消すと一緒に消える。設定の版とは別（migration `0013_child_app_lists.sql`。D-110） |
 | C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない。サーバの時計より先の測定時刻はサーバの時計で保存する（送り直しを見分ける指紋は送られたままの中身で作る。`backend/src/db/usage-persistence.ts`） |
 
 日別上限が複数計算版に残る場合、C6は現行 `c10_input_version` に一致する最新計算版だけを参照します。一致する計算版がなければ上限は未計算として扱います。

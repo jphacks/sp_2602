@@ -154,6 +154,7 @@ sequenceDiagram
 | `slope.config.<childId>` | C7 の最後に正常だったスナップショットと、それをくれたサーバの DB の `epoch`（`CachedConfig`。epoch が違う応答が来たら置き換える。D-109） | ログアウトのとき全部（`configCache.clearAll`）。401 では消さない |
 | `slope.config-index` | 設定のキャッシュを持っている子どもの一覧（`clearAll` で全部消すため。保存の仕組みにキーの一覧を取る手段がないので自分で持つ） | ログアウトのとき |
 | `slope.usage-outbox` | C8 の送信待ち | 送れた分だけ消える。ログアウトのときは、その人（子ども）の分だけ消す（`usageOutbox.removeChild`）。401 では消さない（同じ人がログインし直して送れるように） |
+| `slope.child-apps.<childId>` | Q15 で前に送ったアプリの一覧（packageName・表示名・アイコンのハッシュ）と、そのときの C7 の `epoch`（変わったときだけ送るため。`src/lib/child-apps-sync.ts`） | ログアウトのとき（`childAppsSync.clear`） |
 | `slope.mock-device-id` | MOCK の「はじめての人」をこの端末だけの人にする番号 | 消さない |
 
 読むときは Zod で形を確かめ、壊れていたら「ない」として扱います（`readJson`）。

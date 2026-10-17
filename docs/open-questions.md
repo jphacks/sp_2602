@@ -71,7 +71,6 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 
 | 場所 | 決まっていないこと | 今の仮の動き | 変えるときに直す所 |
 |---|---|---|---|
-| `contracts/api.ts`（表の最後）・`contracts/schemas.ts`（`ExcludedAppsView`）・`contracts/native.ts`（先頭）・`contracts/fixtures.ts`（`mockExcludedAppCandidates`）・`src/app/parent/excluded-apps.tsx`・`src/components/parent/excluded.ts` | Q15: 保護者が対象外アプリを選ぶ候補（子どもの端末のアプリ一覧）をどこから得るか | 子どもの端末のアプリ一覧をサーバへ送る API は作らない。親16 は MOCK の固定の候補（学習ノート・英単語カード・動画アプリ・ゲーム）＋保存済みのアプリを並べる | 一覧を送ると決めたら: `contracts/native.ts` に一覧を取る窓口、`contracts/api.ts` に送る・読む API、`excluded-apps.tsx` の候補を差し替え。`tests/server/api.test.ts` の「子どもの端末のアプリ一覧を送る API はない（Q15 保留）」も直す |
 
 ### サーバ
 
@@ -80,7 +79,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | `src/server/plan/daily-limits.ts` の `DailyLimitOptions`・`selectPeriods`・`buildRawLimit`・`computeDailyLimits` | C10 の細かい決まり | → Q16 | → Q16 |
 | `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS` | 日別上限を何日先まで作るか | 保存した日から 120 日（残り 60 日で作り足す） | → Q16-7 |
 | `src/server/services/plan-settings.ts` の `savePlanForCaller`・`src/components/parent/plan-form.ts` の `planFormFromView` | 始まった計画の S・G だけを変えたいとき | 開始日は今日以降でないと保存できないので、親02 は開始日の初期値を今日にする（＝今日から計画を作り直すことになる） | `savePlanForCaller` の開始日の確認と `planFormFromView` |
-| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | 残す（同じ保護者と紐づけ直したときに続きから使えるように）。別の保護者と紐づけ直すと、その保護者に前の利用記録が見える | 消すなら `unlinkChild` のトランザクションで、設定・期間・日別上限・対象外アプリ・利用記録の表からもその子どもの行を消す |
+| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | 残す（同じ保護者と紐づけ直したときに続きから使えるように）。別の保護者と紐づけ直すと、その保護者に前の利用記録・端末のアプリ一覧とアイコン（Q15）が見える | 消すなら `unlinkChild` のトランザクションで、設定・期間・日別上限・対象外アプリ・利用記録・アプリ一覧（`child_app_lists`。中身とアイコンは一緒に消える）の表からもその子どもの行を消す |
 | `contracts/schemas.ts` の `periodFields` | 期間の終了日を含むか | 含む | → Q16-11 |
 
 ### 端末の仕組み（`src/lib/`）

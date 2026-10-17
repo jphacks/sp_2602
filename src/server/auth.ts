@@ -496,7 +496,8 @@ export async function readFamily(caller: Caller): Promise<{ children: { id: stri
 // 保護者: 子どもとの連携を外す。子どもの合言葉をすべて使えなくし、子どもを役割のない状態（role: null）に戻す。
 // 子どもの出しかけの QR も無効にする。連携していない子どもは not_found（route.ts の checkChildAccess で先に 403 になる）
 // TODO(未決): 外した子どもの設定・利用記録を消すか残すか。今は残す（同じ保護者と紐づけ直したときに続きから使えるように）。
-//   別の保護者と紐づけ直すと、その保護者に前の利用記録が見える。消す場合は設定・利用記録の表からも消す
+//   別の保護者と紐づけ直すと、その保護者に前の利用記録・端末のアプリ一覧とアイコン（Q15）が見える。
+//   消す場合は設定・利用記録・アプリ一覧（child_app_lists）の表からも消す
 export async function unlinkChild(
   caller: Caller,
   childId: string,

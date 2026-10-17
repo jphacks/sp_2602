@@ -1,11 +1,13 @@
 // 見本のデータを DB に入れる仕組み（MOCK の代わり）。処理（API）は MOCK でも本番でも同じ DB の処理を通り、違うのは DB の中身だけ。
 //   - seedMockAccounts: MOCK=1 のとき、DB を開いたときに1回だけ呼ぶ（src/server/db/index.ts）。デモの3人（contracts/fixtures.ts の
-//     mockSessions。合言葉は固定）を作り、保護者と子どもを連携済みにして、seedDemoFamily で見本を入れる。もう入っていれば何もしない
+//     mockSessions。合言葉は固定）を作り、保護者と子どもを連携済みにして、seedDemoFamily で見本を入れる。もう入っていれば何もしない。
+//     デモの子どもの「端末のアプリ一覧」（Q15。親16 の候補）の見本もここで入れる（seedDemoFamily では入れない。下の説明）
 //   - seedDemoFamily: 連携済みの親子1組に、画面の確認・デモ用の見本（通常上限・2週間前に始まった計画・テスト・対象外アプリ・
 //     過去6日の利用記録）を入れる。本番の DB（Neon）でも、Google でログインして紐づけた親子に入れられる（npm run db:seed-demo）
 // 見本の値は、前の MOCK（メモリの上の仮のデータの置き場。今は消した）の見本と同じ。
 import { randomUUID } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
+import { replaceChildApps } from "../../../backend/src/db/child-apps.js";
 import { replaceExcludedAppsForParent } from "../../../backend/src/db/excluded-app-settings.js";
 import { savePlanSettingsForParent, saveUsualLimitForParent } from "../../../backend/src/db/plan-settings.js";
 import {
@@ -20,7 +22,13 @@ import {
 import { createTestPeriod } from "../../../backend/src/db/test-periods.js";
 import { persistUsageSubmission } from "../../../backend/src/db/usage-persistence.js";
 import { addDays, todayString } from "../../../contracts/dates.js";
-import { demoUsageDay, demoUserIds, mockSessions } from "../../../contracts/fixtures.js";
+import {
+  demoAppMinutes,
+  demoUsageDay,
+  demoUserIds,
+  mockExcludedAppCandidates,
+  mockSessions,
+} from "../../../contracts/fixtures.js";
 import { digest } from "../auth/digest.js";
 import type { Db } from "../db/index.js";
 import { computeDailyLimits } from "../plan/daily-limits.js";
@@ -42,7 +50,22 @@ export async function seedMockAccounts(d: Db): Promise<boolean> {
     await tx.insert(childConfigVersions).values({ childId: demoUserIds.child });
   });
   await seedDemoFamily(d, { parentId: demoUserIds.parent, childId: demoUserIds.child });
+  await seedDemoChildApps(d, demoUserIds.child);
   return true;
+}
+
+// デモの子どもの「端末のアプリ一覧」（Q15）の見本: 親16 の Figma の4つ＋見本の使用時間のアプリ（同じアプリは1つ）。
+// MOCK のデモの子どもにだけ入れる。なぜ: seedDemoFamily は本番の DB の本物の親子にも使う（npm run db:seed-demo）。
+//   本物の子どもの端末の一覧を見本で上書きすると、届いていない一覧を見本で埋めることになるため（D-110）
+async function seedDemoChildApps(d: Db, childId: string): Promise<void> {
+  const apps = new Map<string, string>();
+  for (const a of [...mockExcludedAppCandidates, ...demoAppMinutes])
+    if (!apps.has(a.packageName)) apps.set(a.packageName, a.label);
+  await replaceChildApps(d, {
+    childId,
+    apps: [...apps].map(([appId, label]) => ({ appId, label })),
+    receivedAt: new Date(),
+  });
 }
 
 // 連携済みの親子1組に見本を入れる。計画・通常上限・テスト・対象外アプリは上書き、利用記録は過去6日ぶんを足す

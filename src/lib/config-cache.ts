@@ -152,6 +152,11 @@ export function createConfigCache(deps: ConfigCacheDeps) {
       }
     },
 
+    // 端末に保存してある組の epoch（なければ null）。Q15 のアプリ一覧の送信が「DB が作り直されたか」を見るのに使う（child-apps-sync.ts）
+    async epoch(childId: string): Promise<string | null> {
+      return (await read(childId))?.epoch ?? null;
+    },
+
     // 手元の組を消す（連携の解除のとき）
     async clear(childId: string): Promise<void> {
       await deps.storage.removeItem(storageKeys.config(childId));

@@ -4,6 +4,8 @@
 //   C2: 今日と昨日のアプリ別の使用時間を取る（native.ts）
 //   C3: 今日の使用済みの割合・到達状態を計算する（usage-calc.ts）
 //   C8: 前に送った中身から変わっていれば、今日と昨日の2日分を送信待ちに入れて送る（usage-outbox.ts。Q8・Q9）
+//   Q15: ホーム画面に出るアプリの一覧を、起動して最初の回と1日1回だけ確かめ、前に送った中身から変わっていれば送る
+//        （child-apps-sync.ts。親16 の候補。待たずに裏で行い、失敗しても画面は止めない）
 //   C4: 判定に使う値を Kotlin に渡し（native.saveRestriction）、監視を始める（native.startEngine。Kotlin がなければ何もしない）
 //   権限: 使用状況へのアクセス・重ねて表示・通知・電池の最適化の状態を読み直す（設定画面で許可して戻ってきたときに出し分けを変える）
 // 監視（Kotlin の Foreground Service）を始めるきっかけ: この Provider が出たとき（＝子どもとしてログインした後）と、設定を取れたとき。
@@ -15,6 +17,7 @@ import type { NativePermissionStatus, NativeUsageResult } from "@contracts/nativ
 import type { UsageDayReport } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { needsIdentityCheck } from "./api";
+import { childAppsSync } from "./child-apps-sync";
 import { type ConfigState, configCache } from "./config-cache";
 import { native } from "./native";
 import { usePolling } from "./polling";
@@ -87,6 +90,9 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
     // 自分の設定なのに 403 → サーバ上の自分の id・役割が変わった。確かめ直す（id が変われば child/_layout.tsx が新しい id で作り直し、
     // 役割がなくなっていれば入口へ戻る。needsIdentityCheck）
     if (cfg.status !== "fresh" && needsIdentityCheck(cfg.error)) void recheckSession();
+    // Q15: アプリの一覧（設定を取った後に呼ぶ。DB が作り直されたかを、取り直した epoch で見られるように）。
+    // 待たない（一覧を取る・送るのに時間がかかっても、画面の更新と C8 の送信を遅らせない）。時刻が来ていなければ何もしない
+    void childAppsSync.run(childId, native.getLauncherApps);
     const snapshot = cfg.status === "unavailable" ? null : cfg.snapshot;
     const excluded = snapshot?.excludedApps.map((a) => a.packageName) ?? [];
 

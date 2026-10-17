@@ -1,10 +1,12 @@
-// ログアウトで、設定のキャッシュ（C7）とその人の送信待ち（C8）を消すテスト（src/lib/sign-out.ts）。
+// ログアウトで、設定のキャッシュ（C7）とその人の送信待ち（C8）と、前に送ったアプリの一覧（Q15）を消すテスト（src/lib/sign-out.ts）。
 // 別の人で入り直したときに、前の人の設定やまだ送っていない記録が混ざらないこと、ほかの子どもの送信待ちは消さないことを確かめる。
 // あわせて、ログアウトで合言葉をサーバでも無効にすること（revokeServerSession。失敗してもログアウトは進める）を確かめる。
 import { mockSessions } from "@contracts/fixtures";
 import type { ConfigSnapshot, UsageDayReport } from "@contracts/schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiCallError, call, DEFAULT_TIMEOUT_MS, errorOf, setSessionToken, setUnauthorizedHandler } from "@/lib/api";
+import { createAppIconCache } from "@/lib/app-icons";
+import { createChildAppsSync } from "@/lib/child-apps-sync";
 import { createConfigCache } from "@/lib/config-cache";
 import { clearLocalDataFor, REVOKE_TIMEOUT_MS, revokeServerSession } from "@/lib/sign-out";
 import { type KeyValueStorage, storageKeys } from "@/lib/storage";
@@ -58,18 +60,25 @@ function setup() {
       throw new Error("offline"); // 送れないので送信待ちに残る
     },
   });
-  return { storage, configCache, usageOutbox };
+  const childAppsSync = createChildAppsSync({
+    storage,
+    upload: async () => ({ iconsNeeded: [] }),
+    uploadIcons: async () => ({}),
+    epoch: async () => null,
+  });
+  const appIcons = createAppIconCache({ fetchList: async () => ({ apps: [] }), fetchIcons: async () => [] });
+  return { storage, configCache, usageOutbox, childAppsSync, appIcons };
 }
 
 describe("ログアウトで端末のデータを消す", () => {
   it("設定のキャッシュは全部消し、送信待ちはその人（子ども）の分だけ消す", async () => {
-    const { storage, configCache, usageOutbox } = setup();
+    const { storage, configCache, usageOutbox, childAppsSync, appIcons } = setup();
     await configCache.refresh("child-a");
     await configCache.refresh("child-b");
     await usageOutbox.enqueue("child-a", [day("2026-10-15")]);
     await usageOutbox.enqueue("child-b", [day("2026-10-15")]);
 
-    await clearLocalDataFor("child-a", { configCache, usageOutbox });
+    await clearLocalDataFor("child-a", { configCache, usageOutbox, childAppsSync, appIcons });
 
     expect((await configCache.load("child-a")).status).toBe("unavailable");
     expect((await configCache.load("child-b")).status).toBe("unavailable");
@@ -78,14 +87,14 @@ describe("ログアウトで端末のデータを消す", () => {
   });
 
   it("別の人で入り直したら、前の人の設定は出てこない（取り直すまで「取得不可」）", async () => {
-    const { configCache, usageOutbox } = setup();
+    const { configCache, usageOutbox, childAppsSync, appIcons } = setup();
     await configCache.refresh("child-a");
-    await clearLocalDataFor("child-a", { configCache, usageOutbox });
+    await clearLocalDataFor("child-a", { configCache, usageOutbox, childAppsSync, appIcons });
     expect(await configCache.load("child-a")).toMatchObject({ status: "unavailable" });
   });
 
   it("片方が失敗しても、もう片方は消す", async () => {
-    const { usageOutbox } = setup();
+    const { usageOutbox, childAppsSync, appIcons } = setup();
     await usageOutbox.enqueue("child-a", [day("2026-10-15")]);
     await clearLocalDataFor("child-a", {
       configCache: {
@@ -94,8 +103,33 @@ describe("ログアウトで端末のデータを消す", () => {
         },
       },
       usageOutbox,
+      childAppsSync,
+      appIcons,
     });
     expect(await usageOutbox.list()).toEqual([]);
+  });
+
+  it("前に送ったアプリの一覧（Q15）はその人の分だけ消し、入り直したら（中身が同じでも）もう一度送る", async () => {
+    const { storage, configCache, usageOutbox, childAppsSync, appIcons } = setup();
+    const getApps = async () => ({ status: "ok" as const, apps: [{ packageName: "com.example.a", label: "A" }] });
+    expect(await childAppsSync.run("child-a", getApps)).toBe("sent");
+    expect(await childAppsSync.run("child-b", getApps)).toBe("sent");
+    await clearLocalDataFor("child-a", { configCache, usageOutbox, childAppsSync, appIcons });
+    expect(await storage.getItem(storageKeys.childApps("child-a"))).toBeNull();
+    expect(await storage.getItem(storageKeys.childApps("child-b"))).not.toBeNull();
+    expect(await childAppsSync.run("child-a", getApps)).toBe("sent");
+  });
+
+  it("保護者の端末のメモリにある子どものアプリのアイコン（Q15）も消す", async () => {
+    const { configCache, usageOutbox, childAppsSync } = setup();
+    const appIcons = createAppIconCache({
+      fetchList: async () => ({ apps: [{ packageName: "a", label: "A", iconHash: "a".repeat(64) }] }),
+      fetchIcons: async () => [{ packageName: "a", iconHash: "a".repeat(64), png: "iVBORw0KGgo=" }],
+    });
+    await appIcons.load("child-a", ["a"]);
+    expect(appIcons.peek("child-a", ["a"]).size).toBe(1);
+    await clearLocalDataFor("parent-a", { configCache, usageOutbox, childAppsSync, appIcons });
+    expect(appIcons.peek("child-a", ["a"]).size).toBe(0);
   });
 
   it("clear(childId) は一覧からも外す（clearAll で消し忘れない・二重に数えない）", async () => {
