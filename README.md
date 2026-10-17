@@ -1,6 +1,6 @@
-# サンプル（プロダクト名）
+# Slope
 
-[![IMAGE ALT TEXT HERE](https://jphacks.com/wp-content/uploads/2026/07/IMG_5316.png)](https://www.youtube.com/watch?v=piaNsc6ilBI)
+[![IMAGE ALT TEXT HERE]<img width="739" height="739" alt="pencil" src="https://github.com/user-attachments/assets/9ad0db9d-d920-48da-969e-1ede4df45e18" />
 
 ## 製品概要
 ### 背景(製品開発のきっかけ、課題等）
