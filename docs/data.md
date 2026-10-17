@@ -1,0 +1,251 @@
+# データの形と計算
+
+アプリとサーバで受け渡すデータの形（`contracts/schemas.ts`）、上限の3つの状態の区別、日付の扱い、上限の計算（C10）、サーバのデータの置き場（MOCK の store）、DB の表との対応をまとめます。
+
+## 1. 主要な型
+
+すべて `contracts/schemas.ts` に Zod で書いてあり、アプリとサーバの両方が同じ型を使います（id は文字列、日付は `"YYYY-MM-DD"`）。
+
+### 共通の部品
+
+| 型 | 形 | 決まり |
+|---|---|---|
+| `IsoDate` | `"2026-10-17"` | 実在する日付だけ。日本時間の「その日」 |
+| `IsoDateTime` | `"2026-10-17T10:00:00.000Z"` | 今は「空でない文字列」としか検査していない |
+| `Minutes` | 整数 | 0〜1440。**0 分は有効な上限**（その日は使えない） |
+| `ConfigVersion` | 整数 | 0 以上。設定の版 |
+| `PackageName` | `"com.google.android.youtube"` | Android のアプリの識別子（1〜255 文字） |
+| `ChildQuery` | `{ childId }` | 「どの子どもの話か」。サーバが必ず扱えるか確かめる |
+| `ChildAppliedVersion` | 版 または `null` | 子どもの端末が使っている版。まだ一度も取りに来ていなければ `null` |
+
+### ログインと家族（C1・D1・D2）
+
+| 型 | 中身 | 説明 |
+|---|---|---|
+| `Role` | `"parent"` / `"child"` | 役割 |
+| `Session` | `token`・`userId`・`name`・`role`（`null` あり） | ログインの結果。`role` は紐づけが確定するまで `null` |
+| `Child` | `id`・`name` | 子ども1人（`id` は子どもの userId） |
+| `PairState` | `waiting`・`claimed`・`linked`・`expired`・`rejected` | QR の紐づけの進み具合 |
+| `PairTicket` | `pairId`・`code`・`expiresAt` | QR に入れるのは `code`（使い捨ての番号）だけ。合言葉や個人情報は入れない |
+| `PairStatus` | `pairId`・`state`・`child`・`parentName`・`expiresAt` | 進み具合。`parentName` は読んだ保護者の名前（`claimed` 以降） |
+| `LinkStatus` | `state`（`linked`／`unlinked`）・`role`・`partners` | D2 に保存が確定した連携状態 |
+| `Family` | `children` | 保護者に紐づく子どもの一覧。人数制限は未決 |
+
+### 上限・計画・期間（D3・D6・D8・空白期間）
+
+| 型 | 中身 | 説明 |
+|---|---|---|
+| `DayLimit` | `{ kind: "limited", limitMinutes }` または `{ kind: "unlimited", blankPeriodId }` | 1日の上限の値。値がないこと（`null`・一覧にない）が「上限未設定」 |
+| `DailyLimit` | `DayLimit` ＋ `date` | 日別上限1日ぶん（D6）。C10 が作る |
+| `PlanSettings` | `planStartDate`・`startLimitMinutes`（S）・`finalGoalMinutes`（G）・`childId`・`version`・`updatedAt` | 保存済みの計画（D8） |
+| `PlanView` | `plan`（`null` あり）・`usualLimitMinutes`（`null` あり）・`configVersion`・`childAppliedVersion` | 計画の取得結果 |
+| `PlanSave` | 計画の3つ ＋ `childId`・`expectedVersion`・`usualLimitMinutes?` | G ≤ S を契約で確かめる |
+| `ConfigChange` | `configVersion`・`calculationVersion` | 設定を変えた結果の共通部分 |
+| `TestPeriod` | `id`・`name`・`startDate`・`endDate`・`createdByUserId`・`createdByRole` | テスト期間（D3）。名前は前後の空白を取って 1〜120 文字、終了日 ≥ 開始日 |
+| `BlankPeriod` | `id`・`name`・`startDate`・`endDate` | 空白期間（夏休みなど）。期間中は「制限なし」 |
+| `ExcludedApp` | `packageName`・`label`・`sinceVersion` | 制限対象外アプリ（D7）。`sinceVersion` は対象外になった版 |
+
+### 設定の組（C7）
+
+| 型 | 中身 | 説明 |
+|---|---|---|
+| `ConfigSnapshot` | `childId`・`configVersion`・`calculationVersion`・`usualLimitMinutes`・`plan`・`testPeriods`・`blankPeriods`・`dailyLimits`・`excludedApps`・`generatedAt` | 端末が丸ごと採用する1組。中はすべて同じ版のもの |
+| `ConfigQuery` | `childId`・`knownVersion?` | 取得の入力 |
+| `ConfigResult` | `{ changed: false, configVersion }` または `{ changed: true, snapshot }` | 取得の結果 |
+
+### 利用記録（C8・C6・D4）
+
+| 型 | 中身 | 説明 |
+|---|---|---|
+| `AppMinutes` | `packageName`・`label`・`usedMinutes`・`excluded` | 1アプリのその日の累計。`excluded` は測ったときに対象外（または必須例外）だったか |
+| `UsageDayReport` | `date`・`measuredAt`・`restrictedMinutes`・`apps`（1000件まで） | 1日ぶんの利用記録（Q8）。`restrictedMinutes` は制限対象の合計 |
+| `UsageUpload` | `submissionId`（UUID）・`childId`・`days`（1〜7日分） | 送信 |
+| `UsageUploadResult` | `submissionId`・`status`（`accepted`／`duplicate`）・`appliedDates` | 送信の結果 |
+| `UsageQuery` | `childId`・`from`・`to` | 親が見る期間（両端を含む。190日未満） |
+| `UsageDay` | `date`・`recorded`・`usedMinutes`・`measuredAt`・`limit`・`apps` | 親が見る1日ぶん。記録がない日は `recorded: false`・`usedMinutes: null` |
+| `ParentUsageView` | `childId`・`from`・`to`・`days`・`lastUploadedAt` | 親が見る実績。`days` は from〜to の全日 |
+
+### 端末の中だけの型（サーバとは受け渡さない）
+
+| 型 | 場所 | 説明 |
+|---|---|---|
+| `NativeUsageResult` | `contracts/native.ts` | C2 の結果。`ok`（`apps` が空 = 本当に使っていない）／`permission_denied`／`unavailable` |
+| `NativeRestriction` | `contracts/native.ts` | C4 の判定に Kotlin へ渡す値。`limit` は `limited`／`unlimited`／`unset` |
+| `LimitInput` | `src/lib/usage-calc.ts` | C3 に入れる当日の上限。`set`／`unlimited`／`unset`／`unknown` |
+| `UsageCalc` | `src/lib/usage-calc.ts` | C3 の結果。`ok`／`unlimited`／`permission_denied`／`usage_unavailable`／`limit_unset`／`limit_unknown`／`limit_invalid` |
+| `ConfigState` | `src/lib/config-cache.ts` | 端末が持つ設定。`fresh`／`stale`（理由つき）／`unavailable` |
+
+## 2. 「制限なし／未設定／0 分」の区別
+
+3つとも「その日は割合を出さない・制限しない」ように見えますが、意味が違うので**型で分けて**取り違えないようにしています（Q7）。
+
+| 状態 | 意味 | いつ起きる |
+|---|---|---|
+| **上限 0 分** | 有効な上限。その日は使えない（使った時点で到達） | 保護者が 0 分を決めた・計算で 0 分になった |
+| **制限なし** | 空白期間（夏休みなど）の日。使っても到達しない | 保護者が空白期間を登録した |
+| **上限未設定** | 保護者がまだ決めていない。その日の値がない | 紐づけ直後に通常上限を「あとで決める」にした・計画もテストもない |
+| （取得不可） | 端末が設定を一度も取れていない | 通信できず、キャッシュもない |
+
+それぞれの場所での書き方:
+
+| 場所 | 上限 0 分 | 制限なし | 上限未設定 | 取得不可 |
+|---|---|---|---|---|
+| サーバの日別上限 `DailyLimit`（`schemas.ts`） | `{ kind: "limited", limitMinutes: 0 }` | `{ kind: "unlimited", blankPeriodId }` | その日付が一覧にない | — |
+| 親の実績 `UsageDay.limit` | `limited` 0 | `unlimited` | `null` | （通信の失敗は画面で `StateView` の unknown） |
+| C3 の入力 `LimitInput`（`usage-calc.ts` の `limitForDate`） | `{ kind: "set", minutes: 0 }` | `{ kind: "unlimited" }` | `{ kind: "unset" }` | `{ kind: "unknown" }` |
+| C3 の結果 `UsageCalc` | `ok`（100%・到達） | `unlimited`（使った分だけ持つ） | `limit_unset` | `limit_unknown` |
+| Kotlin に渡す `NativeRestriction.limit` | `limited` 0 | `unlimited` | `unset` | 渡さない（前の値を使う） |
+| 子どもの画面（`child-view.ts`） | 100% 使いました | 今日は制限なし（期間の名前） | 上限がまだ決まっていない旨 | 取得できなかった旨と「もう一度ためす」 |
+| 保護者の画面（`today.ts`・`charts.ts`） | 上限 0分 | 制限なし・グラフの上は「なし」 | 上限未設定・グラフの上は「－」 | 取得不可（もう一度ためす） |
+
+同じように、**使った時間**も「記録なし」と「0 分」を分けます。
+
+| 状態 | サーバ（`UsageDay`） | 子どもの端末（`NativeUsageResult`） | 画面 |
+|---|---|---|
+| 0 分使った | `recorded: true`・`usedMinutes: 0` | `ok` で `apps` の分数が 0・または空 | 0 分・0% |
+| 記録が届いていない | `recorded: false`・`usedMinutes: null` | — | 「まだ記録が届いていません」・グラフは「？」 |
+| 取れない | — | `unavailable`・`permission_denied` | 取得できなかった旨・権限の案内（0% と出さない） |
+
+テスト期間が0件でも「上限未設定」ではありません。計画があってもテストが0件なら、通常上限を使います（MVP_SPEC 4.3）。
+
+## 3. 日付
+
+- **日本時間（Asia/Tokyo）固定・0時区切り**です（Q3）。「今日」を出すのは `contracts/dates.ts` の `todayString` だけ（日本は夏時間がないので UTC+9 で計算する）。サーバの store も `todayString(this.now())` を使う。
+- 日付は時刻を持たない文字列 `"YYYY-MM-DD"` として扱い、計算は UTC の 0 時に置いて行う（端末の時計の地域に左右されない）。
+
+| 関数（`contracts/dates.ts`） | すること |
+|---|---|
+| `dateOf(時刻)` | その時刻が日本時間で何日か（UTC 14:59:59 は同じ日、15:00:00 は翌日） |
+| `todayString()` | 今日 |
+| `addDays(日付, n)` | n 日後（負なら前） |
+| `daysBetween(a, b)` | b − a の日数 |
+| `datesInRange(from, to)` | from〜to（両端を含む）の日付の一覧 |
+| `mondayOf(日付)` | その週の月曜日（週は月曜〜日曜） |
+| `weekdayJa(日付)` | 曜日の1文字（月・火…） |
+
+- テスト期間・空白期間は**開始日と終了日の両方を含む**ものとして計算します。
+- 画面の日付の入力（`src/components/DateField.tsx`）も、日本時間の「その日」として受け渡します（正午で受け渡す）。
+
+## 4. C10 日別上限（DB-backed）
+
+DB-backed APIは既存の純粋計算関数を使い、D3/D8/空白期間の入力更新とD6・計算版の保存を1トランザクションで行います。計算に失敗した入力変更はロールバックします。
+
+MOCKの計算関数は `src/server/plan/daily-limits.ts` の `computeDailyLimits`、メモリ保存と再計算は `src/server/mock/store.ts` にあります。
+
+### 入力
+
+- 通常上限（`null` = 未設定）
+- 計画: 計画開始日 d0・開始上限 S・最終目標 G（`null` = まだない）
+- テスト期間の一覧・空白期間の一覧
+
+### 式（MVP_SPEC 4.4）
+
+- 基準曲線: **B(d) = S − (S − G)·u²**、u = clamp((d − d0) ÷ D, 0, 1)。D = d0 から**最後のテストの開始日**までの日数。
+- テスト i の開始日の目標 Qᵢ = B(開始日)。最後のテストだけは Q = G。**テスト期間中は Qᵢ を維持**する。
+- 最終テスト期間（開始・終了日を含む）は G。終了日の翌日から親の通常上限へ戻す（通常上限が G 以下の場合もそのまま適用）。
+- 最後ではないテストの終了後（回復）:
+  - rᵢ = clamp(0.8 × (1 − u_end²), 0, 0.8)（u_end はテスト終了日の u）
+  - Rᵢ = Qᵢ + rᵢ × (Pᵢ − Qᵢ)（Pᵢ は前の回復のピーク。最初は P = S）
+  - 終了の翌日を Rᵢ とし、次のテストの開始日の目標まで**実際の日数で直線**に下げる。次の回の P は Rᵢ。
+- テスト期間が連続する場合は回復しない。金曜と月曜のテストのように週末だけを挟む場合も連続として扱い、間の日は直前テストの上限を維持する。
+- 同一のテスト日程は1つの論理期間にまとめる。矛盾する重複期間は入力エラーにする。
+- 途中は丸めず、日別上限の確定時に分単位で切り捨てる。0〜1440 に収める。
+
+### 決まり（仮のものを含む）
+
+| 場合 | 今の動き |
+|---|---|
+| 計画がない | すべての日が通常上限（通常上限も未設定なら、すべて「上限未設定」） |
+| 計画はあるがテストが0件 | すべての日が通常上限 |
+| 計画開始日より前の日 | 通常上限（仮。引数 `beforePlanStart` で S にもできる） |
+| 最初のテストより前の日 | 基準曲線 B(d) のまま（仮。引数 `firstSegment` で S → Q₁ の直線にもできる） |
+| 計画開始日より前に始まるテスト | 計算対象から除外。最終テスト開始が計画開始日より前（D < 0）はエラー |
+| 矛盾するテスト期間・空白期間の重複 | 計算できない入力（保存は `bad_request`。前の版を保つ） |
+| D = 0（計画開始日に最終テスト開始） | S/G に関わらず最終テスト期間中は G。終了翌日は通常上限 |
+| 空白期間の日 | 上の計算に関係なく「制限なし」。終わった日から元の上限に戻る |
+| 日別上限を何日先まで作るか | 現行の既定は今日から120日先。期間は仕様として未決 |
+| 再計算の開始日 | 当日の確定値を保持し、翌日から再計算。初回で当日値が未作成なら当日分を補完 |
+
+残る未決事項は日別上限の生成期間です。詳しくは [open-questions.md](open-questions.md) を参照してください。
+
+### 手計算の例
+
+`tests/verify/c10-hand.test.ts` の例です。計画開始日 d0 = 2026-10-01、S = 300、G = 60、通常上限 180。
+テスト1 = 10/20〜10/22（途中）、テスト2 = 11/10〜11/12（最後）、空白期間 = 12/20〜2027-01-07。
+D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10/01) ÷ 40。
+
+| 日付 | 計算 | 上限（分） |
+|---|---|---|
+| 9/30 | 計画開始日の前 → 通常上限 | 180 |
+| 10/01 | u = 0 → 300 | 300 |
+| 10/02 | u = 0.025 → 299.85 | 299 |
+| 10/10 | u = 0.225 → 300 − 240×0.050625 = 287.85 | 287 |
+| 10/11 | u = 0.25 → 300 − 240×0.0625 = 285 | 285 |
+| 10/19 | u = 0.45 → 300 − 240×0.2025 = 251.4 | 251 |
+| 10/20〜10/22 | テスト1 の間は Q₁ = B(10/20)（u = 0.475）= 245.85 を維持 | 245 |
+| 10/23 | 回復: u_end = u(10/22) = 0.525 → r = 0.8×(1 − 0.275625) = 0.5795。R₁ = 245.85 + 0.5795×(300 − 245.85) = 277.23 | 277 |
+| 10/24 | 10/23 から 11/10（Q₂ = G = 60）まで 18 日で直線（1日 −12.068）→ 265.16 | 265 |
+| 10/31 | 180.68 | 180 |
+| 11/01 | 168.62 | 168 |
+| 11/09 | 72.07 | 72 |
+| 11/10〜11/12 | 最終テスト期間 | 60 |
+| 11/13〜12/19 | 最終テスト終了翌日から通常上限 | 180 |
+| 12/20〜2027-01-07 | 空白期間 | 制限なし |
+| 2027-01-08 | 空白期間が終わったので通常上限 | 180 |
+
+連続テストの例（同じテストの中）: テストが 10/20〜10/22 と 10/23〜10/24（続けて）、最後が 11/10 のとき、10/22 は 245、10/23・10/24 は回復せず Q₂' = B(10/23)（u = 0.55）= 227.4 → **227**、10/25 は回復して R = 227.4 + 0.5355×(300 − 227.4) = 266.28 → **266**（P はまだ S のまま）。
+
+上の例はMOCKとDB-backed C10計算の共通テストデータです。
+
+同じテストのファイルで、「テストが0件なら計画があっても通常上限」「通常上限 0 分は 0 分の上限として入る（未設定ではない）」「矛盾する重複テストは入力エラーで前の版を保つ」「D=0でGを適用」も確かめています。
+
+## 5. サーバのデータの置き場（MOCK の store）
+
+`MOCK=1` の経路では `src/server/mock/store.ts` の `MemoryStore` がデモデータをメモリ上に持ち、サーバ停止時に消えます。DB-backed経路では各サービスから `backend/src/db` のDrizzleリポジトリを呼び、永続化します。両経路の扱いが異なる機能は下表と [open-questions.md](open-questions.md) に明記します。
+
+| 持っているもの | 中身 | D の番号 |
+|---|---|---|
+| `users` | userId → 名前・役割（`null` あり） | D1 |
+| `googleUsers` | Google の利用者 ID（sub）→ userId | D1 |
+| `sessions` | 合言葉 → userId・最終利用時刻・nullableな期限/失効情報 | セッション有効期限と失効ルールは未決。固定TTLを仮定しない |
+| `pairs` | pairId → code・子ども・保護者・状態・期限 | （QR の一時的な番号） |
+| `links` | `"<親の id>\|<子の id>"` の集まり | D2 |
+| `configs` | 子どもごとの設定: 版・計算の版・通常上限・計画・テスト期間・空白期間・日別上限・対象外アプリ・子どもが使っている版 | D3・D6・D7・D8 |
+| `batches` | 送信 ID → 子ども・中身の指紋・採用した日 | （C8 の重複防止） |
+| `usage` | 子ども → 日付 → その日の正の記録 | D4 |
+| `lastUploadedAt` | 子ども → 最後に記録が届いた時刻 | — |
+
+### `MOCK=1` のときに入る見本（`seedDemo`）
+
+| 人 | idToken（ログインのボタン） | 合言葉 | userId | 役割 |
+|---|---|---|---|---|
+| デモの保護者 | `mock-google-parent` | `mock-token-parent` | `demo-parent` | parent |
+| デモの子ども | `mock-google-child` | `mock-token-child` | `demo-child` | child |
+| はじめての人 | `mock-google-new` | `mock-token-new` | `demo-new` | なし |
+
+- デモの保護者と子どもは、はじめから連携済み。
+- デモの子どもの設定: 通常上限 180 分、計画（開始日 = 14日前・S = 300・G = 120。見本だけ過去の開始日を許している）、テスト「数学」（今日の 11日後〜13日後）、対象外アプリ「学習ノート」、過去14日ぶんの日別上限、過去6日ぶんの利用記録（`contracts/fixtures.ts` の `demoAppMinutes`）。
+- アプリの MOCK のログインの「はじめての人（この端末: xxxx）」は `mock-new-<端末の番号>` を送るので、端末ごとに別の「はじめての人」が作られる（2台で QR の紐づけを試すため）。`mock-` で始まり上の3つでないものは、みな新しい人になる。
+
+### 端末に残すもの
+
+`src/lib/storage.ts` の `storageKeys`。一覧は [architecture.md の 5章](architecture.md#5-端末に残すもの)。
+
+## 6. `backend/` の DB の表との対応
+
+`backend/src/db/schema/` のDrizzleスキーマと `backend/drizzle/` のmigrationがDB構造の定義です。DB-backed APIでは各サービスがDrizzle repositoryを呼びます。`MOCK=1` は画面デモ用のMemoryStoreを使います。
+
+| データ | DBの表 | 備考 |
+|---|---|---|
+| ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull可。セッション期限・失効ポリシーは未決で期限列はnullable |
+| 親子関係・QR | `family_links`, `pair_tickets` | 人数上限なし。QR期限・再発行ルールは未決。QRコードそのものではなくhashを保存 |
+| 設定版・反映版 | `child_config_versions`, `child_applied_versions` | 全体 `version` とC10入力専用 `c10_input_version` を別管理 |
+| D3/D8/空白期間 | `test_periods`, `plan_settings`, `child_usual_limits`, `blank_periods` | 日付順序などの構造制約あり。C10入力に矛盾する重複はrepository transaction内で拒否 |
+| D6計算履歴 | `plan_calculation_versions`, `daily_limits` | 日付・計算版単位で履歴を保持。新規上限は0〜1440。過去の範囲外値も確定済み履歴として保持し、再計算で値を変えない。入力版と計算版を同一トランザクションで更新 |
+| D7 | `excluded_apps`, `excluded_app_states`, `removed_excluded_apps` | label・追加版・削除版・最終変更版を保持 |
+| C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない |
+
+日別上限が複数計算版に残る場合、C6は現行 `c10_input_version` に一致する最新計算版だけを参照します。一致する計算版がなければ上限は未計算として扱います。
+### `src/server/db/` について
+
+`src/server/db/` は `backend/src/db/schema` とDrizzle repositoriesをHono APIから呼ぶ接続口です。ローカルはPGlite、本番構成はNeon PostgreSQL URLを使います。C10はD3/D8/空白期間/通常上限の更新と同一transactionで再計算し、日別上限と計算版を保存します。Neon/Vercel上の実環境接続は別途資格情報を設定して確認してください。

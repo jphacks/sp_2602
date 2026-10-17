@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { recalculateC10InTransaction } from "./c10-recalculate.js";
 import type { Database } from "./index.js";
 import { childConfigVersions, familyLinks } from "./schema/family.js";
 import { testPeriods } from "./schema/planning.js";
@@ -11,6 +12,8 @@ export interface TestPeriodInput {
   name: string;
   startDate: string;
   endDate: string;
+  /** Version observed by the caller when saving; checked while the config row is locked. */
+  expectedVersion?: number;
 }
 
 export interface TestPeriodUpdateInput extends TestPeriodInput {
@@ -61,6 +64,15 @@ export class TestPeriodNotFoundError extends Error {
   }
 }
 
+export class TestPeriodVersionConflictError extends Error {
+  readonly code = "config_version_conflict";
+
+  constructor() {
+    super("The child configuration changed after it was read.");
+    this.name = "TestPeriodVersionConflictError";
+  }
+}
+
 function isCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -94,25 +106,29 @@ async function assertCanManage(tx: Parameters<Parameters<Database["transaction"]
   throw new TestPeriodAccessDeniedError();
 }
 
-async function lockConfigVersion(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], childId: string): Promise<number> {
+async function lockConfigVersion(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], childId: string): Promise<{ version: number; c10InputVersion: number }> {
   await tx.insert(childConfigVersions)
     .values({ childId, version: 1 })
     .onConflictDoNothing({ target: childConfigVersions.childId });
-  const [config] = await tx.select({ version: childConfigVersions.version })
+  const [config] = await tx.select({ version: childConfigVersions.version, c10InputVersion: childConfigVersions.c10InputVersion })
     .from(childConfigVersions)
     .where(eq(childConfigVersions.childId, childId))
     .limit(1)
     .for("update");
   if (!config) throw new Error("Config version row was not available after initialization.");
-  return config.version;
+  return config;
 }
 
-async function bumpConfigVersion(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], childId: string, version: number): Promise<number> {
+async function bumpConfigVersion(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], childId: string, version: number, c10InputVersion: number): Promise<number> {
   const nextVersion = version + 1;
   await tx.update(childConfigVersions)
-    .set({ version: nextVersion, updatedAt: new Date() })
+    .set({ version: nextVersion, c10InputVersion: c10InputVersion + 1, updatedAt: new Date() })
     .where(eq(childConfigVersions.childId, childId));
   return nextVersion;
+}
+
+function assertExpectedVersion(actual: number, expected?: number): void {
+  if (expected !== undefined && actual !== expected) throw new TestPeriodVersionConflictError();
 }
 
 /** Create a D3 period for the caller's own child account or a linked child. */
@@ -120,7 +136,8 @@ export async function createTestPeriod(db: Database, input: TestPeriodInput): Pr
   validate(input);
   return db.transaction(async (tx) => {
     await assertCanManage(tx, input.actorId, input.childId);
-    const version = await lockConfigVersion(tx, input.childId);
+    const config = await lockConfigVersion(tx, input.childId);
+    assertExpectedVersion(config.version, input.expectedVersion);
     const [period] = await tx.insert(testPeriods).values({
       childId: input.childId,
       createdByUserId: input.actorId,
@@ -129,7 +146,8 @@ export async function createTestPeriod(db: Database, input: TestPeriodInput): Pr
       endDate: input.endDate,
     }).returning();
     if (!period) throw new Error("The inserted test period was not returned.");
-    const configVersion = await bumpConfigVersion(tx, input.childId, version);
+    const configVersion = await bumpConfigVersion(tx, input.childId, config.version, config.c10InputVersion);
+    await recalculateC10InTransaction(tx, input.childId, config.c10InputVersion + 1);
     return { configVersion, changed: true, testPeriod: period };
   });
 }
@@ -148,14 +166,15 @@ export async function updateTestPeriod(db: Database, input: TestPeriodUpdateInpu
   validate(input);
   return db.transaction(async (tx) => {
     await assertCanManage(tx, input.actorId, input.childId);
-    const version = await lockConfigVersion(tx, input.childId);
+    const config = await lockConfigVersion(tx, input.childId);
+    assertExpectedVersion(config.version, input.expectedVersion);
     const [current] = await tx.select().from(testPeriods)
       .where(and(eq(testPeriods.id, input.testPeriodId), eq(testPeriods.childId, input.childId)))
       .limit(1).for("update");
     if (!current) throw new TestPeriodNotFoundError();
     const name = input.name.trim();
     const changed = current.name !== name || current.startDate !== input.startDate || current.endDate !== input.endDate;
-    if (!changed) return { configVersion: version, changed: false, testPeriod: current };
+    if (!changed) return { configVersion: config.version, changed: false, testPeriod: current };
     const [period] = await tx.update(testPeriods).set({
       name,
       startDate: input.startDate,
@@ -163,7 +182,8 @@ export async function updateTestPeriod(db: Database, input: TestPeriodUpdateInpu
       updatedAt: new Date(),
     }).where(eq(testPeriods.id, input.testPeriodId)).returning();
     if (!period) throw new Error("The locked test period could not be updated.");
-    const configVersion = await bumpConfigVersion(tx, input.childId, version);
+    const configVersion = await bumpConfigVersion(tx, input.childId, config.version, config.c10InputVersion);
+    await recalculateC10InTransaction(tx, input.childId, config.c10InputVersion + 1);
     return { configVersion, changed: true, testPeriod: period };
   });
 }
@@ -171,16 +191,18 @@ export async function updateTestPeriod(db: Database, input: TestPeriodUpdateInpu
 /** Delete a D3 period; a missing period is reported without changing the config version. */
 export async function deleteTestPeriod(
   db: Database,
-  input: Pick<TestPeriodInput, "actorId" | "childId"> & { testPeriodId: string },
+  input: Pick<TestPeriodInput, "actorId" | "childId" | "expectedVersion"> & { testPeriodId: string },
 ): Promise<TestPeriodMutationResult> {
   return db.transaction(async (tx) => {
     await assertCanManage(tx, input.actorId, input.childId);
-    const version = await lockConfigVersion(tx, input.childId);
+    const config = await lockConfigVersion(tx, input.childId);
+    assertExpectedVersion(config.version, input.expectedVersion);
     const [period] = await tx.delete(testPeriods)
       .where(and(eq(testPeriods.id, input.testPeriodId), eq(testPeriods.childId, input.childId)))
       .returning({ id: testPeriods.id });
-    if (!period) return { configVersion: version, changed: false };
-    const configVersion = await bumpConfigVersion(tx, input.childId, version);
+    if (!period) return { configVersion: config.version, changed: false };
+    const configVersion = await bumpConfigVersion(tx, input.childId, config.version, config.c10InputVersion);
+    await recalculateC10InTransaction(tx, input.childId, config.c10InputVersion + 1);
     return { configVersion, changed: true };
   });
 }

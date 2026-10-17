@@ -1,6 +1,6 @@
 # Backend database foundation
 
-Node.js + TypeScript, PostgreSQL, and Drizzle ORM for the Slope MVP. The current scope is the persistence foundation and a database-backed `/health` check; authentication, QR APIs, and the C10 calculation engine are not implemented.
+Node.js + TypeScript, PostgreSQL, and Drizzle ORM for the Slope MVP. This backend includes the persistence foundation, database-backed API paths, and C10 daily-limit calculation and persistence. Authentication provider verification and QR lifecycle policy remain deferred where the product rules are not decided.
 
 ## Local setup
 
@@ -24,28 +24,33 @@ The Neon Marketplace resource `slope-backend-dev` is provisioned on the Free pla
 
 | Table | Purpose |
 | --- | --- |
-| `users` | Internal user ID and parent/child role; no Google credential or token data |
+| `users` | Internal user ID and nullable role until pairing is confirmed; no Google credential or token data |
+| `auth_identities` | Provider subject to user mapping; no Google token is stored |
+| `user_sessions` | Session ownership and lifecycle timestamps; only a token hash is stored |
 | `family_links` | D2 parent-child edges; composite role foreign keys enforce direction, with no one-parent/one-child cardinality limit |
+| `pair_tickets` | QR pairing state, participant references, and transition timestamps; only a code hash is stored |
 | `child_config_versions` | C7 revision counter shared by settings, test periods, and excluded-app changes |
 | `test_periods` | D3 named date ranges for a child |
 | `plan_settings` | D8 plan start date, S, G, and usual limit in minutes |
 | `plan_calculation_versions` | C10 calculation revision and source configuration revision |
-| `daily_limits` | D6 one current value per child/date, with its calculation revision; zero is valid |
+| `daily_limits` | D6 value per child/date/calculation revision, preserving historical snapshots; zero is valid |
 | `usage_sync_batches` | C8 client submission ID and optional payload fingerprint metadata |
 | `usage_records` | D4 per-submission, child, date, and app usage snapshot in minutes |
 | `excluded_apps` | D7 parent-managed excluded-app settings; system safety exceptions remain separate |
 
-`usage_sync_batches.submission_id` is globally unique. `persistUsageSubmission` writes batch metadata and usage rows in one transaction. A retry is acknowledged as a duplicate only when the child and the persisted date/app/minute rows match, independent of row order; reusing the ID for different content raises a conflict. Payload fingerprint metadata is optional because its canonicalization is not yet decided. Aggregation across distinct snapshots is intentionally left to the C8/C6 API design.
+`usage_sync_batches.submission_id` is globally unique. `persistUsageSubmission` writes batch metadata and usage rows in one transaction. A retry is acknowledged as a duplicate only when the child and the persisted date/app/minute rows match, independent of row order; reusing the ID for different content raises a conflict. The database stores an optional internal canonical payload fingerprint to compare retry payloads; this fingerprint is implemented as an internal idempotency detail. How the API aggregates multiple distinct cumulative snapshots into C6 totals remains undecided and is separate from retry fingerprinting.
 
 `readChildConfigSnapshot` reads the config version, test periods, plan settings, excluded apps, and the latest calculation's daily limits in one read-only repeatable-read transaction. It returns the calculation's source config version and an explicit match flag; a missing version/calculation is represented as missing data, not a zero-minute limit. D3/D8/C9 writers increment `child_config_versions` in the same transaction as each relevant configuration change for that marker to remain meaningful. Authentication and parent-child authorization remain service/API responsibilities.
 
-`replaceExcludedAppsForParent` checks the parent-child link in the transaction, replaces the active C9 app set, and increments the shared config version atomically only when the set changes. `savePlanSettingsForParent` applies the same linked-parent check and atomically saves D8 settings with a config-version increment; unchanged settings do not advance the version. Plan saving does not trigger C10 calculation. Both functions require the parent ID to come from an authenticated caller context. Future D3 write paths must also update the shared version in their transaction.
+`replaceExcludedAppsForParent` checks the parent-child link in the transaction, replaces the active C9 app set, and increments the shared config version atomically only when the set changes. D8, usual-limit, D3, and blank-period writes check authorization and expected versions, update C10 input versions where relevant, and recalculate D6 plus its calculation revision in the same transaction. Invalid inputs or calculation failures roll back the whole write. Both C9 and plan repositories require the parent ID to come from authenticated caller context.
 
-`createTestPeriod`, `listTestPeriods`, `updateTestPeriod`, and `deleteTestPeriod` provide D3 storage operations. They allow the child's own authenticated account or a parent with a stored family link; each mutation checks access and locks the child's shared config-version row in its transaction. Actual inserts/updates/deletes advance that version atomically, while unchanged updates and deletes of missing rows do not. Names must be nonblank and dates must be valid calendar dates with `endDate >= startDate`. The repository stores dates only; inclusive/exclusive end-date semantics are intentionally undecided. These operations do not invoke C10, and no HTTP/authentication API is included.
+`createTestPeriod`, `listTestPeriods`, `updateTestPeriod`, and `deleteTestPeriod` provide D3 storage operations. They allow the child's own authenticated account or a parent with a stored family link; each mutation checks access and locks the child's shared config-version row in its transaction. Actual inserts/updates/deletes advance that version atomically, while unchanged updates and deletes of missing rows do not. Names must be nonblank and dates must be valid calendar dates with `endDate >= startDate`; C10 treats both endpoints as included. Invalid or conflicting input rolls back the D3 change and calculation update together.
 
-`savePlanCalculation` locks the child's shared config-version row, rejects a result prepared from a stale config, then inserts the next `plan_calculation_versions` row and upserts the supplied complete active `daily_limits` snapshot in one transaction. The calculation-version foreign key prevents a daily limit from referencing a missing version. Callers must include unchanged protected dates in the complete snapshot. The repository does not decide which dates are final, calculate limits, or define recalculation timing; those policies remain out of scope until approved.
+`savePlanCalculation` locks the child's shared config-version row and stores a complete D6 snapshot with its source C10-input version in one transaction. D3/D8/blank-period persistence now calls the existing pure C10 engine before committing: it keeps today's finalized value, recalculates from tomorrow, and writes D6 plus the calculation version in the same transaction as the input change. Invalid C10 inputs roll back the whole change. The 120-day calculation horizon remains the existing development default and is still an open product decision.
 
 HTTP authentication and obtaining a trusted parent identity remain service/API responsibilities. The C9 repository enforces an existing parent-child link and updates the shared config revision; other configuration write paths must do the same. These policies are handled in application transactions rather than database triggers.
+
+The Expo/Hono API contracts and mock-backed handlers are present in the repository. C10 settings, test-period, and blank-period service paths use the PostgreSQL repositories when database mode is enabled. A passing local database test does not verify a deployed Vercel request or hosted Neon connectivity.
 
 ## Migrations and tests
 
@@ -58,9 +63,24 @@ After `docker compose up -d postgres`, `.env.example`'s test URL can be used for
 
 ## Deferred decisions
 
-- Google identity verification and external authentication subject mapping.
-- QR token storage boundary, expiry, reissue, and consumption policy.
-- Parent/child relationship cardinality and unlink/relink behavior.
+- Google ID token verification details (the identity mapping table is only storage; accepted provider/verification policy remains undecided).
+- Session expiry and renewal policy; `user_sessions.expires_at` is nullable, and authentication handlers are not yet wired to this storage.
+- QR expiry, reissue/invalidation, and consumption policy; `pair_tickets.expires_at` is nullable and the table stores state/timestamps without implementing transitions.
+- Parent/child relationship cardinality and unlink/relink behavior. `family_links` only prevents duplicate copies of the same edge; neither endpoint is restricted to one relationship.
 - C10 timezone, daily finalization time, same-day plan changes, and recalculation start point.
-- C8 canonical payload hashing and how multiple cumulative usage snapshots are aggregated.
-- Whether the test-period dates use inclusive end dates; the D3 repository stores start/end dates without defining calculation semantics.
+- How the API aggregates multiple distinct cumulative usage snapshots into C6 totals. Internal canonical fingerprinting for retry/idempotency is implemented and does not decide that API behavior.
+
+## Migration 0008 preflight and legacy limit values
+
+Before applying `0008_usage_records_app_unique.sql`, check for existing duplicate `(submission_id, usage_date, app_id)` rows. The migration adds a unique constraint and will fail if this query returns any rows:
+
+```sql
+SELECT submission_id, usage_date, app_id, count(*) AS row_count
+FROM usage_records
+GROUP BY submission_id, usage_date, app_id
+HAVING count(*) > 1;
+```
+
+Review any results under an approved data correction policy before applying the migration. Do not automatically delete or rewrite records.
+
+New `daily_limits` and `plan_settings` values are constrained to 0 through 1440. The C10 migration marks any existing out-of-range daily-limit snapshot as finalized before replacing the constraint, so recalculation can preserve that historical value in later versions without accepting an out-of-range mutable limit. It does not change the stored minute value. The `NOT VALID` constraints avoid scanning or rejecting unrelated legacy rows during migration.

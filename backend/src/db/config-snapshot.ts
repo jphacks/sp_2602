@@ -3,32 +3,41 @@ import type { Database } from "./index.js";
 import { childConfigVersions } from "./schema/family.js";
 import { excludedApps } from "./schema/excluded-apps.js";
 import { dailyLimits, planCalculationVersions, planSettings, testPeriods } from "./schema/planning.js";
+import { blankPeriods, childUsualLimits } from "./schema/settings-state.js";
 
 /** A database-consistent read of the C7 settings for one child. */
 export interface ChildConfigSnapshot {
   childId: string;
   configVersion: number | null;
+  c10InputVersion: number | null;
   testPeriods: Array<{
     id: string;
+    createdByUserId: string;
     name: string;
     startDate: string;
     endDate: string;
   }>;
+  blankPeriods: Array<{ id: string; name: string; startDate: string; endDate: string }>;
   planSettings: {
+    configVersion: number;
     planStartDate: string;
     startLimitMinutes: number;
     finalGoalMinutes: number;
     usualLimitMinutes: number;
+    updatedAt: Date;
   } | null;
-  excludedApps: Array<{ appId: string; enabled: boolean }>;
+  usualLimitMinutes: number | null;
+  excludedApps: Array<{ appId: string; label: string; sinceVersion: number; enabled: boolean }>;
   calculation: {
     version: number;
-    sourceConfigVersion: number;
-    matchesConfigVersion: boolean;
+    sourceC10InputVersion: number;
+    matchesC10InputVersion: boolean;
   } | null;
   dailyLimits: Array<{
     limitDate: string;
-    limitMinutes: number;
+    limitKind: string;
+    limitMinutes: number | null;
+    blankPeriodId: string | null;
     calculationVersion: number;
   }>;
 }
@@ -44,7 +53,7 @@ export async function readChildConfigSnapshot(
 ): Promise<ChildConfigSnapshot> {
   return db.transaction(async (tx) => {
     const [config] = await tx
-      .select({ version: childConfigVersions.version })
+      .select({ version: childConfigVersions.version, c10InputVersion: childConfigVersions.c10InputVersion })
       .from(childConfigVersions)
       .where(eq(childConfigVersions.childId, childId))
       .limit(1);
@@ -52,6 +61,7 @@ export async function readChildConfigSnapshot(
     const testPeriodsRows = await tx
       .select({
         id: testPeriods.id,
+        createdByUserId: testPeriods.createdByUserId,
         name: testPeriods.name,
         startDate: testPeriods.startDate,
         endDate: testPeriods.endDate,
@@ -60,19 +70,35 @@ export async function readChildConfigSnapshot(
       .where(eq(testPeriods.childId, childId))
       .orderBy(testPeriods.startDate, testPeriods.id);
 
+    const blankPeriodRows = await tx
+      .select({
+        id: blankPeriods.id,
+        name: blankPeriods.name,
+        startDate: blankPeriods.startDate,
+        endDate: blankPeriods.endDate,
+      })
+      .from(blankPeriods)
+      .where(eq(blankPeriods.childId, childId))
+      .orderBy(blankPeriods.startDate, blankPeriods.id);
+
     const [settings] = await tx
       .select({
+        configVersion: planSettings.configVersion,
         planStartDate: planSettings.planStartDate,
         startLimitMinutes: planSettings.startLimitMinutes,
         finalGoalMinutes: planSettings.finalGoalMinutes,
         usualLimitMinutes: planSettings.usualLimitMinutes,
+        updatedAt: planSettings.updatedAt,
       })
       .from(planSettings)
       .where(eq(planSettings.childId, childId))
       .limit(1);
 
+    const [usualLimit] = await tx.select({ minutes: childUsualLimits.minutes })
+      .from(childUsualLimits).where(eq(childUsualLimits.childId, childId)).limit(1);
+
     const excludedAppsRows = await tx
-      .select({ appId: excludedApps.appId, enabled: excludedApps.enabled })
+      .select({ appId: excludedApps.appId, label: excludedApps.label, sinceVersion: excludedApps.sinceVersion, enabled: excludedApps.enabled })
       .from(excludedApps)
       .where(eq(excludedApps.childId, childId))
       .orderBy(excludedApps.appId);
@@ -80,7 +106,7 @@ export async function readChildConfigSnapshot(
     const [latestCalculation] = await tx
       .select({
         version: planCalculationVersions.version,
-        sourceConfigVersion: planCalculationVersions.sourceConfigVersion,
+        sourceC10InputVersion: planCalculationVersions.sourceC10InputVersion,
       })
       .from(planCalculationVersions)
       .where(eq(planCalculationVersions.childId, childId))
@@ -91,7 +117,9 @@ export async function readChildConfigSnapshot(
       ? await tx
         .select({
           limitDate: dailyLimits.limitDate,
+          limitKind: dailyLimits.limitKind,
           limitMinutes: dailyLimits.limitMinutes,
+          blankPeriodId: dailyLimits.blankPeriodId,
           calculationVersion: dailyLimits.calculationVersion,
         })
         .from(dailyLimits)
@@ -105,14 +133,17 @@ export async function readChildConfigSnapshot(
     return {
       childId,
       configVersion: config?.version ?? null,
+      c10InputVersion: config?.c10InputVersion ?? null,
       testPeriods: testPeriodsRows,
+      blankPeriods: blankPeriodRows,
       planSettings: settings ?? null,
+      usualLimitMinutes: usualLimit?.minutes ?? null,
       excludedApps: excludedAppsRows,
       calculation: latestCalculation
         ? {
           ...latestCalculation,
-          matchesConfigVersion: config !== undefined
-            && latestCalculation.sourceConfigVersion === config.version,
+          matchesC10InputVersion: config !== undefined
+            && latestCalculation.sourceC10InputVersion === config.c10InputVersion,
         }
         : null,
       dailyLimits: dailyLimitRows,

@@ -1,0 +1,37 @@
+// Room のコンパイラ（KSP）を使うため、KSP の Gradle プラグインを読み込む。バージョンは Expo が決めたもの
+buildscript {
+  dependencies {
+    classpath "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:${rootProject.ext.kspVersion}"
+  }
+}
+
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+apply plugin: 'com.google.devtools.ksp'
+
+group = 'dev.hackathon.kit.kitnative'
+version = '0.1.0'
+
+android {
+  namespace "dev.hackathon.kit.kitnative"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+// 監視・制限エンジンが使う Kotlin のライブラリ（docs/design/使用言語.md 5節）。
+// Room = 制限ルール・使用履歴の端末内保存 / Coroutines = バックグラウンド処理
+dependencies {
+  def roomVersion = '2.8.4'
+  implementation "androidx.room:room-runtime:$roomVersion"
+  implementation "androidx.room:room-ktx:$roomVersion"
+  ksp "androidx.room:room-compiler:$roomVersion"
+  implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+}

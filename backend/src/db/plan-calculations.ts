@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Database } from "./index.js";
 import { childConfigVersions } from "./schema/family.js";
 import { dailyLimits, planCalculationVersions } from "./schema/planning.js";
@@ -10,15 +10,15 @@ export interface DailyLimitInput {
 
 export interface SavePlanCalculationInput {
   childId: string;
-  /** Config revision used to produce this result; stale results are rejected. */
-  sourceConfigVersion: number;
+  /** C10-input revision used to produce this result; C9-only C7 edits do not stale it. */
+  sourceC10InputVersion: number;
   /** Complete set of active daily limits for this calculation revision. */
   dailyLimits: DailyLimitInput[];
 }
 
 export interface SavePlanCalculationResult {
   version: number;
-  sourceConfigVersion: number;
+  sourceC10InputVersion: number;
   savedDailyLimitCount: number;
 }
 
@@ -26,7 +26,7 @@ export class InvalidPlanCalculationError extends Error {
   readonly code = "invalid_plan_calculation";
 
   constructor() {
-    super("A plan calculation requires a positive source config version and unique valid dates with nonnegative integer limits.");
+    super("A plan calculation requires a positive C10-input version and unique valid dates with limits from 0 to 1440 minutes.");
     this.name = "InvalidPlanCalculationError";
   }
 }
@@ -56,9 +56,9 @@ function isCalendarDate(value: string): boolean {
 }
 
 function validate(input: SavePlanCalculationInput): void {
-  if (!Number.isInteger(input.sourceConfigVersion)
-    || input.sourceConfigVersion < 1
-    || input.sourceConfigVersion > 2_147_483_647
+  if (!Number.isInteger(input.sourceC10InputVersion)
+    || input.sourceC10InputVersion < 1
+    || input.sourceC10InputVersion > 2_147_483_647
     || !Array.isArray(input.dailyLimits)) {
     throw new InvalidPlanCalculationError();
   }
@@ -68,7 +68,7 @@ function validate(input: SavePlanCalculationInput): void {
     if (!isCalendarDate(limit.limitDate)
       || !Number.isInteger(limit.limitMinutes)
       || limit.limitMinutes < 0
-      || limit.limitMinutes > 2_147_483_647
+      || limit.limitMinutes > 1440
       || dates.has(limit.limitDate)) {
       throw new InvalidPlanCalculationError();
     }
@@ -89,13 +89,13 @@ export async function savePlanCalculation(
 
   return db.transaction(async (tx) => {
     const [config] = await tx
-      .select({ version: childConfigVersions.version })
+      .select({ c10InputVersion: childConfigVersions.c10InputVersion })
       .from(childConfigVersions)
       .where(eq(childConfigVersions.childId, input.childId))
       .limit(1)
       .for("update");
     if (!config) throw new PlanCalculationConfigNotFoundError();
-    if (config.version !== input.sourceConfigVersion) {
+    if (config.c10InputVersion !== input.sourceC10InputVersion) {
       throw new StalePlanCalculationConfigError();
     }
 
@@ -112,7 +112,7 @@ export async function savePlanCalculation(
     await tx.insert(planCalculationVersions).values({
       childId: input.childId,
       version,
-      sourceConfigVersion: input.sourceConfigVersion,
+      sourceC10InputVersion: input.sourceC10InputVersion,
     });
 
     if (input.dailyLimits.length > 0) {
@@ -123,19 +123,12 @@ export async function savePlanCalculation(
         limitMinutes: limit.limitMinutes,
         calculationVersion: version,
         updatedAt,
-      }))).onConflictDoUpdate({
-        target: [dailyLimits.childId, dailyLimits.limitDate],
-        set: {
-          limitMinutes: sql`excluded.limit_minutes`,
-          calculationVersion: version,
-          updatedAt,
-        },
-      });
+      })));
     }
 
     return {
       version,
-      sourceConfigVersion: input.sourceConfigVersion,
+      sourceC10InputVersion: input.sourceC10InputVersion,
       savedDailyLimitCount: input.dailyLimits.length,
     };
   });
