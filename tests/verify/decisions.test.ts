@@ -311,6 +311,37 @@ describe("V: Q10 QR は10分・1回だけ・出し直すと前は無効", () => 
   });
 });
 
+describe("V 回帰: 不具合4 QR を出すときの呼び名が、紐づけの後に消えた（store.pairConfirm）", () => {
+  // もとは tests/verify/known-bugs.test.ts（中身と期待値はそのまま）。
+  // 原因: 確定後の familyGet・linkStatus・authMe が Google のアカウント名を返していた。直し方: 確定のときに呼び名を子どもの名前として残す
+  beforeEach(() => {
+    fresh("2026-10-15T03:00:00Z");
+  });
+
+  it("紐づけの後、保護者の家族一覧・連携状態に出る子どもの名前は、QR を出すときに入れた呼び名", async () => {
+    const child = await newPerson("nick-c");
+    const parent = await newPerson("nick-p");
+    const t = await ok<{ code: string; pairId: string }>(post("/api/pair/start", { name: "たろう" }, child.token));
+    const claimed = await ok<{ child: { name: string } }>(post("/api/pair/claim", { code: t.code }, parent.token));
+    expect(claimed.child.name).toBe("たろう");
+    await ok(post("/api/pair/confirm", { pairId: t.pairId, accept: true }, child.token));
+    const fam = await ok<{ children: { name: string }[] }>(get("/api/family/get", parent.token));
+    const link = await ok<{ partners: { name: string }[] }>(get("/api/link/status", parent.token));
+    expect(fam.children.map((c) => c.name)).toEqual(["たろう"]);
+    expect(link.partners.map((p) => p.name)).toEqual(["たろう"]);
+  });
+
+  it("子ども本人の authMe も同じ呼び名（端末の表示がそろう）", async () => {
+    const child = await newPerson("nick-c2");
+    const parent = await newPerson("nick-p2");
+    const t = await ok<{ code: string; pairId: string }>(post("/api/pair/start", { name: "はなこ" }, child.token));
+    await ok(post("/api/pair/claim", { code: t.code }, parent.token));
+    await ok(post("/api/pair/confirm", { pairId: t.pairId, accept: true }, child.token));
+    const me = await ok<{ name: string; role: string }>(get("/api/auth/me", child.token));
+    expect(me).toMatchObject({ name: "はなこ", role: "child" });
+  });
+});
+
 describe("V: Q11 子どももテスト期間を追加・変更・削除できる（作った人を残す）", () => {
   it("保護者が作ったテストを子どもが変える・消すことができ、変えても作った人は保護者のまま", async () => {
     let v = await versionOf(CHILD_ID, PARENT);

@@ -2,7 +2,7 @@
 import type { UsageDayReport, UsageUpload } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
 import { ApiCallError } from "@/lib/api";
-import type { KeyValueStorage } from "@/lib/storage";
+import { type KeyValueStorage, storageKeys } from "@/lib/storage";
 import { backoffMs, createUsageOutbox, isPermanentError, newSubmissionId } from "@/lib/usage-outbox";
 
 const day = (date: string, minutes: number): UsageDayReport => ({
@@ -120,5 +120,65 @@ describe("C8: 送信待ち", () => {
 
   it("送信 ID は UUID の形", () => {
     expect(newSubmissionId()).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  });
+});
+
+describe("C8: 契約に合わない記録は、その1件だけを隔離する（ほかの記録を消さない）", () => {
+  it("enqueue: 合う記録は送り、合わない記録は別の1件にして隔離する（lastError: bad_request）", async () => {
+    const sent: UsageUpload[] = [];
+    const { outbox } = setup(async (u) => sent.push(u));
+    const bad = { ...day("2026-10-14", 5), restrictedMinutes: 5000 }; // 契約外（0〜1440）
+    await outbox.enqueue("c1", [day("2026-10-15", 10), bad]);
+    expect(await outbox.flush()).toMatchObject({ sent: 1, quarantined: 1 });
+    expect(sent.map((u) => u.days.map((d) => d.date))).toEqual([["2026-10-15"]]);
+    const [left] = await outbox.list();
+    expect(left).toMatchObject({ state: "quarantined", days: [], lastError: { code: "bad_request" } });
+    expect(left?.rejectedDays).toEqual([bad]);
+  });
+
+  it("読むとき: 端末に保存してあった記録のうち、合わない1件だけを隔離し、ほかの1件は送る", async () => {
+    const storage = memoryStorage();
+    const stored = (id: string, d: unknown) => ({
+      submissionId: id,
+      childId: "c1",
+      days: [d],
+      createdAt: "2026-10-15T00:00:00.000Z",
+      attempts: 0,
+      nextAttemptAt: "2026-10-15T00:00:00.000Z",
+      state: "pending",
+      lastError: null,
+    });
+    // 古い版のアプリが書いた・壊れた記録（measuredAt が日時でない）と、正しい記録
+    await storage.setItem(
+      storageKeys.outbox,
+      JSON.stringify([
+        stored("00000000-0000-4000-8000-0000000000a1", { ...day("2026-10-14", 5), measuredAt: "not-a-date" }),
+        stored("00000000-0000-4000-8000-0000000000a2", day("2026-10-15", 7)),
+        "読めない値",
+      ]),
+    );
+    const sent: UsageUpload[] = [];
+    const outbox = createUsageOutbox({
+      storage,
+      send: async (u) => {
+        sent.push(u);
+        return { submissionId: u.submissionId, status: "accepted", appliedDates: [] };
+      },
+      now: () => new Date("2026-10-15T03:00:00Z"),
+    });
+    expect(await outbox.flush()).toMatchObject({ sent: 1, quarantined: 1 });
+    expect(sent[0]?.submissionId).toBe("00000000-0000-4000-8000-0000000000a2");
+    const left = await outbox.list();
+    expect(left.map((i) => [i.submissionId, i.state, i.lastError?.code])).toEqual([
+      ["00000000-0000-4000-8000-0000000000a1", "quarantined", "bad_request"],
+    ]);
+  });
+
+  it("契約に合わない記録だけの1件は、retryQuarantined でも送る対象に戻さない", async () => {
+    const { outbox } = setup(async () => undefined);
+    const item = await outbox.enqueue("c1", [{ ...day("2026-10-15", 5), date: "2026-13-40" }]);
+    await outbox.retryQuarantined(item?.submissionId ?? "");
+    expect((await outbox.list())[0]?.state).toBe("quarantined");
+    expect(await outbox.flush()).toMatchObject({ sent: 0, quarantined: 1 });
   });
 });

@@ -13,6 +13,7 @@ export { default as excludedAppsSave } from "./excludedAppsSave";
 export { default as familyGet } from "./familyGet";
 export { default as health } from "./health";
 export { default as linkStatus } from "./linkStatus";
+export { default as pairCancel } from "./pairCancel";
 export { default as pairClaim } from "./pairClaim";
 export { default as pairConfirm } from "./pairConfirm";
 export { default as pairStart } from "./pairStart";

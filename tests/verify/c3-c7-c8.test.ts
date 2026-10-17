@@ -5,7 +5,13 @@
 
 import { ApiError } from "@contracts/errors";
 import type { NativeUsageResult } from "@contracts/native";
-import { ConfigResult, type ConfigSnapshot, type UsageUpload, UsageUploadResult } from "@contracts/schemas";
+import {
+  ConfigResult,
+  type ConfigSnapshot,
+  UsageDayReport,
+  type UsageUpload,
+  UsageUploadResult,
+} from "@contracts/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiCallError } from "@/lib/api";
 import { createConfigCache } from "@/lib/config-cache";
@@ -353,5 +359,90 @@ describe("V: C8 をサーバとつないで確かめる", () => {
     await outbox.enqueue(CHILD_ID, [day(TODAY, "2026-10-15T02:00:00Z", 10)]);
     expect(await outbox.flush()).toMatchObject({ retrying: 1, quarantined: 0 });
     expect((await outbox.list())[0]?.state).toBe("pending");
+  });
+});
+
+// ── 回帰テスト（確かめ役 V が見つけ、直した不具合。もとは tests/verify/known-bugs.test.ts。中身と期待値はそのまま）──
+
+describe("V 回帰: 不具合1 契約に合わない記録が1件入ると、送信待ちが丸ごと消えた（usage-outbox）", () => {
+  // 原因: read() が一覧全体を契約で検査し、1件でも合わないと「ない（[]）」として返していた。
+  // 直し方: 保存の形は記録の中身を検査せずに読み、1件ずつ検査して合わない1件だけを隔離する。enqueue の時点でも検査する
+  const goodDay = (date: string) => ({ date, measuredAt: `${date}T12:00:00.000Z`, restrictedMinutes: 5, apps: [] });
+
+  it("送れていない正しい記録2件は、契約に合わない記録が後から入っても消えない", async () => {
+    const outbox = createUsageOutbox({
+      storage: memoryStorage(),
+      send: async () => {
+        throw new Error("offline");
+      },
+    });
+    await outbox.enqueue(CHILD_ID, [goodDay("2026-10-13")]);
+    await outbox.enqueue(CHILD_ID, [goodDay("2026-10-14")]);
+    const bad = { ...goodDay("2026-10-15"), restrictedMinutes: 5000 }; // 契約外（0〜1440）
+    await outbox.enqueue(CHILD_ID, [bad]);
+    await outbox.enqueue(CHILD_ID, [goodDay("2026-10-16")]);
+    const dates = (await outbox.list()).flatMap((x) => x.days.map((d) => d.date));
+    expect(dates).toEqual(expect.arrayContaining(["2026-10-13", "2026-10-14", "2026-10-16"]));
+  });
+});
+
+describe("V 回帰: 不具合2 toUsageDayReport が契約に合わない記録を作った（usage-calc）", () => {
+  // 原因: アプリ名（label）が 120 文字を超えてもそのまま入れていた。直し方: 120 文字に切る・アプリは 1000 個まで
+  it("アプリ名が 120 文字を超えても、作った記録は契約（UsageDayReport）に合う", () => {
+    const report = toUsageDayReport(
+      {
+        status: "ok",
+        date: "2026-10-15",
+        measuredAt: "2026-10-15T03:00:00.000Z",
+        apps: [{ packageName: "com.example.long", label: "あ".repeat(130), usedMinutes: 5 }],
+      },
+      [],
+    );
+    expect(UsageDayReport.safeParse(report).success).toBe(true);
+  });
+});
+
+describe("V 回帰: 不具合3 日時として読めない measuredAt を受け付け、その日の記録が二度と更新されなくなった（store.usageUpload）", () => {
+  // 原因: 契約の IsoDateTime が空でない文字列なら何でも通していた。直し方: タイムゾーンつきの ISO 8601 だけを受け付ける
+  beforeEach(() => {
+    fresh("2026-10-15T03:00:00Z");
+  });
+
+  it("measuredAt が日時でない記録は 400 bad_request", async () => {
+    const res = await post(
+      "/api/usage/upload",
+      {
+        submissionId: crypto.randomUUID(),
+        childId: CHILD_ID,
+        days: [{ date: "2026-10-15", measuredAt: "not-a-date", restrictedMinutes: 10, apps: [] }],
+      },
+      CHILD,
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("（受け付けてしまった場合でも）後から届いた正しい測定で、その日の記録が更新される", async () => {
+    await post(
+      "/api/usage/upload",
+      {
+        submissionId: crypto.randomUUID(),
+        childId: CHILD_ID,
+        days: [{ date: "2026-10-15", measuredAt: "not-a-date", restrictedMinutes: 10, apps: [] }],
+      },
+      CHILD,
+    );
+    await post(
+      "/api/usage/upload",
+      {
+        submissionId: crypto.randomUUID(),
+        childId: CHILD_ID,
+        days: [{ date: "2026-10-15", measuredAt: "2026-10-15T03:00:00.000Z", restrictedMinutes: 40, apps: [] }],
+      },
+      CHILD,
+    );
+    const view = await ok<{ days: { usedMinutes: number | null }[] }>(
+      post("/api/usage/get", { childId: CHILD_ID, from: "2026-10-15", to: "2026-10-15" }, PARENT),
+    );
+    expect(view.days[0]?.usedMinutes).toBe(40);
   });
 });

@@ -4,6 +4,9 @@
 //   - サーバが受け付けた（accepted / duplicate）分だけ送信待ちから消す
 //   - 通信・サーバの一時的な失敗は送信待ちのまま、間をあけて（バックオフ）送り直す
 //   - 検証エラーなど直らない失敗は、その記録だけ隔離（quarantined）して自動では送り直さない。ほかの記録は送り続ける
+//   - 契約（UsageDayReport）に合わない記録は、入れるとき（enqueue）と読むとき（1件ずつ）に検査し、合わない分だけ隔離する
+//     （なぜ: 前は送信待ちの一覧全体をまとめて検査していたので、1件でも合わないと一覧が「ない」扱いになり、
+//      次の書き込みでまだ送っていない記録まで消えていた。MVP_SPEC 4.3「検証エラーは該当データを隔離し、他の正常データは同期継続」）
 // 中心は createUsageOutbox（保存・送信・時計・ID を外から渡す。テストで差し替える）。
 //   await usageOutbox.enqueue(childId, days);  // C2 の結果（今日と昨日の UsageDayReport）を送信待ちに入れる
 //   await usageOutbox.flush();                     // 起動時・通信の復帰時・画面を開いたときなどに呼ぶ
@@ -14,18 +17,46 @@ import { ApiCallError, call } from "./api";
 import { appStorage, type KeyValueStorage, readJson, storageKeys, writeJson } from "./storage";
 
 // 送信待ちの1件
-const OutboxItem = z.object({
+const itemFields = {
   submissionId: z.string(),
   childId: z.string(),
-  days: z.array(UsageDayReport),
   createdAt: z.string(),
   attempts: z.number().int().min(0), // 送ろうとした回数
   nextAttemptAt: z.string(), // これより前は送らない（バックオフ）
   state: z.enum(["pending", "quarantined"]), // quarantined = 隔離（自動では送らない）
   lastError: z.object({ code: z.string(), message: z.string() }).nullable(),
-});
+  // 契約に合わなかった記録（送らない。原因を調べるために中身を残す）。ふだんはない
+  rejectedDays: z.array(z.unknown()).optional(),
+};
+const OutboxItem = z.object({ ...itemFields, days: z.array(UsageDayReport) });
 export type OutboxItem = z.infer<typeof OutboxItem>;
-const OutboxList = z.array(OutboxItem);
+
+// 端末に保存してある形を読むときは、記録の中身（days）を検査せずに読む。中身の検査は1件ずつ（toItem）で行う
+const StoredItem = z.object({ ...itemFields, days: z.array(z.unknown()) });
+const StoredList = z.array(z.unknown());
+
+// 契約に合わない記録の隔離の理由（サーバに送っても bad_request になるので、同じ code にする）
+const invalidError = {
+  code: "bad_request",
+  message: "利用記録の形が決まりに合わないため、送らずに残しています",
+} as const;
+
+// 保存してあった1件を、送れる形に直す。記録の形が契約に合わなければ、その1件だけを隔離する
+// （記録を分けて一部だけ送ることはしない: 同じ送信 ID で中身を変えると、サーバが「中身が違う」と断るため）。
+// 読めないもの（送信 ID もない壊れた値）は、どの記録か分からず送れないので null（一覧から外す）
+function toItem(raw: unknown): OutboxItem | null {
+  const stored = StoredItem.safeParse(raw);
+  if (!stored.success) return null;
+  const days = z.array(UsageDayReport).safeParse(stored.data.days);
+  if (days.success) return { ...stored.data, days: days.data };
+  return {
+    ...stored.data,
+    days: [],
+    rejectedDays: [...(stored.data.rejectedDays ?? []), ...stored.data.days],
+    state: "quarantined",
+    lastError: { ...invalidError },
+  };
+}
 
 // 1回の flush の結果
 export type FlushResult = { sent: number; retrying: number; quarantined: number; skipped: number };
@@ -69,7 +100,11 @@ export type OutboxDeps = {
 export function createUsageOutbox(deps: OutboxDeps) {
   const now = deps.now ?? (() => new Date());
   const newId = deps.newId ?? newSubmissionId;
-  const read = async () => (await readJson(deps.storage, storageKeys.outbox, OutboxList)) ?? [];
+  const read = async (): Promise<OutboxItem[]> =>
+    ((await readJson(deps.storage, storageKeys.outbox, StoredList)) ?? []).flatMap((raw) => {
+      const item = toItem(raw);
+      return item ? [item] : [];
+    });
   const write = (items: OutboxItem[]) => writeJson(deps.storage, storageKeys.outbox, items);
   let flushing: Promise<FlushResult> | null = null;
 
@@ -93,6 +128,11 @@ export function createUsageOutbox(deps: OutboxDeps) {
     for (const item of await read()) {
       if (item.state === "quarantined") {
         result.quarantined++;
+        continue;
+      }
+      if (item.days.length === 0) {
+        // 送る記録がない（契約上、1回に1日以上が必要）。送るものがないので送信待ちから外す
+        await update(item.submissionId, () => null);
         continue;
       }
       if (Date.parse(item.nextAttemptAt) > t.getTime()) {
@@ -131,21 +171,42 @@ export function createUsageOutbox(deps: OutboxDeps) {
   }
 
   return {
-    // 記録を送信待ちに入れる（送信 ID はここで1回だけ作る）
-    async enqueue(childId: string, days: UsageDayReport[]): Promise<OutboxItem | null> {
+    // 記録を送信待ちに入れる（送信 ID はここで1回だけ作る）。
+    // 契約（UsageDayReport）に合う記録は送る1件に、合わない記録は別の1件にして隔離する（合わない記録が、ほかの記録を巻き込まないように）。
+    // 返すのは送る1件（合う記録がなければ隔離した1件。同じ中身を何度も入れ直さないよう、呼んだ側が「入れた」と覚えるため）
+    async enqueue(childId: string, days: readonly UsageDayReport[]): Promise<OutboxItem | null> {
       if (days.length === 0) return null;
-      const item: OutboxItem = {
-        submissionId: newId(),
-        childId,
-        days,
-        createdAt: now().toISOString(),
-        attempts: 0,
-        nextAttemptAt: now().toISOString(),
-        state: "pending",
-        lastError: null,
-      };
-      await write([...(await read()), item]);
-      return item;
+      const valid: UsageDayReport[] = [];
+      const invalid: unknown[] = [];
+      for (const d of days) {
+        const r = UsageDayReport.safeParse(d);
+        if (r.success) valid.push(r.data);
+        else invalid.push(d);
+      }
+      const base = { childId, createdAt: now().toISOString(), attempts: 0, nextAttemptAt: now().toISOString() };
+      const added: OutboxItem[] = [];
+      if (valid.length > 0) {
+        // 1回に送れるのは 7 日分まで（契約の UsageUpload）。ふだんは今日と昨日の2日分
+        for (let i = 0; i < valid.length; i += 7)
+          added.push({
+            ...base,
+            submissionId: newId(),
+            days: valid.slice(i, i + 7),
+            state: "pending",
+            lastError: null,
+          });
+      }
+      if (invalid.length > 0)
+        added.push({
+          ...base,
+          submissionId: newId(),
+          days: [],
+          rejectedDays: invalid,
+          state: "quarantined",
+          lastError: { ...invalidError },
+        });
+      await write([...(await read()), ...added]);
+      return added[0] ?? null;
     },
 
     // 送れるものを送る。同時に2回呼ばれても、送るのは1回（同じ記録を並べて送らない）
@@ -159,9 +220,19 @@ export function createUsageOutbox(deps: OutboxDeps) {
     // 送信待ちの一覧（画面で「未送信 n 件」「修正待ち n 件」を出すため）
     list: read,
 
-    // 隔離した記録をもう一度送る対象に戻す（原因を直したあと。自動では呼ばない）
+    // ある子どもの送信待ちを全部消す（その子どもがこの端末でログアウトしたとき。別の人で入り直したときに混ざらないように）。
+    // 送っている途中のものは、送り終えたときにもう一覧にないので、そのまま消えたままになる
+    async removeChild(childId: string): Promise<void> {
+      const items = await read();
+      if (items.some((x) => x.childId === childId)) await write(items.filter((x) => x.childId !== childId));
+    },
+
+    // 隔離した記録をもう一度送る対象に戻す（原因を直したあと。自動では呼ばない）。
+    // 契約に合わない記録だけの1件（送れる記録がない）は、送っても同じ結果なので戻さない
     async retryQuarantined(submissionId: string): Promise<void> {
-      await update(submissionId, (x) => ({ ...x, state: "pending", nextAttemptAt: now().toISOString() }));
+      await update(submissionId, (x) =>
+        x.days.length === 0 ? x : { ...x, state: "pending", nextAttemptAt: now().toISOString() },
+      );
     },
   };
 }

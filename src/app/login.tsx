@@ -59,7 +59,7 @@ export default function Login() {
       scroll={false}
       footer={
         googleSignInEnabled ? (
-          <Button label="Google でログイン" onPress={google} loading={busy} />
+          <Button label="Google でログイン" icon="login" onPress={google} loading={busy} />
         ) : (
           // MOCK のときだけ（Google の登録が済むまでの開発用）
           <View style={styles.mock}>
@@ -87,11 +87,12 @@ export default function Login() {
         iconTone="danger"
         title="ログインできませんでした"
         body={"通信を確かめて、\nもう一度ためしてください。"}
+        centered
         onClose={close}
-        actions={<Button variant="text" label="OK" onPress={close} />}
+        actions={<Button variant="pill" label="OK" onPress={close} />}
       >
         {failure?.detail ? (
-          <AppText variant="caption" tone="muted">
+          <AppText variant="caption" tone="muted" center>
             {failure.detail}
           </AppText>
         ) : null}

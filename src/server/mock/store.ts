@@ -16,12 +16,14 @@ import type {
   DayLimit,
   ExcludedApp,
   ExcludedAppInput,
+  ExcludedAppsView,
   LinkStatus,
   PairStatus,
   PairTicket,
   ParentUsageView,
   PlanSettings,
   PlanSettingsInput,
+  RemovedExcludedApp,
   Role,
   Session,
   TestPeriod,
@@ -39,13 +41,30 @@ import { computeDailyLimits, type DailyLimitOptions, mergeWithFinalized, PlanCal
 export const PAIR_TTL_MS = 10 * 60_000;
 // 合言葉の期限: 最後に使ってから30日（作り直し前の決定 10/17）
 export const SESSION_IDLE_MS = 30 * 86_400_000;
-// TODO(未決): C10 の日別上限を何日先まで作るか（図・仕様に数値がない）。今は今日から 120 日先まで
+// TODO(未決): C10 の日別上限を何日先まで作るか（図・仕様に数値がない）。今は保存した日から 120 日先まで
 export const LIMIT_HORIZON_DAYS = 120;
+// 日別上限の残りがこの日数を切ったら、configGet のときに作り足す（今日から LIMIT_HORIZON_DAYS 日先まで作り直す）。
+// なぜ: 保存した日から 120 日先までしか作らないと、設定を変えないまま 120 日たつと「上限未設定」の日になってしまうため。
+//   日数を大きく伸ばす案もあるが、それでも「いつかは切れる」ので、取りに来たときに足りなければ作り足す形にした。
+//   作り足しは Q4 と同じ「今日から先を作り直す（昨日以前は変えない）」で、日別上限が変わるので版も 1 上がる（Q6）
+export const LIMIT_TOPUP_MIN_DAYS = 60;
+
+// 設定の版の初期値（MOCK のサーバの起動時刻のミリ秒）。デモの子ども（ID が固定で、再起動しても同じ ID のまま残る）の
+// 設定の版をここから数える。
+// なぜ: MOCK の store はメモリの上だけなので、再起動すると版が数え直しになる。版が 1 から数え直されると、子どもの端末に
+//   残っている前の版（たとえば 7）より小さい版（5）しか配られず、C7 の「手元より古い版は捨てる」で新しい設定を取り込めなくなる。
+//   起動時刻を元にすれば、前の起動で何回変更していても（ミリ秒の数より多く変更しない限り）新しい起動の版のほうが大きくなる。
+// はじめての人（mock-new-xxx・本物の Google）は再起動すると別の ID になる（前の端末の手元の設定とつながらない）ので 0 から数える。
+export function startupVersionBase(nowMs: number = Date.now()): number {
+  return Math.floor(nowMs);
+}
 
 export type StoreOptions = {
   now?: () => Date; // 時計（テストで差し替える）
   seed?: boolean; // デモの3人と見本のデータを入れるか（既定は MOCK=1 のとき）
   calcOptions?: DailyLimitOptions; // C10 の未決の点を変えて試すとき
+  // デモの子どもの設定の版の初期値（既定 0。手元の開発サーバ（getStore）は startupVersionBase() を渡す）
+  versionBase?: number;
 };
 
 type User = { userId: string; name: string; role: Role | null };
@@ -68,11 +87,24 @@ type ChildConfig = {
   blankPeriods: BlankPeriod[];
   dailyLimits: DailyLimit[];
   excludedApps: ExcludedApp[];
+  removedExcludedApps: RemovedExcludedApp[]; // 対象外から外したアプリと、外した版（親16 の反映済み／反映待ち）
+  excludedAppsChangedVersion: number; // 対象外アプリの一覧が最後に変わった版（一度も変わっていなければ 0）
   childAppliedVersion: number | null;
 };
 type Batch = { childId: string; fingerprint: string; appliedDates: string[] };
 
 const randomId = () => crypto.randomUUID();
+
+// 測った時刻をミリ秒に直す。読めない時刻は一番古いものとして扱う（NaN の比較は必ず false になり、
+// その日の記録が二度と更新されなくなるため。契約の IsoDateTime で読めない時刻は入ってこないが、念のため）
+const measuredMs = (iso: string) => {
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms;
+};
+
+// 対象外アプリの一覧の中身（アプリの組と名前）を比べるための形
+const appsKey = (apps: readonly ExcludedAppInput[]) =>
+  JSON.stringify(apps.map((a) => [a.packageName, a.label]).sort((a, b) => ((a[0] ?? "") < (b[0] ?? "") ? -1 : 1)));
 // QR に入れる番号。推測されにくい長さにする（合言葉や個人情報は入れない）
 const randomCode = () => `${randomId().replace(/-/g, "")}${randomId().replace(/-/g, "").slice(0, 8)}`;
 
@@ -103,6 +135,13 @@ const oneToOne = () =>
 export class MemoryStore {
   private readonly now: () => Date;
   private readonly calcOptions: DailyLimitOptions;
+  private readonly versionBase: number;
+  // 再起動しても同じ ID のまま残る子ども（デモの子ども）。設定の版を versionBase から数える
+  private readonly stableChildIds = new Set(
+    Object.values(mockSessions)
+      .filter((m) => m.role === "child")
+      .map((m) => m.userId),
+  );
   private users = new Map<string, User>();
   private googleUsers = new Map<string, string>(); // Google の sub → userId
   private sessions = new Map<string, SessionRow>();
@@ -116,6 +155,7 @@ export class MemoryStore {
   constructor(opts: StoreOptions = {}) {
     this.now = opts.now ?? (() => new Date());
     this.calcOptions = opts.calcOptions ?? {};
+    this.versionBase = opts.versionBase ?? 0;
     if (opts.seed ?? isMock()) this.seedDemo();
   }
 
@@ -237,6 +277,19 @@ export class MemoryStore {
     return this.statusOf(this.pairFor(caller, pairId));
   }
 
+  // 子ども: 自分の出した QR を取り消す（「やめる」）。waiting / claimed なら expired にして、以後その code は使えない。
+  // 保護者が読んだ後（claimed）でも取り消せる（子どもが「はい」を押していなければ、まだつながっていないため）。
+  // もう linked なら取り消せない（conflict）。expired・rejected は何もせずそのまま返す（送り直しても同じ結果）
+  pairCancel(caller: Session, pairId: string): PairStatus {
+    const p = this.pairFor(caller, pairId);
+    if (p.childUserId !== caller.userId)
+      throw new AppError("forbidden", "QR を出した子どもだけが取り消せます", "子どもの端末で操作してください");
+    if (p.state === "linked")
+      throw new AppError("conflict", "もう連携が確定しています", "つながりの状態を確かめてください");
+    if (p.state === "waiting" || p.state === "claimed") p.state = "expired";
+    return this.statusOf(p);
+  }
+
   // 保護者: QR の番号を送る。同じ QR を2回読んでも、2回目は使用済み（conflict）になる
   pairClaim(caller: Session, code: string): PairStatus {
     if (caller.role === "child")
@@ -280,9 +333,12 @@ export class MemoryStore {
       throw new AppError("conflict", "役割が合わないため連携できません", "QR をもう一度出してください");
     // 読み取りから確定までの間に、どちらかが別の相手と連携していないかを確かめ直す（Q2）
     if (this.hasChild(parentId) || this.hasParent(child.userId)) throw oneToOne();
-    // ここから先は失敗しない書き込みだけ（役割・つながり・設定の器・QR の使用済み）を、まとめて行う
+    // ここから先は失敗しない書き込みだけ（役割・呼び名・つながり・設定の器・QR の使用済み）を、まとめて行う
     parent.role = "parent";
     child.role = "child";
+    // QR を出すときに入れた呼び名（PairStart.name。省いたときは Google のアカウント名）を、子どもの名前として残す。
+    // なぜ: 保護者は「〇〇さん」を確かめて連携したので、連携の後の familyGet・linkStatus・authMe でも同じ名前を出すため
+    child.name = p.childName;
     this.links.add(`${parentId}|${child.userId}`);
     this.configFor(child.userId);
     p.state = "linked";
@@ -325,7 +381,8 @@ export class MemoryStore {
     let c = this.configs.get(childId);
     if (!c) {
       c = {
-        configVersion: 0,
+        // デモの子どもは起動時刻から数える（再起動しても版が戻らないように。startupVersionBase の説明）
+        configVersion: this.stableChildIds.has(childId) ? this.versionBase : 0,
         calculationVersion: 0,
         usualLimitMinutes: null,
         plan: null,
@@ -333,6 +390,8 @@ export class MemoryStore {
         blankPeriods: [],
         dailyLimits: [],
         excludedApps: [],
+        removedExcludedApps: [],
+        excludedAppsChangedVersion: 0,
         childAppliedVersion: null,
       };
       this.configs.set(childId, c);
@@ -591,11 +650,13 @@ export class MemoryStore {
 
   // ── C9: 対象外アプリ ──
 
-  excludedAppsView(childId: string) {
+  excludedAppsView(childId: string): ExcludedAppsView {
     const c = this.configFor(childId);
     return {
       childId,
       apps: c.excludedApps,
+      removedApps: c.removedExcludedApps,
+      appsChangedVersion: c.excludedAppsChangedVersion,
       configVersion: c.configVersion,
       childAppliedVersion: c.childAppliedVersion,
     };
@@ -606,13 +667,27 @@ export class MemoryStore {
       childId,
       expectedVersion,
       (d) => {
+        const version = expectedVersion + 1;
         const before = new Map(d.excludedApps.map((a) => [a.packageName, a]));
         const unique = new Map(apps.map((a) => [a.packageName, a]));
         // 前から対象外だったアプリは、入った版（sinceVersion）を変えない
-        d.excludedApps = [...unique.values()].map((a) => ({
+        const next = [...unique.values()].map((a) => ({
           ...a,
-          sinceVersion: before.get(a.packageName)?.sinceVersion ?? expectedVersion + 1,
+          sinceVersion: before.get(a.packageName)?.sinceVersion ?? version,
         }));
+        // 一覧が変わったときだけ「最後に変わった版」を進める（同じ中身の保存では、子どもの手元の一覧は変わらない）
+        if (appsKey(next) !== appsKey(d.excludedApps)) d.excludedAppsChangedVersion = version;
+        // 外したアプリを覚える（外した版が子どもに届くまで「反映待ち」と出すため）。もう一度対象外にしたら消す
+        const removedNow = d.excludedApps
+          .filter((a) => !unique.has(a.packageName))
+          .map((a) => ({ packageName: a.packageName, label: a.label, removedVersion: version }));
+        d.removedExcludedApps = [
+          ...d.removedExcludedApps.filter(
+            (r) => !unique.has(r.packageName) && !removedNow.some((x) => x.packageName === r.packageName),
+          ),
+          ...removedNow,
+        ];
+        d.excludedApps = next;
       },
       { recalc: false }, // 対象外アプリは日別上限の計算に使わない（C3 で除くだけ）。版は上がる（Q6）
     );
@@ -623,9 +698,10 @@ export class MemoryStore {
 
   // 子どもが呼んだときは、送られた knownVersion を「子どもの端末が使っている版」として覚える（Q6。親の「反映済み／反映待ち」に使う）
   configGet(caller: Session, childId: string, knownVersion?: number): ConfigResult {
-    const c = this.configFor(childId);
-    if (caller.role === "child" && knownVersion !== undefined && knownVersion <= c.configVersion)
-      c.childAppliedVersion = knownVersion;
+    const before = this.configFor(childId);
+    if (caller.role === "child" && knownVersion !== undefined && knownVersion <= before.configVersion)
+      before.childAppliedVersion = knownVersion;
+    const c = this.topUpDailyLimits(childId);
     if (knownVersion === c.configVersion) return { changed: false, configVersion: c.configVersion };
     const snapshot: ConfigSnapshot = structuredClone({
       childId,
@@ -640,6 +716,27 @@ export class MemoryStore {
       generatedAt: this.now().toISOString(),
     });
     return { changed: true, snapshot };
+  }
+
+  // 日別上限の残り（今日から先の日数）が LIMIT_TOPUP_MIN_DAYS を切っていたら、今日から LIMIT_HORIZON_DAYS 日先まで作り足す。
+  // 作り直しは Q4 と同じ（昨日以前は変えない）。中身が変わったときだけ版を 1 上げる（Q6）。変わらなければ何もしない
+  // （通常上限も計画もない子どもは作れる日がないので、毎回の取得で版が上がり続けることはない）。
+  // 注意: 子どもの取得で版が上がるので、保護者がその前に読んだ版で保存すると conflict になる（画面は読み直して保存し直す）
+  private topUpDailyLimits(childId: string): ChildConfig {
+    const current = this.configFor(childId);
+    const today = this.today();
+    const last = current.dailyLimits.at(-1)?.date;
+    if (last && last >= addDays(today, LIMIT_TOPUP_MIN_DAYS)) return current;
+    const draft: ChildConfig = structuredClone(current);
+    try {
+      this.recalculate(draft);
+    } catch {
+      return current; // 計算できない（保存したときは計算できた入力なので、ふつうは起きない）→ 前の正式な版を保つ
+    }
+    if (JSON.stringify(draft.dailyLimits) === JSON.stringify(current.dailyLimits)) return current;
+    draft.configVersion = current.configVersion + 1;
+    this.configs.set(childId, draft);
+    return draft;
   }
 
   // ── C8: 利用記録 ──
@@ -666,7 +763,7 @@ export class MemoryStore {
     const appliedDates: string[] = [];
     for (const day of days) {
       const current = byDate.get(day.date);
-      if (!current || Date.parse(day.measuredAt) > Date.parse(current.measuredAt)) {
+      if (!current || measuredMs(day.measuredAt) > measuredMs(current.measuredAt)) {
         byDate.set(day.date, day);
         appliedDates.push(day.date);
       }
@@ -709,7 +806,7 @@ export class MemoryStore {
     const childId = mockSessions["mock-google-child"].userId;
     this.links.add(`${parent.userId}|${childId}`);
     const today = this.today();
-    const v1 = this.usualLimitSave(childId, 0, 180);
+    const v1 = this.usualLimitSave(childId, this.configFor(childId).configVersion, 180);
     // 見本として2週間前に始まった計画を入れる（画面の確認用。本物の保存では開始日は今日以降。Q14）
     const v2 = this.planSave(
       childId,
@@ -746,7 +843,8 @@ export class MemoryStore {
 const g = globalThis as unknown as { __slopeStore?: MemoryStore };
 
 export function getStore(): MemoryStore {
-  g.__slopeStore ??= new MemoryStore();
+  // 手元の開発サーバでは、デモの子どもの設定の版を起動時刻から数える（再起動で版が戻らないように）
+  g.__slopeStore ??= new MemoryStore({ versionBase: startupVersionBase() });
   return g.__slopeStore;
 }
 

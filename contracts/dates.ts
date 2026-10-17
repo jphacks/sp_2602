@@ -47,3 +47,32 @@ export function mondayOf(date: string): string {
 export function weekdayJa(date: string): string {
   return "日月火水木金土"[new Date(toMs(date)).getUTCDay()] ?? "";
 }
+
+// ── 画面に出す日付の文言（アプリの日付の文言はここだけで作る。日付の文字列をそのまま読むので、端末の時計の地域に左右されない）──
+
+const ymd = (date: string) => {
+  const [y, m, d] = date.split("-").map(Number);
+  return { y: y ?? 0, m: m ?? 0, d: d ?? 0 };
+};
+
+// "2026-10-28" → 「10月28日（水）」（Figma 子01・子02・子10・親01 の形）
+export function formatDateJa(date: string): string {
+  const { m, d } = ymd(date);
+  return `${m}月${d}日（${weekdayJa(date)}）`;
+}
+
+// "2026-10-28" → 「2026年10月28日（水）」（Figma 子03・子05・親02 の入力欄の形）
+export function formatDateLongJa(date: string): string {
+  return `${ymd(date).y}年${formatDateJa(date)}`;
+}
+
+// "2026-10-12" → 「10/12」（グラフの下の日付・期間の帯）
+export function formatSlashDate(date: string): string {
+  const { m, d } = ymd(date);
+  return `${m}/${d}`;
+}
+
+// "2026-10-15" → 「10/15（木）」（親09 の「今日 10/15（木）の合計」）
+export function formatSlashDateWeekday(date: string): string {
+  return `${formatSlashDate(date)}（${weekdayJa(date)}）`;
+}

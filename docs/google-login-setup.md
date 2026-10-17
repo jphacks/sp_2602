@@ -26,9 +26,11 @@ Slope は、保護者も子どもも Google アカウントでログインしま
 3. 「クライアント」→「クライアントを作成」→ 種類「**ウェブ アプリケーション**」、名前「Slope server」。
    - できたクライアント ID（`xxxx.apps.googleusercontent.com`）を控える。シークレットは使わない。
 4. もう一度「クライアントを作成」→ 種類「**Android**」、名前「Slope Android (debug)」。
-   - パッケージ名: `app.json` の `android.package` の値（**決めてから登録する。あとで変えると登録し直し**）
-   - SHA-1 証明書フィンガープリント（この PC の開発用の署名）:
-     `FB:6E:3A:CA:EA:04:BC:B1:41:71:04:CF:6E:D5:C3:2B:C0:88:FC:D9`
+   - パッケージ名: `com.quedotcom.androidslope`（`app.json` の `android.package` と同じ。**変えると登録し直し**）
+   - SHA-1 証明書フィンガープリント（Expo が作る開発用の鍵 `android/app/debug.keystore` の署名）:
+     `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
+     （`npx expo prebuild` が毎回同じ鍵を置くので、どの PC で作っても同じ値になる。
+     `%USERPROFILE%\.android\debug.keystore`（PC ごとの鍵）の値ではないので注意）
 5. リポジトリの直下の `.env` に、3 で控えた Web のクライアント ID を2行足す。
 
    ```
@@ -41,14 +43,16 @@ Slope は、保護者も子どもも Google アカウントでログインしま
 
 ## 気をつけること
 
-- **署名は PC ごとに違う。** 別の PC でアプリを作って入れるなら、その PC の SHA-1 で Android のクライアントをもう1つ登録する。
-  SHA-1 の調べ方（Android Studio に付いている keytool を使う）:
+- **開発版の署名はどの PC でも同じ**（上の `5E:8F:…:F6:25`）。端末に入っているアプリの署名を確かめるには、
+  端末から APK を取り出して Android SDK の apksigner で見る:
 
   ```
-  "C:\Program Files\Android\Android Studio\jbr\bin\keytool" -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androiddebugkey -storepass android -keypass android
+  adb shell pm path com.quedotcom.androidslope
+  adb pull <上で出たパス> slope.apk
+  "%LOCALAPPDATA%\Android\Sdk\build-tools\<版>\apksigner.bat" verify --print-certs slope.apk
   ```
 
-  出力の `SHA1:` の行を使う。
+  出力の `SHA-1 digest` が登録した値と同じならよい。
 - 発表用に **release 版**（別の鍵で署名）を作るときも、その鍵の SHA-1 で Android のクライアントを登録する。
 - 「DEVELOPER_ERROR」でログインが失敗するときは、ほぼ「パッケージ名か SHA-1 が登録と合っていない」か「Web のクライアント ID が違う」。
 - クライアント ID は秘密ではないが、`.env` は Git に入れない（`.gitignore` 済み）。

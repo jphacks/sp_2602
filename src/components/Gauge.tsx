@@ -1,20 +1,27 @@
 // 円形ゲージ（子02 の「今日の使用量」。240×240・中央に数字）。percent は 0〜100 の使用済みの割合（C3 の displayUsedPercent）。
 // 値が分からないとき（取得不可）は percent に null を渡すと「--」を出す（0% と表示しない）。
 //   <Gauge percent={calc.state === "ok" ? calc.displayUsedPercent : null} caption="使いました" />
+// 中央の数字の色は valueTone で選べる（既定は弧と同じ色。Figma 子02 は黒 = "default"）
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { AppText } from "./AppText";
 
-type Props = { percent: number | null; caption?: string; tone?: "primary" | "danger" };
+type Props = {
+  percent: number | null;
+  caption?: string;
+  tone?: "primary" | "danger"; // 弧の色
+  valueTone?: "primary" | "danger" | "default"; // 中央の数字と「％」の色（省くと弧と同じ色）
+};
 
-export function Gauge({ percent, caption, tone = "primary" }: Props) {
+export function Gauge({ percent, caption, tone = "primary", valueTone }: Props) {
   const size = tokens.size.ring;
   const stroke = tokens.size.ringStroke;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const p = percent == null ? 0 : Math.min(100, Math.max(0, percent));
   const color = tone === "danger" ? tokens.color.danger : tokens.color.primary;
+  const numberTone = valueTone ?? tone;
   return (
     <View
       style={styles.box}
@@ -41,10 +48,10 @@ export function Gauge({ percent, caption, tone = "primary" }: Props) {
       </Svg>
       <View style={styles.center}>
         <View style={styles.row}>
-          <AppText variant="ring" tone={tone === "danger" ? "danger" : "primary"}>
+          <AppText variant="ring" tone={numberTone}>
             {percent == null ? "--" : Math.round(p)}
           </AppText>
-          <AppText variant="title" tone="primary">
+          <AppText variant="title" tone={numberTone}>
             ％
           </AppText>
         </View>

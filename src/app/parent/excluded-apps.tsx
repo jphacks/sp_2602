@@ -3,6 +3,7 @@
 //         保存は call("excludedAppsSave", { expectedVersion, apps: 全件 })。確定を待ってから「保存しました」。
 // 行き先: 「←」→ 親04 設定（Figma には戻るボタンがないが、タブの外の画面なので戻れるようにした）。
 // 「反映済み／反映待ち」は子どもの端末が使っている版と、そのアプリが変わった版の比較（Q6。excluded.ts）。
+//   どちらの版もサーバの応答（sinceVersion・removedApps・appsChangedVersion）にあるので、開き直しても正しく出る。
 // TODO(保留): Q15 候補の一覧（子どもの端末のアプリ一覧）をどこから得るかは保留。今は MOCK の候補（mockExcludedAppCandidates）を並べる。
 import type { ApiError } from "@contracts/errors";
 import { mockExcludedAppCandidates } from "@contracts/fixtures";
@@ -13,7 +14,14 @@ import { useCallback, useState } from "react";
 import { StyleSheet, Switch, View } from "react-native";
 import { AppText, Banner, Button, Chip, ErrorBanner, Screen, StateView } from "@/components";
 import { ChildGate } from "@/components/parent/data";
-import { appsToSave, type ExcludedRow, excludedRows, hasUnsaved, removedApps } from "@/components/parent/excluded";
+import {
+  appsToSave,
+  type ExcludedRow,
+  excludedListStatus,
+  excludedRows,
+  hasUnsaved,
+  removedVersions,
+} from "@/components/parent/excluded";
 import { AppInitial } from "@/components/parent/parts";
 import { call, errorOf } from "@/lib/api";
 import { useParentData } from "@/lib/parent-data";
@@ -39,7 +47,6 @@ function ExcludedBody({ childId }: { childId: string }) {
   const [draft, setDraft] = useState<Set<string> | null>(null); // スイッチが ON のアプリ
   // 保存するときの expectedVersion。スイッチを読み込んだときの版（ほかの端末が先に変えていたら conflict で気づける）
   const [baseVersion, setBaseVersion] = useState<number | null>(null);
-  const [removedAt, setRemovedAt] = useState<Map<string, number>>(() => new Map());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [savedOk, setSavedOk] = useState(false);
@@ -77,15 +84,8 @@ function ExcludedBody({ childId }: { childId: string }) {
     setSaveError(null);
     try {
       const res = await call("excludedAppsSave", { childId, expectedVersion: baseVersion, apps });
-      // 外したアプリは、外した版を覚えておく（その版が子どもに届くまで「反映待ち」と出すため。excluded.ts の TODO）
-      const removed = removedApps(view.apps, apps);
-      setRemovedAt((m) => {
-        const next = new Map(m);
-        for (const p of removed) next.set(p, res.configVersion);
-        for (const a of apps) next.delete(a.packageName);
-        return next;
-      });
-      // 確定した結果で画面を作り直す（子どもの端末の版も取り直す）
+      // 確定した結果で画面を作り直す（外したアプリの版・一覧が変わった版・子どもの端末の版も取り直す）。
+      // 取り直せなかったときは保存の結果だけで作る（外したアプリの版は分からないので、次の取り直しまで前の値のまま）
       const v = await call("excludedAppsGet", { childId }).catch(() => null);
       setView(v ?? { ...view, apps: res.apps, configVersion: res.configVersion });
       setDraft(new Set(res.apps.map((a) => a.packageName)));
@@ -145,13 +145,17 @@ function ExcludedBody({ childId }: { childId: string }) {
             />
           )}
           <Banner icon="edit" message="選んだアプリは、使用時間にふくまれなくなります。変更できるのは保護者だけです" />
-          <AppText variant="label">子どものアプリ</AppText>
+          <View style={styles.listHead}>
+            <AppText variant="label">子どものアプリ</AppText>
+            {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
+            {!loadError && <ListStatus status={excludedListStatus(view)} />}
+          </View>
           {excludedRows({
             candidates: mockExcludedAppCandidates,
             saved: view.apps,
             draft,
             childAppliedVersion: view.childAppliedVersion,
-            removedAt,
+            removedAt: removedVersions(view.removedApps),
           }).map((r) => (
             <AppRow key={r.packageName} row={r} onToggle={(on) => toggle(r.packageName, on)} disabled={saving} />
           ))}
@@ -165,6 +169,14 @@ function ExcludedBody({ childId }: { childId: string }) {
 }
 
 const statusText = { applied: "反映済み", pending: "反映待ち", unsaved: "まだ保存していません" } as const;
+
+function ListStatus({ status }: { status: "applied" | "pending" }) {
+  return status === "applied" ? (
+    <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
+  ) : (
+    <Chip tone="warning" icon="sync" label="子どものスマホに反映待ち" />
+  );
+}
 
 function AppRow({ row, onToggle, disabled }: { row: ExcludedRow; onToggle: (on: boolean) => void; disabled: boolean }) {
   return (
@@ -208,5 +220,12 @@ const styles = StyleSheet.create({
     borderColor: tokens.color.line,
   },
   middle: { flex: 1, gap: tokens.space[1] },
+  listHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: tokens.space[2],
+  },
   chipRow: { flexDirection: "row" },
 });

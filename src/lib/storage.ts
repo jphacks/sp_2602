@@ -1,5 +1,6 @@
 // 端末に残す小さなデータの置き場（AsyncStorage）。アプリを閉じても消えない。
 // 置くもの: 合言葉とログインした人（session.tsx）・C7 の設定のキャッシュ（config-cache.ts）・C8 の送信待ち（usage-outbox.ts）・MOCK のログインの端末番号（google.ts）。
+// ログアウトでは、合言葉・設定のキャッシュ・その人の送信待ちを消す（別の人で入り直したときに混ざらないように。sign-out.ts）。
 // 読むときは Zod で形を確かめ、壊れていたら「ない」として扱う（古い版のアプリが書いた形でも落ちないように）。
 // テストでは tests/stubs/async-storage.ts（メモリ上）に置き換わる（vitest.config.ts）。
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -18,6 +19,7 @@ export const appStorage: KeyValueStorage = AsyncStorage;
 export const storageKeys = {
   session: "slope.session", // ログインした人（Session。合言葉を含む）
   config: (childId: string) => `slope.config.${childId}`, // C7 の最後の正常なスナップショット
+  configIndex: "slope.config-index", // 設定のキャッシュを持っている子どもの一覧（ログアウトで全部消すため）
   outbox: "slope.usage-outbox", // C8 の送信待ち
   mockDeviceId: "slope.mock-device-id", // MOCK の「はじめての人」をこの端末だけの人にする番号
 } as const;
@@ -38,7 +40,9 @@ export async function writeJson(storage: KeyValueStorage, key: string, value: un
   await storage.setItem(key, JSON.stringify(value));
 }
 
-// ログアウトのときに消すもの（送信待ちの利用記録は消さない: 子どもの記録を失わないため。次にログインした同じ子どもが送る）
+// 合言葉とログインした人を消す（ログアウト・合言葉が無効になったとき）。
+// 設定のキャッシュと送信待ちは、ここでは消さない（合言葉の期限切れでは、同じ人がまたログインして送るため）。
+// 自分でログアウトしたときは sign-out.ts の clearLocalDataFor がそれらも消す
 export async function clearSessionData(storage: KeyValueStorage = appStorage): Promise<void> {
   await storage.removeItem(storageKeys.session);
 }

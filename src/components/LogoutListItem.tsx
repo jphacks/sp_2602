@@ -24,16 +24,18 @@ export function LogoutListItem() {
   };
   return (
     <>
-      <ListItem icon="logout" title="ログアウト" onPress={() => setOpen(true)} />
+      <ListItem icon="logout" title="ログアウト" strong onPress={() => setOpen(true)} />
       <Dialog
         visible={open}
         title="ログアウトしますか？"
-        body="もう一度使うときは、Google でログインし直します。"
+        body="ログアウトすると、もう一度ログインが必要です。"
+        centered
         onClose={() => setOpen(false)}
         actions={
+          // Figma 親07: 枠付きの丸いボタンが2つ横に並ぶ（どちらも同じ見た目）
           <>
-            <Button variant="text" label="キャンセル" onPress={() => setOpen(false)} disabled={busy} />
-            <Button variant="text" label="ログアウト" danger onPress={logout} loading={busy} />
+            <Button variant="pill" label="キャンセル" onPress={() => setOpen(false)} disabled={busy} />
+            <Button variant="pill" label="ログアウト" onPress={logout} loading={busy} />
           </>
         }
       />

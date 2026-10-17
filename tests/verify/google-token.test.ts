@@ -111,6 +111,19 @@ describe("V: Google の ID トークンの検証", () => {
     expect((await signIn(await token({ sub: null }))).status).toBe(401);
   });
 
+  it("期限（exp）がないトークンは 401（jose は exp がないと期限なしとして通すので、requiredClaims で必須にしている）", async () => {
+    const noExp = await new SignJWT({ name: "グーグルの人" })
+      .setProtectedHeader({ alg: "RS256", kid: "k1" })
+      .setIssuer("https://accounts.google.com")
+      .setAudience(CLIENT_ID)
+      .setIssuedAt(nowSec() - 60)
+      .setSubject("google-sub-noexp")
+      .sign(googleKey);
+    const res = await signIn(noExp);
+    expect(res.status).toBe(401);
+    expect(await codeOf(res)).toBe("unauthorized");
+  });
+
   it("alg: none（署名なし）のトークンは 401", async () => {
     const enc = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
     const t = `${enc({ alg: "none", typ: "JWT" })}.${enc({ sub: "x", aud: CLIENT_ID, iss: "https://accounts.google.com", exp: nowSec() + 999 })}.`;

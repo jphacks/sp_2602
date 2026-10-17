@@ -1,6 +1,8 @@
 // 日付の入力欄。押すと Android の日付の選択（@react-native-community/datetimepicker）を開く。値は "YYYY-MM-DD" の文字列でやり取りする。
 // 日付は日本時間の「その日」として扱う（contracts/dates.ts と同じ約束。端末の時計の地域に左右されないよう、正午で受け渡す）。
+// 表示は年つきの「2026年10月28日（水）」（Figma 子03・子05・親02。文言は contracts/dates.ts の formatDateLongJa）。
 //   <DateField label="開始日" value={startDate} onChange={setStartDate} />
+import { formatDateLongJa } from "@contracts/dates";
 import { tokens } from "@contracts/tokens";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -25,12 +27,6 @@ const toLocalNoon = (s: string) => {
 const fromLocal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-// 「10月28日（水）」の形
-export function formatDateJa(s: string): string {
-  const d = toLocalNoon(s);
-  return `${d.getMonth() + 1}月${d.getDate()}日（${"日月火水木金土"[d.getDay()]}）`;
-}
-
 export function DateField({ label, value, onChange, minimumDate, maximumDate, error }: Props) {
   const open = () =>
     DateTimePickerAndroid.open({
@@ -47,14 +43,14 @@ export function DateField({ label, value, onChange, minimumDate, maximumDate, er
       <Pressable
         onPress={open}
         accessibilityRole="button"
-        accessibilityLabel={`${label}${value ? `、${formatDateJa(value)}` : "、未入力"}`}
+        accessibilityLabel={`${label}${value ? `、${formatDateLongJa(value)}` : "、未入力"}`}
         style={[fieldStyles.field, error ? fieldStyles.fieldError : null]}
       >
         <View style={styles.text}>
           <AppText variant="caption" tone={error ? "danger" : "muted"}>
             {label}
           </AppText>
-          <AppText tone={value ? "default" : "muted"}>{value ? formatDateJa(value) : "日付を選ぶ"}</AppText>
+          <AppText tone={value ? "default" : "muted"}>{value ? formatDateLongJa(value) : "日付を選ぶ"}</AppText>
         </View>
         <Icon name="event" color={tokens.color.muted} />
       </Pressable>

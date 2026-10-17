@@ -14,8 +14,9 @@ export function ThemeDialog({ visible, onClose }: { visible: boolean; onClose: (
     <Dialog
       visible={visible}
       title="テーマカラーの変更"
+      centered
       onClose={onClose}
-      actions={<Button variant="text" label="OK" onPress={onClose} />}
+      actions={<Button variant="pill" label="OK" onPress={onClose} />}
     >
       <View style={styles.list} accessibilityRole="radiogroup">
         {THEME_OPTIONS.map((o) => {

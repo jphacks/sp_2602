@@ -62,28 +62,8 @@ export function WeekBars({ bars, accessibilityLabel }: Props) {
   );
 }
 
-// 凡例（共通の Legend と同じ見た目で、幅が足りないときは折り返す。親03 は凡例が3つで1行に入らないため）
-export function BarLegend({ items }: { items: { label: string; tone: "track" | "muted" | "strong" }[] }) {
-  return (
-    <View style={styles.legend}>
-      {items.map((i) => (
-        <View key={i.label} style={styles.legendItem}>
-          <View style={[styles.swatch, i.tone === "track" ? styles.swatchTrack : fills[i.tone]]} />
-          <AppText variant="caption" tone="muted">
-            {i.label}
-          </AppText>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   wrap: { gap: tokens.space[2] },
-  legend: { flexDirection: "row", flexWrap: "wrap", columnGap: tokens.space[3], rowGap: tokens.space[1] },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
-  swatch: { width: tokens.size.legendSwatch, height: tokens.size.legendSwatch, borderRadius: tokens.radius.sm },
-  swatchTrack: { backgroundColor: tokens.color.track },
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
   col: { flex: 1, alignItems: "center", gap: tokens.space[1] },
   area: { height: tokens.size.chartHeight, justifyContent: "flex-end", alignItems: "center" },

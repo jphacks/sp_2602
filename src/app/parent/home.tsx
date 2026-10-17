@@ -3,23 +3,12 @@
 //         次のテスト・通常上限・空白期間は useParentData().config（C7 の設定の組）。親の端末の使用時間は使わない（MVP_SPEC 5.2）。
 // 行き先: 「詳しく見る ›」→ /parent/app-usage（親09）、通常上限が未設定なら「1日の上限を決める」→ /pair/usual-limit（Q7）。
 // 記録なし・0 分・取得不可を区別する（C6）。取れなかった値を 0 分と出さない。空白期間の日は「制限なし」（Q7）。
-import { addDays, mondayOf, todayString } from "@contracts/dates";
+import { addDays, formatDateJa, mondayOf, todayString } from "@contracts/dates";
 import type { ConfigSnapshot } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import {
-  AppText,
-  Banner,
-  Button,
-  Card,
-  formatDateJa,
-  Icon,
-  Legend,
-  ProgressBar,
-  Screen,
-  StateView,
-} from "@/components";
+import { AppText, Banner, Button, Card, Icon, Legend, ProgressBar, Screen, StateView } from "@/components";
 import { homeWeekBars } from "@/components/parent/charts";
 import { ChildGate, type UsageState, useUsage } from "@/components/parent/data";
 import { timeJst } from "@/components/parent/format";

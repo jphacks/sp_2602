@@ -1,17 +1,17 @@
 // 子どもの画面（子01・子02・子11・子07）の表示の決め方のテスト（src/components/child/child-view.ts）。
 // C3 の計算（calcUsage）から実際に結果を作り、46%・100%・制限なし・上限未設定・取得不可・権限なしで期待どおりの表示になるか、
 // 取れない値を 0% と出していないかを確かめる。
+// 日付の文言は contracts/dates.ts の1か所にまとめた（前は child-view.ts の monthDayJa・slashDate）。期待値はそのまま
+import { formatDateJa as monthDayJa, formatSlashDate as slashDate } from "@contracts/dates";
 import type { NativeUsageResult } from "@contracts/native";
 import type { ConfigSnapshot } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
 import {
   dayCalc,
-  monthDayJa,
   nextTestView,
   openFirstApp,
   paceView,
   shouldOpenLimitScreen,
-  slashDate,
   staleNotice,
   testCountLabel,
   usageView,

@@ -6,7 +6,7 @@
 //   - 取れなかった値を 0% と出さない（未設定・制限なし・取得不可・権限なしを別の表示にする。MVP_SPEC 5.3・AC-09）
 //   - 文言は責めない言い方にする（「ちょうどいいペース！」「続きはあしたにしよう」）
 // React Native を import しない（Vitest で Node のまま動かすため）。
-import { addDays, mondayOf, weekdayJa } from "@contracts/dates";
+import { addDays, formatDateJa, formatSlashDate, mondayOf, weekdayJa } from "@contracts/dates";
 import type { NativeUsageResult } from "@contracts/native";
 import type { BlankPeriod, ConfigSnapshot } from "@contracts/schemas";
 import type { ConfigState } from "@/lib/config-cache";
@@ -14,19 +14,7 @@ import { calcUsage, limitForDate, type nextTest, type UsageCalc } from "@/lib/us
 
 type NextTest = ReturnType<typeof nextTest>;
 
-// ── 日付の文言 ─────────────────────────────────────────
-
-// "2026-10-28" → 「10月28日（水）」（Figma 子01・子02 の形。日本時間の日付文字列をそのまま読む）
-export function monthDayJa(date: string): string {
-  const [, m, d] = date.split("-").map(Number);
-  return `${m}月${d}日（${weekdayJa(date)}）`;
-}
-
-// "2026-10-12" → 「10/12」（子02 の棒グラフの下の日付）
-export function slashDate(date: string): string {
-  const [, m, d] = date.split("-").map(Number);
-  return `${m}/${d}`;
-}
+// 日付の文言（「10月28日（水）」「10/12」）は contracts/dates.ts の formatDateJa・formatSlashDate を使う（アプリで1か所）
 
 // ── 子01・子11「次のテスト」のカード ──────────────────────────
 
@@ -43,9 +31,9 @@ export function nextTestView(config: ConfigState | null, test: NextTest): NextTe
   if (config.status === "unavailable")
     return { kind: "unknown", headline: "--", detail: "テストの予定を取得できませんでした" };
   if (!test) return { kind: "none", headline: "予定なし", detail: "テストの日程は「日程登録」から入れられます" };
-  const headline = `${monthDayJa(test.startDate)} ${test.name}`;
+  const headline = `${formatDateJa(test.startDate)} ${test.name}`;
   if (test.ongoing) {
-    const detail = test.endDate > test.startDate ? `テスト中（${monthDayJa(test.endDate)}まで）` : "テスト中";
+    const detail = test.endDate > test.startDate ? `テスト中（${formatDateJa(test.endDate)}まで）` : "テスト中";
     return { kind: "test", headline, detail, ongoing: true };
   }
   return { kind: "test", headline, detail: `あと${test.daysUntil}日`, ongoing: false };
@@ -219,7 +207,7 @@ export function weekBars(today: string, days: Readonly<Record<string, UsageCalc 
     const base = {
       key: date,
       label: weekdayJa(date),
-      sublabel: slashDate(date),
+      sublabel: formatSlashDate(date),
       capacity: 100,
       highlight: date === today,
     };
@@ -258,12 +246,7 @@ export function shouldOpenLimitScreen(calc: UsageCalc | null, today: string, sho
 
 // ── 子11「お勧めアプリはこちらです」 ──────────────────────────
 
-// TODO(未決): 上限に達したとき誘導する学習用アプリの一覧（C4 の実機検証で決める。src/lib/child-data.tsx の LEARNING_PACKAGES と
-//   同じ一覧にしたい）。今は仮に、よく使われる学習用のアプリを上から順に試す
-export const RECOMMENDED_APP_PACKAGES: readonly string[] = [
-  "com.google.android.apps.classroom", // Google Classroom
-  "com.duolingo", // Duolingo
-];
+// 開くアプリの一覧は LEARNING_PACKAGES（src/lib/usage-calc.ts。C4 で Kotlin に渡す学習用アプリと同じ1つの一覧）
 
 // 一覧の上から順に開けるか試す。どれかが開けたら true（Kotlin がない・どれも入っていないときは false）
 export function openFirstApp(packages: readonly string[], open: (packageName: string) => boolean): boolean {

@@ -218,6 +218,8 @@ export const fixtures = {
   excludedAppsGet: {
     childId: "demo-child",
     apps: excludedApps,
+    removedApps: [],
+    appsChangedVersion: 3, // 英単語カードを足した版
     configVersion: 3,
     childAppliedVersion: 2, // 英単語カード（sinceVersion 3）は「反映待ち」
   } satisfies Res<"excludedAppsGet">,

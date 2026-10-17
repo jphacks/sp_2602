@@ -3,14 +3,16 @@
 //   - 起動時は保存した合言葉で authMe を呼び、サーバで確かめる（役割が変わっていれば新しい役割になる）
 //       401（合言葉が無効）→ 保存を消してログアウト状態
 //       通信できない → 保存してある Session で続ける（offline: true。子どもの端末が電波なしでも使えるように）
-//   - ログアウトは保存を消し、Google のログインも外す
+//   - ログアウトは保存を消し、Google のログインも外す。設定のキャッシュとその人の送信待ちも消す（sign-out.ts。
+//     別の人で入り直したときに、前の人の設定やデータが混ざらないように）
 // 画面では: const { state, signIn, signOut, refresh } = useSession();
 //   state.status: "checking"（確かめ中）/ "signedOut"（ログインしていない）/ "signedIn"（session あり）
 import type { ApiError } from "@contracts/errors";
 import { Session } from "@contracts/schemas";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiCallError, call, errorOf, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
+import { clearLocalDataFor } from "./sign-out";
 import { appStorage, clearSessionData, readJson, storageKeys, writeJson } from "./storage";
 
 export type SessionState =
@@ -32,6 +34,9 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SessionState>({ status: "checking" });
+  // 今ログインしている人（ログアウトのときに、その人の送信待ちを消すため）
+  const current = useRef<Session | null>(null);
+  current.current = state.status === "signedIn" ? state.session : null;
 
   const forget = useCallback(async (error: ApiError | null) => {
     setSessionToken(null);
@@ -89,7 +94,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    const who = current.current;
     await signOutGoogle();
+    if (who) await clearLocalDataFor(who.userId).catch(() => undefined);
     await forget(null);
   }, [forget]);
 

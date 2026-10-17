@@ -4,7 +4,7 @@
 //   - 表示の文言（「10月28日（水）〜10月30日（金）」・完了のダイアログ・削除の確認・反映済み／反映待ち）
 //   - 保存の失敗の出し分け（conflict は読み込み直しへ・bad_request は入力を残す・not_found は一覧へ）
 //   - 一覧の取得結果の状態（取れた・古い・取得不可）の移り変わり
-import { weekdayJa } from "@contracts/dates";
+import { formatDateJa, formatDateLongJa } from "@contracts/dates";
 import type { ApiError } from "@contracts/errors";
 import type { Role, TestPeriod } from "@contracts/schemas";
 
@@ -92,28 +92,15 @@ export function periodTexts(kind: PeriodKind, viewer: Role) {
 
 // ── 日付の文言 ──────────────────────────────────────────────
 
-const parts = (date: string) => {
-  const [y, m, d] = date.split("-").map(Number);
-  return { y: y ?? 0, m: m ?? 0, d: d ?? 0 };
-};
-
-// 「10月28日（水）」
-export function formatDateShort(date: string): string {
-  const { m, d } = parts(date);
-  return `${m}月${d}日（${weekdayJa(date)}）`;
-}
-
-// 「2026年10月28日（水）」（Figma 子03 の入力欄の形）
-export function formatDateLong(date: string): string {
-  return `${parts(date).y}年${formatDateShort(date)}`;
-}
+// 1日ずつの文言（「10月28日（水）」「2026年10月28日（水）」）は contracts/dates.ts の formatDateJa・formatDateLongJa（アプリで1か所）
+const yearOf = (date: string) => date.slice(0, 4);
 
 // 期間の文言。1日だけなら「10月28日（水）」、複数日なら「10月28日（水）〜10月30日（金）」。
 // 年をまたぐ・今年でない期間は、取り違えないよう年も付ける（today を渡したときだけ「今年か」を見る）
 export function formatPeriodRange(startDate: string, endDate: string, today?: string): string {
-  const sy = parts(startDate).y;
-  const withYear = sy !== parts(endDate).y || (today !== undefined && sy !== parts(today).y);
-  const f = withYear ? formatDateLong : formatDateShort;
+  const sy = yearOf(startDate);
+  const withYear = sy !== yearOf(endDate) || (today !== undefined && sy !== yearOf(today));
+  const f = withYear ? formatDateLongJa : formatDateJa;
   return startDate === endDate ? f(startDate) : `${f(startDate)}〜${f(endDate)}`;
 }
 

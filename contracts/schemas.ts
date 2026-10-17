@@ -18,8 +18,11 @@ export const IsoDate = z
   );
 export type IsoDate = z.infer<typeof IsoDate>;
 
-// 日時（ISO 8601。例 2026-10-17T10:00:00.000Z）
-export const IsoDateTime = z.string().min(1);
+// 日時（ISO 8601・タイムゾーンつき。例 2026-10-17T10:00:00.000Z・2026-10-17T19:00:00+09:00）。
+// 本当の日時だけを受け付ける（なぜ: 前は空でない文字列なら何でも通り、"abc" のような measuredAt が保存されると
+// Date.parse が NaN になって「新しい測定が勝つ」の比較が必ず false になり、その日の記録が二度と更新されなかったため）。
+// タイムゾーンのない日時（"2026-10-17T10:00:00"）は、端末の地域によって意味が変わるので受け付けない
+export const IsoDateTime = z.iso.datetime({ offset: true });
 
 // 1日の分数（0〜1440 の整数）。0 分は「有効な上限」（MVP_SPEC 4.2: 0 分上限は到達扱い）
 export const Minutes = z.number().int().min(0).max(1440);
@@ -69,7 +72,7 @@ export type Child = z.infer<typeof Child>;
 // ── C1: QR の紐づけ（作り直し前の S2 と同じ流れ）──────────────────
 // 子どもの端末が QR を出す → 保護者が読む → 子どもが「はい」で確定 → サーバが D2 に保存してから linked を返す
 // 流れ: waiting（QR を出して待つ）→ claimed（保護者が読んだ。子どもの確認待ち）→ linked（紐づいた）
-//       途中で expired（10分たった・出し直しで無効）・rejected（子どもが「いいえ」）。linked で QR を出した人は child、読んだ人は parent になる
+//       途中で expired（10分たった・出し直しで無効・子どもが「やめる」で取り消した。pairCancel）・rejected（子どもが「いいえ」）。linked で QR を出した人は child、読んだ人は parent になる
 // QR は10分・1回だけ・出し直したら前の QR は無効（Q10）。MVP は親1人↔子1人で、2人目の紐づけは conflict（Q2）
 export const PairState = z.enum(["waiting", "claimed", "linked", "expired", "rejected"]);
 export type PairState = z.infer<typeof PairState>;
@@ -328,12 +331,24 @@ export type ExcludedAppInput = z.infer<typeof ExcludedAppInput>;
 export const ExcludedApp = ExcludedAppInput.extend({ sinceVersion: ConfigVersion });
 export type ExcludedApp = z.infer<typeof ExcludedApp>;
 
+// 対象外から外したアプリ（親16 で「外した」ことが子どもの端末に届いたかを出すため）。removedVersion は外した設定の版。
+// もう一度対象外にしたら、この一覧からは消える
+export const RemovedExcludedApp = ExcludedAppInput.extend({ removedVersion: ConfigVersion });
+export type RemovedExcludedApp = z.infer<typeof RemovedExcludedApp>;
+
 // 対象外アプリの取得結果（親は編集用、子どもは閲覧用）
+// 「反映済み／反映待ち」（Q6・Figma 親16）はサーバの値だけで決められるようにする（なぜ: 画面を開き直しても正しく出すため。
+//   前は「外したアプリ」の版を画面が覚えていたので、開き直すと分からなくなった）:
+//   appsChangedVersion : 対象外アプリの一覧（アプリの組・名前）が最後に変わった設定の版。一度も変わっていなければ 0。
+//                        childAppliedVersion がこれ以上なら、一覧の全体が子どもの端末に届いている
+//   apps[].sinceVersion: そのアプリが対象外になった版 / removedApps[].removedVersion: そのアプリを外した版
 // TODO(保留): Q15 親が選ぶ候補（子どもの端末のアプリ一覧）をどこから得るかは保留。サーバへ送る API は作らない。
 //   親16 の候補は contracts/fixtures.ts の mockExcludedAppCandidates（MOCK の固定値）を使う
 export const ExcludedAppsView = z.object({
   childId: z.string().min(1),
   apps: z.array(ExcludedApp),
+  removedApps: z.array(RemovedExcludedApp),
+  appsChangedVersion: ConfigVersion,
   configVersion: ConfigVersion,
   childAppliedVersion: ChildAppliedVersion,
 });

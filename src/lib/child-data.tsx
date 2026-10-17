@@ -18,6 +18,7 @@ import {
   calcUsage,
   currentBlankPeriod,
   ESSENTIAL_PACKAGES,
+  LEARNING_PACKAGES,
   limitForDate,
   nextTest,
   toUsageDayReport,
@@ -25,8 +26,9 @@ import {
 } from "./usage-calc";
 import { usageOutbox } from "./usage-outbox";
 
-// TODO(未決): C4 で誘導する学習用アプリ（C4 の実機検証で決める）
-const LEARNING_PACKAGES: string[] = [];
+// C4 で誘導する学習用アプリ（子11 の「お勧めアプリ」と同じ1つの一覧。中身は usage-calc.ts の TODO(未決)）。
+// 画面はここから使う（React Native を読み込まない計算の場所に置いてあるので、テストからも使える）
+export { LEARNING_PACKAGES };
 
 type ChildData = {
   childId: string;
@@ -79,7 +81,7 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
               : { kind: "unset" },
         excludedPackages: excluded,
         essentialPackages: [...ESSENTIAL_PACKAGES],
-        learningPackages: LEARNING_PACKAGES,
+        learningPackages: [...LEARNING_PACKAGES],
         configVersion: snapshot.configVersion,
       });
     }

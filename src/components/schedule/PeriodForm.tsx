@@ -31,6 +31,7 @@ export function PeriodForm({ kind, draft, errors, onChange, editable = true }: P
         value={draft.name}
         onChangeText={(name) => onChange({ ...draft, name })}
         placeholder={t.namePlaceholder}
+        trailingIcon="title"
         maxLength={NAME_MAX}
         returnKeyType="done"
         editable={editable}

@@ -6,7 +6,7 @@ export { type Bar, BarChart, Legend } from "./BarChart";
 export { Button } from "./Button";
 export { Card } from "./Card";
 export { Chip } from "./Chip";
-export { DateField, formatDateJa } from "./DateField";
+export { DateField } from "./DateField";
 export { Dialog } from "./Dialog";
 export { ErrorBanner } from "./ErrorBanner";
 export { Gauge } from "./Gauge";

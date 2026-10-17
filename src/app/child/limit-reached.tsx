@@ -10,17 +10,11 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Dialog, Screen } from "@/components";
-import {
-  LIMIT_REACHED_MESSAGE,
-  nextTestView,
-  openFirstApp,
-  RECOMMENDED_APP_PACKAGES,
-  usageView,
-} from "@/components/child/child-view";
+import { LIMIT_REACHED_MESSAGE, nextTestView, openFirstApp, usageView } from "@/components/child/child-view";
 import { NextTestCard } from "@/components/child/NextTestCard";
 import { RecommendAppsCard } from "@/components/child/RecommendAppsCard";
 import { UsageSummaryCard } from "@/components/child/UsageSummaryCard";
-import { useChildData } from "@/lib/child-data";
+import { LEARNING_PACKAGES, useChildData } from "@/lib/child-data";
 import { native } from "@/lib/native";
 
 export default function ChildLimitReached() {
@@ -33,7 +27,7 @@ export default function ChildLimitReached() {
   const reached = view.kind === "percent" && view.reached;
 
   const openRecommended = () => {
-    if (!openFirstApp(RECOMMENDED_APP_PACKAGES, native.openApp)) setCannotOpen(true);
+    if (!openFirstApp(LEARNING_PACKAGES, native.openApp)) setCannotOpen(true);
   };
   const onAction = (kind: "permission" | "retry") => {
     if (kind === "permission") native.openPermissionSettings("usageAccess");

@@ -22,7 +22,13 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleIdenti
       "担当者に GOOGLE_WEB_CLIENT_ID の設定を頼んでください（docs/google-login-setup.md）",
     );
   try {
-    const { payload } = await jwtVerify(idToken, GOOGLE_JWKS, { issuer: GOOGLE_ISSUERS, audience });
+    // exp（期限）と sub（利用者 ID）は必ずあるものとして確かめる（なぜ: jose は exp がないトークンを「期限なし」として通すため。
+    // Google の ID トークンには必ず入っているので、ないものは偽物か壊れたもの）
+    const { payload } = await jwtVerify(idToken, GOOGLE_JWKS, {
+      issuer: GOOGLE_ISSUERS,
+      audience,
+      requiredClaims: ["exp", "sub"],
+    });
     if (!payload.sub) throw new AppError("unauthorized");
     const name = typeof payload.name === "string" && payload.name ? payload.name : "Google のユーザー";
     return { sub: payload.sub, name };

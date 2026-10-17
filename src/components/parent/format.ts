@@ -1,21 +1,16 @@
 // 保護者の画面で使う、表示の文字の組み立てと「分 ⇔ 時間と分」の変換（純粋な関数。tests/parent/format.test.ts）。
 // 保護者には分数で見せる（MVP_SPEC 4.2・5.2）。入力だけは Figma 親02 に合わせて「◯時間◯分」で受け取り、分に直して送る。
 // 日付は "YYYY-MM-DD"（日本時間のその日。contracts/dates.ts と同じ約束）。
-import { weekdayJa } from "@contracts/dates";
+import { formatSlashDate, formatSlashDateWeekday } from "@contracts/dates";
 
 // 1日の分数の上限（contracts/schemas.ts の Minutes と同じ。24時間）
 export const MAX_DAY_MINUTES = 1440;
 
-// "2026-10-12" → "10/12"（グラフの下・期間の帯）
-export function md(date: string): string {
-  const [, m, d] = date.split("-");
-  return `${Number(m)}/${Number(d)}`;
-}
+// "2026-10-12" → "10/12"（グラフの下・期間の帯）。日付の文言はアプリで1か所（contracts/dates.ts）。保護者の画面では短い名前で使う
+export const md = formatSlashDate;
 
 // "2026-10-15" → "10/15（木）"（親09 の「今日 10/15（木）の合計」）
-export function mdw(date: string): string {
-  return `${md(date)}（${weekdayJa(date)}）`;
-}
+export const mdw = formatSlashDateWeekday;
 
 // ISO の時刻 → 日本時間の "15:42"（記録を測った時刻の表示。日本は夏時間がないので UTC+9 で足りる）。読めなければ null
 export function timeJst(iso: string): string | null {

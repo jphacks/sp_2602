@@ -6,6 +6,7 @@
 // 表示の決め方は src/components/child/child-view.ts（usageView・paceView・weekBars）。
 // 進む先: 「←」「ホームに戻る」→ /child/home（子01）。権限なしなら使用状況へのアクセスの設定を開く。
 // 割合を出せない状態（上限未設定・制限なし・権限なし・取得不可）はゲージを出さず、その状態の文を出す（0% と出さない）。
+import { formatDateJa } from "@contracts/dates";
 import type { NativeUsageResult } from "@contracts/native";
 import { tokens } from "@contracts/tokens";
 import { router, useFocusEffect } from "expo-router";
@@ -14,7 +15,6 @@ import { StyleSheet, View } from "react-native";
 import { AppText, Banner, BarChart, Button, Chip, Gauge, Screen } from "@/components";
 import {
   dayCalc,
-  monthDayJa,
   paceView,
   staleNotice,
   usageView,
@@ -78,14 +78,15 @@ export default function ChildUsage() {
           今日の使用量
         </AppText>
         <AppText tone="muted" center>
-          {monthDayJa(today)}
+          {formatDateJa(today)}
         </AppText>
       </View>
       {view.kind === "message" ? (
         <UsageMessage message={view.message} onAction={onAction} center />
       ) : (
         // 読み込み中は「--」（0% にしない）
-        <Gauge percent={view.kind === "percent" ? view.percent : null} caption="使いました" />
+        // 中央の数字は黒（Figma 子02。子01 の青い数字と違う）
+        <Gauge percent={view.kind === "percent" ? view.percent : null} caption="使いました" valueTone="default" />
       )}
       {pace && <Chip tone={pace.tone} icon={pace.icon} label={pace.label} />}
       <View style={styles.week}>

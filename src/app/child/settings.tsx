@@ -17,13 +17,15 @@ export default function ChildSettings() {
   const [themeOpen, setThemeOpen] = useState(false);
   return (
     <Screen title="設定" onBack={() => router.navigate("/child/home")} bottomInset={false}>
+      {/* Figma 子07: アイコンは青、項目名は太字 */}
       <ListItem
         icon="event"
         title="テスト日程の一覧・変更"
+        strong
         value={testCountLabel(config)}
         onPress={() => router.navigate("/child/schedule-list")}
       />
-      <ListItem icon="palette" title="テーマカラーの変更" value="白色" onPress={() => setThemeOpen(true)} />
+      <ListItem icon="palette" title="テーマカラーの変更" strong value="白色" onPress={() => setThemeOpen(true)} />
       <LogoutListItem />
       <ThemeDialog visible={themeOpen} onClose={() => setThemeOpen(false)} />
     </Screen>

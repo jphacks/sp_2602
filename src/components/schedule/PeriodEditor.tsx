@@ -244,6 +244,7 @@ export function PeriodEditor({
           <Button
             variant="outline"
             label="削除する"
+            icon="delete"
             danger
             onPress={() => setConfirmDelete(true)}
             disabled={baseVersion == null || busy != null}
@@ -261,10 +262,12 @@ export function PeriodEditor({
       <Dialog
         visible={done != null}
         icon="check_circle"
+        iconTone="success"
         title={done?.title ?? ""}
         body={done?.body}
+        centered
         onClose={finish}
-        actions={<Button variant="text" label="OK" onPress={finish} />}
+        actions={<Button variant="pill" label="OK" onPress={finish} />}
       />
     </Screen>
   );

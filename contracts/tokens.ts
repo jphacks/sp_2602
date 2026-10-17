@@ -15,6 +15,7 @@ export const tokens = {
     text: "#1B1B21", // 本文
     muted: "#5F5E6B", // 補足の文字
     line: "#D9D8E3", // カードの枠・区切り線
+    outline: "#777680", // 枠だけのボタン・ダイアログの丸いボタンの枠（Figma の outlined ボタン）
     track: "#E6E6EE", // 進捗バー・グラフの下地
     danger: "#B3261E", // エラー・上限到達
     dangerSoft: "#FBE4E2", // エラーの帯の地
@@ -22,6 +23,7 @@ export const tokens = {
     warningSoft: "#FFF1D6", // 注意の帯の地
     success: "#1E7B4D", // 成功・反映済み
     successSoft: "#DDF3E7",
+    dialog: "#F3EFF8", // ダイアログの地（Figma 子04・子06・子09・親07 の薄い紫）
     scrim: "rgba(27, 27, 33, 0.4)", // ダイアログの後ろの暗幕
     white: "#FFFFFF",
     black: "#000000",
@@ -50,6 +52,7 @@ export const tokens = {
     button: 56, // 全幅のボタンの高さ
     buttonSmall: 34, // 「詳しく見る」などの小さいボタンの高さ
     textButton: 40, // ダイアログの文字だけのボタン（OK・キャンセル）
+    pillMinWidth: 70, // 枠付きの丸いボタン（pill）の幅の下限（Figma 子04 の「OK」）
     appBar: 64, // 上のバー
     tabBar: 80, // 下部タブ
     tabIndicatorWidth: 64,

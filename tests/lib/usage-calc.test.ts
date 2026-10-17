@@ -1,8 +1,17 @@
 // C3 の計算のテスト（MVP_SPEC 4.2・AC-09・AC-16、Q7 の「制限なし」）。取れなかった値を 0 分・0% にしないことを確かめる。
 import type { NativeUsageResult } from "@contracts/native";
-import type { ConfigSnapshot } from "@contracts/schemas";
+import { type ConfigSnapshot, UsageDayReport } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
-import { calcUsage, currentBlankPeriod, limitForDate, nextTest, toUsageDayReport } from "@/lib/usage-calc";
+import {
+  APP_LABEL_MAX,
+  calcUsage,
+  clipText,
+  currentBlankPeriod,
+  limitForDate,
+  nextTest,
+  REPORT_APPS_MAX,
+  toUsageDayReport,
+} from "@/lib/usage-calc";
 
 const ok = (apps: [string, number][]): NativeUsageResult => ({
   status: "ok",
@@ -163,5 +172,82 @@ describe("C8 で送る1日の記録の形（Q8）", () => {
     const day = toUsageDayReport(usage, ["com.example.studynote"]);
     expect(day).toMatchObject({ date: "2026-10-15", measuredAt: usage.measuredAt, restrictedMinutes: 20 });
     expect(day.apps.find((a) => a.packageName === "com.example.studynote")?.excluded).toBe(true);
+  });
+});
+
+describe("C3: 表示の割合と到達をそろえる（99.5% 以上でも、到達していなければ 100% と出さない）", () => {
+  it("上限 200 分で 199 分（99.5%）: 到達していないので表示は 99%・残り 1%", () => {
+    expect(calcUsage({ usage: ok([["a", 199]]), limit: set(200), excludedPackages: [] })).toMatchObject({
+      state: "ok",
+      actualPercent: 99.5,
+      displayUsedPercent: 99,
+      remainingPercent: 1,
+      reached: false,
+    });
+  });
+
+  it("上限ちょうどで到達したら 100%・残り 0%", () => {
+    expect(calcUsage({ usage: ok([["a", 200]]), limit: set(200), excludedPackages: [] })).toMatchObject({
+      displayUsedPercent: 100,
+      remainingPercent: 0,
+      reached: true,
+    });
+  });
+
+  it("到達の判定を > にしたとき、上限ちょうどは到達ではないので 99%", () => {
+    expect(
+      calcUsage({ usage: ok([["a", 60]]), limit: set(60), excludedPackages: [], reachedWhen: "gt" }),
+    ).toMatchObject({ displayUsedPercent: 99, reached: false });
+  });
+
+  it("どの分数でも「表示が 100 ⇔ 到達」（1〜400 分・上限 1〜300 分を全部試す）", () => {
+    for (let L = 1; L <= 300; L++)
+      for (let used = 0; used <= 400; used += 7) {
+        const r = calcUsage({ usage: ok([["a", used]]), limit: set(L), excludedPackages: [] });
+        if (r.state !== "ok") throw new Error("ok のはず");
+        expect(r.displayUsedPercent === 100, `${used}/${L}`).toBe(r.reached);
+      }
+  });
+});
+
+describe("C8 で送る記録は必ず契約に合う（アプリ名 120 文字・アプリ 1000 個まで）", () => {
+  const usageWith = (apps: { packageName: string; label: string; usedMinutes: number }[]) => ({
+    status: "ok" as const,
+    date: "2026-10-15",
+    measuredAt: "2026-10-15T03:00:00.000Z",
+    apps,
+  });
+
+  it("アプリ名は 120 文字に切る。空なら packageName で代用し、それも 120 文字に切る", () => {
+    const longPkg = `com.example.${"x".repeat(200)}`;
+    const report = toUsageDayReport(
+      usageWith([
+        { packageName: "a.long", label: "あ".repeat(130), usedMinutes: 5 },
+        { packageName: longPkg, label: "", usedMinutes: 3 },
+      ]),
+      [],
+    );
+    expect(report.apps.map((a) => a.label.length)).toEqual([APP_LABEL_MAX, APP_LABEL_MAX]);
+    expect(report.apps[1]?.label).toBe(longPkg.slice(0, APP_LABEL_MAX));
+    expect(UsageDayReport.safeParse(report).success).toBe(true);
+  });
+
+  it("絵文字（2つで1文字）を途中で切らない", () => {
+    expect(clipText(`${"a".repeat(119)}😀`, 120)).toBe("a".repeat(119));
+    expect(clipText("短い", 120)).toBe("短い");
+  });
+
+  it("アプリが 1000 個を超えたら、使った時間の多い順に 1000 個。合計の分数は全部のアプリで数える", () => {
+    const apps = Array.from({ length: 1005 }, (_, i) => ({
+      packageName: `app.n${i}`,
+      label: `アプリ${i}`,
+      usedMinutes: i < 5 ? 0 : 1,
+    }));
+    apps.push({ packageName: "app.big", label: "大", usedMinutes: 30 });
+    const report = toUsageDayReport(usageWith(apps), []);
+    expect(report.apps).toHaveLength(REPORT_APPS_MAX);
+    expect(report.apps[0]?.packageName).toBe("app.big");
+    expect(report.restrictedMinutes).toBe(1000 + 30);
+    expect(UsageDayReport.safeParse(report).success).toBe(true);
   });
 });

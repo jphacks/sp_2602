@@ -8,13 +8,13 @@ import type { ConfigSnapshot } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { AppText, Banner, Button, Card, configViewState, Screen, StateView } from "@/components";
+import { AppText, Banner, Button, Card, configViewState, Legend, Screen, StateView } from "@/components";
 import { reviewRange, reviewWeekBars } from "@/components/parent/charts";
 import { ChildGate, type UsageState, useUsage } from "@/components/parent/data";
 import { md } from "@/components/parent/format";
 import { Badge, LinkCard, Note, Strip } from "@/components/parent/parts";
 import { afterTestNote, limitReduction, previousTest, reviewPeriod } from "@/components/parent/review";
-import { BarLegend, WeekBars } from "@/components/parent/WeekBars";
+import { WeekBars } from "@/components/parent/WeekBars";
 import { useParentData } from "@/lib/parent-data";
 import { nextTest } from "@/lib/usage-calc";
 
@@ -139,11 +139,12 @@ function WeeklyCard(props: { state: UsageState; snapshot: ConfigSnapshot; today:
   return (
     <Card>
       <AppText variant="title">週ごとの1日の使用時間（平均・分）</AppText>
-      <BarLegend
+      {/* 共通の凡例（幅が足りないときは折り返す）。today = 濃い青・fill = 薄い青（WeekBars の strong・muted と同じ色） */}
+      <Legend
         items={[
           { label: "上限", tone: "track" },
-          { label: "使った時間", tone: "strong" },
-          { label: "使った時間（計画の前）", tone: "muted" },
+          { label: "使った時間", tone: "today" },
+          { label: "使った時間（計画の前）", tone: "fill" },
         ]}
       />
       {state.status === "loading" || state.status === "error" ? (

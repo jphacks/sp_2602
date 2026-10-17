@@ -29,6 +29,9 @@ export type ConfigState =
 // TODO(未決): older_response で手元のほうが新しいのに「古い可能性あり」と出すのは図どおり（FigJam の図の矛盾 14）。決まったら見直す
 export type StaleReason = "not_checked" | "network" | "older_response" | "integrity" | "invalid" | "save_failed";
 
+// 設定のキャッシュを持っている子どもの一覧の形
+const IndexList = z.array(z.string());
+
 // 端末に保存する形
 const CachedConfig = z.object({ snapshot: ConfigSnapshot, savedAt: z.string() });
 type CachedConfig = z.infer<typeof CachedConfig>;
@@ -72,6 +75,12 @@ export type ConfigCacheDeps = {
 export function createConfigCache(deps: ConfigCacheDeps) {
   const now = deps.now ?? (() => new Date());
   const read = (childId: string) => readJson(deps.storage, storageKeys.config(childId), CachedConfig);
+  // 設定のキャッシュを持っている子どもの一覧（clearAll で全部消すため。KeyValueStorage にはキーの一覧を取る手段がない）
+  const readIndex = async () => (await readJson(deps.storage, storageKeys.configIndex, IndexList)) ?? [];
+  const addToIndex = async (childId: string) => {
+    const ids = await readIndex();
+    if (!ids.includes(childId)) await writeJson(deps.storage, storageKeys.configIndex, [...ids, childId]);
+  };
 
   const staleOr = (cached: CachedConfig | null, reason: StaleReason, error: ApiError | null): ConfigState =>
     cached
@@ -118,6 +127,7 @@ export function createConfigCache(deps: ConfigCacheDeps) {
         case "adopt": {
           const entry: CachedConfig = { snapshot: decision.snapshot, savedAt: now().toISOString() };
           try {
+            await addToIndex(childId);
             await writeJson(deps.storage, storageKeys.config(childId), entry);
           } catch {
             return staleOr(cached, "save_failed", null);
@@ -127,9 +137,22 @@ export function createConfigCache(deps: ConfigCacheDeps) {
       }
     },
 
-    // 手元の組を消す（ログアウト・連携の解除のとき）
+    // 手元の組を消す（連携の解除のとき）
     async clear(childId: string): Promise<void> {
       await deps.storage.removeItem(storageKeys.config(childId));
+      const ids = await readIndex();
+      if (ids.includes(childId))
+        await writeJson(
+          deps.storage,
+          storageKeys.configIndex,
+          ids.filter((id) => id !== childId),
+        );
+    },
+
+    // この端末にある組を全部消す（ログアウトのとき。保護者の端末にある子どもの組も、子どもの端末の自分の組も）
+    async clearAll(): Promise<void> {
+      for (const id of await readIndex()) await deps.storage.removeItem(storageKeys.config(id));
+      await deps.storage.removeItem(storageKeys.configIndex);
     },
   };
 }

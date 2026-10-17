@@ -1,6 +1,8 @@
 // 日程（テスト期間・空白期間）の画面の判断のテスト（src/components/schedule/logic.ts）。
 // 入力の検査（空の名前・終了日 < 開始日・重なり）、近い順の並べ方、日付の文言、失敗の出し分け（conflict は読み込み直し）、
 // 反映済み／反映待ち（Q6）、一覧の状態（取れない値を 0件と出さない）を確かめる。
+// 日付の文言は contracts/dates.ts の1か所にまとめた（前は logic.ts の formatDateShort・formatDateLong）。期待値はそのまま
+import { formatDateLongJa as formatDateLong, formatDateJa as formatDateShort } from "@contracts/dates";
 import { errorText } from "@contracts/errors";
 import { describe, expect, it } from "vitest";
 import {
@@ -9,8 +11,6 @@ import {
   deleteConfirmText,
   doneDialog,
   emptyDraft,
-  formatDateLong,
-  formatDateShort,
   formatPeriodRange,
   type Period,
   type PeriodSource,

@@ -16,7 +16,14 @@ export const ESSENTIAL_PACKAGES: readonly string[] = [
   "com.android.emergency",
   "com.android.contacts",
   "com.samsung.android.app.contacts",
-  "dev.hackathon.kit", // このアプリ自身（app.json の android.package。決まったら直す）
+  "com.quedotcom.androidslope", // このアプリ自身（app.json の android.package と同じにする）
+];
+
+// 上限に達したとき誘導する学習用アプリ（C4 で Kotlin に渡す一覧と、子11「お勧めアプリはこちらです」で上から順に開く一覧は同じもの）。
+// TODO(未決): 正式な一覧（C4 の実機検証で決める）。今は仮に、よく使われる学習用のアプリを並べた
+export const LEARNING_PACKAGES: readonly string[] = [
+  "com.google.android.apps.classroom", // Google Classroom
+  "com.duolingo", // Duolingo
 ];
 
 // 当日の上限の状態（C7 から作る）
@@ -33,7 +40,8 @@ export type UsageCalc =
       usedMinutes: number; // 制限対象アプリの合計（実際の値。100% を超えても丸めない）
       limitMinutes: number;
       actualPercent: number; // 実際の使用率（100 を超えることがある。上限 0 分なら Infinity ではなく 100 として扱う）
-      displayUsedPercent: number; // 画面に出す使用済みの割合（0〜100 の整数）
+      // 画面に出す使用済みの割合（0〜100 の整数）。100 は「到達」のときだけ（到達していなければ最大 99。下の calcUsage の説明）
+      displayUsedPercent: number;
       remainingPercent: number; // 画面に出す残りの割合 = max(0, 100 − displayUsedPercent)
       remainingMinutes: number; // max(0, 上限 − 使用)。子どもの画面には主に出さない（MVP_SPEC 4.2）
       reached: boolean; // 上限に達したか
@@ -105,7 +113,12 @@ export function calcUsage(input: CalcInput): UsageCalc {
     };
   }
   const actualPercent = (used / L) * 100;
-  const displayUsedPercent = Math.round(Math.min(100, Math.max(0, actualPercent)));
+  // 到達は実際の分数で決める（割合を丸めた値では決めない）
+  const reached = reachedWhen === "gte" ? used >= L : used > L;
+  // 表示と到達をそろえる: 到達していないのに「100%」と出さない（なぜ: 99.5% 以上は四捨五入で 100 になり、
+  // 「100% なのにまだ使える」と見えてしまうため）。到達していないときは最大 99、到達したら 100 に収める
+  const rounded = Math.round(Math.min(100, Math.max(0, actualPercent)));
+  const displayUsedPercent = reached ? 100 : Math.min(99, rounded);
   return {
     state: "ok",
     usedMinutes: used,
@@ -114,7 +127,7 @@ export function calcUsage(input: CalcInput): UsageCalc {
     displayUsedPercent,
     remainingPercent: Math.max(0, 100 - displayUsedPercent),
     remainingMinutes: Math.max(0, L - used),
-    reached: reachedWhen === "gte" ? used >= L : used > L,
+    reached,
   };
 }
 
@@ -146,25 +159,54 @@ export function nextTest(
   return { name: t.name, startDate: t.startDate, endDate: t.endDate, daysUntil, ongoing };
 }
 
+// 契約（contracts/schemas.ts の AppMinutes・UsageDayReport）の上限。ここを超える記録はサーバで 400 になり、送れなくなる
+export const APP_LABEL_MAX = 120;
+export const PACKAGE_NAME_MAX = 255;
+export const REPORT_APPS_MAX = 1000;
+
+// 文字列を max 文字（JavaScript の文字数 = UTF-16 の数。Zod の max と同じ数え方）までに切る。
+// 絵文字などの2つで1文字のものを途中で切らないよう、1文字ずつ足していく
+export function clipText(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let out = "";
+  for (const ch of text) {
+    if (out.length + ch.length > max) break;
+    out += ch;
+  }
+  return out;
+}
+
 // C2 の実績を、C8 で送る1日ぶんの利用記録の形にする（Q8: アプリ別の累計＋測った時刻＋制限対象の合計分）。
 // excluded と restrictedMinutes は C3 と同じ判定で付ける（親の画面はこの合計を使い、新しい設定で過去を計算し直さない）
+// 作った記録が必ず契約に合うようにする（なぜ: 合わない記録はサーバで 400 になり、その日の記録が親に届かないため）:
+//   - アプリ名（label）は 120 文字までに切る。空ならアプリの識別子（packageName）で代用し、それも 120 文字までに切る
+//   - 識別子が空・255 文字を超えるアプリは、どのアプリか表せないので一覧に入れない（合計の分数には入れる）
+//   - アプリは 1000 個まで（超えるときは使った時間の多い順に残す。合計の分数は全部のアプリで計算する）
 export function toUsageDayReport(
   usage: Extract<NativeUsageResult, { status: "ok" }>,
   excludedPackages: readonly string[],
   essentialPackages: readonly string[] = ESSENTIAL_PACKAGES,
 ): UsageDayReport {
-  const apps = usage.apps.map((a) => ({
+  const all = usage.apps.map((a) => ({
     packageName: a.packageName,
-    label: a.label || a.packageName,
+    label: clipText(a.label.trim() || a.packageName, APP_LABEL_MAX),
     usedMinutes: Math.min(1440, Math.max(0, Math.round(a.usedMinutes))),
     excluded: isExcluded(a.packageName, excludedPackages, essentialPackages),
   }));
+  const listed = all.filter(
+    (a) => a.packageName.length > 0 && a.packageName.length <= PACKAGE_NAME_MAX && a.label.length > 0,
+  );
+  // 1000 個を超えるときだけ、使った時間の多い順に並べて切る（ふだんは C2 が返した順のまま）
+  const apps =
+    listed.length > REPORT_APPS_MAX
+      ? [...listed].sort((a, b) => b.usedMinutes - a.usedMinutes).slice(0, REPORT_APPS_MAX)
+      : listed;
   return {
     date: usage.date,
     measuredAt: usage.measuredAt,
     restrictedMinutes: Math.min(
       1440,
-      apps.filter((a) => !a.excluded).reduce((sum, a) => sum + a.usedMinutes, 0),
+      all.filter((a) => !a.excluded).reduce((sum, a) => sum + a.usedMinutes, 0),
     ),
     apps,
   };

@@ -4,7 +4,7 @@
 //   待つ間は usePolling で数秒ごとに call("pairStatus")。保護者が読んだら（claimed）子18 で「はい / いいえ」→ call("pairConfirm")。
 //   どの表示を出すかは src/components/pair/child-flow.ts の childPairReducer が決める（ここは出来事を渡して描くだけ）。
 // 行き先: 子19「ホームへ」→ useSession().refresh()（役割が child になる）→ 入口（/）→ 子どものホーム。
-//   「やめる」・「いいえ」→ 役割選び（/pair）。未連携のまま。下部タブなし（Q12）。
+//   「やめる」（出した QR を call("pairCancel") で取り消してから）・「いいえ」→ 役割選び（/pair）。未連携のまま。下部タブなし（Q12）。
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
 import { useCallback, useEffect, useReducer, useState } from "react";
@@ -26,6 +26,8 @@ import { useSession } from "@/lib/session";
 
 // 1回の通信を待つ長さ（これを過ぎたら「時間切れ」= 結果が分からない扱い）
 const REQUEST_TIMEOUT_MS = 15_000;
+// 「やめる」で QR を取り消すときに待つ長さ（待ちすぎない。取り消せなくても画面は戻る）
+const CANCEL_TIMEOUT_MS = 3_000;
 
 export default function PairChild() {
   const { refresh } = useSession();
@@ -110,9 +112,15 @@ export default function PairChild() {
     if (view.screen === "rejected") router.replace("/pair");
   }, [view.screen]);
 
-  // やめる: 未連携のまま役割選びへ。TODO(未決): QR を取り消す API はないので、出した QR は期限（10分）まで残る
-  //   （保護者が読んでも、子どもが「はい」を押さない限りつながらない）
-  const cancel = () => router.replace("/pair");
+  // やめる: 出した QR を取り消して（pairCancel。以後その QR は読めない）、未連携のまま役割選びへ。
+  // 取り消しの応答は短く待つだけにする（なぜ: 通信できないときに「やめる」が効かないと困るため。取り消せなくても、
+  // 子どもが「はい」を押さない限りつながらず、QR も 10 分で切れる）。QR をまだ受け取っていない（つくっている途中）なら送らない
+  const cancel = async () => {
+    setLeaving(true);
+    const id = ticketOf(view)?.pairId;
+    if (id) await call("pairCancel", { pairId: id }, { signal: timeoutSignal(CANCEL_TIMEOUT_MS) }).catch(() => null);
+    router.replace("/pair");
+  };
   const start = () => dispatch({ type: "start" });
   const later = () => router.replace("/");
   const goHome = async () => {
@@ -121,7 +129,7 @@ export default function PairChild() {
     router.replace("/");
   };
 
-  const quit = <Button variant="outline" label="やめる" onPress={cancel} />;
+  const quit = <Button variant="outline" label="やめる" onPress={() => void cancel()} loading={leaving} />;
 
   switch (view.screen) {
     case "issuing":
@@ -136,7 +144,7 @@ export default function PairChild() {
         <Screen title="Slope" scroll={false}>
           <MessageView
             icon="error"
-            tone="danger"
+            iconTone="danger"
             title="QRコードをつくれませんでした"
             body={"通信を確かめて、\nもう一度ためしてください。"}
             actions={
@@ -184,7 +192,7 @@ export default function PairChild() {
         <Screen title="Slope" scroll={false}>
           <MessageView
             icon="check_circle"
-            tone="success"
+            iconTone="success"
             title="家族に入りました"
             body={"保護者がきめた時間のルールが、\nこのスマホに届きます。"}
             actions={<Button label="ホームへ" onPress={goHome} loading={leaving} />}

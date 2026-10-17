@@ -68,7 +68,7 @@ export default function PairStart() {
           onPress={() => router.push("/pair/parent")}
         />
         <RoleChoice
-          icon="apps"
+          icon="qr_code"
           title="子どもとして使う"
           description="このスマホにQRコードを出して、保護者に読み取ってもらいます。"
           onPress={() => router.push("/pair/child")}

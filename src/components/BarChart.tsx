@@ -49,7 +49,7 @@ export function BarChart({ bars, scaleMax, accessibilityLabel }: Props) {
   );
 }
 
-// 凡例の1つ（色見本＋文字）
+// 凡例（色見本＋文字）。幅が足りないときは折り返す（親03 は凡例が3つで1行に入らない）
 export function Legend({ items }: { items: { label: string; tone: "track" | "fill" | "today" }[] }) {
   return (
     <View style={styles.legend}>
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   },
   fill: { width: "100%", backgroundColor: tokens.color.primaryMuted, borderRadius: tokens.radius.sm },
   today: { backgroundColor: tokens.color.primary },
-  legend: { flexDirection: "row", gap: tokens.space[3] },
+  legend: { flexDirection: "row", flexWrap: "wrap", columnGap: tokens.space[3], rowGap: tokens.space[1] },
   legendItem: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
   swatch: { width: tokens.size.legendSwatch, height: tokens.size.legendSwatch, borderRadius: tokens.radius.sm },
 });

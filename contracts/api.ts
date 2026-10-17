@@ -76,6 +76,10 @@ export const api = {
   pairClaim: post("/api/pair/claim", "signedIn", PairClaim, PairStatus),
   // 子ども: 「はい / いいえ」で確定する（QR を出した本人だけ。D2 への保存が終わってから linked を返す）
   pairConfirm: post("/api/pair/confirm", "signedIn", PairConfirm, PairStatus),
+  // 子ども: 自分が出した QR（waiting / claimed）を取り消す（子14 などの「やめる」）。以後その code は使えない（expired になる）。
+  // 足した理由: 「やめる」の後も QR が期限（10分）まで使えたままだと、画面を離れた後に保護者が読めてしまうため。
+  // QR を出した本人だけ（ほかの人のペアリングは not_found）。もう linked なら conflict。expired・rejected はそのまま返す（何度呼んでもよい）
+  pairCancel: post("/api/pair/cancel", "signedIn", PairQuery, PairStatus),
   // 親子: D2 に保存が確定した連携状態（紐づけ前の人は unlinked）
   linkStatus: {
     kind: "json",

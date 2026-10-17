@@ -178,7 +178,7 @@ export default function PairParent() {
         <Screen title="Slope" scroll={false}>
           <MessageView
             icon="error"
-            tone="danger"
+            iconTone="danger"
             title="つながりを保存できませんでした"
             body={"まだ家族にはなっていません。\n通信を確かめて、もう一度ためしてください。"}
             actions={
@@ -235,7 +235,7 @@ export default function PairParent() {
         <Screen title="Slope" scroll={false}>
           <MessageView
             icon="check_circle"
-            tone="success"
+            iconTone="success"
             title={`${view.child.name}さんとつながりました`}
             body={`${view.child.name}さんの使用状況を\n見られるようになりました。`}
             // TODO(未決): Figma のボタンは「使用状況を見る」（親01 へ）。Q7 で紐づけ直後に1日の上限を決めることになったので、
