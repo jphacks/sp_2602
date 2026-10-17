@@ -9,6 +9,17 @@ import { createContext, type ReactNode, useContext, useMemo, useState } from "re
 type Saved = { child: Child | null; editTest: TestPeriod | null };
 const empty: Saved = { child: null, editTest: null };
 
+// 同じ子ども（id と名前が同じ）を入れ直すときは、前の中身をそのまま返す（描き直しを起こさない）。
+// なぜ: 親の QR の画面（pair/parent.tsx）は数秒ごとに状態を聞き直し、そのたびに同じ子どもを setChild する。
+// 中身が毎回新しくなると、それを見ている画面が描き直され、effect がまた setChild する、をくり返して止まらなくなった
+// （実機 SC-53C/SCG13 で「Maximum update depth exceeded」）。
+export function withChild(s: Saved, child: Child | null): Saved {
+  const cur = s.child;
+  if (cur === child) return s;
+  if (cur && child && cur.id === child.id && cur.name === child.name) return s;
+  return { ...s, child };
+}
+
 type Flow = Saved & {
   setChild: (c: Child | null) => void;
   setEditTest: (t: TestPeriod | null) => void;
@@ -19,15 +30,17 @@ const FlowContext = createContext<Flow | null>(null);
 
 export function FlowProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<Saved>(empty);
-  const value = useMemo<Flow>(
+  // 書き換える関数は最初に1回だけ作る（中身が変わっても同じ関数のまま）。
+  // effect の依存に setChild を入れている画面が、中身の変化のたびに effect をやり直さないようにするため
+  const setters = useMemo(
     () => ({
-      ...state,
-      setChild: (child) => setState((s) => ({ ...s, child })),
-      setEditTest: (editTest) => setState((s) => ({ ...s, editTest })),
+      setChild: (child: Child | null) => setState((s) => withChild(s, child)),
+      setEditTest: (editTest: TestPeriod | null) => setState((s) => ({ ...s, editTest })),
       reset: () => setState(empty),
     }),
-    [state],
+    [],
   );
+  const value = useMemo<Flow>(() => ({ ...state, ...setters }), [state, setters]);
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;
 }
 
