@@ -28,6 +28,8 @@ cp .env.example .env   # 手元用の環境変数（.env は Git に入れない
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | アプリ | 上と同じ値。あればログイン画面が本物の「Google でログイン」になる。空なら MOCK のボタンを出す | 空 |
 | `EXPO_PUBLIC_FAKE_USAGE` | アプリ | `1` にすると、Kotlin の部品がなくても仮の使用時間を返す（`src/lib/native.ts`） | デモでは `1` |
 | `PORT` | サーバ | 手元のサーバの番号（`.env.example` にはない。なければ 3000） | 書かない |
+| `MOCK_PERSIST` | サーバ | `0` にすると、`MOCK=1` のサーバのデータをファイルに残さない（メモリだけ。`.env.example` にはない） | 書かない |
+| `MOCK_STORE_FILE` | サーバ | `MOCK=1` のサーバのデータを残すファイル（`.env.example` にはない。なければ `state/mock-store.json`） | 書かない |
 
 `EXPO_PUBLIC_` の値を変えたら、Metro（`npm run dev`）を止めて立て直してください（アプリに埋め込まれるため）。
 
@@ -45,7 +47,7 @@ npm run dev       # 2回目からは Metro だけ立てる（開発用のアプ�
 ```
 
 - サーバが立つと `サーバが立ちました: http://localhost:3000（MOCK=1）` と出ます。`http://localhost:3000/api/health` を開くと `{"ok":true,"mock":true}` が返ります。
-- `npm run dev:server` は `tsx watch` です。**サーバのファイルを書き換えるとサーバが立ち直り、メモリのデータ（ログイン・紐づけ・日程など）は消えます**。
+- `npm run dev:server` は `tsx watch` です。サーバのファイルを書き換えるとサーバが立ち直ります。`MOCK=1` なら、データ（ログイン・紐づけ・日程など）は `state/mock-store.json` から読み直すので消えません（7章「MOCK のサーバを立て直すと」）。
 - Kotlin（`modules/kit-native/`）を書き換えたら、`npm run android` で作り直します（画面の即時反映では変わらない）。
 - `npm run dev` は `expo start --dev-client` です。`npm run android` で入れた開発用のアプリ（`expo-dev-client`。Google ログイン・カメラなどの部品を含む）から使います。
 
@@ -117,7 +119,12 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 
 ### MOCK のサーバを立て直すと
 
-サーバのデータはメモリだけなので、`npm run dev:server` を止めた・ファイルを書き換えて立ち直ったときは、すべて消えて見本だけに戻ります。
+`MOCK=1` の `npm run dev:server` は、サーバのデータ（ログイン・紐づけ・計画・日程・利用記録）を `state/mock-store.json`（Git に入らない）に書き出し、立て直したときに読み込みます（`src/server/mock/persist.ts`）。止めた・ファイルを書き換えて立ち直ったときも、**合言葉と紐づけはそのまま**です。
+
+- **見本だけに戻したいとき**: サーバを止めてから `state/mock-store.json` を消す。残したくないときは `MOCK_PERSIST=0`、置き場所を変えるときは `MOCK_STORE_FILE`。
+- ファイルには合言葉が入ります。人に渡さないでください。読めないファイルは `.broken-…` に名前を変えて残し、見本から始めます。
+
+以下は、ファイルを消した・`MOCK_PERSIST=0` のとき（データはメモリだけ）の動きです。
 
 - **「はじめての人」で紐づけた2台**: 合言葉が無効になり、アプリはログイン画面に戻ります。もう一度ログインすると別の人として作られるので、**紐づけからやり直し**です。
 - **デモの保護者・子ども**: 合言葉が固定なので、ログインしたままです。データは見本に戻ります（変えた計画や日程は消える）。設定の版はサーバの起動時刻から数えるので、前の起動の版より大きくなり、子どもの端末は新しい設定をそのまま取り込めます（[decisions.md](decisions.md) の D-53）。
