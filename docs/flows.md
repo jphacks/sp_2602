@@ -57,7 +57,7 @@ sequenceDiagram
 | 合言葉の保存 | `session.tsx` の `adopt`：`setSessionToken`（以後の `call()` に付く）と端末への保存 |
 | 使っている途中の 401 | `src/lib/api.ts` が `setUnauthorizedHandler` で登録された関数を呼ぶ → `session.tsx` がログアウト状態にし、ログイン画面に「ログインの期限が切れました」の帯（`login-view.ts` の `loginNotice`） |
 | 失敗 | 子09 のダイアログ。Google で「やめた」はエラーにしない（`login-view.ts` の `googleOutcome`） |
-| ログアウト | 設定の「ログアウト」→ 確認（`src/components/LogoutListItem.tsx`）→ `session.tsx` の `signOut`：Google のログインを外す → `src/lib/sign-out.ts` の `clearLocalDataFor(userId)`（設定のキャッシュを全部と、その人の送信待ちを消す）→ 合言葉を消す → 入口 |
+| ログアウト | 設定の「ログアウト」→ 確認（`src/components/LogoutListItem.tsx`）→ `session.tsx` の `signOut`：合言葉をサーバでも無効にする（`sign-out.ts` の `revokeServerSession` → `authSignOut`。5 秒まで待ち、失敗しても進める）→ Google のログインを外す → `src/lib/sign-out.ts` の `clearLocalDataFor(userId)`（設定のキャッシュを全部と、その人の送信待ちを消す）→ 合言葉を消す → 入口 |
 
 合言葉の期限は「最後に使ってから30日（使うたびに延長）」です（`store.ts` の `SESSION_IDLE_MS`・`findSession`）。
 合言葉の期限切れ（401）のときは合言葉だけを消し、設定のキャッシュと送信待ちは残します（同じ人がログインし直して、残った記録を送れるように）。
@@ -384,7 +384,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 | 画面 | 比べる版 | 担当 |
 |---|---|---|
 | 親02 計画 | 計画を保存した版（`plan.version`） | `plan-form.ts` の `reflectState` |
-| 親05 テスト日程・空白期間の一覧 | 今の最新の版（`configVersion`）。ほかの種類の変更でも版が上がるので、その間は「反映待ち」になる | `schedule/logic.ts` の `appliedStatus` |
+| 親05 テスト日程・空白期間の一覧 | その一覧が最後に変わった版（テスト期間は `periodsChangedVersion`、空白期間は `blankChangedVersion`。一度も変えていなければ 0 で「反映済み」）。計画・対象外アプリなど、ほかの種類の変更では「反映待ち」にならない（D-88） | `schedule/logic.ts` の `appliedStatus` |
 | 親16 対象外アプリ（行ごと） | 対象外のアプリは `sinceVersion`、外したアプリは `removedApps` の `removedVersion`。一度も対象外になっていないアプリは「反映済み」。どれもサーバの値なので、画面を開き直しても正しく出る | `parent/excluded.ts` の `excludedRows`・`removedVersions` |
 | 親16 対象外アプリ（一覧の全体。見出しの横の札） | `appsChangedVersion`（一度も変えていなければ 0 で「反映済み」） | `parent/excluded.ts` の `excludedListStatus` |
 
