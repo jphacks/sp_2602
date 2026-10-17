@@ -1,6 +1,6 @@
-// npm run shot -- <保存先.png> [--link hackathonkit://home] [--wait 1500] [--tap x,y] [--after 1000] [--serial emulator-5554]
+// npm run shot -- <保存先.png> [--link hackathonkit://role] [--wait 1500] [--tap x,y] [--after 1000] [--serial emulator-5554]
 // Android の画面のスクリーンショット。AI が自分の画面を「目で」確かめるための道具（依存なし。adb で、つながっている実機かエミュレータの画面を撮る）。
-//   --link  は撮る前に開く画面（アプリの deep link。app.json の scheme + 画面 id、例 hackathonkit://home）。なければ今映っている画面を撮る
+//   --link  は撮る前に開く画面（アプリの deep link。app.json の scheme + 画面 id、例 hackathonkit://role）。なければ今映っている画面を撮る
 //   --wait  は --link で開いたあとに待つミリ秒（画面が描かれるまで）。--tap x,y は撮る前にその位置（画面の dp ではなく px）を押す、--after は押したあとに待つミリ秒
 //   --serial は端末が複数つながっているとき、どれを撮るか（adb devices の1列目）
 // 撮った画像は Read ツールで開き、デザインと見比べる。保存先は docs/shots/<自分のid>/<D番号>-<名前>.png を推奨（共有ファイル）。
@@ -12,7 +12,7 @@ import { dirname, join, resolve } from "node:path";
 const [out, ...rest] = process.argv.slice(2);
 if (!out || out.startsWith("--")) {
   console.error(
-    "使い方: npm run shot -- <保存先.png> [--link hackathonkit://home] [--wait ms] [--tap x,y] [--after ms] [--serial id]",
+    "使い方: npm run shot -- <保存先.png> [--link hackathonkit://role] [--wait ms] [--tap x,y] [--after ms] [--serial id]",
   );
   process.exit(2);
 }

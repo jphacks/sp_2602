@@ -1,4 +1,4 @@
-# チームの組み方（4人）
+# チームの組み方（4人＋デバッガー）
 
 ```
         lead（つなぎ役：通信・API・セキュリティ／契約・main ＋ DFD・ER図 ＋ 発表 ＋ まとめ役）
@@ -6,6 +6,8 @@
   back-a（サーバ全部：     front-a（UI＝見た目：        front-b（UX＝流れ：
   機能A・B の処理・DB・     Figma Design・部品）          FigJam のフローチャート・
   データフローチャート）                                  画面の本体）
+
+  debug（デバッガー：全員の範囲の不具合を見つけて直す。docs/members/debug.md）
 ```
 
 - サーバは **縦割り**: back-a が機能A・B のサーバと DB を1人で持つ。アイデアは今までどおり機能2つ（A・B）に分け、API の path とフォルダで区別する。
@@ -44,18 +46,18 @@
 
 | 人 | 主に作る場所 |
 |---|---|
-| lead | `contracts/`・`src/lib/`・`src/server/route.ts`・`src/server/errors.ts`・`src/app/api/health/`・`src/proxy.ts`・`tests/server/api.test.ts`・設定・`scripts/`・`docs/rules/`・`docs/DEMO.md`・`docs/pitch/` など |
-| back-a | `src/server/a/`・`src/server/b/`・`src/app/api/a/`・`src/app/api/b/`・`tests/server/a/`・`tests/server/b/`・`src/server/db/index.ts`・`src/server/` 直下の共通の処理。テーブル定義 `src/server/db/schema.ts` は共有の場所だが、サーバ担当は1人なので実際には back-a だけが足す |
+| lead | `contracts/`・`src/lib/`・`src/server/route.ts`・`src/server/errors.ts`・`src/server/app.ts`・`src/server/handlers/health.ts`・`server.ts`・`tests/server/api.test.ts`・設定・`scripts/`・`docs/rules/`・`docs/DEMO.md`・`docs/pitch/` など |
+| back-a | `src/server/a/`・`src/server/b/`・`src/server/handlers/<API名>.ts`（機能A・B の API の1本ごとの処理）・`tests/server/a/`・`tests/server/b/`・`src/server/db/index.ts`・`src/server/` 直下の共通の処理。テーブル定義 `src/server/db/schema.ts` は共有の場所だが、サーバ担当は1人なので実際には back-a だけが足す |
 | front-a | `src/components/`・`docs/design/` |
 | front-b | 画面の本体（`src/app/<画面id>/`）・`docs/flow/`・`tests/e2e/` |
 | debug | 自分だけの場所はない。デバッガーとして全員のファイルを見て直す（直す前に持ち主に知らせる。docs/members/debug.md） |
 
-API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする。フォルダ `src/app/api/<機能>/` は back-a のもの。
+API の path は `/api/<機能>/<名前>`（例: `/api/quiz/grade`）にする。処理は `src/server/handlers/<API名>.ts`（back-a）。`src/app/` は画面だけ（Expo Router。ファイルがそのまま画面になる）。
 
 ## キックオフでの書き換え（lead の S1）
 1. 機能A・B に短い英語名を付ける（例: `quiz` と `report`）。
-2. 上の表と docs/members/*.md の担当・ステップに書いてあるフォルダ名（`src/server/a/`・`src/app/api/a/`・`tests/server/a/` など。b も同じ）を、付けた名前に書き換える（`src/server/quiz/` など）。
-3. 画面 id が決まったら、docs/members/*.md の `src/app/home/`・`src/app/result/` も自分たちの画面 id に置き換える（1画面 = 1行）。画面ごとの見た目の部品は `src/components/<画面id>/` に置く。説明書が古い名前のまま残ると、AI が古いフォルダに作ろうとする。
+2. 上の表と docs/members/*.md の担当・ステップに書いてあるフォルダ名（`src/server/a/`・`tests/server/a/` など。b も同じ）を、付けた名前に書き換える（`src/server/quiz/` など）。
+3. 画面 id が決まったら `contracts/screens.md` に書く（1画面 = 1行。ひな型の例 role・parent-rules などは kit:reset で消える）。docs/members/*.md は `src/app/<画面id>/` の書き方のままでよい。画面ごとの見た目の部品は `src/components/<画面id>/` に置く。説明書が古い名前のまま残ると、AI が古いフォルダに作ろうとする。
 4. `npm run check` → commit。
 5. docs/members/*.md の「ミッション」を1文ずつ埋める（各自でもよい）。
 

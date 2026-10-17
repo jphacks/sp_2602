@@ -20,7 +20,8 @@ import {
 import { ApiError, errorText } from "@contracts/errors";
 import { fetch } from "expo/fetch";
 
-const BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://10.0.2.2:3000").replace(/\/$/, "");
+// .env.example の `EXPO_PUBLIC_API_URL=`（空）は "" として埋め込まれるので、?? ではなく || で「空も未設定」とみなす
+const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:3000").replace(/\/$/, "");
 
 // 時間切れで止めた signal を覚えておく（fetch が「時間切れ」か「自分で中断」かを区別できない実装でも見分けるため）
 const timedOut = new WeakSet<AbortSignal>();

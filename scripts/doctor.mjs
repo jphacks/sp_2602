@@ -3,7 +3,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { currentMember, loadConfig, p, sh } from "./lib/kit.mjs";
+import { currentMember, findJava, loadConfig, p, sh } from "./lib/kit.mjs";
 
 const quick = process.argv.includes("--quick");
 const cfg = loadConfig();
@@ -22,7 +22,8 @@ check("依存がインストール済み（lockfile 通り）", ls !== null, "np
 
 // .env
 if (existsSync(p(".env.example"))) {
-  // .env.example で値が空のキーは「本物を呼ぶときだけ必要」。MOCK=1 なら警告にとどめる。
+  // .env.example で値が入っているキーは必須。値が空のキー（DATABASE_URL・EXPO_PUBLIC_API_URL）は「空なら手元の既定」と
+  // .env.example に書いてあるとおり空でよいので、確かめない
   const lines = readFileSync(p(".env.example"), "utf8")
     .split("\n")
     .map((l) => l.trim())
@@ -30,24 +31,14 @@ if (existsSync(p(".env.example"))) {
   const env = existsSync(p(".env")) ? readFileSync(p(".env"), "utf8") : "";
   const has = (k) => new RegExp(`^${k}=.+`, "m").test(env);
   const required = lines.filter((l) => !l.endsWith("=")).map((l) => l.split("=")[0]);
-  const live = lines.filter((l) => l.endsWith("=")).map((l) => l.split("=")[0]);
   const missing = required.filter((k) => !has(k));
   check(
     ".env がある",
     existsSync(p(".env")) && missing.length === 0,
-    missing.length ? `足りない: ${missing.join(", ")}` : "cp .env.example .env",
+    missing.length
+      ? `足りない: ${missing.join(", ")}（.env.example の該当行を .env に写す。前の kit の .env が残っていると起きる）`
+      : "cp .env.example .env",
   );
-  const liveMissing = live.filter((k) => !has(k));
-  if (liveMissing.length) {
-    if (/^MOCK=1/m.test(env))
-      console.log(`! 本物の呼び出し用のキーが空（MOCK=1 なので開発は可）: ${liveMissing.join(", ")}`);
-    else
-      check(
-        "本物の呼び出し用のキーがある",
-        false,
-        `足りない: ${liveMissing.join(", ")}（モックで開発するなら MOCK=1）`,
-      );
-  }
 }
 
 // git まわり
@@ -64,11 +55,18 @@ check(
 check("型チェックが通る", sh("npm run -s typecheck", { allowFail: true }) !== null, "npm run typecheck で詳細");
 
 // Android の開発環境（Kotlin のビルドと実機・エミュレータでの確認に要る。入れるのは人間の作業: docs/kit/setup.md）
-const javaVer = (sh("java -version 2>&1", { allowFail: true }) ?? "").match(/version "(\d+)/)?.[1];
+// Java も SDK と同じく、環境変数が未設定でも Android Studio の標準の場所にあれば、その場所の設定を案内する
+const java = findJava();
 check(
   "Java 17 以上（Android のビルドに要る）",
-  Number(javaVer) >= 17,
-  "Android Studio に付いてくる JDK、または JDK 17 を入れる",
+  !!java?.usable && java.version >= 17,
+  java?.badHome
+    ? `環境変数 JAVA_HOME（${java.home}）に Java がない。JDK の場所に直す（docs/kit/setup.md）`
+    : java && java.version < 17
+      ? `今は Java ${java.version}。JDK 17 以上（Android Studio に付いてくるもので可）の場所を JAVA_HOME に設定する`
+      : java
+        ? `Android Studio に付いてくる JDK が ${java.home} にある。環境変数 JAVA_HOME にこの場所を設定する（docs/kit/setup.md）`
+        : "Android Studio を入れる（JDK が付いてくる）か JDK 17 以上を入れ、その場所を JAVA_HOME に設定する（docs/kit/setup.md）",
 );
 // 環境変数が未設定でも、Android Studio の標準の場所にあれば使う（見つかったが環境変数が無いときは設定を案内）
 const sdkDefaults = [

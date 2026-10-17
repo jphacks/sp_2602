@@ -15,10 +15,10 @@
 | 画面の移動 | Expo Router（`src/app/` のファイルがそのまま画面になる） | 確定 |
 | 見た目 | React Native の `StyleSheet`。色・余白・角丸・書体は `contracts/tokens.ts` の名前だけ | 確定 |
 | 共通部品 | `src/components/ui/`（front-a の担当。依存を足すのは lead） | 確定 |
-| Android 固有の処理 | Kotlin（`android/`）。TypeScript からは Native Module（Kotlin の機能を TypeScript から呼ぶ仕組み）の窓口だけを通して呼ぶ | 確定 |
+| Android 固有の処理 | Kotlin（`modules/kit-native/`。Expo のモジュール）。TypeScript からは Native Module（Kotlin の機能を TypeScript から呼ぶ仕組み）の窓口だけを通して呼ぶ | 確定 |
 | API | Hono（Web 標準の軽いサーバ部品）で書き、Vercel Functions で動かす。型は Zod の契約 | 確定 |
 | サーバ処理 | `src/server/`（外部API・AI・DB はここだけから呼ぶ） | 確定 |
-| 整形・lint | Biome（保存時・Claude の編集時に自動整形、コミット前に検査） | 確定 |
+| 整形・lint | Biome（保存時・Claude の編集時に自動整形。コミット前にも自動で整形し、直せない指摘だけ止める） | 確定 |
 | テスト | Vitest（契約と API）。実機・エミュレータでの確認は `npm run shot`（adb で画面を撮る） | 確定 |
 | DB | Neon（Postgres。Vercel の Marketplace から追加）+ Drizzle。手元・テスト・CI はメモリ上の Postgres（PGlite）で自動 | 確定（テーブルはアイデアが決まってから） |
 | 公開先 | API は Vercel（下の「Vercel で動かすための約束」）。アプリは APK を直接配る | 確定（配布方法はキックオフで正式に決める） |
@@ -39,7 +39,7 @@ src/server/<機能>/       サーバ処理（その機能の back）。route.ts�
 src/server/db/           DB。schema.ts = テーブル定義（共有の場所。サーバ担当の back-a が足す）/ index.ts = 接続 db()（back-a）
 src/lib/                 api クライアント・画面間の受け渡し（lead）
 src/components/ui/       共通部品（front-a）。欲しい部品は Issue で依頼
-android/                 Kotlin（監視・制限エンジンなど Android 固有の処理）。React Native の画面が動いていなくても動く独立した部品にする（lead が窓口の型を決め、中身は担当が足す）
+modules/kit-native/      Kotlin（監視・制限エンジンなど Android 固有の処理）。React Native の画面が動いていなくても動く独立した部品にする（lead が窓口の型を決め、中身は担当が足す）。/android/ は npx expo prebuild が作る生成物で Git に入らないので、ここに書かない
 ```
 
 ## 書き方の約束
@@ -94,4 +94,4 @@ android/                 Kotlin（監視・制限エンジンなど Android 固�
 | ログインが要る | 保護者はメールか Google でログイン、子ども端末は保護者が発行するペアリングコードで紐づける案（キックオフで正式に決める。lead が判断） | lead |
 | ルールの更新を早く届ける | まず定期同期。それで足りない時だけ Push 通知（Firebase の設定が要る。lead が判断） | その機能の back |
 | 画像・ファイル保存 | Vercel Blob（`@vercel/blob`。lead が依存を足す） | その機能の back |
-| Android の新しい機能を使う | `android/` に Kotlin を足し、窓口の型を `contracts/` に足す（先に lead へ Issue） | lead |
+| Android の新しい機能を使う | `modules/kit-native/` に Kotlin を足し、窓口の型を `contracts/` に足す（先に lead へ Issue） | lead |

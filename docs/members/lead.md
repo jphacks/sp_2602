@@ -5,7 +5,7 @@
 - 担当の場所: 契約（`contracts/`。Kotlin の窓口の型も）・API の共通部分（`server.ts`・`src/server/app.ts` / `route.ts` / `errors.ts`・`src/server/handlers/health.ts`）・アプリの共通部分（`src/lib/`（`api.ts`・`flow.tsx`・`native.ts`）・`src/app/_layout.tsx`）・`app.json`・設定と scripts・`docs/DEMO.md`・`docs/pitch/`。依存パッケージの追加（package.json）も lead
 - 動作確認: `.env` を MOCK=1 にして `npm run dev:server`（API）を動かし、`npm run api -- <契約名>` で叩く。アプリは `npm run android`（Android 16 の実機に入れて起動）、見た目は `npm run shot`
 - 詰まったら: 自分の作業は 30分で解決しなければ全員に声をかける（まとめ役が止まると進行が止まる）。契約の問い合わせは最優先で返す（契約が止まると全員が止まる）
-- チームの組み方とキックオフでの書き換え: docs/rules/team.md（4人構成）
+- チームの組み方とキックオフでの書き換え: docs/rules/team.md（4人＋デバッガー）
 
 ## 図の担当: データフローダイアグラム（DFD）と ER図（Figma Design と FigJam）
 - 流れ: フローチャート（front-b）→ UI（front-a）／データフローチャート（back-a）→ データフローダイアグラム（DFD）と ER図（lead）。全体は docs/rules/team.md「図の流れ」

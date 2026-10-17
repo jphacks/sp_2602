@@ -1,6 +1,6 @@
 # AGENTS.md — このリポジトリで働くAIへ（人間も同じ手順）
 
-ハッカソンのチーム開発用リポジトリ。4人（docs/rules/team.md）がそれぞれ自分の担当を作り、`contracts/` の型で繋がる。
+ハッカソンのチーム開発用リポジトリ。4人＋デバッガー（docs/rules/team.md）がそれぞれ自分の担当を作り、`contracts/` の型で繋がる。
 **このファイルは判断の手順だけ。詳細は下の表で必要になった時だけ読む。**
 
 ## 最初に1回（このPCで初めて使うとき・clone した直後）
@@ -19,7 +19,7 @@
 - `contracts/` を変えるときは docs/rules/changes.md の手順（`contracts/CHANGELOG.md` に1行）に従う。足りない型・フィールドがあれば `npm run issue -- change-request lead "題名"`。契約を足した人は `npm run kit:stub` で仮の API・画面を置き、useFlow の欄も同じ PR で足す。勝手に自分の側で型を作って回避しない。
 - テストを消す・skip する・期待値を実装に合わせて書き換えることで通さない。
 - 外部API（AI含む）はサーバ経由で呼ぶ。`MOCK=1` で必ず動く状態を保つ。
-- 見た目は `StyleSheet.create` と `contracts/tokens.ts` の名前だけ（色コード・数値の余白の直書き、`style={{ … }}` の直書き禁止）。画面遷移は `contracts/screens.md` の表どおり。Android 固有の処理（使用時間の取得・制限画面など）は Kotlin（`android/`）に置き、画面から直接触らず `contracts/` の窓口の型を通す。制限の判定は端末内で完結させ、保護者の権限はサーバ側で確かめる（docs/rules/stack.md の設計原則）。
+- 見た目は `StyleSheet.create` と `contracts/tokens.ts` の名前だけ（色コード・数値の余白の直書き、`style={{ … }}` の直書き禁止）。画面遷移は `contracts/screens.md` の表どおり。Android 固有の処理（使用時間の取得・制限画面など）は Kotlin（`modules/kit-native/`。`/android/` は生成物なので書かない）に置き、画面から直接触らず `contracts/` の窓口の型を通す。制限の判定は端末内で完結させ、保護者の権限はサーバ側で確かめる（docs/rules/stack.md の設計原則）。
 - サーバとの通信は `src/lib/api.ts` の `call()`（1回で返る）と `stream()`（少しずつ返る）だけで行う。画面から `fetch` を手書きしない。画面間のデータは `useFlow()` だけで渡す。依存パッケージを勝手に足さない。
 - 同じ不具合の修正（テスト・型・ビルドが通らない）に2回失敗したら、止まって人間に状況を報告する。道具の失敗（ファイル編集が適用できない、文字化けなど）は修正の失敗に数えず、別の方法（別の編集手段、エンコーディング指定）を1回試してから報告する。
 - フリーズ後（`npm run now` に「変更禁止」と出たら）は新機能を作らない。Code Freeze（運営の締め切り）を過ぎたらコミット・push もしない。

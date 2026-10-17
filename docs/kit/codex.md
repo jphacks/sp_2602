@@ -26,8 +26,7 @@
 | 守り | Claude Code | Codex |
 |---|---|---|
 | 型が通らないまま終わらせない | `.claude/hooks/stop-check.mjs` | `.codex/hooks/stop-check.mjs` |
-| 編集したファイルをその場で整形 | `.claude/hooks/format.mjs` | **なし**。commit の前に `npm run fix`（整形崩れは pre-commit が止める） |
-| シェルのコマンドでの書き換え | 止めない | 止めない（どちらも pre-commit と CI が止める） |
+| 編集したファイルをその場で整形 | `.claude/hooks/format.mjs` | **なし**。commit の前に pre-commit が自動で整形し、直せない指摘だけ止める（先に直すなら `npm run fix`） |
 
 - Codex に自動整形を入れていない理由: apply_patch は前後の行が一致しないと失敗する。編集のたびに整形すると、Codex が覚えている内容とファイルがずれて次のパッチが失敗しやすくなる。
 - Codex の hook は、止めるときに **JSON を返す**（Claude と同じ「終了コード 2」は、Windows の Codex では hook のエラー扱いになり、パッチがそのまま適用された）。hook を直すときはこの形を崩さない。
@@ -53,4 +52,4 @@ GH_TOKEN=$(gh auth token) KIT_MEMBER=<id> codex exec -C <リポジトリ> \
 ## 確かめたこと（2026-10-14・Codex CLI 0.162.1・Windows）
 - AGENTS.md は trust しなくても読まれる。`.codex/config.toml` は trust したときだけ効く（workspace-write・ネットワークありになるのを確認）。
 - サンドボックスの中では `git switch -c` が `.git` への書き込みで失敗する。
-- 他人のファイルへの apply_patch は止まり、自分のファイルは通る。型エラーを残して終わろうとすると続きの指示が入り、直してから終わる。
+- 型エラーを残して終わろうとすると続きの指示が入り、直してから終わる。（当時あった「他人のファイルへの apply_patch を止める」hook は、所有範囲の制限と一緒に 2026-10-16 に取り除いた）

@@ -26,7 +26,13 @@ const need = (k) => {
 if (d.member && d.member !== me.id) errors.push(`member が ${d.member}（自分は ${me.id}）`);
 
 // 使う契約名は contracts/ に export されているか
-const contractSrc = ["contracts/schemas.ts", "contracts/api.ts", "contracts/errors.ts"]
+const contractSrc = [
+  "contracts/schemas.ts",
+  "contracts/api.ts",
+  "contracts/errors.ts",
+  "contracts/native.ts",
+  "contracts/tokens.ts",
+]
   .filter((f) => existsSync(p(f)))
   .map((f) => readFileSync(p(f), "utf8"))
   .join("\n");

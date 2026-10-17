@@ -2,7 +2,7 @@
 
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -30,6 +30,33 @@ export function sh(cmd, { allowFail = false } = {}) {
     if (allowFail) return null;
     throw e;
   }
+}
+
+// Java（Android のビルドに要る）を JAVA_HOME → PATH の java → Android Studio に付いてくる JDK（jbr）の標準の場所の順に探す。
+// Android Studio を入れただけでは JAVA_HOME も PATH も設定されないので、jbr で見つかったときは usable: false（Gradle はそのままでは見つけられない）。
+// 返り値: null（見つからない）か { version, home, usable, badHome }。home は JAVA_HOME に設定する場所
+export function findJava() {
+  const exe = process.platform === "win32" ? "java.exe" : "java";
+  const versionOf = (cmd) =>
+    Number((sh(`${cmd} -version 2>&1`, { allowFail: true }) ?? "").match(/version "(\d+)/)?.[1]) || 0;
+  const envHome = process.env.JAVA_HOME;
+  if (envHome) {
+    const version = versionOf(`"${join(envHome, "bin", exe)}"`);
+    // JAVA_HOME が間違っていると、PATH に java があっても Gradle は止まる
+    return { version, home: envHome, usable: version > 0, badHome: version === 0 };
+  }
+  const onPath = versionOf("java");
+  if (onPath) return { version: onPath, home: null, usable: true, badHome: false };
+  const studio = [
+    process.env.ProgramFiles && `${process.env.ProgramFiles}/Android/Android Studio/jbr`,
+    process.env.LOCALAPPDATA && `${process.env.LOCALAPPDATA}/Programs/Android Studio/jbr`,
+    "/Applications/Android Studio.app/Contents/jbr/Contents/Home",
+    "/opt/android-studio/jbr",
+    process.env.HOME && `${process.env.HOME}/android-studio/jbr`,
+  ].filter(Boolean);
+  const home = studio.find((h) => existsSync(join(h, "bin", exe)));
+  if (!home) return null;
+  return { version: versionOf(`"${join(home, "bin", exe)}"`), home: resolve(home), usable: false, badHome: false };
 }
 
 // 今の時刻。リハーサル・試験用に、KIT_NOW（例: 2026-10-17T18:20:00+09:00）で「起動した瞬間の時刻」を決められる（そこから時計は進む）。

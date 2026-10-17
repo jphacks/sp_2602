@@ -52,6 +52,13 @@ describe("通信先", () => {
     await call("rulesGet", { childId: "c1" });
     expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/rules/get");
   });
+
+  it("空（.env.example のまま）でも Android エミュレータから見た PC", async () => {
+    const { call } = await load("");
+    mockFetch(() => Response.json(rules));
+    await call("rulesGet", { childId: "c1" });
+    expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/rules/get");
+  });
 });
 
 describe("call", () => {

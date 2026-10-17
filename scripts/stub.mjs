@@ -3,7 +3,7 @@
 //   仮の画面 : src/app/<画面id>/index.tsx に「準備中」と出すだけの画面を作る
 // 仮のファイルは 1 行目に KIT-STUB の印がある。
 // 本物に置き換える担当者は、その印の行ごと書き換える。
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { gaps, STUB_MARK } from "./lib/gaps.mjs";
 import { p } from "./lib/kit.mjs";
@@ -38,8 +38,12 @@ export default handle("${r.name}", async () => {
   return f as never;
 });
 `;
-  mkdirSync(dirname(p(r.file)), { recursive: true });
-  writeFileSync(p(r.file), body);
+  // 処理のファイルはあって export だけ忘れている場合は、担当者の本物の処理を上書きしない（export の行だけ足す）
+  const exists = existsSync(p(r.file));
+  if (!exists) {
+    mkdirSync(dirname(p(r.file)), { recursive: true });
+    writeFileSync(p(r.file), body);
+  }
   // handlers/index.ts から export する（なければ足す）。biome の並び順（organizeImports）に合わせて export の行を並べ直す
   const index = readFileSync(p(INDEX), "utf8");
   if (!new RegExp(`default as ${r.name}\\b`).test(index)) {
@@ -51,7 +55,9 @@ export default handle("${r.name}", async () => {
     exports.sort((a, b) => a.match(/"([^"]+)"/)[1].localeCompare(b.match(/"([^"]+)"/)[1], "en"));
     writeFileSync(p(INDEX), `${[...lines.filter((l) => !l.startsWith("export ")), ...exports].join("\n")}\n`);
   }
-  made.push(`${r.file}（api.${r.name}）`);
+  made.push(
+    exists ? `${INDEX} に export を足した（api.${r.name}。${r.file} はそのまま）` : `${r.file}（api.${r.name}）`,
+  );
 }
 
 for (const s of g.pages) {

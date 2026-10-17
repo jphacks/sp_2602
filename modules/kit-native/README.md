@@ -11,4 +11,4 @@ Kotlin で書く Android 専用の部品。Expo のモジュールとして `mod
 
 - 画面・共通処理は `src/lib/native.ts` だけを経由する。
 - 窓口に関数を足すときは `contracts/native.ts` → Kotlin の Function → `src/KitNativeModule.ts` の順にそろえる。
-- Gradle のビルドは実機・Android Studio で確かめる（E3）。
+- Gradle のビルドは実機・Android Studio で確かめる（CI は Kotlin をビルドしない）。

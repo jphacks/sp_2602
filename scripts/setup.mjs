@@ -9,7 +9,7 @@
 // 以前、npm ci をせずに npm run now から始めて、hook・型チェック・doctor が全部失敗して詰まった人がいたため、入口を1つにした。
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { currentMember, loadConfig, p, sh } from "./lib/kit.mjs";
+import { currentMember, findJava, loadConfig, p, sh } from "./lib/kit.mjs";
 
 const args = process.argv.slice(2);
 const idArg = args.find((a) => !a.startsWith("--"));
@@ -71,7 +71,11 @@ step(
 
 // 5. .env（手元用の設定。本物のキーは人間が書く。ここでは作るだけで、中身は読まない・表示しない）
 if (!existsSync(p(".env"))) copyFileSync(p(".env.example"), p(".env"));
-step(".env がある（MOCK=1 なら AI のキーなしで開発できる）", existsSync(p(".env")), "cp .env.example .env");
+step(
+  ".env がある（MOCK=1 なら contracts/fixtures.ts の固定データで開発できる）",
+  existsSync(p(".env")),
+  "cp .env.example .env",
+);
 
 // 6. GitHub（gh）。同じ PC で別のアカウントにログインしていると、招待されたリポジトリが「見つからない」になる
 const login = sh("gh api user --jq .login", { allowFail: true });
@@ -104,16 +108,22 @@ if (!args.includes("--skip-android")) {
     process.env.HOME && `${process.env.HOME}/Android/Sdk`,
   ].filter(Boolean);
   const sdk = sdkDirs.find((d) => existsSync(d));
-  const javaOk = Number((sh("java -version 2>&1", { allowFail: true }) ?? "").match(/version "(\d+)/)?.[1]) >= 17;
+  const java = findJava();
+  const javaOk = !!java && !java.badHome && java.version >= 17;
   if (!sdk || !javaOk) {
     step(
       "Android のネイティブ部分を用意",
       false,
-      `${javaOk ? "" : "Java 17 以上がない。"}${sdk ? "" : "Android SDK がない。"}Android Studio を入れて一度起動し（SDK と JDK が入る）、ANDROID_HOME に SDK の場所を設定してから、もう一度（人間の作業。docs/kit/setup.md）`,
+      `${javaOk ? "" : "Java 17 以上がない。"}${sdk ? "" : "Android SDK がない。"}Android Studio を入れて一度起動し（SDK と JDK が入る）、ANDROID_HOME に SDK の場所を、JAVA_HOME に JDK の場所を設定してから、もう一度（人間の作業。docs/kit/setup.md。場所は npm run doctor が教える）`,
     );
   } else {
-    // 環境変数が未設定でも Gradle が SDK を見つけられるようにする（local.properties は Git に入らない）
-    process.env.ANDROID_HOME ??= sdk;
+    // 環境変数が未設定でも Gradle が SDK と Java を見つけられるようにする（local.properties は Git に入らない）。
+    // process.env は書き換えない（最後の doctor が「PC に設定がない」ことを見逃さないように。npm run android には PC の設定が要る）
+    const androidEnv = {
+      ...process.env,
+      ANDROID_HOME: process.env.ANDROID_HOME ?? sdk,
+      ...(java.usable ? {} : { JAVA_HOME: java.home }),
+    };
     const prebuilt = existsSync(p("android/gradlew.bat")) || existsSync(p("android/gradlew"));
     if (!prebuilt) console.log("… npx expo prebuild（android/ を作る）");
     const made =
@@ -122,7 +132,7 @@ if (!args.includes("--skip-android")) {
         cwd: p(""),
         stdio: "inherit",
         shell: true,
-        env: { ...process.env, CI: "1" },
+        env: { ...androidEnv, CI: "1" },
       }).status === 0;
     let fetched = false;
     if (made) {
@@ -133,6 +143,7 @@ if (!args.includes("--skip-android")) {
           cwd: p("android"),
           stdio: "inherit",
           shell: true,
+          env: androidEnv,
         }).status === 0;
     }
     step(

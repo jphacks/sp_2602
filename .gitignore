@@ -10,6 +10,11 @@ docs/pitch/*.mp4
 .npm-cache/
 tmp/
 
+# 旧 Next.js 版の生成物（前の kit を使った PC に残る。無視しないと biome が中を検査して npm run check が落ち、step も「未コミットの変更」で止まる）
+.next/
+.next-doctor/
+next-env.d.ts
+
 # Expo / Android（/android/ /ios/ は npx expo prebuild が作り直す生成物。Kotlin の自作部分は modules/ に置く）
 .expo/
 dist/
@@ -18,12 +23,15 @@ dist/
 expo-env.d.ts
 *.jks
 *.keystore
+*.apk
+*.aab
 local.properties
 
 # 実行時の領域と秘密情報（最低限）
-state/
-data/
-.team/
+# 先頭の / でリポジトリ直下だけにする（src/lib/state/ のような画面側のフォルダまで Git から消えないように）
+/state/
+/data/
+/.team/
 .env*
 !.env.example
 *.pem

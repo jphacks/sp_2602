@@ -1,4 +1,4 @@
-// npm run declare -- demoStep=D2 screens=home contracts=Item,AnalyzeRequest files=src/app/home/page.tsx goal="…"
+// npm run declare -- demoStep=D2 screens=parent-rules contracts=Rules,RulesSave files=src/app/parent-rules/index.tsx goal="…"
 // 着手宣言（.kit/declare-<id>.json）を、JSON を手で編集せずに埋める。書いたあと preflight を自動で実行する。
 // 配列の項目（screens / contracts / newContracts / files）はカンマ区切り。値を空にすると消える（例: contracts=）。「なし」「none」「-」も空。
 // preflight が通ったら、このブランチの「下書きの PR」を作る（なければ）。誰が何に着手したかを GitHub で全員に見せるため（npm run status）。

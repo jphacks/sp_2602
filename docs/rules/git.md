@@ -26,8 +26,8 @@
 - レビュー依頼と自分宛て `bug` は、自分のステップより先に処理する。
 
 ## 強制する仕組み（文章だけに頼らない）
-- pre-commit: main への直接コミット・ブランチ名の検査、`npm run changelog -- --staged`（CHANGELOG なしの契約変更を止める）
-- CI: 型・テスト・契約の CHANGELOG
+- pre-commit: main への直接コミット・ブランチ名の検査、`npm run changelog -- --staged`（CHANGELOG なしの契約変更を止める）、整形・lint の自動修正（直したファイルは add し直す。直せない指摘だけ止める）
+- CI: lint・型・テスト・Android 用のバンドル（`expo export`。import の間違い・足りない依存）・契約の CHANGELOG（PR のとき）。バンドルは `npm run check` に入っていないので、CI で初めて落ちることがある
 - GitHub 側の設定（lead が前日に）: main のブランチ保護（PR 必須・CI 必須）。**無料のプライベートリポジトリでは使えない**（API が 403）。その場合は `npm run merge` だけでマージする運用で代える。
 
 ## 同じ GitHub アカウントを複数人で使う場合（リハーサル等）

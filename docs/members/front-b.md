@@ -32,7 +32,7 @@
 
 ## 触らないファイル（よく間違えるもの）
 - contracts/ 全部（画面遷移の `screens.md` も。変えたい時は change-request Issue）
-- 部品 `src/components/`（front-a）、`android/`（Kotlin は back-a）、`docs/design/`（front-a）、`docs/DEMO.md`・`docs/pitch/`（lead）
+- 部品 `src/components/`（front-a）、`modules/kit-native/`（Kotlin は back-a）、`docs/design/`（front-a）、`docs/DEMO.md`・`docs/pitch/`（lead）
 
 ## ステップ（1つ = 30〜60分 = AIへの1回の依頼 = 1PR）
 印は付けない。完了は「マージ済み PR のブランチ名 `<自分のid>/S<番号>-…`」から自動で判定され、`npm run now` に ✓ / …（マージ待ち）/ ・（未着手）で出る。

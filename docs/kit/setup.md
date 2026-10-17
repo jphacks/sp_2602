@@ -11,7 +11,7 @@
 | Git と GitHub CLI（gh）を入れる | `git --version` / `gh --version` | 同上 |
 | GitHub の招待を承認する | リポジトリのページが開ける | 招待メールのボタン、または `https://github.com/<持ち主>/<リポジトリ>/invitations` |
 | gh で、招待されたアカウントにログイン | `gh api user --jq .login` が自分の GitHub 名 | ブラウザでのログインが要る（`gh auth login`） |
-| 自分の役（id）を AI に伝える | — | lead / back-a / front-a / front-b のどれか。AI は推測で決めない |
+| 自分の役（id）を AI に伝える | — | lead / back-a / front-a / front-b / debug のどれか。AI は推測で決めない |
 
 非公開のリポジトリは、招待を承認するまで「Repository not found（見つからない）」になる。別の GitHub アカウントでログインしていても同じになる。
 

@@ -52,7 +52,7 @@ try {
     body: method === "GET" ? undefined : (body ?? "{}"),
   });
 } catch (e) {
-  fail(`${base} につながらない（npm run dev / start は起動している？）: ${e.message}`);
+  fail(`${base} につながらない（API サーバ npm run dev:server は起動している？）: ${e.message}`);
 }
 console.log(`${method} ${path} → ${res.status}（${Date.now() - started}ms）`);
 if (kind === "stream" && res.body) {

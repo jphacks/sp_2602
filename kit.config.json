@@ -180,7 +180,7 @@
     "$comment": "合流のルール（docs/rules/help.md）。切り出し型の合流はフリーズの何分前まで始めてよいか。値は仮",
     "carveOutCutoffMinBeforeFreeze": 90
   },
-  "$comment_members": "members の1人目がつなぎ役（契約・main を見る人・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。4人構成: lead＝通信・セキュリティ・DFD・ER図＋発表＋まとめ役、back-a＝サーバ全部・DB・データフローチャート、front-a＝UI（Figma Design）、front-b＝UX（FigJam のフローチャート・画面の本体）、debug＝デバッガー。機能 a / b はキックオフで実際の機能名に、画面（home / result）は画面 id に書き換える（docs/rules/team.md）",
+  "$comment_members": "members の1人目がつなぎ役（契約・main を見る人・change-request の宛先）。facilitator がまとめ役（同期点の進行・合流の判断・時刻表）。4人＋デバッガー: lead＝通信・セキュリティ・DFD・ER図＋発表＋まとめ役、back-a＝サーバ全部・DB・データフローチャート、front-a＝UI（Figma Design）、front-b＝UX（FigJam のフローチャート・画面の本体）、debug＝デバッガー。機能 a / b はキックオフで実際の機能名に書き換え、画面 id は contracts/screens.md に書く（docs/rules/team.md）",
   "facilitator": "lead",
   "members": [
     {

@@ -42,6 +42,13 @@ describe("通信先", () => {
     await call("health");
     expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/health");
   });
+
+  it("空（.env.example のまま）でも Android エミュレータから見た PC", async () => {
+    const { call } = await load("");
+    mockFetch(() => Response.json(health));
+    await call("health");
+    expect(calls[0]?.url).toBe("http://10.0.2.2:3000/api/health");
+  });
 });
 
 describe("call", () => {
