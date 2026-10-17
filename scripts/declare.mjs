@@ -51,7 +51,9 @@ for (const a of args) {
         .split(",")
         .map((s) => s.trim())
         .filter((s) => s && !NONE.includes(s.toLowerCase()))
-    : value;
+    : key === "demoStep" && NONE.includes(value.trim().toLowerCase())
+      ? "" // docs/rules/declare.md が案内する demoStep=なし（デモに効かない X ステップ）も空にする
+      : value;
 }
 d.member = me.id;
 mkdirSync(p(".kit"), { recursive: true });
