@@ -78,6 +78,50 @@ export const UsageReport = z.object({
 });
 export type UsageReport = z.infer<typeof UsageReport>;
 
+// ── 層2: QR のペアリング（#22）。子どもの端末が QR を出し、保護者が読み、子どもが「はい」で確定する ──
+// 流れ: waiting（QR を出して待つ）→ claimed（保護者が読んだ。子どもの確認待ち）→ linked（紐づいた）
+//       途中で expired（10分で失効）・rejected（子どもが「いいえ」）。linked になったとき、QR を出した人は child、読んだ人は parent になる
+export const PairState = z.enum(["waiting", "claimed", "linked", "expired", "rejected"]);
+export type PairState = z.infer<typeof PairState>;
+
+// 子どもが QR を出すときの入力。name は画面に出す呼び名（省くと Google のアカウント名）
+export const PairStart = z.object({ name: z.string().min(1).max(40).optional() });
+export type PairStart = z.infer<typeof PairStart>;
+
+// QR に入れるもの。code は使い捨ての番号（10分で失効・1回だけ）。長く使える鍵（合言葉など）は入れない
+export const PairTicket = z.object({
+  pairId: z.string().min(1),
+  code: z.string().min(1),
+  expiresAt: z.string(), // ISO 8601
+});
+export type PairTicket = z.infer<typeof PairTicket>;
+
+// 「どのペアリングか」を指す入力（進み具合を聞く）
+export const PairQuery = z.object({ pairId: z.string().min(1) });
+export type PairQuery = z.infer<typeof PairQuery>;
+
+// ペアリングの進み具合（子ども・保護者のどちらも、自分が関わるものだけ聞ける）
+export const PairStatus = z.object({
+  pairId: z.string().min(1),
+  state: PairState,
+  child: Child, // QR を出した子ども
+  parentName: z.string().nullable(), // 読んだ保護者の名前（claimed 以降。「〇〇さんの家族に入りますか？」に出す）
+  expiresAt: z.string(), // ISO 8601
+});
+export type PairStatus = z.infer<typeof PairStatus>;
+
+// 保護者が QR を読んで送る入力
+export const PairClaim = z.object({ code: z.string().min(1) });
+export type PairClaim = z.infer<typeof PairClaim>;
+
+// 子どもの「はい / いいえ」
+export const PairConfirm = z.object({ pairId: z.string().min(1), accept: z.boolean() });
+export type PairConfirm = z.infer<typeof PairConfirm>;
+
+// 保護者の家族（紐づいた子どもの一覧）。アプリを開き直したとき、どの子どものルールを見るかを決めるのに使う
+export const Family = z.object({ children: z.array(Child) });
+export type Family = z.infer<typeof Family>;
+
 // ストリームの途中で届く1かけら（例: 同期の進み具合の文）
 export const SyncChunk = z.object({ text: z.string() });
 export type SyncChunk = z.infer<typeof SyncChunk>;

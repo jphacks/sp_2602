@@ -10,6 +10,16 @@
       "package": "dev.hackathon.kit",
       "predictiveBackGestureEnabled": false
     },
-    "plugins": ["expo-router", "expo-status-bar"]
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "子どもの端末の QR コードを読むためにカメラを使います",
+          "recordAudioAndroid": false
+        }
+      ]
+    ]
   }
 }

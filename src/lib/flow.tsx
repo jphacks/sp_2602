@@ -3,14 +3,16 @@
 // アプリのメモリにだけ持つ（アプリを閉じると消える）。端末に残したいもの（制限ルールなど）は、画面ではなく Kotlin 側・端末の保存領域で持つ。
 // 受け渡すものを足すときは、Saved と setter を1つずつ足す。
 
-import type { Rules } from "@contracts/schemas";
+import type { Child, Rules } from "@contracts/schemas";
 import { createContext, type ReactNode, useContext, useState } from "react";
 
-type Saved = { rules: Rules | null };
-const empty: Saved = { rules: null };
+// child: 保護者が今見ている子ども（login で家族の1人目、parent-scan で紐づいた子どもを入れる）
+type Saved = { rules: Rules | null; child: Child | null };
+const empty: Saved = { rules: null, child: null };
 
 type Flow = Saved & {
   setRules: (r: Rules | null) => void;
+  setChild: (c: Child | null) => void;
   reset: () => void;
 };
 
@@ -22,6 +24,7 @@ export function FlowProvider({ children }: { children: ReactNode }) {
   const value: Flow = {
     ...state,
     setRules: (rules) => setState((s) => ({ ...s, rules })),
+    setChild: (child) => setState((s) => ({ ...s, child })),
     reset: () => setState(empty),
   };
   return <FlowContext.Provider value={value}>{children}</FlowContext.Provider>;

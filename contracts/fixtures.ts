@@ -34,9 +34,29 @@ export const mockSessions = {
   "mock-google-new": { token: "mock-token-new", userId: "demo-new", name: "はじめての人", role: null },
 } satisfies Record<string, Res<"authGoogle">>;
 
+// MOCK=1 のときのペアリング（層2 #22）。状態ごとの例。画面はこれで waiting → claimed → linked と、expired・rejected を確かめる
+const demoChild = { id: "demo-child", name: "デモの子ども" };
+const pairBase = { pairId: "demo-pair", child: demoChild, expiresAt: "2026-10-17T10:10:00+09:00" };
+export const mockPair = {
+  ticket: { pairId: "demo-pair", code: "demo-code-123456", expiresAt: pairBase.expiresAt },
+  waiting: { ...pairBase, state: "waiting", parentName: null },
+  claimed: { ...pairBase, state: "claimed", parentName: "デモの保護者" },
+  linked: { ...pairBase, state: "linked", parentName: "デモの保護者" },
+  expired: { ...pairBase, state: "expired", parentName: null },
+  rejected: { ...pairBase, state: "rejected", parentName: "デモの保護者" },
+} satisfies { ticket: Res<"pairStart"> } & Record<
+  "waiting" | "claimed" | "linked" | "expired" | "rejected",
+  Res<"pairStatus">
+>;
+
 export const fixtures = {
   authGoogle: mockSessions["mock-google-parent"],
   authMe: mockSessions["mock-google-parent"],
+  pairStart: mockPair.ticket,
+  pairStatus: mockPair.waiting,
+  pairClaim: mockPair.claimed,
+  pairConfirm: mockPair.linked,
+  familyGet: { children: [demoChild] } satisfies Res<"familyGet">,
   usageReport: usage,
   usageGet: usage,
   rulesGet: rules,

@@ -1,7 +1,8 @@
 // 契約どおりに応答するかのテスト（lead の担当）。サーバは Hono の app.request で、本物のネットワークを使わずに呼ぶ。
 import { api, streamLine } from "@contracts/api";
 import { ApiError } from "@contracts/errors";
-import { fixtures, mockSessions } from "@contracts/fixtures";
+import { fixtures, mockPair, mockSessions } from "@contracts/fixtures";
+import { PairState } from "@contracts/schemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiCallError, call, errorOf, setSessionToken, stream, timeoutSignal } from "@/lib/api";
 import app from "@/server/app";
@@ -139,6 +140,27 @@ describe("ログインと合言葉（層1）", () => {
   it("契約のすべての API に auth がある", () => {
     for (const [name, route] of Object.entries(api))
       expect(["none", "signedIn", "parent", "child"], `${name} の auth`).toContain(route.auth);
+  });
+});
+
+describe("QR のペアリング（層2）", () => {
+  it("MOCK の例が、ペアリングのすべての状態をそろえている（画面が全部の分かれ道を試せる）", () => {
+    const states = Object.values(mockPair).flatMap((v) => ("state" in v ? [v.state] : []));
+    expect([...new Set(states)].sort()).toEqual([...PairState.options].sort());
+  });
+
+  it("QR に入れる番号に、合言葉（長く使える鍵）が入っていない", () => {
+    for (const s of Object.values(mockSessions)) expect(mockPair.ticket.code).not.toContain(s.token);
+  });
+
+  it("子どもは家族の一覧（familyGet）を見られない（403）", async () => {
+    const res = await app.request("/api/family/get", { headers: { Authorization: `Bearer ${CHILD}` } });
+    expect(res.status).toBe(403);
+  });
+
+  it("ペアリング前の人（role: null）も QR を出せる（pairStart は signedIn）", async () => {
+    const res = await app.request("/api/pair/start", json({}, NEW));
+    expect(api.pairStart.res.safeParse(await res.json()).success).toBe(true);
   });
 });
 
