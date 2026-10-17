@@ -1,40 +1,68 @@
 // 文の終わりの言葉を1〜2文字だけ次の行に落とさない仕組み（src/components/text-wrap.ts。AppText が文字列に使う）。
 // 1台の端末の幅に合わせて文の途中に手で入れていた改行（「テスト日程の\n一覧・変更」「このスマホを使う人を\nえらんでください」など）を
-// やめたので、どの幅・文字の大きさでも「変／更」「くだ／さい」のように切れないことを確かめる。
+// やめたので、どの幅・文字の大きさでも「変／更」「くだ／さい」「ため／に、」のように切れないことを確かめる。
 import { describe, expect, it } from "vitest";
 import { tabBarHeight } from "@/components/tab-bar-size";
 import { keepTailTogether } from "@/components/text-wrap";
 
 const WJ = String.fromCharCode(0x2060); // U+2060 WORD JOINER（目に見えない）
-// 印（改行しない所）を「|」に置き換えて、どこがまとまったかを見やすくする
-const show = (s: string) => s.replaceAll(WJ, "|");
+
+// 折り返してよい所（印がない文字の間）を「/」で見せる。長い行の切れ目を確かめるのに使う
+const cuts = (s: string) => {
+  let out = "";
+  let joined = false;
+  for (const ch of Array.from(s)) {
+    if (ch === WJ) {
+      joined = true;
+      continue;
+    }
+    if (out && !joined) out += "/";
+    out += ch;
+    joined = false;
+  }
+  return out;
+};
 
 describe("keepTailTogether", () => {
-  it("最後の区切り（助詞・句読点）の後の言葉をまとめる", () => {
-    expect(show(keepTailTogether("テスト日程の一覧・変更"))).toBe("テスト日程の一覧・変|更");
-    expect(show(keepTailTogether("テーマカラーの変更"))).toBe("テーマカラーの変|更");
-    expect(show(keepTailTogether("このスマホを使う人をえらんでください"))).toBe(
-      "このスマホを使う人をえらんでく|だ|さ|い",
+  it("行の途中も文節（助詞・句読点の後）の切れ目でだけ折り返す（実機で「出すため／に、」「か／ら入れられます」と切れていた）", () => {
+    expect(cuts(keepTailTogether("時間が終わったときに案内を出すために、次の設定をオンにしてください"))).toBe(
+      "時間が/終わったときに/案内を/出すために、/次の/設定を/オンにしてください",
     );
-    expect(show(keepTailTogether("通信を確かめて、もう一度ためしてください。"))).toBe(
-      "通信を確かめて、もう一度ためしてく|だ|さ|い|。",
+    expect(cuts(keepTailTogether("テストの日程は「日程登録」から入れられます"))).toBe(
+      "テストの/日程は/「日程登録」/から入れられます",
+    );
+    expect(cuts(keepTailTogether("見守りが途中で止まらないようにします"))).toBe(
+      "見守りが/途中で/止まらないようにします",
+    );
+    expect(
+      cuts(keepTailTogether("テストが近づくほど上限が少しずつ小さくなり、テストが終わると一度少し戻ります。")),
+    ).toBe("テストが/近づくほど上限が/少しずつ小さくなり、/テストが/終わると/一度少し戻ります。");
+  });
+
+  it("助詞でも、次がひらがななら言葉の中なので切らない（「とき」「でき」「ながら」を割らない）", () => {
+    expect(cuts(keepTailTogether("このスマホを使う人をえらんでください"))).toBe(
+      "この/スマホを/使う人を/えらんでください",
+    );
+    expect(cuts(keepTailTogether("保護者のスマホで、このQRコードを読み取ってもらおう"))).toBe(
+      "保護者の/スマホで、/この/QRコードを/読み取ってもらおう",
     );
   });
 
-  it("「も」「や」は言葉の中にも多いので区切りにしない（「もらおう」を「も／らおう」にしない）", () => {
-    expect(show(keepTailTogether("保護者のスマホで、このQRコードを読み取ってもらおう"))).toBe(
-      "保護者のスマホで、このQRコードを読み取っても|ら|お|う",
+  it("句読点・かっこの閉じ・小さい「ゃ」などを行の頭にしない", () => {
+    expect(cuts(keepTailTogether("テスト日程の一覧・変更"))).toBe("テスト日程の/一覧・/変更");
+    expect(cuts(keepTailTogether("もう一度つくりましょう。あとで"))).toBe("もう一度つくりましょう。/あとで");
+    expect(cuts(keepTailTogether("10月24日（土）〜10月25日（日）の中間を登録しました。"))).toBe(
+      "10月24日（土）/〜10月25日（日）/の/中間を/登録しました。",
     );
   });
 
-  it("区切りが見つからなければ最後の4文字をまとめる", () => {
-    expect(show(keepTailTogether("ABCDEFGHIJKL"))).toBe("ABCDEFGHI|J|K|L");
+  it("長すぎる文節はまとめない（行の右が大きく空くので）。ただし行の終わりの4文字はまとめる", () => {
+    expect(cuts(keepTailTogether("ABCDEFGHIJKLMNOP"))).toBe("A/B/C/D/E/F/G/H/I/J/K/L/MNOP");
   });
 
   it("文の区切り（。の後の改行）は残し、行ごとにまとめる", () => {
-    expect(show(keepTailTogether("QRコードは10分たつと使えなくなります。\nもう一度つくりましょう。"))).toBe(
-      "QRコードは10分たつと使えなくなり|ま|す|。\nもう一度つくりまし|ょ|う|。",
-    );
+    const out = keepTailTogether("QRコードは10分たつと使えなくなります。\nもう一度つくりましょう。");
+    expect(out.split("\n").map(cuts)).toEqual(["QRコードは/10分たつと/使えなくなります。", "もう一度つくりましょう。"]);
   });
 
   it("短い文字（数字・ラベル）と、もうまとめてある文字はそのまま", () => {
