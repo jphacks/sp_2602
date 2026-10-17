@@ -23,11 +23,12 @@ const test = (startDate: string, endDate: string, name = "数学"): TestPeriod =
   createdByUserId: "p",
   createdByRole: "parent",
 });
-type Snap = Pick<ConfigSnapshot, "plan" | "dailyLimits" | "testPeriods">;
+type Snap = Pick<ConfigSnapshot, "plan" | "dailyLimits" | "testPeriods" | "usualLimitMinutes">;
 const snap = (over: Partial<Snap> = {}): Snap => ({
   plan: plan(),
   dailyLimits: [lim("2026-10-12", 300), lim("2026-10-13", 287), lim("2026-10-14", 273), lim("2026-10-15", 260)],
   testPeriods: [],
+  usualLimitMinutes: 180,
   ...over,
 });
 
@@ -100,10 +101,14 @@ describe("afterTestNote（テストのあとの上限のお知らせ）", () => 
     const s = snap({ testPeriods: [test("2026-10-28", "2026-10-30"), test("2026-12-01", "2026-12-03")] });
     expect(afterTestNote(s, today)).toBe("テスト（10/28）が終わると、上限は一度少し戻ります。");
   });
-  it("最後のテストなら、最終目標のまま（C10: 最後のテストのあとは G を保つ）", () => {
-    const s = snap({ testPeriods: [test("2026-10-28", "2026-10-30")] });
+  it("最後のテストなら、終わった次の日から通常上限に戻る（C10・D-92）", () => {
+    const s = snap({ testPeriods: [test("2026-10-28", "2026-10-30")], usualLimitMinutes: 180 });
     expect(afterTestNote(s, today)).toBe(
-      "テスト（10/28）が最後のテストです。終わったあとも、上限は最終目標の 100分 のままです。",
+      "テスト（10/28）が最後のテストです。終わった次の日から、上限は通常上限の 180分に戻ります。",
+    );
+    // 通常上限が決まっていなければ、分は出さない
+    expect(afterTestNote({ ...s, usualLimitMinutes: null }, today)).toBe(
+      "テスト（10/28）が最後のテストです。終わった次の日から、上限は通常上限に戻ります。",
     );
   });
   it("計画がない・次のテストがないときは出さない", () => {

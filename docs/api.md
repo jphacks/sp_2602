@@ -114,7 +114,7 @@ flowchart TD
 
 まだ一度も日別上限を計算していない子ども（紐づけ直後で、通常上限も計画も保存していない）には、エラーにせず `calculationVersion: 0`・日別上限なし（上限未設定）を返します。
 
-前の MOCK のサーバは、日別上限の残りが 60 日を切ると `configGet` で作り足していましたが、DB 版はまだ作り足しません（日別上限を作るのは設定を保存したときだけ。[open-questions.md の 4章](open-questions.md)）。今は読む API で版は上がりません。
+日別上限の残りが 60 日を切っていたら、`configGet` のときに今日から 120 日先まで作り足し、設定の版を 1 上げます（`backend/src/db/c10-recalculate.ts` の `topUpDailyLimits`。D-54）。読む API で版が上がるのはこのときだけです。
 
 ### 利用記録（C8・C6）
 
@@ -186,7 +186,7 @@ flowchart TD
 | 読む API（`planGet`・`testPeriodList`・`blankPeriodList`・`excludedAppsGet`・`configGet`）は今の `configVersion` を返す。画面はこれを次の `expectedVersion` に使う | `src/server/services/*.ts` |
 | `configGet` に `knownVersion` を送ると、同じ版なら中身を省く | `src/server/services/config-snapshot.ts` の `getConfigForCaller` |
 | 子どもが送った `knownVersion` は `childAppliedVersion` として覚え、読む API で返す（「反映済み／反映待ち」に使う） | 同上（表 `child_applied_versions`） |
-| `configGet` は版を上げない（前の MOCK の作り足しは DB 版にまだない） | — |
+| `configGet` で日別上限を作り足したとき（残り 60 日を切ったとき。D-54） | `topUpDailyLimits` |
 | 保存した計画の `plan.version`、対象外アプリの `sinceVersion`（対象外になった版）・`removedVersion`（外した版）・`appsChangedVersion`（一覧が最後に変わった版。同じ中身の保存では進まない）は、その変更が入った版 | `backend/src/db/plan-settings.ts`・`excluded-app-settings.ts` |
 | テスト期間の `periodsChangedVersion`・空白期間の `blankChangedVersion` は、その一覧（名前・期間）が最後に変わった版（一度も変わっていなければ 0）。ほかの設定の保存・同じ中身の更新・失敗した保存では進まない。親05・空白期間の一覧の「反映済み／反映待ち」は、`childAppliedVersion` がこれ以上かで決める（0 なら反映済み。`schedule/logic.ts` の `appliedStatus`） | `backend/src/db/test-periods.ts`・`blank-periods.ts`（DB の列 `test_periods_changed_version`・`blank_periods_changed_version`） |
 

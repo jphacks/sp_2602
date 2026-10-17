@@ -20,6 +20,10 @@ import type { DailyLimit } from "../../../contracts/schemas.js";
 
 // Existing MVP behavior; exact product horizon remains unresolved in MVP_SPEC.
 export const LIMIT_HORIZON_DAYS = 120;
+// 日別上限の残り（今日から先の日数）がこれを切ったら、設定の取得（configGet）のときに今日から LIMIT_HORIZON_DAYS 日先まで作り足す。
+// なぜ: 保存した日から 120 日先までしか作らないと、設定を変えないまま 120 日たつと「上限未設定」の日になってしまうため
+//   （backend/src/db/c10-recalculate.ts の topUpDailyLimits）
+export const LIMIT_TOPUP_MIN_DAYS = 60;
 
 // 計算に使う計画の値（D8。Q14 で開始日・S・G の3つ）
 export type PlanInput = {

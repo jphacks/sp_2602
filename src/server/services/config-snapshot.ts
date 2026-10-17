@@ -1,4 +1,5 @@
 import { inArray } from "drizzle-orm";
+import { topUpDailyLimits } from "../../../backend/src/db/c10-recalculate.js";
 import { readChildConfigSnapshot } from "../../../backend/src/db/config-snapshot.js";
 import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state.js";
 import { users } from "../../../backend/src/db/schema/users.js";
@@ -16,6 +17,8 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
     if (error instanceof TestPeriodAccessDeniedError) throw new AppError("forbidden");
     throw error;
   }
+  // 日別上限の残りが少なければ、ここで作り足す（設定の版が 1 上がる。LIMIT_TOPUP_MIN_DAYS）
+  await topUpDailyLimits(database, childId);
   const snapshot = await readChildConfigSnapshot(database, childId);
   const configVersion = snapshot.configVersion ?? 0;
 

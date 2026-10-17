@@ -20,7 +20,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | 4 | D = 0（計画開始日に最後のテストが始まる） | **決まった（D-92）**: S と G に関係なく、最後のテストの間は G、終わった翌日から通常上限 | `daily-limits.ts` の `buildRawLimit` |
 | 5 | 分にするときの丸め方 | **決まった（D-92）**: 切り捨て（`rounding: "floor"`） | `DailyLimitOptions.rounding`（`"round"`・`"ceil"` も選べる） |
 | 6 | 1日に下げてよい最大の幅 | 制限しない（`maxDailyDecrease: null`） | `DailyLimitOptions.maxDailyDecrease`・`previousDayLimit` |
-| 7 | 何日先まで計算して保存するか | 保存した日から 120 日先まで。**DB 版はまだ作り足さない**（4章「残っていること」） | `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS`。作り足しは `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction` を使って作る |
+| 7 | 何日先まで計算して保存するか | 保存した日から 120 日先まで。残りが 60 日を切ったら `configGet` のときに作り足す（D-54） | `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS`・`LIMIT_TOPUP_MIN_DAYS`、`backend/src/db/c10-recalculate.ts` の `topUpDailyLimits` |
 | 8 | 計画開始日より前の日の上限 | 通常上限（`beforePlanStart: "usual"`） | `DailyLimitOptions.beforePlanStart` を `"start"`（S）に |
 | 9 | 連続テストで回復しなかったとき、次の回復で使うピーク P | 前のピークのまま（`consecutivePeak: "keep"`） | `DailyLimitOptions.consecutivePeak` を `"test"` に |
 | 10 | 空白期間どうしが重なるとき | **決まった（D-94）**: 計算できない入力として断る | `daily-limits.ts` の `computeDailyLimits`（`sortedNoOverlap`） |
@@ -78,7 +78,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | 場所 | 決まっていないこと | 今の仮の動き | 変えるときに直す所 |
 |---|---|---|---|
 | `src/server/plan/daily-limits.ts` の `DailyLimitOptions`・`selectPeriods`・`buildRawLimit`・`computeDailyLimits` | C10 の細かい決まり | → Q16 | → Q16 |
-| `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS` | 日別上限を何日先まで作るか | 保存した日から 120 日（DB 版は作り足さない） | → Q16-7 |
+| `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS` | 日別上限を何日先まで作るか | 保存した日から 120 日（残り 60 日で作り足す） | → Q16-7 |
 | `src/server/services/plan-settings.ts` の `savePlanForCaller`・`src/components/parent/plan-form.ts` の `planFormFromView` | 始まった計画の S・G だけを変えたいとき | 開始日は今日以降でないと保存できないので、親02 は開始日の初期値を今日にする（＝今日から計画を作り直すことになる） | `savePlanForCaller` の開始日の確認と `planFormFromView` |
 | `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | 残す（同じ保護者と紐づけ直したときに続きから使えるように）。別の保護者と紐づけ直すと、その保護者に前の利用記録が見える | 消すなら `unlinkChild` のトランザクションで、設定・期間・日別上限・対象外アプリ・利用記録の表からもその子どもの行を消す |
 | `contracts/schemas.ts` の `periodFields` | 期間の終了日を含むか | 含む | → Q16-11 |
@@ -132,12 +132,6 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 ## 4. DB だけにしたあとで残っていること（2026-10-18）
 
 サーバは DB だけを通るようになりました（D-96）。前の版にあった「メモリの store では Vercel で保存が残らない」「`backend/` の表が今の仕様を入れられない」「合言葉をハッシュで保存する」は片づきました（表の対応は [data.md の 6章](data.md)、合言葉と QR の番号のハッシュは D-103）。残っているのは次のことです。
-
-### 日別上限の作り足し（DB 版にない）
-
-- 前の MOCK の store は、日別上限の残りが 60 日を切ると、`configGet` のときに今日から 120 日先まで作り足していました（`topUpDailyLimits`・`LIMIT_TOPUP_MIN_DAYS`。D-54）。
-- DB 版はまだこれをしません。日別上限を作るのは設定（計画・通常上限・テスト期間・空白期間）を保存したときだけで、保存した日から 120 日先までです（`src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS`）。**設定を 120 日保存しないと、その先の日は「上限未設定」になります**。
-- 決めること: 読む API（`configGet`）の中で書き込むのか、決まった時刻にまとめて作るのか（Vercel の Cron など）。作るときは `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction` を使い、昨日以前は変えず、中身が変わったときだけ版を上げる（D-54 と同じ）。
 
 ### Neon に migration を入れる
 

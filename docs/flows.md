@@ -235,7 +235,7 @@ sequenceDiagram
 - 担当: `backend/src/db/*.ts` の保存の処理（`test-periods.ts`・`blank-periods.ts`・`plan-settings.ts`。全体を1回の DB のトランザクションで行う）と `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction`（C10）。権限の確かめと入口は `src/server/services/*.ts`。途中で失敗したら何も変えない（前の正式な版を保つ。Q5・AC-07）。
 - C10 の式と例は [data.md の 4章](data.md) にあります。
 - **明日から先だけ**を計算し直し、今日以前の日別上限は変えません（今日の値がまだなければ今日の分も作る。Q4・D-92。`mergeWithFinalized`）。
-- 日別上限は保存した日から 120 日先まで作ります（`src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS`）。作るのは設定を保存したときだけです。前の MOCK は残りが 60 日を切ると `configGet` のときに作り足していましたが、**DB 版はまだ作り足しません**。設定を変えないまま 120 日たつと、その先の日は「上限未設定」になります（[open-questions.md](open-questions.md) の残っていること）。
+- 日別上限は保存した日から 120 日先まで作ります（`src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS`）。設定を変えないまま日がたって、残りが 60 日（`LIMIT_TOPUP_MIN_DAYS`）を切ったら、次の `configGet` のときに今日から 120 日先まで作り足します（`backend/src/db/c10-recalculate.ts` の `topUpDailyLimits`。今日より前は変えない。設定の版と計算の版が 1 上がる）。
 - まだ一度も日別上限を計算していない子どもの `configGet` は、`calculationVersion: 0`・日別上限なし（上限未設定）を返します（エラーにしない）。
 - 計画の開始日は**今日以降**でないと保存できません（Q14。`src/server/services/plan-settings.ts` の `savePlanForCaller`）。デモの見本（`src/server/seed/demo.ts`）は API を通らずに DB の処理を直接呼ぶので、14日前の開始日を入れられる。
 - 対象外アプリの保存（C9）は C10 を計算し直しませんが、版は上がります。

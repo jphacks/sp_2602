@@ -452,6 +452,29 @@ describe("通常上限・計画・空白期間（D8・Q7・Q14）と C7", () => 
       await (await post("/api/test-period/list", { childId: CHILD_ID }, CHILD)).json(),
     );
     expect(after.configVersion).toBe(saved.configVersion);
+
+    // 開始日も終了日も同じテスト（同じ日の英語と数学）は重なりにしない。両方残り、計算は1件として扱う（D-93）
+    const sameRange = await post(
+      "/api/test-period/create",
+      {
+        childId: CHILD_ID,
+        expectedVersion: saved.configVersion,
+        name: "数学",
+        startDate: "2026-11-10",
+        endDate: "2026-11-11",
+      },
+      CHILD,
+    );
+    expect(sameRange.status).toBe(200);
+    const both = api.testPeriodList.res.parse(
+      await (await post("/api/test-period/list", { childId: CHILD_ID }, CHILD)).json(),
+    );
+    expect(
+      both.testPeriods
+        .filter((t) => t.startDate === "2026-11-10")
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(["数学", "英語"].sort());
   });
 
   it("C7: 同じ版なら中身を省く。子どもが送った版は「子どもが使っている版」として親に見える（Q6）", async () => {

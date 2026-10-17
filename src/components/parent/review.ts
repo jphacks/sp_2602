@@ -70,13 +70,17 @@ export function reviewPeriod(snapshot: Pick<ConfigSnapshot, "plan" | "testPeriod
 }
 
 // ── テストのあとの上限のお知らせ ──
-// C10（MVP_SPEC 4.4）: 最後ではないテストが終わると上限は少し戻る（回復）。最後のテストのあとは最終目標 G のまま。
+// C10（MVP_SPEC 4.4・D-92）: 最後ではないテストが終わると上限は少し戻る（回復）。最後のテストが終わった次の日からは通常の上限に戻る。
 // 計画がない・次のテストがないときは出さない（null）
-export function afterTestNote(snapshot: Pick<ConfigSnapshot, "plan" | "testPeriods">, today: string): string | null {
+export function afterTestNote(
+  snapshot: Pick<ConfigSnapshot, "plan" | "testPeriods" | "usualLimitMinutes">,
+  today: string,
+): string | null {
   if (!snapshot.plan) return null;
   const next = nextTest({ testPeriods: snapshot.testPeriods } as ConfigSnapshot, today);
   if (!next) return null;
   const hasLater = snapshot.testPeriods.some((t) => t.startDate > next.endDate);
   if (hasLater) return `テスト（${md(next.startDate)}）が終わると、上限は一度少し戻ります。`;
-  return `テスト（${md(next.startDate)}）が最後のテストです。終わったあとも、上限は最終目標の ${snapshot.plan.finalGoalMinutes}分 のままです。`;
+  const usual = snapshot.usualLimitMinutes === null ? "" : `の ${snapshot.usualLimitMinutes}分`;
+  return `テスト（${md(next.startDate)}）が最後のテストです。終わった次の日から、上限は通常上限${usual}に戻ります。`;
 }

@@ -122,11 +122,15 @@ export function overlaps(a: { startDate: string; endDate: string }, b: { startDa
   return a.startDate <= b.endDate && b.startDate <= a.endDate;
 }
 
+const sameRange = (a: { startDate: string; endDate: string }, b: { startDate: string; endDate: string }) =>
+  a.startDate === b.startDate && a.endDate === b.endDate;
+
 export type ValidPeriod = { name: string; startDate: string; endDate: string };
 
 // 送る前の検査。others は同じ種類の登録済みの期間（編集中のものは editingId で除く）。
 // 重なりは同じ種類どうしだけを見る（テスト期間と空白期間は重なってよい。空白期間の日が「制限なし」になる）
-// TODO(未決): 重なる期間の扱いは MVP_SPEC 9章 High。今はサーバ（C10）と同じく「重なりは断る」
+// サーバ（C10）と同じく「重なりは断る」。ただしテスト期間で、開始日も終了日も同じもの（同じ日の数学と英語など）は
+// 重なりにしない（サーバは同じ日程のテストを1件として計算する。D-93）
 export function validatePeriod(
   draft: PeriodDraft,
   others: Period[],
@@ -147,7 +151,7 @@ export function validatePeriod(
     const hit = [...others]
       .filter((o) => o.id !== editingId)
       .sort(byStart)
-      .find((o) => overlaps(o, mine));
+      .find((o) => overlaps(o, mine) && !(kind === "test" && sameRange(o, mine)));
     if (hit) {
       errors.startDate = "期間が重なっています";
       errors.endDate = `「${hit.name}」（${formatPeriodRange(hit.startDate, hit.endDate)}）と重なっています。重ならない日付にしてください`;
