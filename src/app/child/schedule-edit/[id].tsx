@@ -1,18 +1,42 @@
-// 子05 テスト日程の変更（Figma 108:6878）。一覧（子10）から来る。下部タブは出たまま。仮の画面（見出しだけ）。次の担当が作る。
-// この画面で作るもの:
-//   - 道筋の id（useLocalSearchParams）のテスト期間を、flow の editTest（なければ testPeriodList で取り直す）から出す
-//   - TextField「テストの名前」・DateField「開始日」「終了日」→「変更する」: call("testPeriodUpdate", { childId, expectedVersion, id, … })
-//   - 「削除する」→ 確認のダイアログ → call("testPeriodDelete", { childId, expectedVersion, id })
-//   - 保存・削除の確定を待ってから一覧へ戻り、useChildData().refresh()（C10 の再計算 → C7 の取り直し）
-//   - 失敗の出し分けは子03 と同じ（bad_request は入力を残す・conflict は取り直し・not_found は一覧へ）
+// 子05 テスト日程の変更（Figma 108:6878）。子10 一覧から来る。下部タブは出たまま。
+// データ: 変更する1件は、一覧から渡された flow の editTest（すぐ出す）と、testPeriodList（id で取り直す。今の版もここから）。
+//   一覧がサーバから取れてその中にない → 「このテスト日程は見つかりません」（ほかの端末で削除された）→ 一覧へ。
+// 入力: テスト名・開始日・終了日（Figma は「日付」1つだが MVP_SPEC 5.1 で期間に拡張）。Figma にない「削除する」も足した（MVP_SPEC: 削除・削除確認）。
+// 保存: testPeriodUpdate / testPeriodDelete（expectedVersion = 変更を始めたときの版）。サーバの確定（C10 の再計算を含む）を待ってから
+//   「変更しました。」「削除しました。」→ OK で 子10 一覧へ。そのあと useChildData().refresh()。
+// 「キャンセル」「←」→ 子10 一覧へ。
 import { router, useLocalSearchParams } from "expo-router";
-import { AppText, Screen } from "@/components";
+import { fallbackFrom, PeriodEditor, usePeriods } from "@/components/schedule";
+import { useChildData } from "@/lib/child-data";
+import { useFlow } from "@/lib/flow";
 
 export default function ChildScheduleEdit() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { childId, config, refresh } = useChildData();
+  const { editTest, setEditTest } = useFlow();
+  const snapshot = config && config.status !== "unavailable" ? config.snapshot : null;
+  const { state, reload } = usePeriods("test", childId, fallbackFrom(snapshot, "test"));
+
+  const toList = () => {
+    setEditTest(null);
+    router.navigate("/child/schedule-list");
+  };
+
   return (
-    <Screen title="テスト日程の変更" onBack={() => router.back()} bottomInset={false}>
-      <AppText tone="muted">子05 テスト日程の変更（これから作ります）: {id}</AppText>
-    </Screen>
+    <PeriodEditor
+      // タブの中の画面は閉じても残るので、別の1件を開いたら入力を作り直す
+      key={id}
+      kind="test"
+      viewer="child"
+      childId={childId}
+      mode={{ type: "edit", id: id ?? "", known: editTest }}
+      periods={state}
+      reload={reload}
+      onBack={toList}
+      onCancel={toList}
+      onDone={toList}
+      onMissing={toList}
+      afterChange={() => void refresh()}
+    />
   );
 }

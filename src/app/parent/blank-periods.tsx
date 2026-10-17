@@ -1,17 +1,32 @@
-// 空白期間の一覧・追加・変更・削除（Q7。Figma にない画面。保護者だけ）。下部タブは出たまま。仮の画面（見出しだけ）。次の担当が作る。
+// 空白期間の一覧・追加・変更・削除（Q7。Figma にない画面なので親05 と同じ見た目。保護者だけ）。下部タブは出たまま。
 // 空白期間（夏休みなど）の日は「制限なし」になり、終わったら元の上限（計画・通常上限で計算した値）に戻る。
-// この画面で作るもの:
-//   - call("blankPeriodList", { childId }) の一覧（名前・期間）。0件は StateView empty
-//   - 追加・変更・削除: blankPeriodCreate / blankPeriodUpdate / blankPeriodDelete（expectedVersion は一覧の configVersion）。
-//     入力は TextField「名前」・DateField「開始日」「終了日」。空白期間どうしの重なりは bad_request（入力を残して出す）
-//   - 保存の確定を待ってから一覧を取り直し、useParentData().refresh()。反映済み／反映待ち（Q6）
+// データ: 見ている子ども（useParentData().child）の blankPeriodList（30秒ごとに取り直す。取れなければ C7 の設定の組を「古い」として出す）。
+// 保存: blankPeriodCreate / Update / Delete（expectedVersion つき）。空白期間どうしの重なり・終了日 < 開始日・空の名前は送る前に止める。
+//   サーバの確定（C10 の再計算を含む）を待ってから完了を出し、一覧と useParentData().refresh() を取り直す。
+// ここへ来る導線（親の設定・計画の画面から）は B4 が作る。「←」→ 前の画面（なければ親04 設定）。
+import { todayString } from "@contracts/dates";
 import { router } from "expo-router";
-import { AppText, Screen } from "@/components";
+import { fallbackFrom, ParentChildGate, PeriodManager } from "@/components/schedule";
+import { useParentData } from "@/lib/parent-data";
 
 export default function ParentBlankPeriods() {
+  const { config, refresh } = useParentData();
+  const snapshot = config && config.status !== "unavailable" ? config.snapshot : null;
+  const back = () => (router.canGoBack() ? router.back() : router.navigate("/parent/settings"));
+
   return (
-    <Screen title="空白期間" onBack={() => router.back()} bottomInset={false}>
-      <AppText tone="muted">空白期間（夏休みなど）の管理（これから作ります）</AppText>
-    </Screen>
+    <ParentChildGate title="空白期間の一覧・変更" onBack={back}>
+      {(childId) => (
+        <PeriodManager
+          key={childId}
+          kind="blank"
+          childId={childId}
+          today={todayString()}
+          fallback={fallbackFrom(snapshot, "blank")}
+          afterChange={() => void refresh()}
+          onExit={back}
+        />
+      )}
+    </ParentChildGate>
   );
 }

@@ -1,21 +1,24 @@
-// ログイン（Figma 子08 ログイン画面 108:6969・子09 ログイン失敗ポップアップ 108:6983。親子共通）。
-// 仮の画面: ログインそのものは動く（入口の振り分けを試せるように）。見た目は次の担当が Figma に合わせて作る。
-// この画面で作るもの:
-//   - Banner（icon/info）でアプリの説明、下に「Google でログイン」の主ボタン（Figma: Button/GoogleLogin y=576）
-//   - EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID がないときは MOCK のログイン（保護者・子ども・はじめての人）のボタンを出す（google.ts の mockLoginChoices）
-//   - 失敗したら子09 のダイアログ（icon/error・何が起きたか・次に何をするか・OK）。キャンセルはエラーにしない
-//   - ログイン中はボタンを押せない（二重に送らない）
-//   - Figma ではログイン画面にも下部タブがあるが、ログイン前はタブを出さない（タブの行き先がすべてログイン後の画面のため）
+// ログイン（Figma 子08 ログイン画面 108:6969・子09 ログイン失敗ポップアップ 108:6983。保護者も子どもも同じ画面）。
+// データ: Google の ID トークン（src/lib/google.ts）→ useSession().signIn() が authGoogle でサーバに確かめてもらう。
+//   本物の Google ログインは googleSignInEnabled（EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID がある）のときだけ。
+//   ないときは MOCK のログイン（保護者・子ども・はじめての人）のボタンだけを出す（本物のときは出さない）。
+// 行き先: ログインできたら入口（/）へ戻り、役割で振り分ける（役割なし → /pair の役割選び）。
+// 下部タブは出さない（Q12。Figma ではログイン画面にも選択なしのタブがあるが、行き先がすべてログイン後の画面のため）。
+
+import { tokens } from "@contracts/tokens";
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
-import { Banner, Button, Dialog, Screen } from "@/components";
+import { StyleSheet, View } from "react-native";
+import { AppText, Banner, Button, Dialog, Screen } from "@/components";
+import { googleOutcome, type LoginFailure, loginNotice, serverFailure } from "@/components/pair";
 import { googleSignInEnabled, type MockLoginChoice, mockLoginChoices, signInWithGoogle } from "@/lib/google";
 import { useSession } from "@/lib/session";
 
 export default function Login() {
   const { state, signIn } = useSession();
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<{ message: string; hint: string } | null>(null);
+  const [attempted, setAttempted] = useState(false);
+  const [failure, setFailure] = useState<LoginFailure | null>(null);
   const [mockChoices, setMockChoices] = useState<MockLoginChoice[]>([]);
 
   useEffect(() => {
@@ -24,13 +27,18 @@ export default function Login() {
 
   if (state.status === "signedIn") return <Redirect href="/" />;
 
+  // ログインの期限が切れて戻ってきたとき（この画面でまだ何も押していない間だけ）
+  const notice = loginNotice(state.status === "signedOut" ? state.error : null, attempted);
+
+  // ボタンを押してから、サーバの確認が終わるまでは押せない（二重に送らない）
   const run = async (getToken: () => Promise<string | null>) => {
     setBusy(true);
+    setAttempted(true);
     try {
       const idToken = await getToken();
       if (!idToken) return;
       const error = await signIn(idToken);
-      if (error) setFailure({ message: error.message, hint: error.hint });
+      if (error) setFailure(serverFailure(error));
     } finally {
       setBusy(false);
     }
@@ -38,45 +46,60 @@ export default function Login() {
 
   const google = () =>
     run(async () => {
-      const r = await signInWithGoogle();
-      if (r.status === "success") return r.idToken;
-      if (r.status === "error") setFailure({ message: r.message, hint: "もう一度ためしてください" });
-      return null;
+      const outcome = googleOutcome(await signInWithGoogle());
+      if (outcome.kind === "failure") setFailure(outcome.failure);
+      return outcome.kind === "token" ? outcome.idToken : null;
     });
+
+  const close = () => setFailure(null);
 
   return (
     <Screen
       title="Slope"
+      scroll={false}
       footer={
         googleSignInEnabled ? (
           <Button label="Google でログイン" onPress={google} loading={busy} />
         ) : (
-          mockChoices.map((c) => (
-            <Button
-              key={c.idToken}
-              variant="outline"
-              label={c.label}
-              onPress={() => run(async () => c.idToken)}
-              disabled={busy}
-            />
-          ))
+          // MOCK のときだけ（Google の登録が済むまでの開発用）
+          <View style={styles.mock}>
+            <AppText variant="caption" tone="muted" center>
+              開発用のログイン（Google の登録が済むまでの仮のもの）
+            </AppText>
+            {mockChoices.map((c) => (
+              <Button
+                key={c.idToken}
+                variant="outline"
+                label={c.label}
+                onPress={() => run(async () => c.idToken)}
+                disabled={busy}
+              />
+            ))}
+          </View>
         )
       }
     >
-      <Banner
-        icon="info"
-        message="保護者も子どもも、Google アカウントでログインします。"
-        hint={googleSignInEnabled ? undefined : "開発用のログイン（Google の登録が済むまでの仮のもの）"}
-      />
+      <Banner icon="info" message="ログインして、テストに向けた計画を始めよう" />
+      {notice && <Banner tone="warning" message={notice.message} hint={notice.hint} />}
       <Dialog
         visible={failure != null}
         icon="error"
         iconTone="danger"
         title="ログインできませんでした"
-        body={failure ? `${failure.message}\n${failure.hint}` : undefined}
-        onClose={() => setFailure(null)}
-        actions={<Button variant="text" label="OK" onPress={() => setFailure(null)} />}
-      />
+        body={"通信を確かめて、\nもう一度ためしてください。"}
+        onClose={close}
+        actions={<Button variant="text" label="OK" onPress={close} />}
+      >
+        {failure?.detail ? (
+          <AppText variant="caption" tone="muted">
+            {failure.detail}
+          </AppText>
+        ) : null}
+      </Dialog>
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  mock: { gap: tokens.layout.listGap },
+});

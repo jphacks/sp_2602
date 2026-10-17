@@ -1,17 +1,31 @@
-// 子03 テスト日程登録（Figma 108:6809）＋ 子04 登録完了ポップアップ（108:6843）。仮の画面（見出しだけ）。次の担当が作る。
-// この画面で作るもの:
-//   - Banner（icon="edit"）の説明・TextField「テストの名前」・DateField「開始日」「終了日」（元デザインの単一日付を期間に拡張。MVP_SPEC 5.1）
-//   - 「登録する」（主ボタン）: call("testPeriodCreate", { childId, expectedVersion: config の configVersion, name, startDate, endDate })。
-//     保存の確定を待ってから子04 のダイアログ（Dialog icon="check_circle"・OK）。そのあと useChildData().refresh()
-//   - 失敗: bad_request（終了日が開始日より前・期間の重なり）→ 入力を残したまま ErrorBanner（validation-error）。
-//     conflict（ほかの端末が先に変更）→ 取り直してもう一度。通信失敗 → 再試行
-//   - 「キャンセル」（outline）→ 入力を消してホームへ
-import { AppText, Screen } from "@/components";
+// 子03 テスト日程登録（Figma 108:6809）＋ 子04 登録完了ポップアップ（108:6843）。子どものタブ「日程登録」。
+// データ: 今の版と登録済みのテスト期間は testPeriodList（取れなければ C7 の設定の組 useChildData().config を「古い」として使う）。
+// 入力: テスト名・開始日・終了日（Figma は日付1つだが MVP_SPEC 5.1 で期間に拡張）。重なり・終了日 < 開始日・空の名前は送る前に止める。
+// 保存: testPeriodCreate（expectedVersion つき）。サーバが保存と C10 の再計算を終えて返したら子04「登録しました。」→ OK でホームへ。
+//       そのあと useChildData().refresh() で設定の組（C7）を取り直す。子どももテスト期間を追加できる（Q11）。
+// 「キャンセル」→ 入力を消してホームへ。
+import { router } from "expo-router";
+import { fallbackFrom, PeriodEditor, usePeriods } from "@/components/schedule";
+import { useChildData } from "@/lib/child-data";
 
 export default function ChildScheduleNew() {
+  const { childId, config, refresh } = useChildData();
+  const snapshot = config && config.status !== "unavailable" ? config.snapshot : null;
+  const { state, reload } = usePeriods("test", childId, fallbackFrom(snapshot, "test"));
+  const home = () => router.navigate("/child/home");
+
   return (
-    <Screen title="テスト日程の登録" bottomInset={false}>
-      <AppText tone="muted">子03 テスト日程登録（これから作ります）</AppText>
-    </Screen>
+    <PeriodEditor
+      kind="test"
+      viewer="child"
+      childId={childId}
+      mode={{ type: "create" }}
+      periods={state}
+      reload={reload}
+      onCancel={home}
+      onDone={home}
+      onMissing={home}
+      afterChange={() => void refresh()}
+    />
   );
 }
