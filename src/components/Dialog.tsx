@@ -4,8 +4,8 @@
 //     actions={<Button variant="pill" label="OK" onPress={close} />} />
 // centered: 題名・本文・ボタンを中央にそろえる（Figma 子04・子06・子09・親07 の形。ボタンは variant="pill" の枠付きの丸いボタン）
 import { type ColorName, tokens } from "@contracts/tokens";
-import type { ReactNode } from "react";
-import { Modal, StyleSheet, View } from "react-native";
+import { type ReactNode, useEffect } from "react";
+import { Keyboard, Modal, StyleSheet, View } from "react-native";
 import { makeStyles, useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Icon, type IconName } from "./Icon";
@@ -48,6 +48,11 @@ export function Dialog({
   const c = useColors();
   const actionsStyle =
     actionsDirection === "column" ? styles.actionsColumn : centered ? styles.actionsCenter : styles.actionsRow;
+  // 開くときに入力欄の焦点を外す（なぜ: 焦点を残したまま開くと、閉じたときに Android がその入力欄へ焦点を戻し、
+  //   キーボードがまた開いていた（親02 の完了のダイアログの「OK」。子03・子05・親05 の「登録しました」も同じ形））
+  useEffect(() => {
+    if (visible) Keyboard.dismiss();
+  }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.scrim}>

@@ -9,6 +9,7 @@ import type { ApiError } from "@contracts/errors";
 import type { ConfigSnapshot, PlanView } from "@contracts/schemas";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Keyboard } from "react-native";
 import {
   AppText,
   Banner,
@@ -99,6 +100,9 @@ function PlanBody({ childId }: { childId: string }) {
 
   const save = async () => {
     if (!form || baseVersion == null) return;
+    // 焦点を入力欄から外してから保存する（なぜ: 焦点を残したまま完了のダイアログを出すと、「OK」で閉じたときに
+    //   Android が最後の時間の欄へ焦点を戻し、キーボードがまた開いていた（第1回の実機で見つかった。Dialog も開くときに外す））
+    Keyboard.dismiss();
     const checked = validatePlanForm(form, today);
     if (!checked.ok) {
       setErrors(checked.errors);
