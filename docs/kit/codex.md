@@ -27,6 +27,9 @@
 |---|---|---|
 | 型が通らないまま終わらせない | `.claude/hooks/stop-check.mjs` | `.codex/hooks/stop-check.mjs` |
 | 編集したファイルをその場で整形 | `.claude/hooks/format.mjs` | **なし**。commit の前に pre-commit が自動で整形し、直せない指摘だけ止める（先に直すなら `npm run fix`） |
+| 禁止・要確認の git 操作（`git add -A`・`--no-verify`・force push・`reset --hard` など）を実行前に止める | `.claude/hooks/guard-bash.mjs`（要確認のものは確認の画面が出る） | `.codex/hooks/guard-bash.mjs`（確認の画面を出せないので、要確認のものも止める。承認したなら人間が自分のターミナルで実行する） |
+| シェルのコマンドでのファイル書き換え | 止めない | 止めない（どちらも pre-commit と CI が止める） |
+| 競合マーカーの残り・機密ファイル・テストの削除や skip | pre-commit（`scripts/check-staged.mjs`）が止める。意図してテストを消すときだけ `KIT_ALLOW_TEST_CHANGE=1` | 同じ |
 
 - Codex に自動整形を入れていない理由: apply_patch は前後の行が一致しないと失敗する。編集のたびに整形すると、Codex が覚えている内容とファイルがずれて次のパッチが失敗しやすくなる。
 - Codex の hook は、止めるときに **JSON を返す**（Claude と同じ「終了コード 2」は、Windows の Codex では hook のエラー扱いになり、パッチがそのまま適用された）。hook を直すときはこの形を崩さない。
