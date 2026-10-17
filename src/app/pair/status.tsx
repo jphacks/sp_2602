@@ -52,7 +52,7 @@ export default function PairStatus() {
   useEffect(() => {
     if (view.screen === "linked" || view.screen === "unlinked") {
       if (view.screen === "linked") void refresh().then(() => router.replace("/"));
-      else router.replace("/pair");
+      else router.dismissTo("/pair");
     }
   }, [view.screen, refresh]);
 

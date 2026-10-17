@@ -42,6 +42,7 @@ export function PeriodForm({ kind, draft, errors, onChange, editable = true }: P
         value={draft.startDate}
         onChange={(d) => onChange(withStartDate(draft, d))}
         error={errors.startDate}
+        disabled={!editable}
       />
       <DateField
         label="終了日"
@@ -50,6 +51,7 @@ export function PeriodForm({ kind, draft, errors, onChange, editable = true }: P
         // 開始日より前は選べないようにする（選べても送る前の検査で止まる）
         minimumDate={draft.startDate ?? undefined}
         error={errors.endDate}
+        disabled={!editable}
       />
     </View>
   );

@@ -36,3 +36,18 @@ export function splitMinutes(total: number): { hours: string; minutes: string } 
 export function formatHoursMinutes(total: number): string {
   return `${Math.floor(total / 60)}時間${total % 60}分`;
 }
+
+// 通常上限の画面を閉じるときの行き先（「決める」が保存できた・「あとで決める」）。URL の from で決める。
+//   from=home : 保護者のホーム（親01）の帯から来た → 戻る（ホームはそのまま残っている。戻ると設定を取り直す）
+//   それ以外  : 紐づけの直後（親15）から来た → 入口（/）へ置き換えて、役割で振り分け直す
+// なぜ: ホームから来たときも入口へ置き換えていたので、下に残ったホームの上にもう1つホームが重なり、
+// Android の戻るボタンでホームからホームへ戻る形になっていた
+export type UsualLimitFrom = "home" | "pairing";
+
+export function usualLimitFromOf(value: unknown): UsualLimitFrom {
+  return value === "home" ? "home" : "pairing";
+}
+
+export function usualLimitExit(from: UsualLimitFrom): "back" | "entry" {
+  return from === "home" ? "back" : "entry";
+}

@@ -9,7 +9,7 @@ import { tokens } from "@contracts/tokens";
 import { useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { useCallback, useEffect, useReducer, useState } from "react";
-import { AppState, Linking, StyleSheet, View } from "react-native";
+import { AppState, BackHandler, Linking, StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Dialog, MessageView, Screen, StateView } from "@/components";
 import {
   initialParentPairView,
@@ -69,6 +69,16 @@ export default function PairParent() {
     };
   }, [view]);
 
+  // 親12 の確かめている間は、Android の戻るボタンでも離れない（「やめる」も押せない）。
+  // なぜ: 離れると応答を捨てるが、サーバでは読み取りが通っていることがある。そのまま子どもが「はい」を押すと、
+  // この端末は何も知らないまま家族になってしまう
+  const verifying = view.screen === "verifying";
+  useEffect(() => {
+    if (!verifying) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => sub.remove();
+  }, [verifying]);
+
   // 子どもの「はい」を待つ間、数秒ごとに進み具合を聞く
   const pairId = view.screen === "waitingChild" ? view.status.pairId : null;
   const askStatus = useCallback(async () => {
@@ -96,7 +106,8 @@ export default function PairParent() {
       router.replace({ pathname: "/pair/status", params: { reason: "unsure", role: "parent" } });
   }, [view.screen]);
 
-  const quit = () => router.replace("/pair");
+  // 役割選びへは「戻る」（dismissTo）。置き換えると、下に残っている役割選びの上にもう1枚重なり、戻るボタンで役割選びが2回出る
+  const quit = () => router.dismissTo("/pair");
   const later = () => router.replace("/");
   const rescan = () => dispatch({ type: "rescan" });
   const next = async () => {

@@ -66,13 +66,14 @@ export default function PairStart() {
           icon="camera"
           title="保護者として使う"
           description="子どものスマホに出たQRコードを、このスマホで読み取ります。"
-          onPress={() => router.push("/pair/parent")}
+          // navigate: すばやく2回押しても、カメラの画面を2枚重ねない
+          onPress={() => router.navigate("/pair/parent")}
         />
         <RoleChoice
           icon="qr_code"
           title="子どもとして使う"
           description="このスマホにQRコードを出して、保護者に読み取ってもらいます。"
-          onPress={() => router.push("/pair/child")}
+          onPress={() => router.navigate("/pair/child")}
         />
       </View>
       <AppText variant="caption" tone="muted">

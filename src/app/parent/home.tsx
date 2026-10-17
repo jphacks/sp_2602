@@ -42,7 +42,14 @@ function HomeBody({ childId }: { childId: string }) {
           icon="info"
           message="1日の上限がまだ決まっていません"
           hint="テストや計画がない日の上限です。決めるまで、その日は「上限未設定」になります。"
-          action={<Button variant="soft" label="1日の上限を決める" onPress={() => router.push("/pair/usual-limit")} />}
+          action={
+            <Button
+              variant="soft"
+              label="1日の上限を決める"
+              // navigate: 2回押しても同じ画面を2枚重ねない。from=home: 決めたら（あとでも）このホームへ戻る
+              onPress={() => router.navigate({ pathname: "/pair/usual-limit", params: { from: "home" } })}
+            />
+          }
         />
       )}
       {stale && (

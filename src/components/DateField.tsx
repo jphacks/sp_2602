@@ -18,6 +18,7 @@ type Props = {
   minimumDate?: string;
   maximumDate?: string;
   error?: string | null;
+  disabled?: boolean; // 保存している間は開かない（送った値と画面の値がずれないように）
 };
 
 // "YYYY-MM-DD" → 端末の地域のその日の正午（選択画面に渡す）
@@ -28,7 +29,7 @@ const toLocalNoon = (s: string) => {
 const fromLocal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-export function DateField({ label, value, onChange, minimumDate, maximumDate, error }: Props) {
+export function DateField({ label, value, onChange, minimumDate, maximumDate, error, disabled = false }: Props) {
   const c = useColors();
   const fieldStyles = useFieldStyles();
   const open = () =>
@@ -45,7 +46,9 @@ export function DateField({ label, value, onChange, minimumDate, maximumDate, er
     <View style={styles.wrap}>
       <Pressable
         onPress={open}
+        disabled={disabled}
         accessibilityRole="button"
+        accessibilityState={{ disabled }}
         accessibilityLabel={`${label}${value ? `、${formatDateLongJa(value)}` : "、未入力"}`}
         style={[fieldStyles.field, error ? fieldStyles.fieldError : null]}
       >
