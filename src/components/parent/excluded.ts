@@ -89,3 +89,18 @@ export function hasUnsaved(saved: readonly ExcludedApp[], draft: ReadonlySet<str
   if (saved.length !== draft.size) return true;
   return saved.some((a) => !draft.has(a.packageName));
 }
+
+// 30 秒ごとの取り直し（excludedAppsGet）で、スイッチの状態と保存に使う版（expectedVersion）をどうするか。
+//   保存していない変更がない（スイッチが保存済みと同じ）: サーバの今の一覧と版に合わせ直す。
+//     なぜ: 開いたときの版のままだと、そのあと子どもがテストを足す・計画を保存する等で版が上がったとき、
+//           スイッチを1つ動かして保存しただけで必ず「ほかの端末で設定が変わりました」になる（親02 と同じ。10/17 デバッグ）。
+//           ほかの保護者の端末で一覧が変わったときも、スイッチが古いまま残らない。
+//   保存していない変更がある: 動かしかけのスイッチを戻さず、動かし始めたときの版を保つ（conflict で気づけるように）。
+export function syncExcludedDraft(
+  current: { saved: readonly ExcludedApp[] | null; draft: ReadonlySet<string> | null; baseVersion: number | null },
+  view: Pick<ExcludedAppsView, "apps" | "configVersion">,
+): { draft: ReadonlySet<string>; baseVersion: number } {
+  const { saved, draft, baseVersion } = current;
+  if (saved && draft && baseVersion != null && hasUnsaved(saved, draft)) return { draft, baseVersion };
+  return { draft: new Set(view.apps.map((a) => a.packageName)), baseVersion: view.configVersion };
+}

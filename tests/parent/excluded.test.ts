@@ -11,6 +11,7 @@ import {
   hasUnsaved,
   removedApps,
   removedVersions,
+  syncExcludedDraft,
 } from "@/components/parent/excluded";
 import { fresh, newFamily, ok, post } from "../verify/helpers";
 
@@ -155,5 +156,32 @@ describe("反映済み／反映待ちをサーバの値だけで決める（親1
     const after = await get();
     expect(rowsOf(after).map((r) => r[2])).toEqual(["applied", "applied", "applied", "applied"]);
     expect(excludedListStatus(after)).toBe("applied");
+  });
+});
+
+// 実機（10/17 デバッグ）: 親16 を開いたあと、子どもがテストを足す・計画を保存する等で版が上がると、
+// スイッチを1つ動かして保存しただけで必ず conflict（「ほかの端末で設定が変わりました」）になっていた
+describe("syncExcludedDraft（取り直しのときのスイッチと版）", () => {
+  const ids = (s: ReadonlySet<string>) => [...s].sort();
+
+  it("保存していない変更がなければ、サーバの今の一覧と版に合わせ直す", () => {
+    const next = syncExcludedDraft(
+      { saved, draft: new Set(saved.map((a) => a.packageName)), baseVersion: 6 },
+      { apps: saved.slice(0, 1), configVersion: 9 },
+    );
+    expect(next.baseVersion).toBe(9);
+    expect(ids(next.draft)).toEqual(["com.example.studynote"]);
+  });
+
+  it("はじめて読み込んだときは、サーバの一覧と版で作る", () => {
+    const next = syncExcludedDraft({ saved: null, draft: null, baseVersion: null }, { apps: saved, configVersion: 7 });
+    expect(next.baseVersion).toBe(7);
+    expect(ids(next.draft)).toEqual(["com.example.studynote", "com.example.wordcards"]);
+  });
+
+  it("スイッチを動かしかけなら、動かしかけの状態と、動かし始めたときの版を保つ", () => {
+    const draft = new Set(["com.example.studynote"]); // 英単語カードを外しかけ
+    const next = syncExcludedDraft({ saved, draft, baseVersion: 6 }, { apps: saved, configVersion: 9 });
+    expect(next).toEqual({ draft, baseVersion: 6 });
   });
 });

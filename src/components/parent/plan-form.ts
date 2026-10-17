@@ -94,3 +94,20 @@ export function saveConfirmation(savedVersion: number, snapshotVersion: number |
 export function reflectState(childAppliedVersion: number | null, neededVersion: number): "applied" | "pending" {
   return childAppliedVersion != null && childAppliedVersion >= neededVersion ? "applied" : "pending";
 }
+
+// 30 秒ごとの取り直し（planGet）で、入力欄と保存に使う版（expectedVersion）をどうするか。
+//   まだ何も触っていない（edited = false）: サーバの今の値と版に合わせ直す。
+//     なぜ: 開いたときの版のままにしておくと、そのあと子どもがテストを足す・通常上限を別の画面で変える等で版が上がったとき、
+//           保護者が何も触っていないのに最初の「計画を作る」が必ず「ほかの端末で設定が変わりました」になり、
+//           入力欄にも古い値（変える前の通常上限など）が残る（実機で確認。10/17 デバッグ）。
+//   触り始めた（edited = true）: 打ちかけを消さず、触り始めたときの版を保つ（ほかの端末の変更に conflict で気づけるように）。
+export function syncPlanInput(
+  current: { form: PlanForm | null; baseVersion: number | null },
+  view: PlanView,
+  today: string,
+  edited: boolean,
+): { form: PlanForm; baseVersion: number } {
+  if (edited && current.form && current.baseVersion != null)
+    return { form: current.form, baseVersion: current.baseVersion };
+  return { form: planFormFromView(view, today), baseVersion: view.configVersion };
+}

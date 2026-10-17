@@ -10,7 +10,7 @@ import { mockExcludedAppCandidates } from "@contracts/fixtures";
 import type { ExcludedAppsView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Chip, ErrorBanner, Screen, StateView } from "@/components";
 import { ChildGate } from "@/components/parent/data";
@@ -21,6 +21,7 @@ import {
   excludedRows,
   hasUnsaved,
   removedVersions,
+  syncExcludedDraft,
 } from "@/components/parent/excluded";
 import { AppInitial, Toggle } from "@/components/parent/parts";
 import { call, errorOf } from "@/lib/api";
@@ -46,21 +47,27 @@ function ExcludedBody({ childId }: { childId: string }) {
   const { refresh } = useParentData();
   const [view, setView] = useState<ExcludedAppsView | null>(null);
   const [loadError, setLoadError] = useState<ApiError | null>(null);
-  const [draft, setDraft] = useState<Set<string> | null>(null); // スイッチが ON のアプリ
+  const [draft, setDraft] = useState<ReadonlySet<string> | null>(null); // スイッチが ON のアプリ
   // 保存するときの expectedVersion。スイッチを読み込んだときの版（ほかの端末が先に変えていたら conflict で気づける）
   const [baseVersion, setBaseVersion] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [savedOk, setSavedOk] = useState(false);
+  // 取り直しの関数から、今の保存済みの一覧・スイッチ・版を読むため（関数を作り直さずに済むように）
+  const latest = useRef({ saved: view?.apps ?? null, draft, baseVersion });
+  useEffect(() => {
+    latest.current = { saved: view?.apps ?? null, draft, baseVersion };
+  }, [view, draft, baseVersion]);
 
   const load = useCallback(async () => {
     try {
       const v = await call("excludedAppsGet", { childId });
+      // 動かしかけのスイッチは戻さない（取り直しで消えないように）。保存していない変更がなければ、サーバの今の一覧と版に合わせる
+      const next = syncExcludedDraft(latest.current, v);
       setView(v);
       setLoadError(null);
-      // スイッチの状態は最初の1回だけ取り込む（取り直しで、動かしかけのスイッチを戻さない）
-      setDraft((d) => d ?? new Set(v.apps.map((a) => a.packageName)));
-      setBaseVersion((b) => b ?? v.configVersion);
+      setDraft(next.draft);
+      setBaseVersion(next.baseVersion);
     } catch (e) {
       const error = errorOf(e);
       if (error) setLoadError(error);

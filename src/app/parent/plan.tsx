@@ -8,7 +8,7 @@ import { todayString } from "@contracts/dates";
 import type { ApiError } from "@contracts/errors";
 import type { ConfigSnapshot, PlanView } from "@contracts/schemas";
 import { router } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppText,
   Banner,
@@ -34,6 +34,7 @@ import {
   planFormFromView,
   reflectState,
   saveConfirmation,
+  syncPlanInput,
   validatePlanForm,
 } from "@/components/parent/plan-form";
 import { WeekBars } from "@/components/parent/WeekBars";
@@ -64,15 +65,23 @@ function PlanBody({ childId }: { childId: string }) {
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  // 入力欄を触り始めたか。触る前は取り直しのたびにサーバの値と版に合わせる（plan-form.ts の syncPlanInput）
+  const edited = useRef(false);
+  // 取り直しの関数から、今の入力欄と版を読むため（関数を作り直さずに済むように）
+  const latest = useRef({ form, baseVersion });
+  useEffect(() => {
+    latest.current = { form, baseVersion };
+  }, [form, baseVersion]);
 
   const load = useCallback(async () => {
     try {
       const v = await call("planGet", { childId });
       setView(v);
       setLoadError(null);
-      // 入力中の値は上書きしない（30 秒ごとの取り直しで打ちかけが消えないように）
-      setForm((f) => f ?? planFormFromView(v, today));
-      setBaseVersion((b) => b ?? v.configVersion);
+      // 触り始めた入力は上書きしない（30 秒ごとの取り直しで打ちかけが消えないように）。触る前はサーバの今の値と版に合わせる
+      const next = syncPlanInput(latest.current, v, today, edited.current);
+      setForm(next.form);
+      setBaseVersion(next.baseVersion);
     } catch (e) {
       const error = errorOf(e);
       if (error) setLoadError(error);
@@ -81,6 +90,7 @@ function PlanBody({ childId }: { childId: string }) {
   usePolling(load);
 
   const update = <K extends PlanField>(field: K, value: PlanForm[K]) => {
+    edited.current = true;
     setForm((f) => (f ? { ...f, [field]: value } : f));
     setErrors((e) => ({ ...e, [field]: undefined }));
     setSaveError(null);
@@ -111,6 +121,7 @@ function PlanBody({ childId }: { childId: string }) {
       };
       setForm(planFormFromView(next, today));
       setBaseVersion(v?.configVersion ?? res.configVersion);
+      edited.current = false; // 保存できたので、また取り直しに合わせる
       setSavedVersion(res.configVersion);
     } catch (e) {
       const error = errorOf(e);

@@ -7,6 +7,7 @@ import {
   planFormFromView,
   reflectState,
   saveConfirmation,
+  syncPlanInput,
   validatePlanForm,
 } from "@/components/parent/plan-form";
 
@@ -127,5 +128,30 @@ describe("保存の確定と反映（Q5・Q6）", () => {
     expect(reflectState(6, 5)).toBe("applied");
     expect(reflectState(4, 5)).toBe("pending");
     expect(reflectState(null, 0)).toBe("pending");
+  });
+});
+
+// 実機（10/17 デバッグ）: 親02 を開いたあと、子どもがテストを足した・別の画面で通常上限を変えた等で版が上がると、
+// 保護者が何も触っていないのに最初の「計画を作る」が必ず conflict になり、入力欄にも古い通常上限が残っていた
+describe("syncPlanInput（取り直しのときの入力欄と版）", () => {
+  it("まだ触っていなければ、サーバの今の値と版に合わせ直す（古い版のまま保存しない）", () => {
+    const first = syncPlanInput({ form: null, baseVersion: null }, view({ configVersion: 3 }), today, false);
+    expect(first.baseVersion).toBe(3);
+    // ほかの端末で通常上限が 2 時間に決まり、版が 5 に上がった
+    const next = syncPlanInput(first, view({ configVersion: 5, usualLimitMinutes: 120 }), today, false);
+    expect(next.baseVersion).toBe(5);
+    expect(next.form.usual).toEqual({ hours: "2", minutes: "0" });
+  });
+
+  it("触り始めたら、打ちかけの入力と触り始めたときの版を保つ（ほかの端末の変更に conflict で気づける）", () => {
+    const typing: PlanForm = form({ start: hm("4") });
+    const next = syncPlanInput({ form: typing, baseVersion: 3 }, view({ configVersion: 5 }), today, true);
+    expect(next).toEqual({ form: typing, baseVersion: 3 });
+  });
+
+  it("触ったことになっていても、まだ一度も読み込めていなければサーバの値で作る", () => {
+    const next = syncPlanInput({ form: null, baseVersion: null }, view({ configVersion: 4 }), today, true);
+    expect(next.baseVersion).toBe(4);
+    expect(next.form.startDate).toBe(today);
   });
 });
