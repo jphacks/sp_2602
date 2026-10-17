@@ -2,7 +2,16 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    "includes": ["**", "!**/.expo", "!**/android", "!**/ios", "!**/dist", "!**/node_modules", "!**/package-lock.json"]
+    "includes": [
+      "**",
+      "!**/.expo",
+      "!**/android",
+      "!**/ios",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/package-lock.json",
+      "!backend"
+    ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },
   "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always" } },
