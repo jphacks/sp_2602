@@ -1,2 +1,95 @@
-<manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- ── K-B: Device Owner（デモ専用）。再起動のあとにアンインストールの止めを確かめ直すため ── -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+  <!-- ── K-A: 使用時間（C2）と上限の案内（C4）。engine/。RECEIVE_BOOT_COMPLETED は上の K-B の宣言を共有する（engine/BootReceiver.kt も使う） ── -->
+  <!-- 使用状況へのアクセス（UsageStatsManager）。設定画面でユーザーが許可する特別な権限（宣言だけでは使えない） -->
+  <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+  <!-- アプリ名（label）・ランチャーの一覧・学習用アプリを開くために、ほかのアプリが見える必要がある（Android 11 以降） -->
+  <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+  <!-- 監視の Foreground Service（Android 14 以降は種類ごとの権限も要る。種類は specialUse） -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+  <!-- 見守り中の通知・時間が終わった案内の通知（Android 13 以降は実行時の許可） -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- 他のアプリの上に表示（裏から Slope の案内画面を前に出す。設定画面でユーザーが許可する） -->
+  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+  <!-- 時間が終わった案内を全画面の通知で出す（Android 14 以降は設定での許可が要る。なければ上から出る通知になる） -->
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+  <!-- 「電池の最適化から外しますか」の確認を直接出す -->
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+  <application>
+
+    <!-- ── K-B: 子どものウィジェット（C5・Figma 子12）。widget/SlopeWidget.kt ── -->
+    <receiver
+      android:name="dev.hackathon.kit.kitnative.widget.SlopeWidget"
+      android:exported="true"
+      android:label="Slope">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <!-- K-A の監視が今日の使用量を保存したとき（EngineStore.ACTION_TODAY_UPDATED。自分のアプリにだけ送られる）。描き直すだけ -->
+        <action android:name="dev.hackathon.kit.kitnative.TODAY_UPDATED" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/slope_widget_info" />
+    </receiver>
+
+    <!-- ── K-B: Device Owner（デモ専用・アンインストールの防止）。admin/。手順は docs/device-owner.md ── -->
+    <!-- 受け手。dpm set-device-owner で指名する。クラスの名前・場所を変えると指名が外れる -->
+    <receiver
+      android:name="dev.hackathon.kit.kitnative.admin.SlopeDeviceAdminReceiver"
+      android:description="@string/slope_admin_description"
+      android:exported="true"
+      android:label="@string/slope_admin_label"
+      android:permission="android.permission.BIND_DEVICE_ADMIN">
+      <meta-data
+        android:name="android.app.device_admin"
+        android:resource="@xml/slope_device_admin" />
+      <intent-filter>
+        <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+      </intent-filter>
+    </receiver>
+    <!-- 再起動・アプリの更新のあとに止めを確かめ直す（どちらも OS しか送れない放送） -->
+    <receiver
+      android:name="dev.hackathon.kit.kitnative.admin.DeviceOwnerBootReceiver"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+    <!-- PC（adb）から Device Owner を解除する入口。DUMP の権限は adb（shell）にしかないので、ほかのアプリからは送れない -->
+    <receiver
+      android:name="dev.hackathon.kit.kitnative.admin.DeviceOwnerReleaseReceiver"
+      android:exported="true"
+      android:permission="android.permission.DUMP">
+      <intent-filter>
+        <action android:name="dev.hackathon.kit.kitnative.action.RELEASE_DEVICE_OWNER" />
+      </intent-filter>
+    </receiver>
+
+    <!-- ── K-A: 使用時間の監視と上限の案内（C4）。engine/MonitorService.kt ── -->
+    <!-- 種類 specialUse: 使用時間の見守りに合う決まった種類がないため。用途の説明を下の property に書く（Android 14 以降の約束） -->
+    <service
+      android:name="dev.hackathon.kit.kitnative.engine.MonitorService"
+      android:exported="false"
+      android:foregroundServiceType="specialUse">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="Parental screen-time monitoring: measures the child's daily app usage and shows a notice when the parent-set daily limit is reached" />
+    </service>
+    <!-- 端末の再起動・Slope の更新のあとに監視を再開する（どちらも OS しか送れない放送）。engine/BootReceiver.kt -->
+    <receiver
+      android:name="dev.hackathon.kit.kitnative.engine.BootReceiver"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+      </intent-filter>
+    </receiver>
+
+  </application>
 </manifest>

@@ -11,7 +11,13 @@ describe("native（モジュールなし）", () => {
     setFakeUsage(false);
     expect(native.available).toBe(false);
     expect(native.ping()).toBeNull();
-    expect(native.getPermissions()).toEqual({ usageAccess: false, overlay: false, accessibility: false });
+    // 権限の種類は contracts/native.ts の NativePermission（K-A で accessibility をやめ、notifications・batteryOptimization を足した）
+    expect(native.getPermissions()).toEqual({
+      usageAccess: false,
+      overlay: false,
+      notifications: false,
+      batteryOptimization: false,
+    });
     expect((await native.getDailyUsage("2026-10-17")).status).toBe("unavailable");
     expect(native.getEngineStatus()).toEqual({ running: false, restrictionDate: null });
     expect(native.showLimitReached()).toBe(false);
@@ -20,6 +26,7 @@ describe("native（モジュールなし）", () => {
       native.startEngine();
       native.stopEngine();
       native.openPermissionSettings("overlay");
+      native.clearLocalData();
       native.saveRestriction({
         date: "2026-10-17",
         limit: { kind: "unset" },
@@ -27,6 +34,7 @@ describe("native（モジュールなし）", () => {
         essentialPackages: [],
         learningPackages: [],
         configVersion: 0,
+        testPeriods: [],
       });
     }).not.toThrow();
   });

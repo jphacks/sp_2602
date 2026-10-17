@@ -236,6 +236,19 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 
 `src/lib/storage.ts` の `storageKeys`。一覧は [architecture.md の 5章](architecture.md#5-端末に残すもの)。
 
+### 端末に残すもの（Kotlin。C4・C5）
+
+Kotlin の監視とウィジェットは JS が動いていなくても読むので、AsyncStorage ではなく SharedPreferences に置く。形の正本は `modules/kit-native/android/src/main/java/dev/hackathon/kit/kitnative/engine/EngineStore.kt` の先頭のコメント。
+
+| ファイル / キー | 中身 | 書く | 読む |
+|---|---|---|---|
+| `slope_engine` / `restriction` | JSON。`saveRestriction` で受け取った判定の値（`date`・`limit`・`upcoming`・`excludedPackages`・`essentialPackages`・`learningPackages`・`configVersion`・`savedAt`） | `saveRestriction` | 監視・`getEngineStatus`・再起動後 |
+| `slope_engine` / `today_usage` | JSON。今日のまとめ `{date, status, restrictedMinutes, limit, usedPercent, reached, measuredAt}`。`usedPercent` は C3 と同じ規則、出せない状態は `null` | 監視（30 秒ごと）・`getDailyUsage`（今日の分） | ウィジェット（`EngineStore.loadToday`） |
+| `slope_engine` / `engine_enabled` | Boolean。監視を続けるか | `startEngine`・`stopEngine`・`clearLocalData` | 再起動後・監視 |
+| `slope.widget`（K-B） | テストの日程 | `saveRestriction` の `testPeriods` → `WidgetStore.saveTests` | ウィジェット |
+
+`today_usage` が変わったら、自分のアプリにだけ放送 `dev.hackathon.kit.kitnative.TODAY_UPDATED` を送る（ウィジェットが描き直す）。ログアウト（`clearLocalData`）で全部消す。
+
 ## 6. `backend/` の DB の表との対応
 
 `backend/src/db/schema/` は試験用の DB の表の設計です（今のサーバはつないでいない）。名前と項目は契約にそろえていますが、**そのままでは今の仕様を入れられない所があります**。

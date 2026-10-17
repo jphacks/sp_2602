@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 子どものウィジェット（C5）とデバイス管理（Device Owner）の文言。K-A の文言と名前がぶつからないよう slope_widget_ / slope_admin_ で始める -->
+<resources>
+    <string name="slope_widget_description">今日の残りと、テストまでの日数</string>
+    <!-- TODO(未決): Q18 割合の向き。Figma 子12 どおり「残り」。B に決まったら「今日の使用量」「% 使用」に変える -->
+    <string name="slope_widget_usage_label">今日の残り</string>
+    <string name="slope_widget_usage_unit">% 残り</string>
+    <string name="slope_widget_test_label">テストまで</string>
+    <string name="slope_widget_test_before">あと</string>
+    <string name="slope_widget_test_after">日</string>
+    <string name="slope_admin_label">Slope（デモ用の端末管理）</string>
+    <string name="slope_admin_description">デモの間、Slope が消されないようにします</string>
+</resources>

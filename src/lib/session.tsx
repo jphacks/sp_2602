@@ -12,6 +12,7 @@ import { Session } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiCallError, call, errorOf, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
+import { native } from "./native";
 import { clearLocalDataFor } from "./sign-out";
 import { appStorage, clearSessionData, readJson, storageKeys, writeJson } from "./storage";
 
@@ -97,6 +98,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const who = current.current;
     await signOutGoogle();
     if (who) await clearLocalDataFor(who.userId).catch(() => undefined);
+    // C4・C5: 子どもの端末の監視（Kotlin の Foreground Service）を止め、Kotlin が端末に残した値（判定の値・今日の使用量・
+    // ウィジェットのテストの日程）を消してウィジェットを描き直す。再起動しても始めない（保護者の端末では消すものがないだけ）。
+    // sign-out.ts の clearLocalDataFor から呼ばないのは、あちらを Node のテストで expo を読まずに動かすため
+    native.clearLocalData();
     await forget(null);
   }, [forget]);
 

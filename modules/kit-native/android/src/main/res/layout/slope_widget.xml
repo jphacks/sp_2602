@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  子どものウィジェット（C5・Figma 子12）の見た目。左「今日の残り」（白・枠あり）、右「テストまで」（薄い青）。
+  RemoteViews で描くので、使える部品は LinearLayout・TextView・ImageView・ProgressBar などに限られる（Android の制約）。
+  色は contracts/tokens.ts と同じ値（primary #3B5BDB・primaryContainer #DDE4FF・onPrimaryContainer #0B1F6B・
+  文字 #1B1B1F・副の文字 #46464F・枠 #C7C5D0・バーの下地 #E9E7EF）。tokens.ts は JS なのでここでは数字で書く。
+  書いてある数字（54・13）はウィジェットを選ぶ画面の見本（previewLayout）用。置いたあとは SlopeWidget がすべて書き換える。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/slope_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:padding="4dp">
+
+    <!-- ── 左: 今日の残り ── -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="6dp"
+        android:layout_weight="1"
+        android:background="@drawable/slope_widget_card_usage"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/slope_widget_ic_bar_chart" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:maxLines="1"
+                android:text="@string/slope_widget_usage_label"
+                android:textColor="#1B1B1F"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <!-- 数字「54 % 残り」 -->
+            <LinearLayout
+                android:id="@+id/slope_widget_usage_value_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:baselineAligned="true"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/slope_widget_usage_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="54"
+                    android:textColor="#3B5BDB"
+                    android:textSize="36sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/slope_widget_usage_unit"
+                    android:textColor="#46464F"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <!-- 数字が出せない日の文（権限なし・制限なし・まだ分からない など。0% と出さない） -->
+            <LinearLayout
+                android:id="@+id/slope_widget_usage_message"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/slope_widget_usage_message_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:maxLines="2"
+                    android:textColor="#1B1B1F"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/slope_widget_usage_message_body"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:maxLines="2"
+                    android:textColor="#46464F"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <ProgressBar
+            android:id="@+id/slope_widget_usage_bar"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="8dp"
+            android:indeterminate="false"
+            android:max="100"
+            android:progress="54"
+            android:progressDrawable="@drawable/slope_widget_bar" />
+    </LinearLayout>
+
+    <!-- ── 右: テストまで ── -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="6dp"
+        android:layout_weight="1"
+        android:background="@drawable/slope_widget_card_test"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/slope_widget_ic_event" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:maxLines="1"
+                android:text="@string/slope_widget_test_label"
+                android:textColor="#1B1B1F"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <!-- 「あと 13 日」 -->
+            <LinearLayout
+                android:id="@+id/slope_widget_test_value_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:baselineAligned="true"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:text="@string/slope_widget_test_before"
+                    android:textColor="#0B1F6B"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/slope_widget_test_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:includeFontPadding="false"
+                    android:text="13"
+                    android:textColor="#0B1F6B"
+                    android:textSize="36sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:text="@string/slope_widget_test_after"
+                    android:textColor="#0B1F6B"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- 日数が出せないときの文（予定なし・テスト中・まだ分からない） -->
+            <LinearLayout
+                android:id="@+id/slope_widget_test_message"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/slope_widget_test_message_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:maxLines="2"
+                    android:textColor="#0B1F6B"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/slope_widget_test_message_body"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:maxLines="2"
+                    android:textColor="#0B1F6B"
+                    android:textSize="11sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

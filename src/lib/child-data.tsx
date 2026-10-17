@@ -4,10 +4,14 @@
 //   C2: 今日と昨日のアプリ別の使用時間を取る（native.ts）
 //   C3: 今日の使用済みの割合・到達状態を計算する（usage-calc.ts）
 //   C8: 前に送った中身から変わっていれば、今日と昨日の2日分を送信待ちに入れて送る（usage-outbox.ts。Q8・Q9）
-//   C4: 判定に使う値を Kotlin に渡す（native.saveRestriction。Kotlin がなければ何もしない）
-// 画面では: const { config, usage, calc, test, blank, refresh } = useChildData();
+//   C4: 判定に使う値を Kotlin に渡し（native.saveRestriction）、監視を始める（native.startEngine。Kotlin がなければ何もしない）
+//   権限: 使用状況へのアクセス・重ねて表示・通知・電池の最適化の状態を読み直す（設定画面で許可して戻ってきたときに出し分けを変える）
+// 監視（Kotlin の Foreground Service）を始めるきっかけ: この Provider が出たとき（＝子どもとしてログインした後）と、設定を取れたとき。
+//   監視は Slope の画面が閉じても続き、上限に届いたら Kotlin が案内を前に出す（modules/kit-native/.../engine/MonitorService.kt）。
+//   止めるのはログアウトのとき（session.tsx の signOut）。
+// 画面では: const { config, usage, calc, test, blank, permissions, refresh } = useChildData();
 import { addDays, todayString } from "@contracts/dates";
-import type { NativeUsageResult } from "@contracts/native";
+import type { NativePermissionStatus, NativeUsageResult } from "@contracts/native";
 import type { UsageDayReport } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { type ConfigState, configCache } from "./config-cache";
@@ -21,6 +25,7 @@ import {
   LEARNING_PACKAGES,
   limitForDate,
   nextTest,
+  toNativeRestriction,
   toUsageDayReport,
   type UsageCalc,
 } from "./usage-calc";
@@ -38,6 +43,7 @@ type ChildData = {
   calc: UsageCalc | null; // 今日の C3 の結果（null = まだ読み込み中）
   test: ReturnType<typeof nextTest>; // 次のテスト（なければ null）
   blank: ReturnType<typeof currentBlankPeriod>; // 今日が空白期間ならその期間（制限なし。Q7）
+  permissions: NativePermissionStatus | null; // 権限の状態（null = まだ読んでいない）
   refresh: () => Promise<void>; // 今すぐ取り直す（日程を保存した後など）
 };
 
@@ -47,6 +53,7 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
   const [config, setConfig] = useState<ConfigState | null>(null);
   const [usage, setUsage] = useState<NativeUsageResult | null>(null);
   const [today, setToday] = useState(() => todayString());
+  const [permissions, setPermissions] = useState<NativePermissionStatus | null>(null);
   const lastSent = useRef<string | null>(null); // 前に送信待ちへ入れた中身（変化がなければ送らない。Q9）
 
   // 起動直後は端末に保存してある設定をすぐ出す（通信を待たない）
@@ -54,10 +61,16 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
     void configCache.load(childId).then((s) => setConfig((cur) => cur ?? s));
   }, [childId]);
 
+  // C4: 子どもとしてログインしたら監視を始める（判定の値がまだなければ、Kotlin は使用量を測るだけで案内は出さない）
+  useEffect(() => {
+    native.startEngine();
+  }, []);
+
   const refresh = useCallback(async () => {
     const date = todayString();
     const yesterday = addDays(date, -1);
     setToday(date);
+    setPermissions(native.getPermissions());
     const [cfg, use, useYesterday] = await Promise.all([
       configCache.refresh(childId),
       native.getDailyUsage(date),
@@ -68,22 +81,17 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
     const snapshot = cfg.status === "unavailable" ? null : cfg.snapshot;
     const excluded = snapshot?.excludedApps.map((a) => a.packageName) ?? [];
 
-    // C4: Kotlin に判定の値を渡す（設定が分からないときは渡さない = 前の値で判定を続ける）
+    // C4: Kotlin に判定の値を渡す（設定が分からないときは渡さない = 前の値で判定を続ける）。
+    // 先の日の上限も渡す（Slope を開かない日が続いても、Kotlin が日付の変わり目から判定できるように。toNativeRestriction）。
+    // 監視が止まっていたら（OS に止められた・権限を許可した直後など）始め直す。動いていれば読み直すだけ
     if (snapshot) {
-      const limit = limitForDate(snapshot, date);
-      native.saveRestriction({
-        date,
-        limit:
-          limit.kind === "set"
-            ? { kind: "limited", limitMinutes: limit.minutes }
-            : limit.kind === "unlimited"
-              ? { kind: "unlimited" }
-              : { kind: "unset" },
-        excludedPackages: excluded,
-        essentialPackages: [...ESSENTIAL_PACKAGES],
-        learningPackages: [...LEARNING_PACKAGES],
-        configVersion: snapshot.configVersion,
-      });
+      native.saveRestriction(
+        toNativeRestriction(snapshot, date, {
+          essentialPackages: ESSENTIAL_PACKAGES,
+          learningPackages: LEARNING_PACKAGES,
+        }),
+      );
+      native.startEngine();
     }
 
     // C8: 取れた日（今日・昨日）の記録を作り、前に送った中身から変わっていれば送信待ちに入れる。そのあと送れる分を送る
@@ -120,9 +128,10 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
       calc: input ? calcUsage(input) : null,
       test: nextTest(snapshot, today),
       blank: currentBlankPeriod(snapshot, today),
+      permissions,
       refresh,
     };
-  }, [childId, today, config, usage, refresh]);
+  }, [childId, today, config, usage, permissions, refresh]);
 
   return <ChildDataContext.Provider value={value}>{children}</ChildDataContext.Provider>;
 }

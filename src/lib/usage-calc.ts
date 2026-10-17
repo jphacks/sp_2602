@@ -3,7 +3,8 @@
 // 取れなかった値を 0 分にしない: 実績が取れない・権限がない・上限が未設定・上限が負・制限なし（空白期間。Q7）は、それぞれ別の状態で返す。
 //   const r = calcUsage({ usage, limit: limitForDate(snapshot, today), excludedPackages, essentialPackages });
 //   if (r.state === "ok") { r.displayUsedPercent … r.reached … }
-import type { NativeAppUsage, NativeUsageResult } from "@contracts/native";
+import { addDays } from "@contracts/dates";
+import type { NativeAppUsage, NativeDayLimit, NativeRestriction, NativeUsageResult } from "@contracts/native";
 import type { ConfigSnapshot, UsageDayReport } from "@contracts/schemas";
 
 // 安全上の必須例外（電話・緊急通報など）。C9 の対象外アプリとは別に、いつも制限しない（MVP_SPEC 3.1・C4）
@@ -137,6 +138,39 @@ export function limitForDate(snapshot: ConfigSnapshot | null, date: string): Lim
   const hit = snapshot.dailyLimits.find((l) => l.date === date);
   if (!hit) return { kind: "unset" };
   return hit.kind === "unlimited" ? { kind: "unlimited" } : { kind: "set", minutes: hit.limitMinutes };
+}
+
+// Kotlin に先の日の上限を何日分渡すか（電波がなく Slope を開かない日が続いても、この日数は端末だけで判定できる）
+export const RESTRICTION_UPCOMING_DAYS = 14;
+
+// C4: C7 のスナップショットから、Kotlin に渡す判定の値（NativeRestriction）を作る（child-data.tsx の refresh が saveRestriction に渡す）。
+// 上限の区別は data.md 2章のとおり: 上限あり（0 分を含む）= limited、空白期間 = unlimited、日付がない = unset。
+// upcoming は date の翌日から RESTRICTION_UPCOMING_DAYS 日分（Kotlin は日付が変わったら、ここから今日の上限を取り出す）。
+// testPeriods は判定には使わず、Kotlin がウィジェット（C5）の「次のテスト」のために保存する
+export function toNativeRestriction(
+  snapshot: ConfigSnapshot,
+  date: string,
+  opts: { essentialPackages?: readonly string[]; learningPackages?: readonly string[] } = {},
+): NativeRestriction {
+  const toNative = (d: string): NativeDayLimit => {
+    const l = limitForDate(snapshot, d);
+    if (l.kind === "set") return { kind: "limited", limitMinutes: l.minutes };
+    if (l.kind === "unlimited") return { kind: "unlimited" };
+    return { kind: "unset" }; // スナップショットがあるので unknown にはならない
+  };
+  return {
+    date,
+    limit: toNative(date),
+    upcoming: Array.from({ length: RESTRICTION_UPCOMING_DAYS }, (_, i) => {
+      const d = addDays(date, i + 1);
+      return { date: d, limit: toNative(d) };
+    }),
+    excludedPackages: snapshot.excludedApps.map((a) => a.packageName),
+    essentialPackages: [...(opts.essentialPackages ?? ESSENTIAL_PACKAGES)],
+    learningPackages: [...(opts.learningPackages ?? LEARNING_PACKAGES)],
+    configVersion: snapshot.configVersion,
+    testPeriods: snapshot.testPeriods.map((t) => ({ name: t.name, startDate: t.startDate, endDate: t.endDate })),
+  };
 }
 
 // 今日が空白期間の中なら、その空白期間（子どものホームで「夏休み中は制限なし」と出すため）。なければ null

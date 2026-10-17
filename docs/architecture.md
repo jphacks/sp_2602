@@ -15,7 +15,7 @@ flowchart LR
     CA["画面 src/app/child/ と pair/"]
     CL["仕組み src/lib/（call・ChildDataProvider・C3 の計算・送信待ち）"]
     CS[("端末の保存 AsyncStorage")]
-    K["Kotlin の窓口 src/lib/native.ts → modules/kit-native（中身はまだ ping だけ）"]
+    K["Kotlin の窓口 src/lib/native.ts → modules/kit-native（C2 使用時間・C4 監視と案内・C5 ウィジェット）"]
   end
   subgraph SV["サーバ（Hono）src/server/"]
     R["入口 app.ts・route.ts・auth.ts"]
@@ -41,7 +41,7 @@ flowchart LR
 | 部分 | 何をするか | 主なファイル |
 |---|---|---|
 | 端末のアプリ | 画面を出し、サーバと通信する。保護者用・子ども用は同じアプリで、役割によって出す画面が変わる | `src/app/`・`src/components/`・`src/lib/` |
-| Kotlin の窓口 | Android だけでできること（C2 使用時間の取得・C4 制限画面）を呼ぶ入口。**型と仮の動きだけで、Kotlin の中身はまだない**（`ping` だけ） | `contracts/native.ts`・`src/lib/native.ts`・`modules/kit-native/` |
+| Kotlin の窓口 | Android だけでできること（C2 使用時間の取得・C4 監視と制限画面）を呼ぶ入口。Kotlin の中身は `modules/kit-native/android/.../engine/`（Kotlin がない環境では安全な既定値） | `contracts/native.ts`・`src/lib/native.ts`・`modules/kit-native/` |
 | Hono のサーバ | 窓口（API）を受け、ログインと権限を確かめ、データを保存し、上限を計算する | `src/server/` |
 | メモリの store | サーバのデータの置き場。**今はメモリの上だけ**で、サーバを止めると消える。状態は持つので、2台の端末で紐づけ〜表示まで通せる | `src/server/mock/store.ts` |
 | DB | 試験用の PostgreSQL の表の設計。**今のサーバはまだ使っていない** | `backend/` |
@@ -70,7 +70,7 @@ flowchart LR
 | `src/lib/` | アプリ側の仕組み。`api.ts`（通信）・`session.tsx`（ログイン状態）・`google.ts`（Google ログイン）・`storage.ts`（端末の保存）・`config-cache.ts`（C7）・`usage-calc.ts`（C3）・`usage-outbox.ts`（C8）・`native.ts`（Kotlin の窓口）・`polling.ts`（30秒ごとの取得）・`flow.tsx`（画面の間の受け渡し）・`child-data.tsx`・`parent-data.tsx`（子ども用・保護者用のデータの共有）・`sign-out.ts`（ログアウトで端末のデータを消す） |
 | `src/components/` | 共通の部品（`Screen`・`Card`・`Button`・`StateView` など）。`child/`・`pair/`・`parent/`・`schedule/` は機能ごとの部品と、画面の判断をまとめた純粋な関数 |
 | `src/app/` | 画面（Expo Router。ファイルの場所がそのまま道になる）。`index.tsx`（入口）・`login.tsx`・`pair/`・`child/`・`parent/` |
-| `modules/kit-native/` | Kotlin のモジュール（Expo Modules）。今は `ping` だけ |
+| `modules/kit-native/` | Kotlin のモジュール（Expo Modules）。`engine/`（C2 使用時間・C4 監視の Foreground Service と案内・再起動後の再開）、`widget/`（C5）、`admin/`（Device Owner。デモ専用） |
 | `tests/` | Vitest のテスト。フォルダの分け方は [development.md](development.md#テストの構成) |
 | `backend/` | 試験用の DB の表の設計（別のプロジェクト） |
 | `server.ts` | Vercel の入口（`src/server/app.ts` を公開するだけ） |
@@ -125,7 +125,7 @@ sequenceDiagram
 
 | 原則 | なぜ | コードのどこで守っているか |
 |---|---|---|
-| **割合・到達の判定は子どもの端末の中で行う** | 電波がなくても判定できるように。親の画面で設定を変えても、過去の記録を計算し直さないように | C3 は `src/lib/usage-calc.ts` の `calcUsage`。判定の値は `src/lib/child-data.tsx` が `native.saveRestriction` で Kotlin に渡す（Kotlin は保存した値でオフラインでも判定する予定）。親の画面は端末が送った `restrictedMinutes`（制限対象の合計）をそのまま使う |
+| **割合・到達の判定は子どもの端末の中で行う** | 電波がなくても判定できるように。親の画面で設定を変えても、過去の記録を計算し直さないように | C3 は `src/lib/usage-calc.ts` の `calcUsage`。判定の値は `src/lib/child-data.tsx` が `native.saveRestriction` で Kotlin に渡す（Kotlin は端末に保存した値で、オフラインでも・画面が閉じていても判定する。`engine/MonitorService.kt`）。親の画面は端末が送った `restrictedMinutes`（制限対象の合計）をそのまま使う |
 | **親の権限はサーバで確かめる（画面で隠すだけにしない）** | 子どもが保護者の操作をする・他人の子どもを見る、を防ぐ（AC-04・AC-13） | API ごとの `auth` は `contracts/api.ts`。毎回 `src/server/route.ts` の `prepare` が `auth.ts` の `authorize`（役割）と `checkChildAccess`（子どもは自分だけ・保護者は連携済みの子どもだけ・紐づけ前は何も扱えない）を呼ぶ。テストは `tests/verify/security.test.ts`・`tests/server/api.test.ts` |
 | **画面はサーバと `call()` だけで話す** | 道（path）の打ち間違い・合言葉の付け忘れ・エラーの形のばらつきを防ぐ | `src/lib/api.ts` の `call()` / `stream()`。`fetch` はここにしかない。道は `contracts/api.ts` の表から引く。サーバ側も `src/server/app.ts` が同じ表から道を作り、表に処理が足りないと型の検査で落ちる |
 | **取れない値を 0 にしない** | 「0 分使った」「0 分まで」と「分からない」を取り違えると、子どもを誤って止めたり、親が誤解したりする | 使用時間は `NativeUsageResult` の `unavailable`・`permission_denied`（`contracts/native.ts`）。C3 は `UsageCalc` の状態を分ける。設定は `ConfigState` の `unavailable`（`config-cache.ts`）。親の実績は `UsageDay.recorded: false`。画面は `StateView`・`Gauge`（`null` は「--」）・件数は出さない（`countText`・`testCountLabel`） |
@@ -157,7 +157,6 @@ sequenceDiagram
 
 ## 6. まだ無いもの
 
-- **Kotlin の中身**（C2 の使用時間の取得・C4 の制限画面・監視の開始）。窓口（`contracts/native.ts`）と仮の動きだけ。開発中は `EXPO_PUBLIC_FAKE_USAGE=1` で仮の使用時間を出せる。
 - **DB への保存**。サーバはメモリの store。
 - **ウィジェット（C5）・ダークテーマ**。MVP の後。
 - **画面が出ていないときの予備の取得（15分ごと）**。`src/lib/polling.ts` の `TODO(未決)`。今は画面が前に出ている間だけ取りに行く。

@@ -7,7 +7,7 @@
 //   - 文言は責めない言い方にする（「ちょうどいいペース！」「続きはあしたにしよう」）
 // React Native を import しない（Vitest で Node のまま動かすため）。
 import { addDays, formatDateJa, formatSlashDate, mondayOf, weekdayJa } from "@contracts/dates";
-import type { NativeUsageResult } from "@contracts/native";
+import type { NativePermission, NativePermissionStatus, NativeUsageResult } from "@contracts/native";
 import type { BlankPeriod, ConfigSnapshot } from "@contracts/schemas";
 import type { ConfigState } from "@/lib/config-cache";
 import { calcUsage, limitForDate, type nextTest, type UsageCalc } from "@/lib/usage-calc";
@@ -242,6 +242,40 @@ export function weekBarsLabel(bars: readonly WeekBar[]): string {
 // shownForDate は前に 子11 を出した日（まだなら null）
 export function shouldOpenLimitScreen(calc: UsageCalc | null, today: string, shownForDate: string | null): boolean {
   return calc?.state === "ok" && calc.reached && shownForDate !== today;
+}
+
+// ── 子01「見守りのための許可」（C4） ─────────────────────────────
+
+// 上限に届いたときに案内を出すための許可のうち、まだのもの（許可してほしい順）。Figma にない案内（実機の都合で足した）。
+// 使用状況へのアクセス（usageAccess）は「今日の使用量」のカードが案内するので、ここには入れない（同じ案内を2回出さない）。
+// Kotlin の部品がない端末（available = false。Expo Go・テスト）では出さない（許可しても何も変わらないため）
+export type PermissionGuideItem = {
+  permission: Exclude<NativePermission, "usageAccess">;
+  title: string;
+  body: string;
+};
+
+const PERMISSION_GUIDE: readonly PermissionGuideItem[] = [
+  {
+    permission: "overlay",
+    title: "ほかのアプリの上に表示",
+    body: "時間が終わったときに、Slope の案内を出すために使います",
+  },
+  {
+    permission: "notifications",
+    title: "通知",
+    body: "見守っていることと、時間が終わったことをお知らせします",
+  },
+  {
+    permission: "batteryOptimization",
+    title: "電池の最適化をオフ",
+    body: "見守りが途中で止まらないようにします",
+  },
+];
+
+export function permissionGuide(permissions: NativePermissionStatus | null, available: boolean): PermissionGuideItem[] {
+  if (!available || !permissions) return [];
+  return PERMISSION_GUIDE.filter((item) => !permissions[item.permission]);
 }
 
 // ── 子11「お勧めアプリはこちらです」 ──────────────────────────

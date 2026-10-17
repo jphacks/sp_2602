@@ -286,9 +286,12 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 
 **C2（使用時間）**: `src/lib/native.ts` の `getDailyUsage(date)`。
 
-- Kotlin に `getDailyUsage` があればそれを呼ぶ（**今はまだない**）。
-- ないとき: `EXPO_PUBLIC_FAKE_USAGE=1`（または `setFakeUsage(true)`）なら仮の値（`contracts/fixtures.ts` の `demoAppMinutes` を時刻に合わせて増やしたもの）。そうでなければ `{ status: "unavailable" }`（0 分にしない）。
-- 権限がなければ `permission_denied`（Kotlin ができたら返す想定）。画面は使用状況へのアクセスの設定を開く案内を出す（`native.openPermissionSettings("usageAccess")`）。
+- Kotlin（`modules/kit-native/android/src/main/java/dev/hackathon/kit/kitnative/engine/UsageReader.kt`）が、OS の使用イベント（`UsageStatsManager.queryEvents` の ACTIVITY_RESUMED／PAUSED／STOPPED・画面が消えた・電源断）を並べて、**日本時間 0:00〜24:00** に前面にいた時間をアプリごとに数える（`ForegroundTime.kt`）。OS の集計（`queryUsageStats`）は日の区切りがずれるので使わない。分は 0.1 分単位。
+  - 数えないもの: ランチャー（ホーム画面）・Slope 自身・システムの画面。0.1 分未満のアプリは一覧に入れない。アプリ名は PackageManager から（引けなければパッケージ名）。
+  - 取れない日: まだ来ていない日・6日より前の日（OS がイベントを残していない）は `unavailable`（0 分にしない）。
+- Kotlin がないとき（Expo Go・テスト）: `EXPO_PUBLIC_FAKE_USAGE=1`（または `setFakeUsage(true)`）なら仮の値（`contracts/fixtures.ts` の `demoAppMinutes` を時刻に合わせて増やしたもの）。そうでなければ `{ status: "unavailable" }`（0 分にしない）。
+- 「使用状況へのアクセス」が許可されていなければ `permission_denied`（OS は権限がないと空を返すので、先に権限を確かめる）。画面は使用状況へのアクセスの設定を開く案内を出す（`native.openPermissionSettings("usageAccess")`）。
+- 今日の分を読んだときは、ウィジェット用のまとめ（下の「端末に残すもの（Kotlin）」の `today_usage`）も書き直す。
 
 **C3（割合と到達）**: `src/lib/usage-calc.ts` の `calcUsage`。`child-data.tsx` が `useMemo` で計算して `calc` として配る。
 
@@ -303,11 +306,19 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 
 ## 8. 上限に届いたとき（C4）
 
-- 判定の値: `child-data.tsx` の `refresh` が毎回 `native.saveRestriction({ date, limit, excludedPackages, essentialPackages, learningPackages, configVersion })` で Kotlin に渡す。`learningPackages` は子11 の「お勧めアプリ」と同じ1つの一覧（`src/lib/usage-calc.ts` の `LEARNING_PACKAGES`。今は仮に Google Classroom・Duolingo）。`limit` は `limited`／`unlimited`／`unset` を分けて渡す。設定が分からないときは渡さない（前の値で判定を続ける）。
+- 判定の値: `child-data.tsx` の `refresh` が毎回 `native.saveRestriction(toNativeRestriction(snapshot, 今日))`（`src/lib/usage-calc.ts`）で Kotlin に渡す。中身は `{ date, limit, upcoming（翌日から14日分の上限）, excludedPackages, essentialPackages, learningPackages, configVersion, testPeriods（ウィジェット用） }`。`learningPackages` は子11 の「お勧めアプリ」と同じ1つの一覧（`src/lib/usage-calc.ts` の `LEARNING_PACKAGES`。今は仮に Google Classroom・Duolingo）。`limit` は `limited`／`unlimited`／`unset` を分けて渡す。設定が分からないときは渡さない（前の値で判定を続ける）。
+- **Kotlin の監視**（`engine/MonitorService.kt`。Foreground Service・種類は specialUse・通知「Slope が使用時間を見守っています」）:
+  - 始まる: 子どもの画面が出たとき（ログイン後）と、設定を取れたとき（`native.startEngine()`）。端末の再起動・Slope の更新のあと（`BootReceiver`。監視を始めたことがあり、判定の値が保存してあるときだけ）。
+  - 止まる: ログアウト（`session.tsx` の `signOut` → `native.clearLocalData()`。監視を止め、Kotlin の保存とウィジェットの値を消す）。
+  - 30 秒ごと（到達している間は 15 秒ごと・画面がついたときはすぐ）に、今日の使用時間を読み、**C3 と同じ規則**（対象外・必須例外を除く・上限 0 分は到達・制限なし／未設定／ルールのない日は到達しない・「使用 ≥ 上限」で到達）で判定する（`LimitRules.kt`）。日付が変わったら `upcoming` から今日の上限を取り出す（Slope を開かなくても次の日を判定できる）。
+  - 到達していて、前面のアプリが Slope・ランチャー・システムの画面・対象外アプリ・必須例外のどれでもなく、Slope の画面が前に出ていなければ、子11 を前に出す（`LimitPrompt.kt`）:
+    - 「他のアプリの上に表示」が許可されていれば `slope://child/limit-reached` の Activity を起動する（Android 10 以降の裏からの起動の制限の例外）。
+    - なければ優先度の高い通知（全画面の intent つき。Android 14 以降は全画面の許可がなければ上から出る通知）。押すと子11 が開く。
+    - 同じアプリには 60 秒、どのアプリにも前の案内から 10 秒あける（`PromptThrottle`。出し続けて端末が使えなくならないように。`TODO(未決)` 実機で決める）。
 - **今の画面の動き**: 子01 ホーム（`src/app/child/home.tsx`）が見えている間に `calc` が到達になったら、その日に1回だけ `native.showLimitReached()` を呼び（Kotlin がなければ何もしない）、子11（`/child/limit-reached`）へ進む（`child-view.ts` の `shouldOpenLimitScreen`）。
 - 子11（`src/app/child/limit-reached.tsx`）: 「今日のスマホの時間は終わりです。続きはあしたにしよう」・今日の使用量・次のテスト・「お勧めアプリはこちらです ›」（`LEARNING_PACKAGES` を上から順に `native.openApp` で試す。開けなければ案内のダイアログ）・「閉じる」。
 - Android は他のアプリを無条件には止められません（MVP_SPEC 2章）。子11 は「案内」で、遮断は約束しない文にしています。
-- Kotlin の監視（`startEngine` など）は窓口だけで、今のコードからは呼んでいません。
+- 子01 ホームには、まだ許可していないもの（他のアプリの上に表示・通知・電池の最適化）を並べた「見守りのための許可」のカードを出す（`PermissionGuideCard`・`child-view.ts` の `permissionGuide`。Figma にない）。使用状況へのアクセスは「今日の使用量」のカードが案内する。
 
 ## 9. 利用記録の送信（C8）
 
