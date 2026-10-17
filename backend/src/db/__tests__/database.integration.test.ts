@@ -8,6 +8,11 @@ import { familyLinks } from "../schema/family.js";
 import { planCalculationVersions, dailyLimits, testPeriods } from "../schema/planning.js";
 import { usageSyncBatches, usageRecords } from "../schema/usage.js";
 import { childConfigVersions } from "../schema/family.js";
+import { readChildConfigSnapshot } from "../config-snapshot.js";
+import {
+  savePlanCalculation,
+  StalePlanCalculationConfigError,
+} from "../plan-calculations.js";
 import {
   createTestPeriod,
   deleteTestPeriod,
@@ -125,6 +130,58 @@ suite("PostgreSQL schema and persistence", () => {
     const remaining = await db!.select().from(dailyLimits).where(eq(dailyLimits.childId, childId));
     expect(remaining).toHaveLength(0);
     await db!.delete(users).where(eq(users.id, childId));
+  });
+
+  it("saves each C10 revision with its complete D6 snapshot and rejects stale config", async () => {
+    const childId = crypto.randomUUID();
+    await db!.insert(users).values({ id: childId, role: "child" });
+    await db!.insert(childConfigVersions).values({ childId, version: 4 });
+    try {
+      const first = await savePlanCalculation(db!, {
+        childId,
+        sourceConfigVersion: 4,
+        dailyLimits: [
+          { limitDate: "2099-02-01", limitMinutes: 120 },
+          { limitDate: "2099-02-02", limitMinutes: 0 },
+        ],
+      });
+      expect(first).toEqual({ version: 1, sourceConfigVersion: 4, savedDailyLimitCount: 2 });
+
+      const second = await savePlanCalculation(db!, {
+        childId,
+        sourceConfigVersion: 4,
+        dailyLimits: [
+          { limitDate: "2099-02-01", limitMinutes: 90 },
+          { limitDate: "2099-02-02", limitMinutes: 0 },
+        ],
+      });
+      expect(second.version).toBe(2);
+
+      const snapshot = await readChildConfigSnapshot(db!, childId);
+      expect(snapshot.calculation).toEqual({
+        version: 2,
+        sourceConfigVersion: 4,
+        matchesConfigVersion: true,
+      });
+      expect(snapshot.dailyLimits).toEqual([
+        { limitDate: "2099-02-01", limitMinutes: 90, calculationVersion: 2 },
+        { limitDate: "2099-02-02", limitMinutes: 0, calculationVersion: 2 },
+      ]);
+
+      await expect(savePlanCalculation(db!, {
+        childId,
+        sourceConfigVersion: 3,
+        dailyLimits: [{ limitDate: "2099-02-01", limitMinutes: 60 }],
+      })).rejects.toBeInstanceOf(StalePlanCalculationConfigError);
+      const versions = await db!.select().from(planCalculationVersions)
+        .where(eq(planCalculationVersions.childId, childId));
+      expect(versions).toHaveLength(2);
+    } finally {
+      await db!.delete(dailyLimits).where(eq(dailyLimits.childId, childId));
+      await db!.delete(planCalculationVersions).where(eq(planCalculationVersions.childId, childId));
+      await db!.delete(childConfigVersions).where(eq(childConfigVersions.childId, childId));
+      await db!.delete(users).where(eq(users.id, childId));
+    }
   });
 
   it("supports linked-parent and own-child D3 CRUD with atomic config revisions", async () => {
