@@ -89,20 +89,20 @@ suite("PostgreSQL schema and persistence", () => {
       const savedPlan = await savePlanSettingsForParent(db!, {
         parentId,
         childId,
-        expectedVersion: 1,
+        expectedVersion: 0,
         planStartDate: "2099-03-01",
         startLimitMinutes: 120,
         finalGoalMinutes: 60,
       });
-      expect(savedPlan).toEqual({ configVersion: 2, changed: true });
+      expect(savedPlan).toEqual({ configVersion: 1, changed: true });
       expect(await db!.select().from(childUsualLimits).where(eq(childUsualLimits.childId, childId))).toHaveLength(0);
 
       const savedUsualLimit = await saveUsualLimitForParent(db!, {
-        parentId, childId, expectedVersion: 2, usualLimitMinutes: 90,
+        parentId, childId, expectedVersion: 1, usualLimitMinutes: 90,
       });
-      expect(savedUsualLimit).toEqual({ configVersion: 3, changed: true });
+      expect(savedUsualLimit).toEqual({ configVersion: 2, changed: true });
       await expect(saveUsualLimitForParent(db!, {
-        parentId, childId, expectedVersion: 2, usualLimitMinutes: 80,
+        parentId, childId, expectedVersion: 1, usualLimitMinutes: 80,
       })).rejects.toBeInstanceOf(PlanSettingsVersionConflictError);
     } finally {
       await db!.delete(dailyLimits).where(eq(dailyLimits.childId, childId));
@@ -127,11 +127,11 @@ suite("PostgreSQL schema and persistence", () => {
     ]);
     await db!.insert(familyLinks).values({ parentId, childId });
     try {
-      await saveUsualLimitForParent(db!, { parentId, childId, expectedVersion: 1, usualLimitMinutes: 180 });
+      await saveUsualLimitForParent(db!, { parentId, childId, expectedVersion: 0, usualLimitMinutes: 180 });
       await savePlanSettingsForParent(db!, {
         parentId,
         childId,
-        expectedVersion: 2,
+        expectedVersion: 1,
         planStartDate: today,
         startLimitMinutes: 300,
         finalGoalMinutes: 60,
@@ -139,7 +139,7 @@ suite("PostgreSQL schema and persistence", () => {
       await createTestPeriod(db!, {
         actorId: parentId,
         childId,
-        expectedVersion: 3,
+        expectedVersion: 2,
         name: "Final exam",
         startDate: today,
         endDate: tomorrow,
@@ -156,7 +156,7 @@ suite("PostgreSQL schema and persistence", () => {
       await expect(createTestPeriod(db!, {
         actorId: parentId,
         childId,
-        expectedVersion: 4,
+        expectedVersion: 3,
         name: "Overlapping exam",
         startDate: tomorrow,
         endDate: tomorrow,
@@ -450,13 +450,13 @@ suite("PostgreSQL schema and persistence", () => {
         endDate: "2099-01-12",
       });
       expect(created.changed).toBe(true);
-      expect(created.configVersion).toBe(2);
+      expect(created.configVersion).toBe(1);
       expect(created.testPeriod?.name).toBe("Mock Exam");
 
       await expect(createTestPeriod(db!, {
         actorId: childId,
         childId,
-        expectedVersion: 1,
+        expectedVersion: 0,
         name: "Stale write",
         startDate: "2099-02-01",
         endDate: "2099-02-02",
@@ -473,7 +473,7 @@ suite("PostgreSQL schema and persistence", () => {
         startDate: "2099-01-10",
         endDate: "2099-01-12",
       });
-      expect(noOpUpdate).toMatchObject({ changed: false, configVersion: 2 });
+      expect(noOpUpdate).toMatchObject({ changed: false, configVersion: 1 });
 
       await expect(listTestPeriods(db!, strangerId, childId)).rejects.toBeInstanceOf(TestPeriodAccessDeniedError);
       const updated = await updateTestPeriod(db!, {
@@ -484,20 +484,20 @@ suite("PostgreSQL schema and persistence", () => {
         startDate: "2099-01-11",
         endDate: "2099-01-13",
       });
-      expect(updated).toMatchObject({ changed: true, configVersion: 3 });
+      expect(updated).toMatchObject({ changed: true, configVersion: 2 });
 
       const deleted = await deleteTestPeriod(db!, {
         actorId: childId,
         childId,
         testPeriodId: created.testPeriod!.id,
       });
-      expect(deleted).toMatchObject({ changed: true, configVersion: 4 });
+      expect(deleted).toMatchObject({ changed: true, configVersion: 3 });
       const repeatedDelete = await deleteTestPeriod(db!, {
         actorId: childId,
         childId,
         testPeriodId: created.testPeriod!.id,
       });
-      expect(repeatedDelete).toMatchObject({ changed: false, configVersion: 4 });
+      expect(repeatedDelete).toMatchObject({ changed: false, configVersion: 3 });
     } finally {
       await db!.delete(testPeriods).where(eq(testPeriods.childId, childId));
       await db!.delete(dailyLimits).where(eq(dailyLimits.childId, childId));
@@ -520,53 +520,53 @@ suite("PostgreSQL schema and persistence", () => {
       const first = await replaceExcludedAppsForParent(db!, {
         parentId,
         childId,
-        expectedVersion: 1,
+        expectedVersion: 0,
         appIds: [{ appId: "com.example.one", label: "One" }],
       });
-      expect(first).toMatchObject({ configVersion: 2, changed: true });
-      expect(first.enabledApps).toEqual([{ appId: "com.example.one", label: "One", sinceVersion: 2 }]);
+      expect(first).toMatchObject({ configVersion: 1, changed: true });
+      expect(first.enabledApps).toEqual([{ appId: "com.example.one", label: "One", sinceVersion: 1 }]);
       await savePlanCalculation(db!, {
         childId,
         sourceC10InputVersion: 1,
         dailyLimits: [{ limitDate: "2099-02-01", limitMinutes: 120 }],
       });
       const c9OnlySnapshot = await readChildConfigSnapshot(db!, childId);
-      expect(c9OnlySnapshot).toMatchObject({ configVersion: 2, c10InputVersion: 1 });
+      expect(c9OnlySnapshot).toMatchObject({ configVersion: 1, c10InputVersion: 1 });
       expect(c9OnlySnapshot.calculation?.matchesC10InputVersion).toBe(true);
 
       const removed = await replaceExcludedAppsForParent(db!, {
         parentId,
         childId,
-        expectedVersion: 2,
+        expectedVersion: 1,
         appIds: [],
       });
-      expect(removed.configVersion).toBe(3);
+      expect(removed.configVersion).toBe(2);
       expect(await readExcludedAppsSnapshot(db!, childId)).toMatchObject({
-        appsChangedVersion: 3,
+        appsChangedVersion: 2,
         apps: [],
-        removedApps: [{ appId: "com.example.one", label: "One", removedVersion: 3 }],
+        removedApps: [{ appId: "com.example.one", label: "One", removedVersion: 2 }],
       });
 
       const afterC9Snapshot = await readChildConfigSnapshot(db!, childId);
-      expect(afterC9Snapshot).toMatchObject({ configVersion: 3, c10InputVersion: 1 });
+      expect(afterC9Snapshot).toMatchObject({ configVersion: 2, c10InputVersion: 1 });
       expect(afterC9Snapshot.calculation?.matchesC10InputVersion).toBe(true);
 
       await createTestPeriod(db!, {
         actorId: parentId,
         childId,
-        expectedVersion: 3,
+        expectedVersion: 2,
         name: "C10 input changed",
         startDate: "2099-03-01",
         endDate: "2099-03-02",
       });
       const afterD3Snapshot = await readChildConfigSnapshot(db!, childId);
-      expect(afterD3Snapshot).toMatchObject({ configVersion: 4, c10InputVersion: 2 });
+      expect(afterD3Snapshot).toMatchObject({ configVersion: 3, c10InputVersion: 2 });
       expect(afterD3Snapshot.calculation?.matchesC10InputVersion).toBe(true);
 
       await expect(replaceExcludedAppsForParent(db!, {
         parentId,
         childId,
-        expectedVersion: 2,
+        expectedVersion: 1,
         appIds: [],
       })).rejects.toBeInstanceOf(ExcludedAppsVersionConflictError);
     } finally {
@@ -595,7 +595,7 @@ suite("PostgreSQL schema and persistence", () => {
       await savePlanSettingsForParent(db!, {
         parentId,
         childId,
-        expectedVersion: 1,
+        expectedVersion: 0,
         planStartDate: "2099-05-01",
         startLimitMinutes: 200,
         finalGoalMinutes: 80,
@@ -603,7 +603,7 @@ suite("PostgreSQL schema and persistence", () => {
       await createTestPeriod(db!, {
         actorId: parentId,
         childId,
-        expectedVersion: 2,
+        expectedVersion: 1,
         name: "first exam",
         startDate: "2099-05-01",
         endDate: "2099-05-03",
@@ -611,7 +611,7 @@ suite("PostgreSQL schema and persistence", () => {
       await expect(createTestPeriod(db!, {
         actorId: parentId,
         childId,
-        expectedVersion: 3,
+        expectedVersion: 2,
         name: "overlapping exam",
         startDate: "2099-05-03",
         endDate: "2099-05-04",
@@ -621,7 +621,7 @@ suite("PostgreSQL schema and persistence", () => {
       await createBlankPeriod(db!, {
         parentId,
         childId,
-        expectedVersion: 3,
+        expectedVersion: 2,
         name: "first blank",
         startDate: "2099-06-01",
         endDate: "2099-06-03",
@@ -629,7 +629,7 @@ suite("PostgreSQL schema and persistence", () => {
       await expect(createBlankPeriod(db!, {
         parentId,
         childId,
-        expectedVersion: 4,
+        expectedVersion: 3,
         name: "overlapping blank",
         startDate: "2099-06-03",
         endDate: "2099-06-05",

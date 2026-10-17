@@ -125,7 +125,7 @@ describe("V: C10 を手計算と比べる（純粋な関数）", () => {
 describe("V: C10 をサーバ（store）を通して確かめる", () => {
   // 計画開始日 10/01 の日本時間 12:00 に保存する（開始日は今日以降。Q14）
   async function setup() {
-    fresh("2026-10-01T03:00:00Z");
+    await fresh("2026-10-01T03:00:00Z");
     const { child, parent } = await newFamily("c10");
     const childId = child.userId;
     let v = await versionOf(childId, parent.token);
@@ -216,7 +216,7 @@ describe("V: C10 をサーバ（store）を通して確かめる", () => {
   });
 
   it("D=0 かつ S≠G（計画開始日に唯一のテスト）は G を適用し、終了翌日から通常上限に戻る", async () => {
-    fresh("2026-10-15T03:00:00Z");
+    await fresh("2026-10-15T03:00:00Z");
     const v0 = await versionOf(CHILD_ID, PARENT);
     // デモの子どもの既存のテストを消してから、計画開始日 = 今日 のテストを足す
     const list = await ok<{ testPeriods: { id: string }[]; configVersion: number }>(

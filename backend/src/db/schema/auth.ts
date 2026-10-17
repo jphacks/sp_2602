@@ -1,4 +1,4 @@
-import { pgTable, timestamp, unique, uuid, varchar } from "drizzle-orm/pg-core";
+import { index, pgTable, timestamp, unique, uuid, varchar } from "drizzle-orm/pg-core";
 import { users } from "./users.js";
 
 /** External identity mapping; token verification and accepted providers are service policy. */
@@ -20,3 +20,13 @@ export const userSessions = pgTable("user_sessions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
 }, (table) => [unique("user_sessions_token_hash_unique").on(table.tokenHash)]);
+
+/**
+ * QR の番号の送り間違い（pairClaim の not_found・conflict）の記録。同じ人が 10 分に 10 回まちがえたら、しばらく断る（総当たりを防ぐ）。
+ * Vercel では呼ぶたびに別のインスタンスになりうるので、数はメモリではなく DB で数える。成功したらその人の記録を消す。
+ */
+export const pairClaimFailures = pgTable("pair_claim_failures", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  failedAt: timestamp("failed_at", { withTimezone: true }).notNull(),
+}, (table) => [index("pair_claim_failures_user_failed_idx").on(table.userId, table.failedAt)]);

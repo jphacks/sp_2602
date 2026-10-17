@@ -11,15 +11,15 @@ import { deletePeriod, fetchPeriods, savePeriod } from "@/components/schedule/ac
 import { appliedStatus, saveFailure, validatePeriod } from "@/components/schedule/logic";
 import { ApiCallError, call, errorOf, setSessionToken } from "@/lib/api";
 import app from "@/server/app";
-import { resetStore } from "@/server/mock/store";
+import { fresh } from "../verify/helpers";
 
 const PARENT = mockSessions["mock-google-parent"].token;
 const CHILD = mockSessions["mock-google-child"].token;
 const CHILD_ID = mockSessions["mock-google-child"].userId;
 
-beforeEach(() => {
+beforeEach(async () => {
   // 時計は日本時間 2026-10-15 12:00（見本のテスト「数学」10/26〜10/28 がある。空白期間はない）
-  resetStore({ seed: true, now: () => new Date(Date.parse("2026-10-15T03:00:00Z")) });
+  await fresh("2026-10-15T03:00:00Z");
   vi.stubGlobal("fetch", (url: string, init: RequestInit) => app.request(url, init));
 });
 

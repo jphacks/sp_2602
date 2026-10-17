@@ -5,19 +5,17 @@ import { api } from "@contracts/api";
 import { mockSessions } from "@contracts/fixtures";
 import { beforeEach, describe, expect, it } from "vitest";
 import app from "@/server/app";
-import { resetStore } from "@/server/mock/store";
+import { clock, fresh } from "../verify/helpers";
 
 const PARENT = mockSessions["mock-google-parent"].token;
 const CHILD = mockSessions["mock-google-child"].token;
 const CHILD_ID = mockSessions["mock-google-child"].userId;
 
 // 日本時間 2026-10-15 12:00
-let nowMs = Date.parse("2026-10-15T03:00:00Z");
 const TODAY = "2026-10-15";
 
-beforeEach(() => {
-  nowMs = Date.parse("2026-10-15T03:00:00Z");
-  resetStore({ seed: true, now: () => new Date(nowMs) });
+beforeEach(async () => {
+  await fresh("2026-10-15T03:00:00Z");
 });
 
 const post = (path: string, body: unknown, token: string) =>
@@ -56,8 +54,8 @@ describe("C8: 未来の測定時刻の記録", () => {
 
   it("未来の記録の後でも、時計を戻した後の正しい記録で、その日の記録が更新される", async () => {
     await upload("2099-01-01T00:00:00.000Z", 10);
-    nowMs += 60_000;
-    const r = await upload(new Date(nowMs).toISOString(), 30);
+    clock.addMs(60_000);
+    const r = await upload(new Date(clock.ms).toISOString(), 30);
     expect(r.appliedDates).toEqual([TODAY]);
     expect((await todayView())?.usedMinutes).toBe(30);
   });

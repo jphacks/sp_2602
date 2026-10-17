@@ -78,6 +78,13 @@
       "when": 1792250100000,
       "tag": "0010_c10_finalized_legacy_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792249936924,
+      "tag": "0011_auth_rules_and_list_versions",
+      "breakpoints": true
     }
   ]
 }

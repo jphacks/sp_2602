@@ -1,6 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { C10CalculationInputError } from "../../../backend/src/db/c10-recalculate.js";
 import { readChildConfigSnapshot } from "../../../backend/src/db/config-snapshot.js";
+import { childConfigVersions } from "../../../backend/src/db/schema/family.js";
 import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state.js";
 import { users } from "../../../backend/src/db/schema/users.js";
 import {
@@ -13,11 +14,9 @@ import {
   TestPeriodVersionConflictError,
   updateTestPeriod,
 } from "../../../backend/src/db/test-periods.js";
-import type { Caller } from "../auth.js";
+import { type Caller, isUuid } from "../auth.js";
 import { db } from "../db/index.js";
-import { isMock } from "../env.js";
 import { AppError } from "../errors.js";
-import { getStore } from "../mock/store.js";
 import { currentC10CalculationVersion } from "./c10-version.js";
 
 function mapError(error: unknown): never {
@@ -34,16 +33,20 @@ function mapError(error: unknown): never {
 }
 
 export async function listTestPeriodsForCaller(caller: Caller, childId: string) {
-  if (isMock()) return getStore().testPeriods(childId);
   try {
     const database = await db();
-    const [snapshot, periods, [applied]] = await Promise.all([
+    const [snapshot, periods, [applied], [changed]] = await Promise.all([
       readChildConfigSnapshot(database, childId),
       listTestPeriods(database, caller.userId, childId),
       database
         .select({ version: childAppliedVersions.version })
         .from(childAppliedVersions)
         .where(eq(childAppliedVersions.childId, childId))
+        .limit(1),
+      database
+        .select({ version: childConfigVersions.testPeriodsChangedVersion })
+        .from(childConfigVersions)
+        .where(eq(childConfigVersions.childId, childId))
         .limit(1),
     ]);
     const authorIds = [...new Set(periods.map((period) => period.createdByUserId))];
@@ -61,7 +64,8 @@ export async function listTestPeriodsForCaller(caller: Caller, childId: string) 
         createdByUserId: period.createdByUserId,
         createdByRole: roleById.get(period.createdByUserId) ?? "child",
       })),
-      configVersion: snapshot.configVersion ?? 1,
+      periodsChangedVersion: changed?.version ?? 0,
+      configVersion: snapshot.configVersion ?? 0,
       childAppliedVersion: applied?.version ?? null,
     };
   } catch (error) {
@@ -73,7 +77,6 @@ export async function createTestPeriodForCaller(
   caller: Caller,
   input: { childId: string; expectedVersion: number; name: string; startDate: string; endDate: string },
 ) {
-  if (isMock()) return getStore().testPeriodCreate(caller, input.childId, input.expectedVersion, input);
   try {
     const result = await createTestPeriod(await db(), { actorId: caller.userId, ...input });
     const testPeriod = result.testPeriod;
@@ -99,7 +102,7 @@ export async function updateTestPeriodForCaller(
   caller: Caller,
   input: { childId: string; expectedVersion: number; id: string; name: string; startDate: string; endDate: string },
 ) {
-  if (isMock()) return getStore().testPeriodUpdate(input.childId, input.expectedVersion, input);
+  if (!isUuid(input.id)) throw new AppError("not_found", "このテスト期間は見つかりません", "一覧を更新してください");
   try {
     const result = await updateTestPeriod(await db(), {
       actorId: caller.userId,
@@ -138,7 +141,7 @@ export async function deleteTestPeriodForCaller(
   caller: Caller,
   input: { childId: string; expectedVersion: number; id: string },
 ) {
-  if (isMock()) return getStore().testPeriodDelete(input.childId, input.expectedVersion, input.id);
+  if (!isUuid(input.id)) throw new AppError("not_found", "このテスト期間は見つかりません", "一覧を更新してください");
   try {
     const result = await deleteTestPeriod(await db(), {
       actorId: caller.userId,

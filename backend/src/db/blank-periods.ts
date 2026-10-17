@@ -59,7 +59,7 @@ async function requireParentLink(
 }
 
 async function lockVersions(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], childId: string) {
-  await tx.insert(childConfigVersions).values({ childId, version: 1 }).onConflictDoNothing({ target: childConfigVersions.childId });
+  await tx.insert(childConfigVersions).values({ childId, version: 0 }).onConflictDoNothing({ target: childConfigVersions.childId });
   const [config] = await tx.select({ version: childConfigVersions.version, c10InputVersion: childConfigVersions.c10InputVersion })
     .from(childConfigVersions).where(eq(childConfigVersions.childId, childId)).limit(1).for("update");
   if (!config) throw new Error("Config version row was not available after initialization.");
@@ -75,6 +75,7 @@ async function bumpVersions(
   await tx.update(childConfigVersions).set({
     version: nextVersion,
     c10InputVersion: config.c10InputVersion + 1,
+    blankPeriodsChangedVersion: nextVersion,
     updatedAt: new Date(),
   }).where(eq(childConfigVersions.childId, childId));
   return nextVersion;
@@ -87,7 +88,7 @@ export async function listBlankPeriods(db: Database, parentId: string, childId: 
       .where(eq(childConfigVersions.childId, childId)).limit(1);
     const periods = await tx.select({ id: blankPeriods.id, name: blankPeriods.name, startDate: blankPeriods.startDate, endDate: blankPeriods.endDate })
       .from(blankPeriods).where(eq(blankPeriods.childId, childId)).orderBy(blankPeriods.startDate, blankPeriods.id);
-    return { childId, blankPeriods: periods, configVersion: config?.version ?? 1 };
+    return { childId, blankPeriods: periods, configVersion: config?.version ?? 0 };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
 }
 

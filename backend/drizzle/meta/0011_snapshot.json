@@ -1,0 +1,1858 @@
+{
+  "id": "30cc89b0-aced-415e-8192-5975fe185d49",
+  "prevId": "364d06bd-a432-45e4-9e07-7bf6f63142b7",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auth_identities": {
+      "name": "auth_identities",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "varchar(40)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject": {
+          "name": "subject",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "auth_identities_user_id_users_id_fk": {
+          "name": "auth_identities_user_id_users_id_fk",
+          "tableFrom": "auth_identities",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_identities_provider_subject_unique": {
+          "name": "auth_identities_provider_subject_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "provider",
+            "subject"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pair_claim_failures": {
+      "name": "pair_claim_failures",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "failed_at": {
+          "name": "failed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "pair_claim_failures_user_failed_idx": {
+          "name": "pair_claim_failures_user_failed_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "failed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pair_claim_failures_user_id_users_id_fk": {
+          "name": "pair_claim_failures_user_id_users_id_fk",
+          "tableFrom": "pair_claim_failures",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_sessions": {
+      "name": "user_sessions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "user_sessions_user_id_users_id_fk": {
+          "name": "user_sessions_user_id_users_id_fk",
+          "tableFrom": "user_sessions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "user_sessions_token_hash_unique": {
+          "name": "user_sessions_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.excluded_apps": {
+      "name": "excluded_apps",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "since_version": {
+          "name": "since_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "excluded_apps_child_id_users_id_fk": {
+          "name": "excluded_apps_child_id_users_id_fk",
+          "tableFrom": "excluded_apps",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "excluded_apps_updated_by_user_id_users_id_fk": {
+          "name": "excluded_apps_updated_by_user_id_users_id_fk",
+          "tableFrom": "excluded_apps",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "excluded_apps_pk": {
+          "name": "excluded_apps_pk",
+          "columns": [
+            "child_id",
+            "app_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "excluded_apps_app_id_not_blank": {
+          "name": "excluded_apps_app_id_not_blank",
+          "value": "length(trim(\"excluded_apps\".\"app_id\")) > 0"
+        },
+        "excluded_apps_since_version_positive": {
+          "name": "excluded_apps_since_version_positive",
+          "value": "\"excluded_apps\".\"since_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.child_config_versions": {
+      "name": "child_config_versions",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "c10_input_version": {
+          "name": "c10_input_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "test_periods_changed_version": {
+          "name": "test_periods_changed_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "blank_periods_changed_version": {
+          "name": "blank_periods_changed_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "child_config_versions_child_id_users_id_fk": {
+          "name": "child_config_versions_child_id_users_id_fk",
+          "tableFrom": "child_config_versions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "child_config_versions_nonnegative": {
+          "name": "child_config_versions_nonnegative",
+          "value": "\"child_config_versions\".\"version\" >= 0"
+        },
+        "child_config_versions_c10_input_positive": {
+          "name": "child_config_versions_c10_input_positive",
+          "value": "\"child_config_versions\".\"c10_input_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.family_links": {
+      "name": "family_links",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_role": {
+          "name": "parent_role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'parent'"
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_role": {
+          "name": "child_role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'child'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "family_links_child_idx": {
+          "name": "family_links_child_idx",
+          "columns": [
+            {
+              "expression": "child_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "family_links_parent_role_fk": {
+          "name": "family_links_parent_role_fk",
+          "tableFrom": "family_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "parent_id",
+            "parent_role"
+          ],
+          "columnsTo": [
+            "id",
+            "role"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "family_links_child_role_fk": {
+          "name": "family_links_child_role_fk",
+          "tableFrom": "family_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id",
+            "child_role"
+          ],
+          "columnsTo": [
+            "id",
+            "role"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "family_links_parent_child_unique": {
+          "name": "family_links_parent_child_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "parent_id",
+            "child_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "family_links_parent_role_is_parent": {
+          "name": "family_links_parent_role_is_parent",
+          "value": "\"family_links\".\"parent_role\" = 'parent'"
+        },
+        "family_links_child_role_is_child": {
+          "name": "family_links_child_role_is_child",
+          "value": "\"family_links\".\"child_role\" = 'child'"
+        },
+        "family_links_no_self_link": {
+          "name": "family_links_no_self_link",
+          "value": "\"family_links\".\"parent_id\" <> \"family_links\".\"child_id\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_id_role_unique": {
+          "name": "users_id_role_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "role"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pair_tickets": {
+      "name": "pair_tickets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_display_name": {
+          "name": "child_display_name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_id": {
+          "name": "parent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'waiting'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rejected_at": {
+          "name": "rejected_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "pair_tickets_child_created_idx": {
+          "name": "pair_tickets_child_created_idx",
+          "columns": [
+            {
+              "expression": "child_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "pair_tickets_parent_created_idx": {
+          "name": "pair_tickets_parent_created_idx",
+          "columns": [
+            {
+              "expression": "parent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pair_tickets_child_id_users_id_fk": {
+          "name": "pair_tickets_child_id_users_id_fk",
+          "tableFrom": "pair_tickets",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pair_tickets_parent_id_users_id_fk": {
+          "name": "pair_tickets_parent_id_users_id_fk",
+          "tableFrom": "pair_tickets",
+          "tableTo": "users",
+          "columnsFrom": [
+            "parent_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "pair_tickets_code_hash_unique": {
+          "name": "pair_tickets_code_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "pair_tickets_state_check": {
+          "name": "pair_tickets_state_check",
+          "value": "\"pair_tickets\".\"state\" in ('waiting', 'claimed', 'linked', 'expired', 'rejected')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.daily_limits": {
+      "name": "daily_limits",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "limit_date": {
+          "name": "limit_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "limit_kind": {
+          "name": "limit_kind",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'limited'"
+        },
+        "limit_minutes": {
+          "name": "limit_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_finalized": {
+          "name": "is_finalized",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "blank_period_id": {
+          "name": "blank_period_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calculation_version": {
+          "name": "calculation_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "daily_limits_child_id_users_id_fk": {
+          "name": "daily_limits_child_id_users_id_fk",
+          "tableFrom": "daily_limits",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "daily_limits_calculation_version_fk": {
+          "name": "daily_limits_calculation_version_fk",
+          "tableFrom": "daily_limits",
+          "tableTo": "plan_calculation_versions",
+          "columnsFrom": [
+            "child_id",
+            "calculation_version"
+          ],
+          "columnsTo": [
+            "child_id",
+            "version"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "daily_limits_pk": {
+          "name": "daily_limits_pk",
+          "columns": [
+            "child_id",
+            "limit_date",
+            "calculation_version"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "daily_limits_kind_value": {
+          "name": "daily_limits_kind_value",
+          "value": "\"daily_limits\".\"limit_kind\" IN ('limited', 'unlimited')"
+        },
+        "daily_limits_minutes_range": {
+          "name": "daily_limits_minutes_range",
+          "value": "\"daily_limits\".\"is_finalized\" OR (\"daily_limits\".\"limit_minutes\" >= 0 AND \"daily_limits\".\"limit_minutes\" <= 1440)"
+        },
+        "daily_limits_limit_shape": {
+          "name": "daily_limits_limit_shape",
+          "value": "(\n    \"daily_limits\".\"limit_kind\" = 'limited' AND \"daily_limits\".\"limit_minutes\" IS NOT NULL AND \"daily_limits\".\"blank_period_id\" IS NULL\n  ) OR (\n    \"daily_limits\".\"limit_kind\" = 'unlimited' AND \"daily_limits\".\"limit_minutes\" IS NULL AND \"daily_limits\".\"blank_period_id\" IS NOT NULL\n  )"
+        },
+        "daily_limits_version_positive": {
+          "name": "daily_limits_version_positive",
+          "value": "\"daily_limits\".\"calculation_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.plan_calculation_versions": {
+      "name": "plan_calculation_versions",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_c10_input_version": {
+          "name": "source_c10_input_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plan_calculation_versions_child_id_users_id_fk": {
+          "name": "plan_calculation_versions_child_id_users_id_fk",
+          "tableFrom": "plan_calculation_versions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plan_calculation_versions_pk": {
+          "name": "plan_calculation_versions_pk",
+          "columns": [
+            "child_id",
+            "version"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "plan_calculation_versions_positive": {
+          "name": "plan_calculation_versions_positive",
+          "value": "\"plan_calculation_versions\".\"version\" > 0"
+        },
+        "plan_calculation_source_c10_input_version_positive": {
+          "name": "plan_calculation_source_c10_input_version_positive",
+          "value": "\"plan_calculation_versions\".\"source_c10_input_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.plan_settings": {
+      "name": "plan_settings",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "config_version": {
+          "name": "config_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "plan_start_date": {
+          "name": "plan_start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_limit_minutes": {
+          "name": "start_limit_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "final_goal_minutes": {
+          "name": "final_goal_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usual_limit_minutes": {
+          "name": "usual_limit_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plan_settings_child_id_users_id_fk": {
+          "name": "plan_settings_child_id_users_id_fk",
+          "tableFrom": "plan_settings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "plan_settings_updated_by_user_id_users_id_fk": {
+          "name": "plan_settings_updated_by_user_id_users_id_fk",
+          "tableFrom": "plan_settings",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "plan_settings_config_version_positive": {
+          "name": "plan_settings_config_version_positive",
+          "value": "\"plan_settings\".\"config_version\" > 0"
+        },
+        "plan_settings_start_limit_range": {
+          "name": "plan_settings_start_limit_range",
+          "value": "\"plan_settings\".\"start_limit_minutes\" >= 0 AND \"plan_settings\".\"start_limit_minutes\" <= 1440"
+        },
+        "plan_settings_final_goal_range": {
+          "name": "plan_settings_final_goal_range",
+          "value": "\"plan_settings\".\"final_goal_minutes\" >= 0 AND \"plan_settings\".\"final_goal_minutes\" <= 1440"
+        },
+        "plan_settings_usual_limit_range": {
+          "name": "plan_settings_usual_limit_range",
+          "value": "\"plan_settings\".\"usual_limit_minutes\" >= 0 AND \"plan_settings\".\"usual_limit_minutes\" <= 1440"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.test_periods": {
+      "name": "test_periods",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "test_periods_child_start_idx": {
+          "name": "test_periods_child_start_idx",
+          "columns": [
+            {
+              "expression": "child_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "start_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "test_periods_child_id_users_id_fk": {
+          "name": "test_periods_child_id_users_id_fk",
+          "tableFrom": "test_periods",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "test_periods_created_by_user_id_users_id_fk": {
+          "name": "test_periods_created_by_user_id_users_id_fk",
+          "tableFrom": "test_periods",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "test_periods_name_not_blank": {
+          "name": "test_periods_name_not_blank",
+          "value": "length(trim(\"test_periods\".\"name\")) > 0"
+        },
+        "test_periods_end_not_before_start": {
+          "name": "test_periods_end_not_before_start",
+          "value": "\"test_periods\".\"end_date\" >= \"test_periods\".\"start_date\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.usage_day_reports": {
+      "name": "usage_day_reports",
+      "schema": "",
+      "columns": {
+        "submission_id": {
+          "name": "submission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usage_date": {
+          "name": "usage_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "measured_at": {
+          "name": "measured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "restricted_minutes": {
+          "name": "restricted_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "usage_day_reports_child_date_measured_idx": {
+          "name": "usage_day_reports_child_date_measured_idx",
+          "columns": [
+            {
+              "expression": "child_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "usage_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "measured_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "usage_day_reports_submission_child_fk": {
+          "name": "usage_day_reports_submission_child_fk",
+          "tableFrom": "usage_day_reports",
+          "tableTo": "usage_sync_batches",
+          "columnsFrom": [
+            "submission_id",
+            "child_id"
+          ],
+          "columnsTo": [
+            "submission_id",
+            "child_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "usage_day_reports_submission_date_pk": {
+          "name": "usage_day_reports_submission_date_pk",
+          "columns": [
+            "submission_id",
+            "usage_date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "usage_day_reports_restricted_minutes_nonnegative": {
+          "name": "usage_day_reports_restricted_minutes_nonnegative",
+          "value": "\"usage_day_reports\".\"restricted_minutes\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.usage_records": {
+      "name": "usage_records",
+      "schema": "",
+      "columns": {
+        "record_id": {
+          "name": "record_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "submission_id": {
+          "name": "submission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "usage_date": {
+          "name": "usage_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "used_minutes": {
+          "name": "used_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "excluded": {
+          "name": "excluded",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "usage_records_child_date_app_idx": {
+          "name": "usage_records_child_date_app_idx",
+          "columns": [
+            {
+              "expression": "child_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "usage_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "app_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "usage_records_submission_child_fk": {
+          "name": "usage_records_submission_child_fk",
+          "tableFrom": "usage_records",
+          "tableTo": "usage_sync_batches",
+          "columnsFrom": [
+            "submission_id",
+            "child_id"
+          ],
+          "columnsTo": [
+            "submission_id",
+            "child_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "usage_records_day_report_fk": {
+          "name": "usage_records_day_report_fk",
+          "tableFrom": "usage_records",
+          "tableTo": "usage_day_reports",
+          "columnsFrom": [
+            "submission_id",
+            "usage_date"
+          ],
+          "columnsTo": [
+            "submission_id",
+            "usage_date"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "usage_records_submission_date_app_unique": {
+          "name": "usage_records_submission_date_app_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "submission_id",
+            "usage_date",
+            "app_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "usage_records_minutes_nonnegative": {
+          "name": "usage_records_minutes_nonnegative",
+          "value": "\"usage_records\".\"used_minutes\" >= 0"
+        },
+        "usage_records_app_id_not_blank": {
+          "name": "usage_records_app_id_not_blank",
+          "value": "length(trim(\"usage_records\".\"app_id\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.usage_sync_batches": {
+      "name": "usage_sync_batches",
+      "schema": "",
+      "columns": {
+        "submission_id": {
+          "name": "submission_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payload_hash": {
+          "name": "payload_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "applied_dates": {
+          "name": "applied_dates",
+          "type": "date[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::date[]"
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "usage_sync_batches_child_received_idx": {
+          "name": "usage_sync_batches_child_received_idx",
+          "columns": [
+            {
+              "expression": "child_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "received_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "usage_sync_batches_child_id_users_id_fk": {
+          "name": "usage_sync_batches_child_id_users_id_fk",
+          "tableFrom": "usage_sync_batches",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "usage_sync_batches_pk": {
+          "name": "usage_sync_batches_pk",
+          "columns": [
+            "submission_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "usage_sync_batches_submission_child_unique": {
+          "name": "usage_sync_batches_submission_child_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "submission_id",
+            "child_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.blank_periods": {
+      "name": "blank_periods",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "blank_periods_child_id_users_id_fk": {
+          "name": "blank_periods_child_id_users_id_fk",
+          "tableFrom": "blank_periods",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "blank_periods_name_not_blank": {
+          "name": "blank_periods_name_not_blank",
+          "value": "length(trim(\"blank_periods\".\"name\")) > 0"
+        },
+        "blank_periods_end_not_before_start": {
+          "name": "blank_periods_end_not_before_start",
+          "value": "\"blank_periods\".\"end_date\" >= \"blank_periods\".\"start_date\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.child_applied_versions": {
+      "name": "child_applied_versions",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "child_applied_versions_child_id_users_id_fk": {
+          "name": "child_applied_versions_child_id_users_id_fk",
+          "tableFrom": "child_applied_versions",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "child_applied_versions_nonnegative": {
+          "name": "child_applied_versions_nonnegative",
+          "value": "\"child_applied_versions\".\"version\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.child_usual_limits": {
+      "name": "child_usual_limits",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "minutes": {
+          "name": "minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "child_usual_limits_child_id_users_id_fk": {
+          "name": "child_usual_limits_child_id_users_id_fk",
+          "tableFrom": "child_usual_limits",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "child_usual_limits_updated_by_user_id_users_id_fk": {
+          "name": "child_usual_limits_updated_by_user_id_users_id_fk",
+          "tableFrom": "child_usual_limits",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "child_usual_limits_minutes_range": {
+          "name": "child_usual_limits_minutes_range",
+          "value": "\"child_usual_limits\".\"minutes\" >= 0 AND \"child_usual_limits\".\"minutes\" <= 1440"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.excluded_app_states": {
+      "name": "excluded_app_states",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "apps_changed_version": {
+          "name": "apps_changed_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "excluded_app_states_child_id_users_id_fk": {
+          "name": "excluded_app_states_child_id_users_id_fk",
+          "tableFrom": "excluded_app_states",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "excluded_app_states_version_nonnegative": {
+          "name": "excluded_app_states_version_nonnegative",
+          "value": "\"excluded_app_states\".\"apps_changed_version\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.removed_excluded_apps": {
+      "name": "removed_excluded_apps",
+      "schema": "",
+      "columns": {
+        "child_id": {
+          "name": "child_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "app_id": {
+          "name": "app_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "removed_version": {
+          "name": "removed_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "removed_excluded_apps_child_id_users_id_fk": {
+          "name": "removed_excluded_apps_child_id_users_id_fk",
+          "tableFrom": "removed_excluded_apps",
+          "tableTo": "users",
+          "columnsFrom": [
+            "child_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "removed_excluded_apps_pk": {
+          "name": "removed_excluded_apps_pk",
+          "columns": [
+            "child_id",
+            "app_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "removed_excluded_apps_version_positive": {
+          "name": "removed_excluded_apps_version_positive",
+          "value": "\"removed_excluded_apps\".\"removed_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "parent",
+        "child"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

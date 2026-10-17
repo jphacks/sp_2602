@@ -1,7 +1,7 @@
 // 親02 計画を作る の入力の検査と初期値（純粋な関数。tests/parent/plan-form.test.ts）。
 // 決まり（Q14）: 計画の開始日・開始上限 S・最終目標 G の3つは必須。分は 0〜1440 の整数・G ≤ S・開始日は今日以降。
 // 通常上限（Q7 で紐づけ直後に決める値）は親02 でも変えられる。空のままなら送らない（今の値を保つ）。
-// サーバも同じことを確かめる（契約の PlanSave と store.ts）。ここは送る前に、どの欄が悪いかをその場で見せるためのもの。
+// サーバも同じことを確かめる（契約の PlanSave と src/server/services/plan-settings.ts）。ここは送る前に、どの欄が悪いかをその場で見せるためのもの。
 import type { PlanSave, PlanView } from "@contracts/schemas";
 import { type DurationText, durationTextOf, emptyDuration, md, parseDuration } from "./format";
 
@@ -64,7 +64,7 @@ export function validatePlanForm(form: PlanForm, today: string): PlanFormResult 
 //   計画がまだない: 開始日は今日、S・G は空、通常上限は今の値
 //   計画がある    : S・G・通常上限は今の値。開始日は、今の計画の開始日が今日以降ならそのまま、
 //                   もう始まっていれば今日（Q14「開始日は今日以降」。昨日以前の開始日では保存できないため）
-// TODO(未決): 始まった計画の S・G だけを変えたいときの扱い（store.ts の planSave の TODO と同じ）。今は「今日から作り直す」になる
+// TODO(未決): 始まった計画の S・G だけを変えたいときの扱い（src/server/services/plan-settings.ts の savePlanForCaller の TODO と同じ）。今は「今日から作り直す」になる
 export function planFormFromView(view: PlanView | null, today: string): PlanForm {
   const plan = view?.plan ?? null;
   return {

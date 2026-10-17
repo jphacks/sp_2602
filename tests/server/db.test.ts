@@ -60,10 +60,11 @@ describe("db", () => {
     ]);
     await database.insert(familyLinks).values({ parentId, childId });
     try {
+      // 版は 0 から（0 = まだ一度も保存していない。contracts の ConfigVersion）
       await savePlanSettingsForParent(database, {
         parentId,
         childId,
-        expectedVersion: 1,
+        expectedVersion: 0,
         planStartDate: "2099-05-01",
         startLimitMinutes: 240,
         finalGoalMinutes: 60,
@@ -71,37 +72,41 @@ describe("db", () => {
       await createTestPeriod(database, {
         actorId: parentId,
         childId,
-        expectedVersion: 2,
+        expectedVersion: 1,
         name: "first",
         startDate: "2099-05-01",
         endDate: "2099-05-03",
       });
-      await expect(createTestPeriod(database, {
-        actorId: parentId,
-        childId,
-        expectedVersion: 3,
-        name: "second",
-        startDate: "2099-05-03",
-        endDate: "2099-05-04",
-      })).rejects.toMatchObject({ code: "invalid_c10_inputs" });
+      await expect(
+        createTestPeriod(database, {
+          actorId: parentId,
+          childId,
+          expectedVersion: 2,
+          name: "second",
+          startDate: "2099-05-03",
+          endDate: "2099-05-04",
+        }),
+      ).rejects.toMatchObject({ code: "invalid_c10_inputs" });
       expect(await listTestPeriods(database, parentId, childId)).toHaveLength(1);
 
       await createBlankPeriod(database, {
         parentId,
         childId,
-        expectedVersion: 3,
+        expectedVersion: 2,
         name: "first blank",
         startDate: "2099-06-01",
         endDate: "2099-06-03",
       });
-      await expect(createBlankPeriod(database, {
-        parentId,
-        childId,
-        expectedVersion: 4,
-        name: "second blank",
-        startDate: "2099-06-03",
-        endDate: "2099-06-05",
-      })).rejects.toMatchObject({ code: "invalid_c10_inputs" });
+      await expect(
+        createBlankPeriod(database, {
+          parentId,
+          childId,
+          expectedVersion: 3,
+          name: "second blank",
+          startDate: "2099-06-03",
+          endDate: "2099-06-05",
+        }),
+      ).rejects.toMatchObject({ code: "invalid_c10_inputs" });
       const savedBlanks = await database.select().from(blankPeriods).where(eq(blankPeriods.childId, childId));
       expect(savedBlanks).toHaveLength(1);
     } finally {

@@ -9,7 +9,7 @@
 //   route.ts が必ず確かめる（紐づけ前の人はどの子どもも扱えない）。handlers の中で書き忘れることはない。
 // 決まりごと: 条件つきの取得も POST（GET で条件を渡す仕組みはない）。path は `/api/<機能>/<名前>`。
 import { z } from "zod";
-import { ApiError } from "./errors";
+import { ApiError } from "./errors.js";
 import {
   BlankPeriodCreate,
   BlankPeriodList,
@@ -22,6 +22,7 @@ import {
   ExcludedAppsSaveResult,
   ExcludedAppsView,
   Family,
+  FamilyUnlinkResult,
   GoogleSignIn,
   LinkStatus,
   PairClaim,
@@ -37,6 +38,7 @@ import {
   PlanSaveResult,
   PlanView,
   Session,
+  SignOutRequest,
   SignOutResult,
   TestPeriodCreate,
   TestPeriodList,
@@ -47,7 +49,7 @@ import {
   UsageUploadResult,
   UsualLimitSave,
   UsualLimitSaveResult,
-} from "./schemas";
+} from "./schemas.js";
 
 export const Health = z.object({ ok: z.literal(true), mock: z.boolean() });
 export type Health = z.infer<typeof Health>;
@@ -67,18 +69,12 @@ export const api = {
   authGoogle: post("/api/auth/google", "none", GoogleSignIn, Session),
   // 今の合言葉の持ち主（役割を含む）。アプリの起動時に、どの画面に進むかを決めるのに使う
   authMe: { kind: "json", method: "GET", path: "/api/auth/me", auth: "signedIn", req: z.void(), res: Session },
-  // ログアウト: 今の合言葉をサーバでも無効にする（入力なし。本文を付けずに POST する）。以後その合言葉は 401。
+  // ログアウト: 今の合言葉をサーバでも無効にする。以後その合言葉は 401。
+  //   本文なし（ふつうのログアウト）: この端末の合言葉だけ。{ otherDevices: true }: この端末以外の、同じ人の合言葉をすべて（端末をなくしたとき）
   // 足した理由: 前はログアウトしても端末の合言葉を消すだけで、サーバでは最後に使ってから30日まで使えるまま残った
   //   （端末から抜き出された・どこかに写っていた合言葉で、ログアウトした後も呼べてしまう。10/17 のセキュリティの残り）。
   // アプリは端末のデータを消す前に呼ぶが、通信できなくてもログアウトは進める（session.tsx）。401 で自動でログアウトしたときは呼ばない
-  authSignOut: {
-    kind: "json",
-    method: "POST",
-    path: "/api/auth/sign-out",
-    auth: "signedIn",
-    req: z.void(),
-    res: SignOutResult,
-  },
+  authSignOut: post("/api/auth/sign-out", "signedIn", SignOutRequest, SignOutResult),
 
   // ── C1: QR の紐づけ。役割がまだない人（role: null）が使う。MVP は親1人↔子1人（2人目は conflict。Q2）──
   // 子ども: QR を出す（保護者・連携済みの子どもは conflict。前に出した未使用の QR は無効になる。Q10）
@@ -104,6 +100,10 @@ export const api = {
   },
   // 保護者: 連携済みの子どもの一覧
   familyGet: { kind: "json", method: "GET", path: "/api/family/get", auth: "parent", req: z.void(), res: Family },
+  // 保護者: 子どもとの連携を外す（連携済みの子どもだけ。route.ts が確かめる）。子どもの合言葉はすべて使えなくなり、
+  // 子どもは役割のない状態（role: null）に戻る（もう一度 QR で紐づけ直せる）。子どもの端末をなくしたときにも使う。
+  // 足した理由: 保護者が子どもを外す手段・なくした子どもの端末の合言葉を止める手段がなかったため（PR #47）
+  familyUnlink: post("/api/family/unlink", "parent", ChildQuery, FamilyUnlinkResult),
 
   // ── D8: 通常上限と計画（C10 の入力）──
   // 親子: 計画と通常上限を見る（子どもは閲覧のみ）

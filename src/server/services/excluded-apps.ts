@@ -10,9 +10,7 @@ import { childAppliedVersions } from "../../../backend/src/db/schema/settings-st
 import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods.js";
 import type { Caller } from "../auth.js";
 import { db } from "../db/index.js";
-import { isMock } from "../env.js";
 import { AppError } from "../errors.js";
-import { getStore } from "../mock/store.js";
 
 function mapError(error: unknown): never {
   if (error instanceof ExcludedAppsVersionConflictError) {
@@ -24,7 +22,6 @@ function mapError(error: unknown): never {
 }
 
 export async function getExcludedAppsForCaller(caller: Caller, childId: string) {
-  if (isMock()) return getStore().excludedAppsView(childId);
   const database = await db();
   try {
     await listTestPeriods(database, caller.userId, childId);
@@ -58,12 +55,6 @@ export async function saveExcludedAppsForParent(
   caller: Caller,
   input: { childId: string; expectedVersion: number; apps: Array<{ packageName: string; label: string }> },
 ) {
-  if (isMock())
-    return getStore().excludedAppsSave(
-      input.childId,
-      input.expectedVersion,
-      input.apps.map((app) => ({ packageName: app.packageName, label: app.label })),
-    );
   try {
     const result = await replaceExcludedAppsForParent(await db(), {
       parentId: caller.userId,

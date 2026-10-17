@@ -37,10 +37,10 @@ beforeAll(async () => {
 });
 
 const envBefore = { MOCK: process.env.MOCK, GOOGLE_WEB_CLIENT_ID: process.env.GOOGLE_WEB_CLIENT_ID };
-beforeEach(() => {
+beforeEach(async () => {
   process.env.GOOGLE_WEB_CLIENT_ID = CLIENT_ID;
   process.env.MOCK = "1";
-  fresh("2026-10-15T03:00:00Z");
+  await fresh("2026-10-15T03:00:00Z");
 });
 afterEach(() => {
   process.env.MOCK = envBefore.MOCK;

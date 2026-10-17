@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { claimPair, confirmPair, signInGoogle, startPair } from "@/server/auth";
+import { claimPair, confirmPair, PAIR_TTL_MS, signInGoogle, startPair } from "@/server/auth";
 import { db } from "@/server/db";
 import { authIdentities, familyLinks, pairTickets, userSessions, users } from "../../backend/src/db/schema";
 
@@ -38,12 +38,14 @@ describe("persistent C1 authentication and pairing", () => {
     const child = await signInGoogle(`pair-child-${crypto.randomUUID()}`, "Child Google name");
     const parent = await signInGoogle(`pair-parent-${crypto.randomUUID()}`, "Parent Google name");
     const ticket = await startPair(child, "Child preferred name");
-    expect(ticket.expiresAt).toBeNull();
+    // QR は10分（Q10）
+    expect(Date.parse(ticket.expiresAt) - Date.now()).toBeGreaterThan(9 * 60_000);
+    expect(Date.parse(ticket.expiresAt) - Date.now()).toBeLessThanOrEqual(PAIR_TTL_MS);
 
     const d = await db();
     const [stored] = await d.select().from(pairTickets).where(eq(pairTickets.id, ticket.pairId));
     expect(stored?.codeHash).not.toBe(ticket.code);
-    expect(stored?.expiresAt).toBeNull();
+    expect(stored?.expiresAt?.toISOString()).toBe(ticket.expiresAt);
 
     const claimed = await claimPair(parent, ticket.code);
     expect(claimed.state).toBe("claimed");

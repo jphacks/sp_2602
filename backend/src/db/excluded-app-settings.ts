@@ -82,7 +82,7 @@ export async function replaceExcludedAppsForParent(
 
     await tx
       .insert(childConfigVersions)
-      .values({ childId: input.childId, version: 1 })
+      .values({ childId: input.childId, version: 0 })
       .onConflictDoNothing({ target: childConfigVersions.childId });
 
     const [config] = await tx
@@ -207,7 +207,7 @@ export async function readExcludedAppsSnapshot(db: Database, childId: string): P
       .from(removedExcludedApps).where(eq(removedExcludedApps.childId, childId))
       .orderBy(removedExcludedApps.appId);
     return {
-      configVersion: config?.version ?? 1,
+      configVersion: config?.version ?? 0,
       appsChangedVersion: state?.appsChangedVersion ?? 0,
       apps,
       removedApps,

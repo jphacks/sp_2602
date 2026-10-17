@@ -120,7 +120,7 @@ describe("反映済み／反映待ちをサーバの値だけで決める（親1
   });
 
   it("サーバとつないで: 外したアプリは、画面を開き直しても（取り直しただけでも）子どもが取りに来るまで反映待ち", async () => {
-    fresh("2026-10-15T03:00:00Z");
+    await fresh("2026-10-15T03:00:00Z");
     const { child, parent } = await newFamily("excluded-reopen");
     const childId = child.userId;
     const get = () => ok<ExcludedAppsView>(post("/api/excluded-apps/get", { childId }, parent.token));

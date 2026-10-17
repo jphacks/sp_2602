@@ -1,10 +1,6 @@
-// C6: read the latest per-date C8 snapshot and the persisted D6 limit for a linked child.
+// C6: 親の画面の利用記録。日ごとに一番新しい測定（C8）と、その日の上限（D6）を返す（連携済みの子どもだけ。route.ts が確かめる）。
 import { readParentUsage } from "../../../backend/src/db/usage-read.js";
 import { db } from "../db/index.js";
-import { isMock } from "../env.js";
-import { getStore } from "../mock/store.js";
 import { handle } from "../route.js";
 
-export default handle("usageGet", async (req) =>
-  isMock() ? getStore().usageView(req.childId, req.from, req.to) : readParentUsage(await db(), req),
-);
+export default handle("usageGet", async (req) => readParentUsage(await db(), req));

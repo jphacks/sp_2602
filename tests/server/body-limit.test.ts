@@ -6,13 +6,13 @@ import { mockSessions } from "@contracts/fixtures";
 import { UsageUpload } from "@contracts/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 import app, { MAX_BODY_BYTES } from "@/server/app";
-import { resetStore } from "@/server/mock/store";
+import { fresh } from "../verify/helpers";
 
 const CHILD = mockSessions["mock-google-child"].token;
 const CHILD_ID = mockSessions["mock-google-child"].userId;
 
-beforeEach(() => {
-  resetStore({ seed: true, now: () => new Date("2026-10-15T03:00:00Z") });
+beforeEach(async () => {
+  await fresh("2026-10-15T03:00:00Z");
 });
 
 describe("本文の大きさの上限", () => {

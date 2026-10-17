@@ -108,7 +108,7 @@ async function assertCanManage(tx: Parameters<Parameters<Database["transaction"]
 
 async function lockConfigVersion(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], childId: string): Promise<{ version: number; c10InputVersion: number }> {
   await tx.insert(childConfigVersions)
-    .values({ childId, version: 1 })
+    .values({ childId, version: 0 })
     .onConflictDoNothing({ target: childConfigVersions.childId });
   const [config] = await tx.select({ version: childConfigVersions.version, c10InputVersion: childConfigVersions.c10InputVersion })
     .from(childConfigVersions)
@@ -122,7 +122,7 @@ async function lockConfigVersion(tx: Parameters<Parameters<Database["transaction
 async function bumpConfigVersion(tx: Parameters<Parameters<Database["transaction"]>[0]>[0], childId: string, version: number, c10InputVersion: number): Promise<number> {
   const nextVersion = version + 1;
   await tx.update(childConfigVersions)
-    .set({ version: nextVersion, c10InputVersion: c10InputVersion + 1, updatedAt: new Date() })
+    .set({ version: nextVersion, c10InputVersion: c10InputVersion + 1, testPeriodsChangedVersion: nextVersion, updatedAt: new Date() })
     .where(eq(childConfigVersions.childId, childId));
   return nextVersion;
 }

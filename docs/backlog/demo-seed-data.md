@@ -7,24 +7,33 @@
 **計画の開始日が数日〜数週間前**でないと出ない。ところが計画の入力の決まり（Q14）で開始日は今日以降しか選べないので、
 本物の操作だけでは「今日が計画の初日」としか出ず、デモで減り具合を見せられない。
 
+## 今あるもの（2026-10-18）
+見本を DB に入れる仕組みはもうある（`src/server/seed/demo.ts`）。
+
+- `MOCK=1` なら、DB を開いたときにデモの家族を1回だけ入れる（`seedMockAccounts`）。
+- 本番・プレビューの DB（Neon）には `npm run db:seed-demo` で、Google でログインして紐づけた親子に同じ見本を入れられる（`seedDemoFamily`。使い方は [development.md の 8章](../development.md#8-vercel-の-dbneonを扱う)）。
+- 今の見本: 通常上限 180 分・14日前に始まった計画（S = 300・G = 120）・11〜13日先のテスト「数学」1件・対象外アプリ「学習ノート」・過去14日の日別上限・過去6日の利用記録。
+
+下の「案」は、この見本を Figma の数字に近づけるためのもの（まだやっていない）。
+
 ## 案
-MOCK=1 のサーバ（`src/server/mock/store.ts`）に、デモ用の家族を最初から入れておく。
+`src/server/seed/demo.ts` の `seedDemoFamily` の見本を、次のように変える。
 
 - 保護者と子どもは紐づけ済み（`mock-google-parent` / `mock-google-child`）
 - 計画: 開始日 = 今日の 3 週間前、開始上限 S = 300 分、最終目標 G = 60 分、通常上限 = 180 分
 - テスト期間を 2 件以上（例: 前の試験 = 今日の 3 週間前ごろ、今の試験 = 今日の 11 日後）。
   2 件以上あると、親03 のお知らせが Figma どおり「テストが終わると、上限は一度少し戻ります」になる
 - 利用記録: 過去 3 週間ぶん、上限より少し下の値を日ごとに入れる（週のグラフが埋まるように）
-- 日別上限は store の C10 の計算で作る（過去の日の値は「確定済み」として入る）
+- 日別上限は C10 の計算で作る（過去の日の値は「確定済み」として入る。今の `fillPastLimits` と同じ）
 
 ## 気をつけること
 - 開始日を過去にするのは**見本データだけ**。画面の入力の決まり（今日以降）は変えない
-- MOCK=1 のときだけ入れる（本物のサーバには入れない）
-- サーバを再起動すると作り直される（メモリの store のため）
+- 本番の DB には `npm run db:seed-demo` で、選んだ親子にだけ入れる（デモの固定の合言葉は作らない）
+- 手元のサーバは DB を `state/pglite` に残すので、見本を変えたら、止めてからフォルダを消して入れ直す
 - 見本の数字が Figma（40 分減・13% 減・300→260 分）と近くなるよう、日付と S・G を合わせる
 
 ## 関係するファイル
-- `src/server/mock/store.ts`（デモの家族を作る所）
+- `src/server/seed/demo.ts`（デモの家族を作る所）・`scripts/seed-demo.ts`（本番の DB に入れる）
 - `src/server/plan/daily-limits.ts`（C10）
 - `src/components/parent/review.ts`（limitReduction）・`src/components/parent/widget.ts`
 - 決定: docs/decisions.md の Q14、docs/open-questions.md の Q19（「減った」の基準）

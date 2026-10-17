@@ -48,6 +48,12 @@ export async function persistUsageSubmission(
   input: { submissionId: string; childId: string; days: readonly UsageDayReport[] },
 ): Promise<PersistUsageSubmissionResult> {
   const payloadHash = hashPayload(input.days);
+  // A measuredAt later than the server clock is stored as the server clock. Otherwise a report from a device whose
+  // clock ran ahead stays "newest" for that date, and later correct reports are rejected as older (the parent's view
+  // stops updating). The payload hash keeps the original values so an identical retry is still a duplicate.
+  const nowMs = Date.now();
+  const days = input.days.map((day) =>
+    Date.parse(day.measuredAt) > nowMs ? { ...day, measuredAt: new Date(nowMs).toISOString() } : day);
 
   return db.transaction(async (tx) => {
     // Serialize submissions for one child so appliedDates reflects the latest committed snapshot.
@@ -65,7 +71,7 @@ export async function persistUsageSubmission(
       return { status: "duplicate", submissionId: input.submissionId, appliedDates: existing.appliedDates };
     }
 
-    const candidates = input.days.map((day) => day.date);
+    const candidates = days.map((day) => day.date);
     const current = candidates.length === 0 ? [] : await tx
       .select({ usageDate: usageDayReports.usageDate, measuredAt: usageDayReports.measuredAt })
       .from(usageDayReports)
@@ -79,7 +85,7 @@ export async function persistUsageSubmission(
       newestByDate.set(row.usageDate, Math.max(newestByDate.get(row.usageDate) ?? Number.NEGATIVE_INFINITY, ms));
     }
     // Equal measuredAt timestamps retain the already accepted report, matching the C8 "strictly newer" rule.
-    const appliedDays = input.days.filter((day) => {
+    const appliedDays = days.filter((day) => {
       const currentMs = newestByDate.get(day.date);
       return currentMs === undefined || Date.parse(day.measuredAt) > currentMs;
     });
@@ -107,8 +113,8 @@ export async function persistUsageSubmission(
       return { status: "duplicate", submissionId: input.submissionId, appliedDates: raced.appliedDates };
     }
 
-    if (input.days.length > 0) {
-      await tx.insert(usageDayReports).values(input.days.map((day) => ({
+    if (days.length > 0) {
+      await tx.insert(usageDayReports).values(days.map((day) => ({
         submissionId: input.submissionId,
         childId: input.childId,
         usageDate: day.date,
@@ -116,7 +122,7 @@ export async function persistUsageSubmission(
         restrictedMinutes: day.restrictedMinutes,
       })));
 
-      const appRows = input.days.flatMap((day) => day.apps.map((app) => ({
+      const appRows = days.flatMap((day) => day.apps.map((app) => ({
         submissionId: input.submissionId,
         childId: input.childId,
         usageDate: day.date,

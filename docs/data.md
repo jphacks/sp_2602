@@ -1,6 +1,6 @@
 # データの形と計算
 
-アプリとサーバで受け渡すデータの形（`contracts/schemas.ts`）、上限の3つの状態の区別、日付の扱い、上限の計算（C10）、サーバのデータの置き場（MOCK の store）、DB の表との対応をまとめます。
+アプリとサーバで受け渡すデータの形（`contracts/schemas.ts`）、上限の3つの状態の区別、日付の扱い、上限の計算（C10）、サーバのデータの置き場（DB）と見本、DB の表との対応をまとめます。
 
 ## 1. 主要な型
 
@@ -29,7 +29,7 @@
 | `PairTicket` | `pairId`・`code`・`expiresAt` | QR に入れるのは `code`（使い捨ての番号）だけ。合言葉や個人情報は入れない |
 | `PairStatus` | `pairId`・`state`・`child`・`parentName`・`expiresAt` | 進み具合。`parentName` は読んだ保護者の名前（`claimed` 以降） |
 | `LinkStatus` | `state`（`linked`／`unlinked`）・`role`・`partners` | D2 に保存が確定した連携状態 |
-| `Family` | `children` | 保護者に紐づく子どもの一覧。人数制限は未決 |
+| `Family` | `children` | 保護者に紐づく子どもの一覧。MVP は1人まで（Q2。形は一覧のまま） |
 
 ### 上限・計画・期間（D3・D6・D8・空白期間）
 
@@ -112,7 +112,7 @@
 
 ## 3. 日付
 
-- **日本時間（Asia/Tokyo）固定・0時区切り**です（Q3）。「今日」を出すのは `contracts/dates.ts` の `todayString` だけ（日本は夏時間がないので UTC+9 で計算する）。サーバの store も `todayString(this.now())` を使う。
+- **日本時間（Asia/Tokyo）固定・0時区切り**です（Q3）。「今日」を出すのは `contracts/dates.ts` の `todayString` だけ（日本は夏時間がないので UTC+9 で計算する）。サーバも `todayString(new Date())` を使う（`backend/src/db/c10-recalculate.ts` など）。
 - 日付は時刻を持たない文字列 `"YYYY-MM-DD"` として扱い、計算は UTC の 0 時に置いて行う（端末の時計の地域に左右されない）。
 
 | 関数（`contracts/dates.ts`） | すること |
@@ -138,7 +138,7 @@
 
 DB-backed APIは既存の純粋計算関数を使い、D3/D8/空白期間の入力更新とD6・計算版の保存を1トランザクションで行います。計算に失敗した入力変更はロールバックします。
 
-MOCKの計算関数は `src/server/plan/daily-limits.ts` の `computeDailyLimits`、メモリ保存と再計算は `src/server/mock/store.ts` にあります。
+計算関数は `src/server/plan/daily-limits.ts` の `computeDailyLimits`、保存と再計算は `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction`（テスト期間・空白期間・計画・通常上限を保存する `backend/src/db/*.ts` の処理が、同じトランザクションの中で呼ぶ）にあります。
 
 ### 入力
 
@@ -171,7 +171,7 @@ MOCKの計算関数は `src/server/plan/daily-limits.ts` の `computeDailyLimits
 | 矛盾するテスト期間・空白期間の重複 | 計算できない入力（保存は `bad_request`。前の版を保つ） |
 | D = 0（計画開始日に最終テスト開始） | S/G に関わらず最終テスト期間中は G。終了翌日は通常上限 |
 | 空白期間の日 | 上の計算に関係なく「制限なし」。終わった日から元の上限に戻る |
-| 日別上限を何日先まで作るか | 現行の既定は今日から120日先。期間は仕様として未決 |
+| 日別上限を何日先まで作るか | 現行の既定は今日から120日先（`LIMIT_HORIZON_DAYS`）。作るのは設定を保存したときだけで、DB 版はまだ作り足さない（120日保存しないと「上限未設定」の日になる）。期間は仕様として未決 |
 | 再計算の開始日 | 当日の確定値を保持し、翌日から再計算。初回で当日値が未作成なら当日分を補完 |
 
 残る未決事項は日別上限の生成期間です。詳しくは [open-questions.md](open-questions.md) を参照してください。
@@ -203,37 +203,32 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 
 連続テストの例（同じテストの中）: テストが 10/20〜10/22 と 10/23〜10/24（続けて）、最後が 11/10 のとき、10/22 は 245、10/23・10/24 は回復せず Q₂' = B(10/23)（u = 0.55）= 227.4 → **227**、10/25 は回復して R = 227.4 + 0.5355×(300 − 227.4) = 266.28 → **266**（P はまだ S のまま）。
 
-上の例はMOCKとDB-backed C10計算の共通テストデータです。
+上の例は C10 の計算の手計算のテストデータです（`tests/verify/c10-hand.test.ts`。サーバの API を通して DB に保存した結果と比べる）。
 
 同じテストのファイルで、「テストが0件なら計画があっても通常上限」「通常上限 0 分は 0 分の上限として入る（未設定ではない）」「矛盾する重複テストは入力エラーで前の版を保つ」「D=0でGを適用」も確かめています。
 
-## 5. サーバのデータの置き場（MOCK の store）
+## 5. サーバのデータの置き場（DB）と見本
 
-`MOCK=1` の経路では `src/server/mock/store.ts` の `MemoryStore` がデモデータをメモリ上に持ち、サーバ停止時に消えます。DB-backed経路では各サービスから `backend/src/db` のDrizzleリポジトリを呼び、永続化します。両経路の扱いが異なる機能は下表と [open-questions.md](open-questions.md) に明記します。
+サーバはデータをメモリに持ちません。すべての API が DB だけを通ります（Vercel では Neon、手元とテストでは PGlite。`src/server/db/index.ts`）。処理は `src/server/auth.ts`（ログイン・合言葉・QR・家族）と `src/server/services/`（計画・日程・対象外アプリ・設定の組）にあり、保存は `backend/src/db/*.ts` の Drizzle の処理を呼びます。表の一覧は 6章です。
 
-| 持っているもの | 中身 | D の番号 |
-|---|---|---|
-| `users` | userId → 名前・役割（`null` あり） | D1 |
-| `googleUsers` | Google の利用者 ID（sub）→ userId | D1 |
-| `sessions` | 合言葉 → userId・最終利用時刻・nullableな期限/失効情報 | セッション有効期限と失効ルールは未決。固定TTLを仮定しない |
-| `pairs` | pairId → code・子ども・保護者・状態・期限 | （QR の一時的な番号） |
-| `links` | `"<親の id>\|<子の id>"` の集まり | D2 |
-| `configs` | 子どもごとの設定: 版・計算の版・通常上限・計画・テスト期間・空白期間・日別上限・対象外アプリ・外した対象外アプリ（`removedExcludedApps`）・対象外アプリの一覧が最後に変わった版（`excludedAppsChangedVersion`）・子どもが使っている版 | D3・D6・D7・D8 |
-| `batches` | 送信 ID → 子ども・中身の指紋・採用した日 | （C8 の重複防止） |
-| `usage` | 子ども → 日付 → その日の正の記録 | D4 |
-| `lastUploadedAt` | 子ども → 最後に記録が届いた時刻 | — |
+`MOCK=1` は処理を変えません。変わるのは次の2つだけです（`src/server/env.ts` の `isMock`。Vercel の本番 `VERCEL_ENV=production` では無視する）。
 
-### `MOCK=1` のときに入る見本（`seedDemo`）
+- `mock-` で始まる idToken のログインを受け付ける（`src/server/auth.ts` の `signInMock`）。
+- DB を開いたときに、下の見本を DB に1回だけ入れる（`src/server/seed/demo.ts` の `seedMockAccounts`。もう入っていれば何もしない）。
 
-| 人 | idToken（ログインのボタン） | 合言葉 | userId | 役割 |
+### `MOCK=1` のときに入る見本（`seedMockAccounts`・`seedDemoFamily`）
+
+| 人 | idToken（ログインのボタン） | 合言葉 | userId（`contracts/fixtures.ts` の `demoUserIds`） | 役割 |
 |---|---|---|---|---|
-| デモの保護者 | `mock-google-parent` | `mock-token-parent` | `demo-parent` | parent |
-| デモの子ども | `mock-google-child` | `mock-token-child` | `demo-child` | child |
-| はじめての人 | `mock-google-new` | `mock-token-new` | `demo-new` | なし |
+| デモの保護者 | `mock-google-parent` | `mock-token-parent` | `00000000-0000-4000-8000-0000000000a1` | parent |
+| デモの子ども | `mock-google-child` | `mock-token-child` | `00000000-0000-4000-8000-0000000000a2` | child |
+| はじめての人 | `mock-google-new` | `mock-token-new` | `00000000-0000-4000-8000-0000000000a3` | なし |
 
+- userId は DB の形（uuid）にそろえた固定の値。DB を空にして入れ直しても同じ人になる。
 - デモの保護者と子どもは、はじめから連携済み。
-- デモの子どもの設定: 通常上限 180 分、計画（開始日 = 14日前・S = 300・G = 120。見本だけ過去の開始日を許している）、テスト「数学」（今日の 11日後〜13日後）、対象外アプリ「学習ノート」、過去14日ぶんの日別上限、過去6日ぶんの利用記録（`contracts/fixtures.ts` の `demoAppMinutes`）。
-- 手元の開発サーバ（`getStore`）では、デモの子どもの設定の版を**サーバの起動時刻（ミリ秒）から**数える（`startupVersionBase`。`StoreOptions.versionBase`）。MOCK のサーバを再起動しても版が前より大きくなるので、子どもの端末は古い版の手元の設定を捨てて新しい設定を取り込める。はじめての人は再起動で別の ID になるので 0 から数える。テストで `resetStore` したときは 0 から。
+- デモの子どもの設定: 通常上限 180 分、計画（開始日 = 14日前・S = 300・G = 120。見本だけ過去の開始日を許している）、テスト「数学」（今日の 11日後〜13日後）、対象外アプリ「学習ノート」、過去14日ぶんの日別上限、過去6日ぶんの利用記録（`contracts/fixtures.ts` の `demoUsageDay`・`demoAppMinutes`）。
+- 同じ見本（デモの人の合言葉は除く）は、本番・プレビューの DB にも `npm run db:seed-demo` で、Google でログインして紐づけた親子に入れられる（`scripts/seed-demo.ts`。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。
+- 設定の版は DB に残るので、手元のサーバを立て直しても数え直さない（`state/pglite` を消したときは見本の版から）。
 - アプリの MOCK のログインの「はじめての人（この端末: xxxx）」は `mock-new-<端末の番号>` を送るので、端末ごとに別の「はじめての人」が作られる（2台で QR の紐づけを試すため）。`mock-` で始まり上の3つでないものは、みな新しい人になる。
 
 ### 端末に残すもの
@@ -255,17 +250,17 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 
 ## 6. `backend/` の DB の表との対応
 
-`backend/src/db/schema/` のDrizzleスキーマと `backend/drizzle/` のmigrationがDB構造の定義です。DB-backed APIでは各サービスがDrizzle repositoryを呼びます。`MOCK=1` は画面デモ用のMemoryStoreを使います。
+`backend/src/db/schema/` のDrizzleスキーマと `backend/drizzle/` のmigrationがDB構造の定義です。すべての API が各サービスから Drizzle repository を呼びます（`MOCK=1` でも同じ。違うのは見本が入っているかだけ）。表を変えたら、コードを出す前に Neon に migration を入れます（[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。
 
 | データ | DBの表 | 備考 |
 |---|---|---|
-| ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull。合言葉はhashで保存し、最後に使ってから30日で無効（D-1）。ログアウトで失効 |
-| 親子関係・QR | `family_links`, `pair_tickets` | 親1人↔子1人（Q2）。QRは10分・1回だけ・出し直しで前を無効（Q10）。QRコードそのものではなくhashを保存 |
-| 設定版・反映版 | `child_config_versions`, `child_applied_versions` | 全体 `version` とC10入力専用 `c10_input_version` を別管理 |
+| ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull。合言葉は SHA-256 の hash でだけ保存し（`src/server/auth/digest.ts`）、最後に使ってから30日で無効（使うたびに延長。D-1）。ログアウトで失効（`otherDevices: true` なら同じ人のほかの合言葉も）。子どもを外すと、その子どもの合言葉はすべて失効 |
+| 親子関係・QR | `family_links`, `pair_tickets`, `pair_claim_failures` | 親1人↔子1人（Q2）。QRは10分・1回だけ・出し直しで前を無効（Q10）。QRコードそのものではなくhashを保存。番号のまちがい（`pairClaim` の not_found・conflict）を人ごとに `pair_claim_failures` に数え、10分に10回で `rate_limited`。成功したら消す（Vercel のインスタンスはメモリを共有しないので表に数える） |
+| 設定版・反映版 | `child_config_versions`, `child_applied_versions` | 全体 `version` とC10入力専用 `c10_input_version` を別管理。`version` は 0 から（0 = まだ一度も保存していない。0 以上の決まりつき）。一覧が最後に変わった版 `test_periods_changed_version`・`blank_periods_changed_version` が API の `periodsChangedVersion`・`blankChangedVersion` になる |
 | D3/D8/空白期間 | `test_periods`, `plan_settings`, `child_usual_limits`, `blank_periods` | 日付順序などの構造制約あり。C10入力に矛盾する重複はrepository transaction内で拒否 |
 | D6計算履歴 | `plan_calculation_versions`, `daily_limits` | 日付・計算版単位で履歴を保持。新規上限は0〜1440。過去の範囲外値も確定済み履歴として保持し、再計算で値を変えない。入力版と計算版を同一トランザクションで更新 |
 | D7 | `excluded_apps`, `excluded_app_states`, `removed_excluded_apps` | label・追加版・削除版・最終変更版を保持 |
-| C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない |
+| C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない。サーバの時計より先の測定時刻はサーバの時計で保存する（送り直しを見分ける指紋は送られたままの中身で作る。`backend/src/db/usage-persistence.ts`） |
 
 日別上限が複数計算版に残る場合、C6は現行 `c10_input_version` に一致する最新計算版だけを参照します。一致する計算版がなければ上限は未計算として扱います。
 ### `src/server/db/` について

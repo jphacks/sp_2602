@@ -71,7 +71,7 @@ export async function savePlanSettingsForParent(
 
     await tx
       .insert(childConfigVersions)
-      .values({ childId: input.childId, version: 1 })
+      .values({ childId: input.childId, version: 0 })
       .onConflictDoNothing({ target: childConfigVersions.childId });
 
     const [config] = await tx
@@ -164,7 +164,7 @@ export async function saveUsualLimitForParent(
       .limit(1).for("key share");
     if (!link) throw new ParentChildLinkRequiredError();
 
-    await tx.insert(childConfigVersions).values({ childId: input.childId, version: 1 })
+    await tx.insert(childConfigVersions).values({ childId: input.childId, version: 0 })
       .onConflictDoNothing({ target: childConfigVersions.childId });
     const [config] = await tx.select({ version: childConfigVersions.version, c10InputVersion: childConfigVersions.c10InputVersion })
       .from(childConfigVersions).where(eq(childConfigVersions.childId, input.childId)).limit(1).for("update");

@@ -1,6 +1,7 @@
 // C10: 日別上限の計算（MVP_SPEC 4.4 と仕様の決定 Q7）。通常上限・親の計画（開始日・S・G）・テスト期間・空白期間から、日ごとの上限を作る。
 // 画面・保存から切り離した純粋な関数にしてある（同じ入力なら必ず同じ結果。tests/server/daily-limits.test.ts で確かめる）。
-// 保存（昨日以前の値を守る・版を上げる）は src/server/mock/store.ts が、この関数の結果と mergeWithFinalized を使って行う。
+// 保存（昨日以前の値を守る・版を上げる）は backend/src/db/c10-recalculate.ts の recalculateC10InTransaction が、この関数の結果と
+// mergeWithFinalized を使って、設定の保存と同じ1回の処理（トランザクション）の中で行う。
 //
 // 1日の上限は3つの状態のどれか（Q7）: limited（上限あり。0 分も有効）/ unlimited（空白期間中で制限なし）/ 一覧にない（上限未設定）
 //

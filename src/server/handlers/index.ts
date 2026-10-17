@@ -12,6 +12,7 @@ export { default as configGet } from "./configGet.js";
 export { default as excludedAppsGet } from "./excludedAppsGet.js";
 export { default as excludedAppsSave } from "./excludedAppsSave.js";
 export { default as familyGet } from "./familyGet.js";
+export { default as familyUnlink } from "./familyUnlink.js";
 export { default as health } from "./health.js";
 export { default as linkStatus } from "./linkStatus.js";
 export { default as pairCancel } from "./pairCancel.js";

@@ -117,7 +117,7 @@ export function withEndDate(draft: PeriodDraft, endDate: string): PeriodDraft {
   return { ...draft, endDate };
 }
 
-// 2つの期間が1日でも重なるか（両端の日を含む。サーバの store.ts の assertNoOverlap と同じ考え方）
+// 2つの期間が1日でも重なるか（両端の日を含む。サーバの src/server/plan/daily-limits.ts の sortedNoOverlap と同じ考え方）
 export function overlaps(a: { startDate: string; endDate: string }, b: { startDate: string; endDate: string }) {
   return a.startDate <= b.endDate && b.startDate <= a.endDate;
 }

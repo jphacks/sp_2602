@@ -53,13 +53,14 @@ sequenceDiagram
 | Google か MOCK か | `src/lib/google.ts` の `googleSignInEnabled`（`EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` があれば本物） |
 | 本物の Google | `signInWithGoogle` → ID トークン → `useSession().signIn(idToken)` → `call("authGoogle")` |
 | MOCK | `mockLoginChoices` の3つのボタン（保護者・子ども・はじめての人）。「はじめての人」は端末ごとの番号つき（`mock-new-<端末の番号>`） |
-| サーバの確認 | `src/server/handlers/authGoogle.ts`：`mock-` で始まれば `MOCK=1` のときだけ `store.signInMock`。それ以外は `auth/google.ts` の `verifyGoogleIdToken`（署名・発行元・宛先・期限）→ `store.signInGoogle`（初めての人は登録。役割は `null`） |
+| サーバの確認 | `src/server/handlers/authGoogle.ts`：`mock-` で始まれば `MOCK=1` のときだけ `src/server/auth.ts` の `signInMock`（Vercel の本番では `MOCK=1` を無視する）。それ以外は `auth/google.ts` の `verifyGoogleIdToken`（署名・発行元・宛先・期限）→ `auth.ts` の `signInGoogle`（初めての人は登録。役割は `null`） |
 | 合言葉の保存 | `session.tsx` の `adopt`：`setSessionToken`（以後の `call()` に付く）と端末への保存 |
 | 使っている途中の 401 | `src/lib/api.ts` が `setUnauthorizedHandler` で登録された関数を呼ぶ → `session.tsx` がログアウト状態にし、ログイン画面に「ログインの期限が切れました」の帯（`login-view.ts` の `loginNotice`） |
 | 失敗 | 子09 のダイアログ。Google で「やめた」はエラーにしない（`login-view.ts` の `googleOutcome`） |
 | ログアウト | 設定の「ログアウト」→ 確認（`src/components/LogoutListItem.tsx`）→ `session.tsx` の `signOut`：合言葉をサーバでも無効にする（`sign-out.ts` の `revokeServerSession` → `authSignOut`。5 秒まで待ち、失敗しても進める）→ Google のログインを外す → `src/lib/sign-out.ts` の `clearLocalDataFor(userId)`（設定のキャッシュを全部と、その人の送信待ちを消す）→ 合言葉を消す → 入口 |
 
-合言葉の期限は「最後に使ってから30日（使うたびに延長）」です（`store.ts` の `SESSION_IDLE_MS`・`findSession`）。
+合言葉の期限は「最後に使ってから30日（使うたびに延長）」です（`src/server/auth.ts` の `SESSION_IDLE_MS`・`findSession`）。合言葉は DB に SHA-256 のハッシュでだけ残します（`src/server/auth/digest.ts`）。
+`authSignOut` は本文なしなら呼んだ端末の合言葉だけ、`{ "otherDevices": true }` なら同じ人のほかの端末の合言葉をすべて無効にします（端末をなくしたとき用。今のアプリは本文なしだけを使う。`auth.ts` の `signOut`）。
 合言葉の期限切れ（401）のときは合言葉だけを消し、設定のキャッシュと送信待ちは残します（同じ人がログインし直して、残った記録を送れるように）。
 
 ## 2. 役割選び
@@ -80,7 +81,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   participant C as 子ども（pair/child.tsx）
-  participant S as サーバ（store）
+  participant S as サーバ（auth.ts）
   participant P as 保護者（pair/parent.tsx）
   C->>S: pairStart
   S-->>C: pairId・code（使い捨ての番号）・expiresAt（10分後）
@@ -112,12 +113,13 @@ stateDiagram-v2
   expired --> [*]
 ```
 
-- 担当は `src/server/mock/store.ts` の `pairStart`・`pairClaim`・`pairConfirm`・`pairCancel`・`pairStatus`。期限切れは「聞かれたときに確かめる」（`refreshExpiry`）。
+- 担当は `src/server/auth.ts` の `startPair`（`pairStart`）・`claimPair`（`pairClaim`）・`confirmPair`（`pairConfirm`）・`cancelPair`（`pairCancel`）・`readPairStatus`（`pairStatus`）。期限切れは「聞かれたときに確かめる」（`refreshExpiry`）。QR の番号は DB に SHA-256 のハッシュでだけ残す。
 - QR は10分・1回だけ・出し直したら前の QR は無効（Q10）。`rejected` の QR も、もう読めない。
-- `pairClaim` で断るもの: 子どもの端末（forbidden）、知らない番号（not_found）、期限切れ・使用済み・自分の QR・すでに誰かと連携済み（conflict）。
+- `pairClaim` で断るもの: 子どもの端末（forbidden）、知らない番号（not_found）、期限切れ・使用済み・自分の QR・すでに誰かと連携済み（conflict）。not_found・conflict を同じ人が10分に10回くり返したら、その間は正しい番号でも `rate_limited`（429）。数は DB の表 `pair_claim_failures` に残す（Vercel のインスタンスはメモリを共有しないため）。成功したら数え直す（`PAIR_CLAIM_MAX_FAILURES`・`PAIR_CLAIM_WINDOW_MS`）。
 - `pairConfirm` で断るもの: QR を出した子ども以外（forbidden）、期限切れ・まだ読まれていない・役割が合わない・その間に別の相手と連携した（conflict）。
 - `pairCancel`（子どもの「やめる」）: `waiting`・`claimed` の QR を `expired` にする（保護者が読んだ後でも、子どもが「はい」を押す前なら取り消せる）。`expired`・`rejected` はそのまま返す（何度呼んでも同じ）。もう `linked` なら conflict。QR を出した子ども以外は forbidden（関わっていない人は not_found）。
 - 親1人↔子1人（Q2）: すでに連携している人は QR を出せない・読めない・確定できない（`oneToOne` の conflict）。
+- `familyUnlink`（保護者だけ。`{ childId }`）: 連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする（`auth.ts` の `unlinkChild`）。応答は `{ childId, revokedSessions }`。子どもの設定・利用記録は残す（`TODO(未決)`。[open-questions.md](open-questions.md)）。画面はまだない。
 - 確定（`linked`）のとき、QR を出すときに入れた呼び名（`PairStart.name`。省けば Google のアカウント名）を子どもの名前として残す。以後の `familyGet`・`linkStatus`・`authMe` も同じ名前になる。
 
 ### 子どもの画面の移り変わり（`src/components/pair/child-flow.ts` の `childPairReducer`）
@@ -214,27 +216,28 @@ stateDiagram-v2
 sequenceDiagram
   participant UI as 画面（PeriodEditor・plan.tsx など）
   participant R as route.ts
-  participant ST as store.mutate
+  participant ST as backend/src/db の保存の処理
   participant C10 as daily-limits.ts
   UI->>UI: 送る前に入力を検査（logic.ts の validatePeriod・plan-form.ts の validatePlanForm）
   UI->>R: 保存（expectedVersion つき）
   R->>R: 合言葉・役割 → 入力の形 → 子どもの範囲
   R->>ST: 処理
   ST->>ST: 版が expectedVersion と同じか（違えば conflict）
-  ST->>ST: 写しを作って変える（重なりがあれば bad_request）
-  ST->>C10: computeDailyLimits（今日〜120日先）
-  C10-->>ST: 日別上限（計算できなければ PlanCalcError → bad_request）
-  ST->>ST: mergeWithFinalized（昨日以前は前の値のまま）・calculationVersion +1
-  ST->>ST: 入れ替えて configVersion +1
+  ST->>ST: 表を変えて configVersion +1（同じトランザクションの中）
+  ST->>C10: recalculateC10InTransaction → computeDailyLimits（今日〜120日先）
+  C10-->>ST: 日別上限（計算できなければ PlanCalcError → bad_request。重なりもここで断る）
+  ST->>ST: mergeWithFinalized（今日以前は前の値のまま）・calculationVersion +1
+  ST->>ST: トランザクションを確定（失敗したら全部取り消す）
   ST-->>UI: 新しい configVersion・calculationVersion
   UI->>UI: 完了を出し、一覧と設定の組（C7）を取り直す
 ```
 
-- 担当: `src/server/mock/store.ts` の `mutate`（全体）と `recalculate`（C10）。途中で失敗したら何も変えない（前の正式な版を保つ。Q5・AC-07）。
+- 担当: `backend/src/db/*.ts` の保存の処理（`test-periods.ts`・`blank-periods.ts`・`plan-settings.ts`。全体を1回の DB のトランザクションで行う）と `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction`（C10）。権限の確かめと入口は `src/server/services/*.ts`。途中で失敗したら何も変えない（前の正式な版を保つ。Q5・AC-07）。
 - C10 の式と例は [data.md の 4章](data.md) にあります。
-- **今日から先だけ**を計算し直し、昨日以前の日別上限は変えません（Q4。`mergeWithFinalized`）。
-- 日別上限は保存した日から 120 日先まで作ります（`LIMIT_HORIZON_DAYS`）。設定を変えないまま日がたって、残りが 60 日（`LIMIT_TOPUP_MIN_DAYS`）を切ったら、次の `configGet` のときに今日から 120 日先まで作り足します（`store.ts` の `topUpDailyLimits`。昨日以前は変えない。中身が変わったときだけ `configVersion`・`calculationVersion` が 1 上がる）。
-- 計画の開始日は**今日以降**でないと保存できません（`store.planSave`。デモの見本だけ例外 `allowPastStart`）。
+- **明日から先だけ**を計算し直し、今日以前の日別上限は変えません（今日の値がまだなければ今日の分も作る。Q4・D-92。`mergeWithFinalized`）。
+- 日別上限は保存した日から 120 日先まで作ります（`src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS`）。作るのは設定を保存したときだけです。前の MOCK は残りが 60 日を切ると `configGet` のときに作り足していましたが、**DB 版はまだ作り足しません**。設定を変えないまま 120 日たつと、その先の日は「上限未設定」になります（[open-questions.md](open-questions.md) の残っていること）。
+- まだ一度も日別上限を計算していない子どもの `configGet` は、`calculationVersion: 0`・日別上限なし（上限未設定）を返します（エラーにしない）。
+- 計画の開始日は**今日以降**でないと保存できません（Q14。`src/server/services/plan-settings.ts` の `savePlanForCaller`）。デモの見本（`src/server/seed/demo.ts`）は API を通らずに DB の処理を直接呼ぶので、14日前の開始日を入れられる。
 - 対象外アプリの保存（C9）は C10 を計算し直しませんが、版は上がります。
 - 画面側:
   - 日程: `src/components/schedule/PeriodEditor.tsx`（保存は `actions.ts` の `savePeriod`・`deletePeriod`）。**変更・削除**は入力を始めた時点の版を送り、**登録**は最新の版を送る（30秒ごとの取り直しで最新の版を送ると、ほかの端末の変更を黙って上書きしてしまうため）。失敗の出し分けは `logic.ts`（conflict → 読み込み直し・bad_request → 入力を残してサーバの文・not_found → 一覧へ・通信 → もう一度）。
@@ -322,7 +325,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 
 ## 9. 利用記録の送信（C8）
 
-担当: `src/lib/usage-outbox.ts`（送信待ち）、`src/lib/usage-calc.ts` の `toUsageDayReport`（記録の形）、`src/server/mock/store.ts` の `usageUpload`。
+担当: `src/lib/usage-outbox.ts`（送信待ち）、`src/lib/usage-calc.ts` の `toUsageDayReport`（記録の形）、`backend/src/db/usage-persistence.ts` の `persistUsageSubmission`（サーバの保存。`src/server/handlers/usageUpload.ts` から呼ぶ）。
 
 1. 記録の中身（Q8）: その日の**アプリ別の累計**・**測った時刻**・**制限対象の合計分**（C3 と同じ判定）。毎回「今日と昨日」の2日分（取れた日だけ）。`toUsageDayReport` は記録が必ず契約に合うようにする: アプリ名は 120 文字までに切る（空ならアプリの識別子で代用）、識別子が空・255 文字を超えるアプリは一覧に入れない（合計の分数には入れる）、アプリは 1000 個まで（超えたら使った時間の多い順）。
 2. 送る頻度（Q9）: C7 と同じきっかけ（30秒ごとなど）。前に送信待ちへ入れた中身と比べ、変わっていなければ入れない（測った時刻だけの違いは無視）。この「前の中身」はメモリにだけ持つので、アプリを開き直した最初の1回は必ず入れる。
@@ -374,7 +377,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 - 画面: 親16（`src/app/parent/excluded-apps.tsx`）。保存できるのは保護者だけ（サーバも `auth: "parent"` で確かめる）。
 - 候補の一覧は **MOCK の固定値**（`contracts/fixtures.ts` の `mockExcludedAppCandidates`：学習ノート・英単語カード・動画アプリ・ゲーム）＋保存済みのアプリ。子どもの端末のアプリ一覧をサーバへ送る API は作っていません（Q15 保留）。
 - 保存は `call("excludedAppsSave", { childId, expectedVersion, apps: 全件 })`（差分ではなく全件の置き換え。`excluded.ts` の `appsToSave`）。
-- サーバは、前から対象外だったアプリの `sinceVersion`（対象外になった版）を変えず、新しく入ったアプリには新しい版を付ける（`store.excludedAppsSave`）。外したアプリは `removedApps`（外した版 `removedVersion`）に残し、もう一度対象外にしたら消す。一覧（アプリの組と名前）が変わったときだけ `appsChangedVersion`（一覧が最後に変わった版）を進める。
+- サーバは、前から対象外だったアプリの `sinceVersion`（対象外になった版）を変えず、新しく入ったアプリには新しい版を付ける（`backend/src/db/excluded-app-settings.ts` の `replaceExcludedAppsForParent`）。外したアプリは `removedApps`（外した版 `removedVersion`）に残し、もう一度対象外にしたら消す。一覧（アプリの組と名前）が変わったときだけ `appsChangedVersion`（一覧が最後に変わった版）を進める。
 - 子どもの端末は次の C7 で新しい組を受け取り、以後の C3（合計から除く）と C4（`excludedPackages`）で使う。
 
 ### 反映済み／反映待ち（Q6）

@@ -5,12 +5,9 @@ import { users } from "../../../backend/src/db/schema/users.js";
 import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods.js";
 import type { Caller } from "../auth.js";
 import { db } from "../db/index.js";
-import { isMock } from "../env.js";
 import { AppError } from "../errors.js";
-import { getStore } from "../mock/store.js";
 
 export async function getConfigForCaller(caller: Caller, childId: string, knownVersion?: number) {
-  if (isMock()) return getStore().configGet(caller, childId, knownVersion);
   const database = await db();
   // This repository call verifies the authenticated actor against the persisted D2 edge.
   try {
@@ -20,9 +17,11 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
     throw error;
   }
   const snapshot = await readChildConfigSnapshot(database, childId);
-  const configVersion = snapshot.configVersion ?? 1;
+  const configVersion = snapshot.configVersion ?? 0;
 
-  if (!snapshot.calculation?.matchesC10InputVersion) {
+  // まだ一度も日別上限を作っていない（紐づけ直後で、通常上限も計画も保存していない）は「未設定」: 計算の版 0・日別上限なし。
+  // 作ったことがあるのに今の入力と合わないのは、保存と計算が1回の処理で済んでいない（起きないはず）ので、古い上限を配らずに断る
+  if (snapshot.calculation && !snapshot.calculation.matchesC10InputVersion) {
     throw new AppError(
       "upstream_failed",
       "設定は保存されていますが、日別上限の計算が最新ではありません",
@@ -63,7 +62,7 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
     snapshot: {
       childId,
       configVersion,
-      calculationVersion: snapshot.calculation.version,
+      calculationVersion: snapshot.calculation?.version ?? 0,
       usualLimitMinutes: snapshot.usualLimitMinutes,
       plan,
       testPeriods: snapshot.testPeriods.map((period) => ({

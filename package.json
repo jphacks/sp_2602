@@ -14,7 +14,8 @@
     "check": "npm run lint && npm run typecheck && npm run test",
     "db:generate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.config.ts",
-    "db:push": "npm run db:generate && npm run db:migrate"
+    "db:push": "npm run db:generate && npm run db:migrate",
+    "db:seed-demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.9",

@@ -10,11 +10,10 @@ import {
 } from "../../../backend/src/db/plan-settings.js";
 import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state.js";
 import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods.js";
+import { todayString } from "../../../contracts/dates.js";
 import type { Caller } from "../auth.js";
 import { db } from "../db/index.js";
-import { isMock } from "../env.js";
 import { AppError } from "../errors.js";
-import { getStore } from "../mock/store.js";
 import { currentC10CalculationVersion } from "./c10-version.js";
 
 function mapError(error: unknown): never {
@@ -28,7 +27,6 @@ function mapError(error: unknown): never {
 }
 
 export async function getPlanForCaller(caller: Caller, childId: string) {
-  if (isMock()) return getStore().planView(childId);
   const database = await db();
   try {
     await listTestPeriods(database, caller.userId, childId);
@@ -58,7 +56,7 @@ export async function getPlanForCaller(caller: Caller, childId: string) {
         }
       : null,
     usualLimitMinutes: snapshot.usualLimitMinutes,
-    configVersion: snapshot.configVersion ?? 1,
+    configVersion: snapshot.configVersion ?? 0,
     childAppliedVersion: applied?.version ?? null,
   };
 }
@@ -74,13 +72,10 @@ export async function savePlanForCaller(
     usualLimitMinutes?: number;
   },
 ) {
-  if (isMock())
-    return getStore().planSave(input.childId, input.expectedVersion, {
-      planStartDate: input.planStartDate,
-      startLimitMinutes: input.startLimitMinutes,
-      finalGoalMinutes: input.finalGoalMinutes,
-      ...(input.usualLimitMinutes === undefined ? {} : { usualLimitMinutes: input.usualLimitMinutes }),
-    });
+  // Q14: 開始日は今日（日本時間）以降。G ≤ S は契約（PlanSave）が確かめる
+  // TODO(未決): 始まった計画の S・G だけを変えたいとき、開始日が昨日以前になって保存できない（Q14 の「開始日は今日以降」をそのまま守っている）
+  if (input.planStartDate < todayString(new Date()))
+    throw new AppError("bad_request", "計画開始日は今日以降にしてください", "開始日を選び直してください");
   try {
     const result = await savePlanSettingsForParent(await db(), { parentId: caller.userId, ...input });
     const snapshot = await readChildConfigSnapshot(await db(), input.childId);
@@ -111,7 +106,6 @@ export async function saveUsualLimitForCaller(
     usualLimitMinutes: number;
   },
 ) {
-  if (isMock()) return getStore().usualLimitSave(input.childId, input.expectedVersion, input.usualLimitMinutes);
   try {
     const result = await saveUsualLimitForParent(await db(), { parentId: caller.userId, ...input });
     return {
