@@ -32,7 +32,8 @@ const TITLE = "制限対象外アプリ";
 
 export default function ParentExcludedApps() {
   const { child } = useParentData();
-  if (child) return <ExcludedBody childId={child.id} />;
+  // key: 子どもが変わったら、前の子どものスイッチ・版を持ち越さない
+  if (child) return <ExcludedBody key={child.id} childId={child.id} />;
   // 見ている子どもが決まるまで（読み込み中・取得不可・まだつながっていない）
   return (
     <Screen title={TITLE} onBack={() => router.back()} bottomInset={false}>

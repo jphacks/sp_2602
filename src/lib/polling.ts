@@ -7,24 +7,11 @@
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef } from "react";
 import { AppState } from "react-native";
+import { singleFlight } from "./single-flight";
+
+export { singleFlight };
 
 export const DEFAULT_POLL_MS = 30_000;
-
-// 重ならないように呼ぶ関数を作る（画面に依存しないので、ほかでも使える）
-export function singleFlight(fn: () => Promise<unknown>): () => Promise<void> {
-  let running = false;
-  return async () => {
-    if (running) return;
-    running = true;
-    try {
-      await fn();
-    } catch {
-      // 失敗の表示は fn の中で行う（ここでは止めずに次の回を待つ）
-    } finally {
-      running = false;
-    }
-  };
-}
 
 export function usePolling(fn: () => Promise<unknown>, opts: { intervalMs?: number; enabled?: boolean } = {}): void {
   const intervalMs = opts.intervalMs ?? DEFAULT_POLL_MS;
@@ -34,11 +21,17 @@ export function usePolling(fn: () => Promise<unknown>, opts: { intervalMs?: numb
   useEffect(() => {
     latest.current = fn;
   }, [fn]);
+  // 重ならないようにする仕組みは、この画面で1つだけ作る（フォーカスのたびに作り直さない）。
+  // なぜ: タブを行き来すると、画面に戻るたびにすぐ1回取りに行く。前に出ていたときの取得がまだ終わっていないのに
+  // 新しく作り直すと、同じ API を重ねて呼んでしまうため
+  const tick = useRef<(() => Promise<void>) | null>(null);
+  if (tick.current == null) tick.current = singleFlight(() => latest.current());
+  const run = tick.current;
 
   useFocusEffect(
     useCallback(() => {
       if (!enabled) return undefined;
-      const tick = singleFlight(() => latest.current());
+      const tick = run;
       void tick();
       const timer = setInterval(() => {
         if (AppState.currentState === "active") void tick();
@@ -50,6 +43,6 @@ export function usePolling(fn: () => Promise<unknown>, opts: { intervalMs?: numb
         clearInterval(timer);
         sub.remove();
       };
-    }, [enabled, intervalMs]),
+    }, [enabled, intervalMs, run]),
   );
 }

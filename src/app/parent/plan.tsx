@@ -43,7 +43,8 @@ import { usePolling } from "@/lib/polling";
 
 export default function ParentPlan() {
   const { child } = useParentData();
-  if (child) return <PlanBody childId={child.id} />;
+  // key: 子どもが変わったら、前の子どもの入力・版を持ち越さない
+  if (child) return <PlanBody key={child.id} childId={child.id} />;
   // 見ている子どもが決まるまで（読み込み中・取得不可・まだつながっていない）
   return (
     <Screen title="計画を作る" bottomInset={false}>

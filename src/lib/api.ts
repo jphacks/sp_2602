@@ -4,7 +4,7 @@
 // 失敗は必ず ApiCallError で投げられる。画面は catch で setError(errorOf(e)) とし、message と hint を出せばよい。
 // つなぎ先は環境変数 EXPO_PUBLIC_API_URL（.env に書く）。未設定なら Android エミュレータから見た手元の PC（http://10.0.2.2:3000）。
 //   実機で試すときは、PC の LAN の IP（例 http://192.168.0.5:3000）を .env に書く（同じ Wi-Fi につなぐ）。
-// 中断: 時間制限は { signal: timeoutSignal(ミリ秒) } → 「時間切れ」。
+// 中断: 時間制限は { signal: timeoutSignal(ミリ秒) } → 「時間切れ」。signal を渡さない call() は DEFAULT_TIMEOUT_MS で切る。
 //       自分で止めた（画面を離れた等）は AbortController.abort() → errorOf が null を返すので何も出ない。
 // fetch は expo/fetch（少しずつ届く応答を読める。標準の fetch は React Native では読めない）を使う。
 // 合言葉: ログイン（call("authGoogle", …)）で受け取った Session の token を setSessionToken() で覚えると、
@@ -32,12 +32,19 @@ const timedOut = new WeakSet<AbortSignal>();
 // 指定ミリ秒で中断する signal（AbortSignal.timeout は React Native にない場合があるので、自前で作る）
 export function timeoutSignal(ms: number): AbortSignal {
   const controller = new AbortController();
-  setTimeout(() => {
+  const timer = setTimeout(() => {
     timedOut.add(controller.signal);
     controller.abort();
   }, ms);
+  // Node（テスト）では、この時計だけが残ってプロセスの終わりを待たせないようにする（React Native の setTimeout は数を返すので何もしない）
+  (timer as { unref?: () => void }).unref?.();
   return controller.signal;
 }
+
+// call() に signal を渡さなかったときの待ち時間（これを過ぎたら「時間切れ」）。
+// なぜ: Android の通信（OkHttp）は既定で待ち時間の上限がなく、電波の切り替えなどで応答が来ないと、いつまでも待ち続ける。
+// すると 30 秒ごとの取得（usePolling の singleFlight）が「前の取得が終わっていない」まま止まり、保存のボタンも回り続ける
+export const DEFAULT_TIMEOUT_MS = 30_000;
 
 let sessionToken: string | null = null;
 let onUnauthorized: (() => void) | null = null;
@@ -102,7 +109,7 @@ export async function call<K extends JsonRoute>(
   opts: { signal?: AbortSignal } = {},
 ): Promise<Res<K>> {
   const r = api[name];
-  const res = await send(r.path, r.method, body, opts.signal);
+  const res = await send(r.path, r.method, body, opts.signal ?? timeoutSignal(DEFAULT_TIMEOUT_MS));
   return r.res.parse(await res.json()) as Res<K>;
 }
 

@@ -17,6 +17,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { type ConfigState, configCache } from "./config-cache";
 import { native } from "./native";
 import { usePolling } from "./polling";
+import { keepIfSame } from "./same";
 import {
   type CalcInput,
   calcUsage,
@@ -70,14 +71,16 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
     const date = todayString();
     const yesterday = addDays(date, -1);
     setToday(date);
-    setPermissions(native.getPermissions());
+    // 設定の組・権限・使用時間は、中身が変わっていなければ前の値のまま（30 秒ごとに子どもの全部の画面を描き直さない）
+    const perms = native.getPermissions();
+    setPermissions((prev) => keepIfSame(prev, perms));
     const [cfg, use, useYesterday] = await Promise.all([
       configCache.refresh(childId),
       native.getDailyUsage(date),
       native.getDailyUsage(yesterday),
     ]);
-    setConfig(cfg);
-    setUsage(use);
+    setConfig((prev) => keepIfSame(prev, cfg));
+    setUsage((prev) => keepIfSame(prev, use));
     const snapshot = cfg.status === "unavailable" ? null : cfg.snapshot;
     const excluded = snapshot?.excludedApps.map((a) => a.packageName) ?? [];
 
@@ -110,7 +113,9 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
 
   usePolling(refresh);
 
-  const value = useMemo<ChildData>(() => {
+  // 割合・次のテスト・空白期間は、設定・使用時間・日付が変わったときだけ作り直す
+  // （権限の状態だけが変わったときに calc が新しくなり、calc を依存に入れた画面の effect がやり直されないように）
+  const derived = useMemo(() => {
     const snapshot = config && config.status !== "unavailable" ? config.snapshot : null;
     const input: CalcInput | null =
       usage == null || config == null
@@ -121,17 +126,16 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
             excludedPackages: snapshot?.excludedApps.map((a) => a.packageName) ?? [],
           };
     return {
-      childId,
-      today,
-      config,
-      usage,
       calc: input ? calcUsage(input) : null,
       test: nextTest(snapshot, today),
       blank: currentBlankPeriod(snapshot, today),
-      permissions,
-      refresh,
     };
-  }, [childId, today, config, usage, permissions, refresh]);
+  }, [today, config, usage]);
+
+  const value = useMemo<ChildData>(
+    () => ({ childId, today, config, usage, ...derived, permissions, refresh }),
+    [childId, today, config, usage, derived, permissions, refresh],
+  );
 
   return <ChildDataContext.Provider value={value}>{children}</ChildDataContext.Provider>;
 }

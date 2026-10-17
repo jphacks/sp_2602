@@ -4,7 +4,7 @@
 //   - useUsage : C6 の実績（call("usageGet")）を 30 秒ごとに取り直す。失敗したら、前に取れた値を stale として残す（0 分にしない）
 import type { ApiError } from "@contracts/errors";
 import type { Child, ParentUsageView } from "@contracts/schemas";
-import { type ReactNode, useCallback, useState } from "react";
+import { Fragment, type ReactNode, useCallback, useState } from "react";
 import { StateView } from "@/components";
 import { call, errorOf } from "@/lib/api";
 import { useParentData } from "@/lib/parent-data";
@@ -12,7 +12,8 @@ import { usePolling } from "@/lib/polling";
 
 export function ChildGate({ children }: { children: (child: Child) => ReactNode }) {
   const { child, family, familyError, refresh } = useParentData();
-  if (child) return <>{children(child)}</>;
+  // key: 見ている子どもが変わったら中身を作り直す（前の子どもの実績を、次の取り直しまで出し続けないため）
+  if (child) return <Fragment key={child.id}>{children(child)}</Fragment>;
   if (familyError)
     return (
       <StateView
