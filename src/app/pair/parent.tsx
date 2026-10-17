@@ -9,7 +9,7 @@ import { tokens } from "@contracts/tokens";
 import { useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { useCallback, useEffect, useReducer, useState } from "react";
-import { AppState, Linking, StyleSheet, View } from "react-native";
+import { AppState, BackHandler, Linking, StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Dialog, MessageView, Screen, StateView } from "@/components";
 import {
   initialParentPairView,
@@ -69,6 +69,16 @@ export default function PairParent() {
     };
   }, [view]);
 
+  // 親12 の確かめている間は、Android の戻るボタンでも離れない（「やめる」も押せない）。
+  // なぜ: 離れると応答を捨てるが、サーバでは読み取りが通っていることがある。そのまま子どもが「はい」を押すと、
+  // この端末は何も知らないまま家族になってしまう
+  const verifying = view.screen === "verifying";
+  useEffect(() => {
+    if (!verifying) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => sub.remove();
+  }, [verifying]);
+
   // 子どもの「はい」を待つ間、数秒ごとに進み具合を聞く
   const pairId = view.screen === "waitingChild" ? view.status.pairId : null;
   const askStatus = useCallback(async () => {
@@ -96,7 +106,8 @@ export default function PairParent() {
       router.replace({ pathname: "/pair/status", params: { reason: "unsure", role: "parent" } });
   }, [view.screen]);
 
-  const quit = () => router.replace("/pair");
+  // 役割選びへは「戻る」（dismissTo）。置き換えると、下に残っている役割選びの上にもう1枚重なり、戻るボタンで役割選びが2回出る
+  const quit = () => router.dismissTo("/pair");
   const later = () => router.replace("/");
   const rescan = () => dispatch({ type: "rescan" });
   const next = async () => {
@@ -119,8 +130,8 @@ export default function PairParent() {
           <MessageView
             icon="camera"
             title="カメラを使わせてください"
-            // 改行は文の区切りで入れる（Figma の「…ために、／カメラを…」だと、文字を大きくした端末で「に、」だけが1行に落ちる）
-            body={"子どものスマホのQRコードを\n読み取るために、カメラを使います。"}
+            // 手で改行しない（端末の幅・文字の大きさで「に、」だけが1行に落ちていた。文の終わりの切れ方は AppText が防ぐ）
+            body="子どものスマホのQRコードを読み取るために、カメラを使います。"
             actions={
               <>
                 {view.canAskAgain ? (
@@ -238,7 +249,7 @@ export default function PairParent() {
             icon="check_circle"
             iconTone="success"
             title={`${view.child.name}さんとつながりました`}
-            body={`${view.child.name}さんの使用状況を\n見られるようになりました。`}
+            body={`${view.child.name}さんの使用状況を見られるようになりました。`}
             // TODO(未決): Figma のボタンは「使用状況を見る」（親01 へ）。Q7 で紐づけ直後に1日の上限を決めることになったので、
             //   先に上限を決める画面へ進む文言にした（決めた後に親01 へ進む）
             actions={<Button label="1日の上限を決める" onPress={next} loading={leaving} />}

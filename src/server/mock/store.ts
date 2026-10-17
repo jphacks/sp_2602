@@ -93,6 +93,22 @@ type ChildConfig = {
 };
 type Batch = { childId: string; fingerprint: string; appliedDates: string[] };
 
+// 書き出しの形の版（形を変えたら上げる。違う版のファイルは読まずに空から始める）
+const STORE_DUMP_FORMAT = 1;
+// store の中身を JSON にできる形にしたもの（MOCK の手元のサーバだけがファイルに残す。src/server/mock/persist.ts）
+export type StoreDump = {
+  format: typeof STORE_DUMP_FORMAT;
+  users: User[];
+  googleUsers: [string, string][];
+  sessions: SessionRow[];
+  pairs: Pair[];
+  links: string[];
+  configs: [string, ChildConfig][];
+  batches: [string, Batch][];
+  usage: [string, [string, UsageDayReport][]][];
+  lastUploadedAt: [string, string][];
+};
+
 const randomId = () => crypto.randomUUID();
 
 // 測った時刻をミリ秒に直す。読めない時刻は一番古いものとして扱う（NaN の比較は必ず false になり、
@@ -761,7 +777,12 @@ export class MemoryStore {
       this.usage.set(childId, byDate);
     }
     const appliedDates: string[] = [];
-    for (const day of days) {
+    const nowMs = this.now().getTime();
+    for (const sent of days) {
+      // サーバの今より先の測定時刻は、サーバの今として残す。
+      // なぜ: 端末の時計が先に進んでいた（子どもが日時を変えた・時計のずれ）記録をそのまま残すと、その日の記録は
+      //   「一番新しい測定」のまま居座り、時計を戻した後の正しい記録が何度届いても古いとみなされて、親の画面が更新されなくなった
+      const day = measuredMs(sent.measuredAt) > nowMs ? { ...sent, measuredAt: new Date(nowMs).toISOString() } : sent;
       const current = byDate.get(day.date);
       if (!current || measuredMs(day.measuredAt) > measuredMs(current.measuredAt)) {
         byDate.set(day.date, day);
@@ -795,6 +816,45 @@ export class MemoryStore {
       };
     });
     return { childId, from, to, days, lastUploadedAt: this.lastUploadedAt.get(childId) ?? null };
+  }
+
+  // ── MOCK の手元のサーバの書き出しと読み込み（src/server/mock/persist.ts が使う）──
+
+  // 持っているものを全部、JSON にできる形で書き出す
+  dump(): StoreDump {
+    return {
+      format: STORE_DUMP_FORMAT,
+      users: [...this.users.values()],
+      googleUsers: [...this.googleUsers],
+      sessions: [...this.sessions.values()],
+      pairs: [...this.pairs.values()],
+      links: [...this.links],
+      configs: [...this.configs],
+      batches: [...this.batches],
+      usage: [...this.usage].map(([childId, byDate]) => [childId, [...byDate]]),
+      lastUploadedAt: [...this.lastUploadedAt],
+    };
+  }
+
+  // dump() で書き出したものを読み込む（今の中身は全部入れ替える）。形が違えば例外（呼んだ側が空から始める）
+  restore(raw: unknown): void {
+    const d = raw as Partial<StoreDump> | null;
+    if (!d || d.format !== STORE_DUMP_FORMAT) throw new Error("store の書き出しの形が違います");
+    const list = <T>(v: T[] | undefined): T[] => {
+      if (!Array.isArray(v)) throw new Error("store の書き出しの形が違います");
+      return v;
+    };
+    // structuredClone: 読み込んだ値を、呼んだ側が持っている値と共有しない
+    const c = structuredClone(d) as StoreDump;
+    this.users = new Map(list(c.users).map((u) => [u.userId, u]));
+    this.googleUsers = new Map(list(c.googleUsers));
+    this.sessions = new Map(list(c.sessions).map((s) => [s.token, s]));
+    this.pairs = new Map(list(c.pairs).map((p) => [p.pairId, p]));
+    this.links = new Set(list(c.links));
+    this.configs = new Map(list(c.configs));
+    this.batches = new Map(list(c.batches));
+    this.usage = new Map(list(c.usage).map(([childId, byDate]) => [childId, new Map(list(byDate))]));
+    this.lastUploadedAt = new Map(list(c.lastUploadedAt));
   }
 
   // ── MOCK の見本 ──
@@ -852,4 +912,13 @@ export function getStore(): MemoryStore {
 export function resetStore(opts: StoreOptions = {}): MemoryStore {
   g.__slopeStore = new MemoryStore(opts);
   return g.__slopeStore;
+}
+
+// MOCK の手元のサーバ用: 前の起動で書き出した中身で store を作り、プロセスの1つとして使う（見本は入れない）。
+// 形が違えば例外（呼んだ側が空から始める）
+export function restoreStore(dump: unknown, opts: StoreOptions = {}): MemoryStore {
+  const store = new MemoryStore({ versionBase: startupVersionBase(), ...opts, seed: false });
+  store.restore(dump);
+  g.__slopeStore = store;
+  return store;
 }

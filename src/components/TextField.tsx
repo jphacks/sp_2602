@@ -32,6 +32,8 @@ export function TextField({ label, error, trailingIcon, ...input }: Props) {
             // カーソルと選択の色をアクセントに合わせる（Android の既定は緑）
             cursorColor={c.primary}
             selectionColor={c.primarySoft}
+            // 選んだ文字の両端のつまみ。省くと selectionColor（薄い青）になり、白色では白地に、黒色では暗い地に溶けて見えない
+            selectionHandleColor={c.primary}
             style={styles.input}
           />
         </View>

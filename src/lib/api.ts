@@ -4,7 +4,7 @@
 // 失敗は必ず ApiCallError で投げられる。画面は catch で setError(errorOf(e)) とし、message と hint を出せばよい。
 // つなぎ先は環境変数 EXPO_PUBLIC_API_URL（.env に書く）。未設定なら Android エミュレータから見た手元の PC（http://10.0.2.2:3000）。
 //   実機で試すときは、PC の LAN の IP（例 http://192.168.0.5:3000）を .env に書く（同じ Wi-Fi につなぐ）。
-// 中断: 時間制限は { signal: timeoutSignal(ミリ秒) } → 「時間切れ」。
+// 中断: 時間制限は { signal: timeoutSignal(ミリ秒) } → 「時間切れ」。signal を渡さない call() は DEFAULT_TIMEOUT_MS で時間切れになる。
 //       自分で止めた（画面を離れた等）は AbortController.abort() → errorOf が null を返すので何も出ない。
 // fetch は expo/fetch（少しずつ届く応答を読める。標準の fetch は React Native では読めない）を使う。
 // 合言葉: ログイン（call("authGoogle", …)）で受け取った Session の token を setSessionToken() で覚えると、
@@ -96,14 +96,30 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
   return res;
 }
 
+// signal を渡さなかった call() の時間制限。
+// なぜ: 前は時間制限がなく、サーバが応答を返さないまま止まる（adb reverse の途切れ・PC のスリープなど）と、
+//   その呼び出しが終わらなかった。usePolling は前の呼び出しが終わるまで次を飛ばすので、設定の取得（C7）・
+//   利用記録の送信（C8）・家族の取得が二度と走らず、画面も送信待ちも止まったままになった。
+//   時間切れにすれば、C7 は手元の組を stale で出し、C8 は送信待ちのまま後で送り直す（どちらも一時的な失敗として扱う）。
+export const DEFAULT_TIMEOUT_MS = 20_000;
+
 export async function call<K extends JsonRoute>(
   name: K,
   body?: Req<K>,
   opts: { signal?: AbortSignal } = {},
 ): Promise<Res<K>> {
   const r = api[name];
-  const res = await send(r.path, r.method, body, opts.signal);
-  return r.res.parse(await res.json()) as Res<K>;
+  const signal = opts.signal ?? timeoutSignal(DEFAULT_TIMEOUT_MS);
+  const res = await send(r.path, r.method, body, signal);
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch (e) {
+    // 応答の途中で時間切れになった（本文を読み終える前に止めた）ときも「時間切れ」にする
+    if (timedOut.has(signal)) throw new ApiCallError({ code: "timeout", ...errorText.timeout }, 0);
+    throw e;
+  }
+  return r.res.parse(json) as Res<K>;
 }
 
 export async function stream<K extends StreamRoute>(

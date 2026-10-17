@@ -58,8 +58,8 @@ export function periodTexts(kind: PeriodKind, viewer: Role) {
       createTitle: viewer === "child" ? "テストの日程を入れよう" : "テスト日程の登録",
       createBanner: viewer === "child" ? "次のテストの日程を入れてください" : "テストの名前と期間を入れてください",
       editTitle: "テスト日程の変更",
-      // Figma 子05 と同じ所で改行する（幅まかせだと「くだ／さい」で切れる）
-      editBanner: "変更するテストの日程を\n入れてください",
+      // 手で改行しない（「くだ／さい」のような切れ方は AppText が防ぐ。src/components/text-wrap.ts）
+      editBanner: "変更するテストの日程を入れてください",
       nameLabel: "テスト名",
       namePlaceholder: "例: 期末テスト",
       nameRequired: "テスト名を入れてください",

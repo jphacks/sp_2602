@@ -122,6 +122,43 @@ describe("call", () => {
     const e = await call("planGet", { childId: "c1" }).catch((x) => x);
     expect(errorOf(e)?.code).toBe("network");
   });
+
+  // 実機の通信（OkHttp）は既定で待ち時間の上限がない。応答が来ないと 30 秒ごとの取得が止まったままになるので、
+  // signal を渡さなくても DEFAULT_TIMEOUT_MS で「時間切れ」にする
+  it("signal を渡さなくても、応答が来なければ DEFAULT_TIMEOUT_MS で timeout にする", async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, errorOf, DEFAULT_TIMEOUT_MS } = await load("http://h");
+      // 中断されるまで返事をしない fetch（電波の切り替えで応答が来ない状態）
+      vi.stubGlobal(
+        "fetch",
+        (_url: string, init: Init) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+          }),
+      );
+      const pending = call("planGet", { childId: "c1" }).catch((x) => x);
+      await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT_MS - 1);
+      let settled = false;
+      void pending.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(errorOf(await pending)?.code).toBe("timeout");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("signal を渡したときは、その signal を使う（画面ごとの短い待ち時間を変えない）", async () => {
+    const { call } = await load("http://h");
+    mockFetch(() => Response.json(planView));
+    const own = new AbortController();
+    await call("planGet", { childId: "c1" }, { signal: own.signal });
+    expect(calls[0]?.init.signal).toBe(own.signal);
+  });
 });
 
 describe("stream", () => {

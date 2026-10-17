@@ -14,9 +14,10 @@ type Props = {
   onChange: (v: DurationText) => void;
   error?: string | null;
   hint?: string; // 欄の下の補足（エラーがないときだけ出す）
+  editable?: boolean; // 保存している間は変えられない（送った値と画面の値がずれないように）
 };
 
-export function DurationField({ label, value, onChange, error, hint }: Props) {
+export function DurationField({ label, value, onChange, error, hint, editable = true }: Props) {
   const c = useColors();
   const fieldStyles = useFieldStyles();
   const styles = useStyles();
@@ -32,11 +33,13 @@ export function DurationField({ label, value, onChange, error, hint }: Props) {
               value={value.hours}
               onChangeText={(hours) => onChange({ ...value, hours })}
               keyboardType="number-pad"
+              editable={editable}
               maxLength={2}
               placeholder="0"
               placeholderTextColor={c.muted}
               cursorColor={c.primary}
               selectionColor={c.primarySoft}
+              selectionHandleColor={c.primary}
               accessibilityLabel={`${label}、時間`}
               style={styles.input}
             />
@@ -45,11 +48,13 @@ export function DurationField({ label, value, onChange, error, hint }: Props) {
               value={value.minutes}
               onChangeText={(minutes) => onChange({ ...value, minutes })}
               keyboardType="number-pad"
+              editable={editable}
               maxLength={2}
               placeholder="0"
               placeholderTextColor={c.muted}
               cursorColor={c.primary}
               selectionColor={c.primarySoft}
+              selectionHandleColor={c.primary}
               accessibilityLabel={`${label}、分`}
               style={styles.input}
             />

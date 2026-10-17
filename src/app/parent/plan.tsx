@@ -44,7 +44,8 @@ import { usePolling } from "@/lib/polling";
 
 export default function ParentPlan() {
   const { child } = useParentData();
-  if (child) return <PlanBody childId={child.id} />;
+  // key: 子どもが変わったら、前の子どもの入力・版を持ち越さない
+  if (child) return <PlanBody key={child.id} childId={child.id} />;
   // 見ている子どもが決まるまで（読み込み中・取得不可・まだつながっていない）
   return (
     <Screen title="計画を作る" bottomInset={false}>
@@ -159,6 +160,15 @@ function PlanBody({ childId }: { childId: string }) {
         <StateView state={loadError ? "unknown" : "loading"} error={loadError} onRetry={() => void load()} />
       ) : (
         <>
+          {loadError ? (
+            // 開いた後の取り直しに失敗している（反映済み／反映待ちが古いかもしれない。入力はそのまま使える）
+            <Banner
+              tone="warning"
+              icon="cloud_off"
+              message="最新でない可能性があります"
+              hint="通信できるようになると自動で更新します"
+            />
+          ) : null}
           <Banner icon="edit" message="計画をはじめる日と、1日の使用時間の上限を入れてください" />
           {view?.plan ? <ReflectChip view={view} /> : null}
           <DateField
@@ -167,6 +177,7 @@ function PlanBody({ childId }: { childId: string }) {
             onChange={(d) => update("startDate", d)}
             minimumDate={today}
             error={errors.startDate}
+            disabled={saving}
           />
           {planAlreadyStarted(view, today) && view?.plan ? (
             <AppText variant="caption" tone="muted">
@@ -179,18 +190,21 @@ function PlanBody({ childId }: { childId: string }) {
             value={form.start}
             onChange={(v) => update("start", v)}
             error={errors.start}
+            editable={!saving}
           />
           <DurationField
             label="最終目標（めざす1日の使用時間）"
             value={form.goal}
             onChange={(v) => update("goal", v)}
             error={errors.goal}
+            editable={!saving}
           />
           <DurationField
             label="通常上限（テストがない日の上限）"
             value={form.usual}
             onChange={(v) => update("usual", v)}
             error={errors.usual}
+            editable={!saving}
             hint={
               view?.usualLimitMinutes == null
                 ? "決めていないと、テストも計画もない日は「上限未設定」になります"

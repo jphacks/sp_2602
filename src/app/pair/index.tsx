@@ -59,20 +59,21 @@ export default function PairStart() {
 
   return (
     <Screen title="Slope" footer={<Button variant="text" label="ログアウト" onPress={logout} />}>
-      {/* 幅まかせだと「くだ／さい」で切れるので、言葉の切れ目で改行する */}
-      <Banner icon="group" message={"このスマホを使う人を\nえらんでください"} />
+      {/* 幅まかせで折り返す（「くだ／さい」のような切れ方は AppText が防ぐ。text-wrap.ts） */}
+      <Banner icon="group" message="このスマホを使う人をえらんでください" />
       <View style={styles.choices}>
         <RoleChoice
           icon="camera"
           title="保護者として使う"
           description="子どものスマホに出たQRコードを、このスマホで読み取ります。"
-          onPress={() => router.push("/pair/parent")}
+          // navigate: すばやく2回押しても、カメラの画面を2枚重ねない
+          onPress={() => router.navigate("/pair/parent")}
         />
         <RoleChoice
           icon="qr_code"
           title="子どもとして使う"
           description="このスマホにQRコードを出して、保護者に読み取ってもらいます。"
-          onPress={() => router.push("/pair/child")}
+          onPress={() => router.navigate("/pair/child")}
         />
       </View>
       <AppText variant="caption" tone="muted">

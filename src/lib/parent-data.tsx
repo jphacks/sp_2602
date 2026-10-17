@@ -6,11 +6,12 @@
 // 画面では: const { child, family, config, refresh } = useParentData();
 import type { ApiError } from "@contracts/errors";
 import type { Child } from "@contracts/schemas";
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { call, errorOf } from "./api";
 import { type ConfigState, configCache } from "./config-cache";
 import { useFlow } from "./flow";
 import { usePolling } from "./polling";
+import { keepIfSame } from "./same";
 
 type ParentData = {
   child: Child | null; // 見ている子ども（連携済みの子どもがいなければ null）
@@ -27,27 +28,39 @@ export function ParentDataProvider({ children }: { children: ReactNode }) {
   const [family, setFamily] = useState<Child[] | null>(null);
   const [familyError, setFamilyError] = useState<ApiError | null>(null);
   const [config, setConfig] = useState<ConfigState | null>(null);
+  // 今見ている子ども（取得の途中で子どもが変わったら、前の子どもの設定を入れないため）
+  const viewing = useRef<string | null>(child?.id ?? null);
+  viewing.current = child?.id ?? null;
 
   // 見ている子どもが変わったら、端末に保存してある設定をすぐ出す
   useEffect(() => {
     setConfig(null);
-    if (child) void configCache.load(child.id).then((s) => setConfig((cur) => cur ?? s));
+    if (child)
+      void configCache.load(child.id).then((s) => {
+        if (viewing.current === child.id) setConfig((cur) => cur ?? s);
+      });
   }, [child]);
 
   const refresh = useCallback(async () => {
     let current = child;
     try {
       const f = await call("familyGet");
-      setFamily(f.children);
+      // 中身が同じなら前の一覧のまま（30 秒ごとに全部の画面を描き直さない）
+      setFamily((prev) => keepIfSame(prev, f.children));
       setFamilyError(null);
       if (!current || !f.children.some((c) => c.id === current?.id)) {
         current = f.children[0] ?? null;
         setChild(current);
+        viewing.current = current?.id ?? null;
       }
     } catch (e) {
       setFamilyError(errorOf(e));
     }
-    if (current) setConfig(await configCache.refresh(current.id));
+    if (!current) return;
+    const id = current.id;
+    const next = await configCache.refresh(id);
+    // 待っている間に別の子どもに切り替わっていたら捨てる。中身が同じなら前の値のまま（ウィジェットの保存などをやり直さない）
+    if (viewing.current === id) setConfig((prev) => keepIfSame(prev, next));
   }, [child, setChild]);
 
   usePolling(refresh);
