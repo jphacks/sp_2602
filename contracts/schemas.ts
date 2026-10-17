@@ -8,7 +8,21 @@ import { z } from "zod";
 export const Role = z.enum(["parent", "child"]);
 export type Role = z.infer<typeof Role>;
 
-// 子ども1人。保護者と子どもの紐づけ方（認証・ペアリング）は未決（docs/requirements/open.md）なので、ここには id と表示名だけ置く
+// Google ログインの結果。端末で Google にログインして受け取った ID トークンを、サーバに渡して確かめてもらう（保護者も子どもも同じ）
+export const GoogleSignIn = z.object({ idToken: z.string().min(1) });
+export type GoogleSignIn = z.infer<typeof GoogleSignIn>;
+
+// サーバが出す合言葉と、ログインした人。role は QR のペアリングが済むまで null（親子どちらにも分かれていない）
+// token は以降の API に `Authorization: Bearer <token>` で付ける（src/lib/api.ts の call() / stream() が付ける）
+export const Session = z.object({
+  token: z.string().min(1),
+  userId: z.string().min(1),
+  name: z.string().min(1), // 画面に出す名前（Google のアカウント名）
+  role: Role.nullable(),
+});
+export type Session = z.infer<typeof Session>;
+
+// 子ども1人。紐づけ方は Google ログイン → QR のペアリング（decisions.md 10/17）。ここには id と表示名だけ置く
 export const Child = z.object({
   id: z.string().min(1),
   name: z.string().min(1), // 画面に出す名前

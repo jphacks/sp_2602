@@ -61,6 +61,19 @@ describe("通信先", () => {
   });
 });
 
+describe("合言葉", () => {
+  it("setSessionToken で覚えると Authorization: Bearer が付き、null で外れる", async () => {
+    const { call, setSessionToken } = await load();
+    mockFetch(() => Response.json(rules));
+    setSessionToken("t-123");
+    await call("rulesGet", { childId: "c1" });
+    expect(new Headers(calls[0]?.init.headers).get("authorization")).toBe("Bearer t-123");
+    setSessionToken(null);
+    await call("rulesGet", { childId: "c1" });
+    expect(new Headers(calls[1]?.init.headers).get("authorization")).toBeNull();
+  });
+});
+
 describe("call", () => {
   it("POST は JSON 本文と Content-Type を付け、返事を契約で検証して返す", async () => {
     const { call } = await load("http://h");

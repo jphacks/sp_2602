@@ -7,6 +7,8 @@
 // 中断: 時間制限は { signal: timeoutSignal(ミリ秒) } → 「時間切れ」。
 //       自分で止めた（画面を離れた等）は AbortController.abort() → errorOf が null を返すので何も出ない。
 // fetch は expo/fetch（少しずつ届く応答を読める。標準の fetch は React Native では読めない）を使う。
+// 合言葉: ログイン（call("authGoogle", …)）で受け取った Session の token を setSessionToken() で覚えると、
+//   以降の call() / stream() が Authorization: Bearer <token> を付ける。端末への保存は Kotlin 側（層3）。
 import {
   api,
   type Chunk,
@@ -36,6 +38,13 @@ export function timeoutSignal(ms: number): AbortSignal {
   return controller.signal;
 }
 
+let sessionToken: string | null = null;
+
+// ログインしたら合言葉を覚える（ログアウト・合言葉が無効になったら null）
+export function setSessionToken(token: string | null): void {
+  sessionToken = token;
+}
+
 const isAbort = (e: unknown) => (e as { name?: string } | null)?.name === "AbortError";
 
 export class ApiCallError extends Error {
@@ -55,12 +64,15 @@ export function errorOf(e: unknown): ApiError | null {
 }
 
 async function send(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       signal,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers: Object.keys(headers).length ? headers : undefined,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (e) {

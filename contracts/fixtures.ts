@@ -25,7 +25,18 @@ const usage: Res<"usageGet"> = {
   updatedAt: "2026-10-17T18:00:00+09:00",
 };
 
+// MOCK=1 のときの Google ログイン。authGoogle に idToken（キー）を送ると、その Session（合言葉つき）が返る。
+// 画面・テスト・npm run api -- … --token <token> は、この token を合言葉として使う
+export const mockSessions = {
+  "mock-google-parent": { token: "mock-token-parent", userId: "demo-parent", name: "デモの保護者", role: "parent" },
+  "mock-google-child": { token: "mock-token-child", userId: "demo-child", name: "デモの子ども", role: "child" },
+  // ログインしたが、まだ QR のペアリングをしていない人（親子どちらにも分かれていない）
+  "mock-google-new": { token: "mock-token-new", userId: "demo-new", name: "はじめての人", role: null },
+} satisfies Record<string, Res<"authGoogle">>;
+
 export const fixtures = {
+  authGoogle: mockSessions["mock-google-parent"],
+  authMe: mockSessions["mock-google-parent"],
   usageReport: usage,
   usageGet: usage,
   rulesGet: rules,
