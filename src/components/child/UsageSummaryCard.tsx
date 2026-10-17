@@ -5,6 +5,7 @@
 import { tokens } from "@contracts/tokens";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { AppText, Button, Card, Icon, ProgressBar } from "@/components";
+import { useColors } from "@/lib/theme";
 import type { UsageMessage as Message, UsageView } from "./child-view";
 import { UsageMessage } from "./UsageMessage";
 
@@ -15,17 +16,18 @@ type Props = {
 };
 
 export function UsageSummaryCard({ view, onDetail, onAction }: Props) {
+  const c = useColors();
   return (
     <Card>
       <View style={styles.heading}>
-        <Icon name="insights" size={tokens.size.iconSmall} color={tokens.color.primary} />
+        <Icon name="insights" size={tokens.size.iconSmall} color={c.primary} />
         <AppText variant="title" accessibilityRole="header">
           今日の使用量
         </AppText>
       </View>
       {view.kind === "loading" && (
         <View style={styles.loading}>
-          <ActivityIndicator color={tokens.color.primary} />
+          <ActivityIndicator color={c.primary} />
           <AppText tone="muted">読み込んでいます…</AppText>
         </View>
       )}

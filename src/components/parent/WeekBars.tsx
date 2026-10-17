@@ -5,11 +5,15 @@
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
 import { AppText } from "@/components";
+import { makeStyles } from "@/lib/theme";
 import { type ChartBar, chartNotes } from "./charts";
 
 type Props = { bars: ChartBar[]; accessibilityLabel?: string };
 
 export function WeekBars({ bars, accessibilityLabel }: Props) {
+  const styles = useStyles();
+  const fills = useFills();
+  const tags = useTags();
   const max = Math.max(1, ...bars.flatMap((b) => [b.track ?? 0, b.value ?? 0]));
   const h = (n: number) => ({ height: Math.round((Math.min(n, max) / max) * tokens.size.chartHeight) });
   const notes = chartNotes(bars);
@@ -76,30 +80,36 @@ export function WeekBars({ bars, accessibilityLabel }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { gap: tokens.space[2] },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  col: { flex: 1, alignItems: "center", gap: tokens.space[1] },
-  area: { height: tokens.size.chartHeight, justifyContent: "flex-end", alignItems: "center" },
-  track: {
-    width: tokens.size.chartBarWidth,
-    backgroundColor: tokens.color.track,
-    borderRadius: tokens.radius.sm,
-    justifyContent: "flex-end",
-    overflow: "hidden",
-  },
-  fill: { width: "100%", borderRadius: tokens.radius.sm },
-  bare: { width: tokens.size.chartBarWidth },
-  tagRow: { width: tokens.size.chartTagWidth, alignItems: "center" },
-  tag: { paddingHorizontal: tokens.space[1], borderRadius: tokens.radius.sm },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    wrap: { gap: tokens.space[2] },
+    row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+    col: { flex: 1, alignItems: "center", gap: tokens.space[1] },
+    area: { height: tokens.size.chartHeight, justifyContent: "flex-end", alignItems: "center" },
+    track: {
+      width: tokens.size.chartBarWidth,
+      backgroundColor: c.track,
+      borderRadius: tokens.radius.sm,
+      justifyContent: "flex-end",
+      overflow: "hidden",
+    },
+    fill: { width: "100%", borderRadius: tokens.radius.sm },
+    bare: { width: tokens.size.chartBarWidth },
+    tagRow: { width: tokens.size.chartTagWidth, alignItems: "center" },
+    tag: { paddingHorizontal: tokens.space[1], borderRadius: tokens.radius.sm },
+  }),
+);
 
-const fills = StyleSheet.create({
-  muted: { backgroundColor: tokens.color.primaryMuted },
-  strong: { backgroundColor: tokens.color.primary },
-});
+const useFills = makeStyles((c) =>
+  StyleSheet.create({
+    muted: { backgroundColor: c.primaryMuted },
+    strong: { backgroundColor: c.primaryFill },
+  }),
+);
 
-const tags = StyleSheet.create({
-  strong: { backgroundColor: tokens.color.primary },
-  soft: { backgroundColor: tokens.color.primarySoft },
-});
+const useTags = makeStyles((c) =>
+  StyleSheet.create({
+    strong: { backgroundColor: c.primaryFill },
+    soft: { backgroundColor: c.primarySoft },
+  }),
+);

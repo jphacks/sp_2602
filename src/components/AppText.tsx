@@ -3,6 +3,7 @@
 import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { StyleSheet, Text, type TextProps } from "react-native";
+import { makeStyles } from "@/lib/theme";
 
 export type TextVariant = "display" | "ring" | "headline" | "title" | "body" | "small" | "label" | "caption" | "micro";
 export type TextTone =
@@ -31,6 +32,7 @@ export function AppText({
   children,
   ...rest
 }: Props) {
+  const tones = useTones();
   return (
     <Text {...rest} style={[styles[variant], tones[tone], center && styles.center, strong && styles.strong]}>
       {children}
@@ -59,13 +61,15 @@ const styles = StyleSheet.create({
   strong: { fontWeight: tokens.weight.semibold },
 });
 
-const tones = StyleSheet.create({
-  default: { color: tokens.color.text },
-  muted: { color: tokens.color.muted },
-  primary: { color: tokens.color.primary },
-  onPrimary: { color: tokens.color.onPrimary },
-  onPrimarySoft: { color: tokens.color.onPrimarySoft },
-  danger: { color: tokens.color.danger },
-  warning: { color: tokens.color.warning },
-  success: { color: tokens.color.success },
-});
+const useTones = makeStyles((c) =>
+  StyleSheet.create({
+    default: { color: c.text },
+    muted: { color: c.muted },
+    primary: { color: c.primary },
+    onPrimary: { color: c.onPrimary },
+    onPrimarySoft: { color: c.onPrimarySoft },
+    danger: { color: c.danger },
+    warning: { color: c.warning },
+    success: { color: c.success },
+  }),
+);

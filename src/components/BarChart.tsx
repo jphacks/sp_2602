@@ -5,6 +5,7 @@
 // 棒の高さは値で決まるので、ここだけ計算した style を使う（色・寸法は tokens のまま）。
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
+import { makeStyles } from "@/lib/theme";
 import { AppText } from "./AppText";
 
 export type Bar = {
@@ -21,6 +22,7 @@ export type Bar = {
 type Props = { bars: Bar[]; scaleMax?: number; accessibilityLabel?: string; compact?: boolean };
 
 export function BarChart({ bars, scaleMax, accessibilityLabel, compact = false }: Props) {
+  const styles = useStyles();
   const max =
     scaleMax ?? Math.max(1, ...bars.flatMap((b) => [b.capacity ?? 0, b.value ?? 0]).filter((n) => Number.isFinite(n)));
   const height = compact ? tokens.size.chartHeightSmall : tokens.size.chartHeight;
@@ -58,6 +60,8 @@ export function BarChart({ bars, scaleMax, accessibilityLabel, compact = false }
 
 // 凡例（色見本＋文字）。幅が足りないときは折り返す（親03 は凡例が3つで1行に入らない）
 export function Legend({ items }: { items: { label: string; tone: "track" | "fill" | "today" }[] }) {
+  const styles = useStyles();
+  const swatch = useSwatch();
   return (
     <View style={styles.legend}>
       {items.map((i) => (
@@ -72,27 +76,31 @@ export function Legend({ items }: { items: { label: string; tone: "track" | "fil
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  col: { alignItems: "center", gap: tokens.space[1] },
-  area: { height: tokens.size.chartHeight, justifyContent: "flex-end" },
-  areaSmall: { height: tokens.size.chartHeightSmall },
-  track: {
-    width: tokens.size.chartBarWidth,
-    backgroundColor: tokens.color.track,
-    borderRadius: tokens.radius.sm,
-    justifyContent: "flex-end",
-    overflow: "hidden",
-  },
-  fill: { width: "100%", backgroundColor: tokens.color.primaryMuted, borderRadius: tokens.radius.sm },
-  today: { backgroundColor: tokens.color.primary },
-  legend: { flexDirection: "row", flexWrap: "wrap", columnGap: tokens.space[3], rowGap: tokens.space[1] },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
-  swatch: { width: tokens.size.legendSwatch, height: tokens.size.legendSwatch, borderRadius: tokens.radius.sm },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+    col: { alignItems: "center", gap: tokens.space[1] },
+    area: { height: tokens.size.chartHeight, justifyContent: "flex-end" },
+    areaSmall: { height: tokens.size.chartHeightSmall },
+    track: {
+      width: tokens.size.chartBarWidth,
+      backgroundColor: c.track,
+      borderRadius: tokens.radius.sm,
+      justifyContent: "flex-end",
+      overflow: "hidden",
+    },
+    fill: { width: "100%", backgroundColor: c.primaryMuted, borderRadius: tokens.radius.sm },
+    today: { backgroundColor: c.primaryFill },
+    legend: { flexDirection: "row", flexWrap: "wrap", columnGap: tokens.space[3], rowGap: tokens.space[1] },
+    legendItem: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
+    swatch: { width: tokens.size.legendSwatch, height: tokens.size.legendSwatch, borderRadius: tokens.radius.sm },
+  }),
+);
 
-const swatch = StyleSheet.create({
-  track: { backgroundColor: tokens.color.track },
-  fill: { backgroundColor: tokens.color.primaryMuted },
-  today: { backgroundColor: tokens.color.primary },
-});
+const useSwatch = makeStyles((c) =>
+  StyleSheet.create({
+    track: { backgroundColor: c.track },
+    fill: { backgroundColor: c.primaryMuted },
+    today: { backgroundColor: c.primaryFill },
+  }),
+);

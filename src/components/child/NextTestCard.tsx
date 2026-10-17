@@ -4,19 +4,21 @@
 import { tokens } from "@contracts/tokens";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { AppText, Card, Icon } from "@/components";
+import { useColors } from "@/lib/theme";
 import type { NextTestView } from "./child-view";
 
 export function NextTestCard({ view }: { view: NextTestView }) {
+  const c = useColors();
   return (
     <Card tone="soft">
       <View style={styles.row}>
-        <Icon name="event" size={tokens.size.iconLarge} color={tokens.color.onPrimarySoft} />
+        <Icon name="event" size={tokens.size.iconLarge} color={c.onPrimarySoft} />
         <View style={styles.text}>
           <AppText variant="caption" tone="onPrimarySoft">
             次のテスト
           </AppText>
           {view.kind === "loading" ? (
-            <ActivityIndicator color={tokens.color.onPrimarySoft} />
+            <ActivityIndicator color={c.onPrimarySoft} />
           ) : (
             <>
               <AppText variant="title" tone="onPrimarySoft">

@@ -6,9 +6,10 @@ import { formatDateLongJa } from "@contracts/dates";
 import { tokens } from "@contracts/tokens";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { Pressable, StyleSheet, View } from "react-native";
+import { useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Icon } from "./Icon";
-import { fieldStyles } from "./TextField";
+import { useFieldStyles } from "./TextField";
 
 type Props = {
   label: string;
@@ -28,6 +29,8 @@ const fromLocal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export function DateField({ label, value, onChange, minimumDate, maximumDate, error }: Props) {
+  const c = useColors();
+  const fieldStyles = useFieldStyles();
   const open = () =>
     DateTimePickerAndroid.open({
       mode: "date",
@@ -52,7 +55,7 @@ export function DateField({ label, value, onChange, minimumDate, maximumDate, er
           </AppText>
           <AppText tone={value ? "default" : "muted"}>{value ? formatDateLongJa(value) : "日付を選ぶ"}</AppText>
         </View>
-        <Icon name="event" color={tokens.color.muted} />
+        <Icon name="event" color={c.muted} />
       </Pressable>
       {error ? (
         <AppText variant="caption" tone="danger">
