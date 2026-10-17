@@ -6,7 +6,7 @@
     },
     "src/server/handlers/rulesSave.ts": {
       "action": "delete",
-      "sha": "20f4ad55dcdeedc7168f7d41c6a613c3290263d902d3770f347fec6fb62e334e"
+      "sha": "9eb9005f95c9e0cfcb94cea5bb5885490ddc8ed3c53ddd69090d66a5071649cb"
     },
     "src/server/handlers/rulesSyncStream.ts": {
       "action": "delete",
@@ -46,15 +46,15 @@
     },
     "contracts/schemas.ts": {
       "action": "replace",
-      "sha": "81d52fb5a1d86b80088878c3372169884d287e453e183eeba7b46abce44e7b36"
+      "sha": "5068871f93c535f9764df578e380549800d694d430522eef009ba6cc2536d5d2"
     },
     "contracts/api.ts": {
       "action": "replace",
-      "sha": "f35b4bfc8bee1288c30b7ea08ee6f6d24fa7857bf30609c2f1ffa5a5375c7d5b"
+      "sha": "26f1692674f2709900e5d998aa057837e4db3e77ebc5fb7b49640282c546a5b4"
     },
     "contracts/fixtures.ts": {
       "action": "replace",
-      "sha": "f2f305eaf65e5281e53e19321b1779c440f404e75f7e4a61500140ce4c9e2972"
+      "sha": "cb4ffaacc2dcce29c71dc173f9f74caa0d610085795238d9515bff8fd4a333a5"
     },
     "contracts/screens.md": {
       "action": "replace",
@@ -70,7 +70,7 @@
     },
     "src/server/handlers/index.ts": {
       "action": "replace",
-      "sha": "d78eb199eaa8cffd1b7ee1b6f98038d8d128d6be341e9d9ada679aafd7750e6d"
+      "sha": "68aca84b3f6c296be6323d213af2d6c29e7e6c393424a06d4063f08917790250"
     },
     "src/server/db/schema.ts": {
       "action": "replace",
@@ -82,11 +82,11 @@
     },
     "tests/lib/api.test.ts": {
       "action": "replace",
-      "sha": "bbd415d581998469a035efa3ba281bfb983fc613077ce49a994e01d85eacb3c7"
+      "sha": "55b69bade0d71fdd4a344d5965c682208cf24bd03adaf9ec263d9c200b3dc61b"
     },
     "tests/server/api.test.ts": {
       "action": "replace",
-      "sha": "57619a076abe469463872d7f5166f63067b9a1e0f69d48282c1d1816ac2202b3"
+      "sha": "0a71b9e090434a585b8f1040bcd6afd5898e0e558825d345ae93e39e5fe88289"
     },
     "tests/server/db.test.ts": {
       "action": "replace",

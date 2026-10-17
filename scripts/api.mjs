@@ -4,7 +4,8 @@
 // node の fetch は常に UTF-8 で送る。stream の API は届いた行を順に出す。
 //   例: npm run api -- health
 //       npm run api -- rulesGet '{"childId":"demo-child"}'
-//       npm run api -- rulesSave --body-file body.json
+//       npm run api -- rulesSave --body-file body.json --token mock-token-parent
+//   --token: 合言葉（Authorization: Bearer）。MOCK=1 では contracts/fixtures.ts の mockSessions の token を使う
 import { readFileSync } from "node:fs";
 import { p } from "./lib/kit.mjs";
 
@@ -13,7 +14,9 @@ const opt = (k) => {
   const i = args.indexOf(k);
   return i >= 0 ? args[i + 1] : undefined;
 };
-const [name, inline] = args.filter((a, i) => !a.startsWith("--") && !["--base", "--body-file"].includes(args[i - 1]));
+const [name, inline] = args.filter(
+  (a, i) => !a.startsWith("--") && !["--base", "--body-file", "--token"].includes(args[i - 1]),
+);
 const base = opt("--base") ?? `http://localhost:${process.env.PORT ?? 3000}`;
 const fail = (msg) => {
   console.error(`✗ ${msg}`);
@@ -46,9 +49,12 @@ if (body !== undefined) {
 const started = Date.now();
 let res;
 try {
+  const headers = {};
+  if (body !== undefined) headers["content-type"] = "application/json; charset=utf-8";
+  if (opt("--token")) headers.authorization = `Bearer ${opt("--token")}`;
   res = await fetch(base + path, {
     method,
-    headers: body === undefined ? undefined : { "content-type": "application/json; charset=utf-8" },
+    headers,
     body: method === "GET" ? undefined : (body ?? "{}"),
   });
 } catch (e) {
