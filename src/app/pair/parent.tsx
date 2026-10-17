@@ -119,7 +119,8 @@ export default function PairParent() {
           <MessageView
             icon="camera"
             title="カメラを使わせてください"
-            body={"子どものスマホのQRコードを読み取るために、\nカメラを使います。"}
+            // 改行は文の区切りで入れる（Figma の「…ために、／カメラを…」だと、文字を大きくした端末で「に、」だけが1行に落ちる）
+            body={"子どものスマホのQRコードを\n読み取るために、カメラを使います。"}
             actions={
               <>
                 {view.canAskAgain ? (

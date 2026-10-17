@@ -63,6 +63,7 @@ export function PeriodListScreen({ kind, viewer, today, periods, reload, onBack,
         {applied && (
           <View style={styles.applied}>
             <Chip
+              align="start"
               tone={applied.tone}
               icon={applied.tone === "success" ? "check_circle" : "sync"}
               label={applied.label}

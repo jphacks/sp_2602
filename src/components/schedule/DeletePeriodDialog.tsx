@@ -21,10 +21,12 @@ export function DeletePeriodDialog({ kind, period, busy, onCancel, onConfirm }: 
       title={text.title}
       body={text.body}
       onClose={busy ? () => undefined : onCancel}
+      // 確認のダイアログは Figma 親07（ログアウトの確認）と同じ形: 中央・枠付きの丸いボタンを2つ横に並べる
+      centered
       actions={
         <>
-          <Button variant="text" label="キャンセル" onPress={onCancel} disabled={busy} />
-          <Button variant="text" label="削除する" onPress={onConfirm} loading={busy} danger />
+          <Button variant="pill" label="キャンセル" onPress={onCancel} disabled={busy} />
+          <Button variant="pill" label="削除する" onPress={onConfirm} loading={busy} danger />
         </>
       }
     />

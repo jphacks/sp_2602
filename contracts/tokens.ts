@@ -14,7 +14,7 @@ export const tokens = {
     onPrimarySoft: "#1B2A6B", // primarySoft の上の文字（次のテストのカード）
     text: "#1B1B21", // 本文
     muted: "#5F5E6B", // 補足の文字
-    line: "#D9D8E3", // カードの枠・区切り線
+    line: "#C7C5D0", // カードの枠・区切り線（Figma のカード・リスト項目の 1px 枠）
     outline: "#777680", // 枠だけのボタン・ダイアログの丸いボタンの枠（Figma の outlined ボタン）
     track: "#E6E6EE", // 進捗バー・グラフの下地
     danger: "#B3261E", // エラー・上限到達
@@ -43,9 +43,9 @@ export const tokens = {
   },
   radius: { sm: 8, md: 12, card: 16, dialog: 28, pill: 999 },
   // 文字の大きさ（Figma の書き出しに文字の大きさが入っていないため、文字枠の高さから決めた）
-  font: { xs: 12, sm: 14, base: 16, lg: 18, xl: 22, xxl: 28, display: 48, ring: 64 },
-  lineHeight: { xs: 16, sm: 20, base: 24, lg: 26, xl: 30, xxl: 36, display: 56, ring: 74 },
-  weight: { regular: "400", medium: "500", bold: "700" },
+  font: { xxs: 10, xs: 12, sm: 14, base: 16, lg: 18, xl: 22, xxl: 28, display: 48, ring: 64 },
+  lineHeight: { xxs: 14, xs: 16, sm: 20, base: 24, lg: 26, xl: 30, xxl: 36, display: 56, ring: 74 },
+  weight: { regular: "400", medium: "500", semibold: "600", bold: "700" },
   // 部品の寸法（Figma）
   size: {
     touch: 44, // 押せる部品の高さの下限（Android の推奨 48dp に近い 44 を基準にする）
@@ -75,8 +75,13 @@ export const tokens = {
     viewfinder: 240, // QR を読む枠（親11）
     chartBarWidth: 28, // 棒グラフの棒の幅
     chartHeight: 140, // 棒グラフの高さ（親01 の track の最大 135 前後）
+    chartHeightSmall: 90, // 棒グラフの高さ（子02「今週の使用割合」の track 90）
+    chartTagWidth: 72, // 棒の下の札（「今の試験」）が1行で入る幅。棒の列より広く、左右にはみ出す
     switchWidth: 52,
     switchHeight: 32,
+    switchThumbOn: 24, // スイッチのつまみ（ON。白・大）
+    switchThumbOff: 16, // スイッチのつまみ（OFF。グレー・小）
+    switchBorder: 2, // スイッチ OFF の枠の太さ
     appIcon: 40, // アプリの頭文字のアイコン（親16）
     legendSwatch: 10, // グラフの凡例の色見本
     border: 1, // 枠線の太さ

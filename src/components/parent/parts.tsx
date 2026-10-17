@@ -4,6 +4,8 @@
 //   Note       : 薄いグレーの注意書き（線の「i」＋文。親03）
 //   Strip      : 薄いグレーの全丸の帯（期間の表示。親03）
 //   Badge      : 白い小さい札（「上限が 13% 減」。親03）
+//   Toggle     : スイッチ（Figma 親16 の 52×32 の丸いスイッチ。ON は青地に白い大きいつまみ、OFF は枠とグレーの小さいつまみ）。
+//                Android の標準の Switch は小さく形も違うため、Figma の形で描く
 import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -29,7 +31,8 @@ export function LinkCard({ label, icon, onPress }: { label: string; icon: IconNa
     >
       <Icon name={icon} color={tokens.color.primary} />
       <View style={styles.flex}>
-        <AppText variant="body" tone="primary">
+        {/* Figma 親03 は1行の太字。body だと文字を大きくした端末で「る」だけ次の行に落ちる */}
+        <AppText variant="label" tone="primary" strong>
           {label}
         </AppText>
       </View>
@@ -43,7 +46,9 @@ export function Note({ children }: { children: ReactNode }) {
     <View style={styles.note}>
       <Icon name="info" color={tokens.color.muted} />
       <View style={styles.flex}>
-        <AppText tone="muted">{children}</AppText>
+        <AppText variant="small" tone="muted">
+          {children}
+        </AppText>
       </View>
     </View>
   );
@@ -59,10 +64,32 @@ export function Strip({ children }: { children: ReactNode }) {
   );
 }
 
+export function Toggle(props: {
+  value: boolean;
+  onValueChange: (on: boolean) => void;
+  disabled?: boolean;
+  accessibilityLabel: string;
+}) {
+  const { value, onValueChange, disabled, accessibilityLabel } = props;
+  return (
+    <Pressable
+      onPress={() => onValueChange(!value)}
+      disabled={disabled}
+      accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ checked: value, disabled: !!disabled }}
+      hitSlop={tokens.space[2]}
+      style={[styles.track, value ? styles.trackOn : styles.trackOff, disabled && styles.disabled]}
+    >
+      <View style={value ? styles.thumbOn : styles.thumbOff} />
+    </Pressable>
+  );
+}
+
 export function Badge({ label }: { label: string }) {
   return (
     <View style={styles.badge}>
-      <AppText variant="label" tone="primary">
+      <AppText variant="label" tone="primary" strong>
         {label}
       </AppText>
     </View>
@@ -91,7 +118,7 @@ const styles = StyleSheet.create({
   pressed: { backgroundColor: tokens.color.primaryMuted },
   note: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: tokens.space[3],
     padding: tokens.space[4],
     borderRadius: tokens.radius.card,
@@ -103,6 +130,34 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radius.pill,
     backgroundColor: tokens.color.surfaceDim,
   },
+  track: {
+    width: tokens.size.switchWidth,
+    height: tokens.size.switchHeight,
+    borderRadius: tokens.radius.pill,
+    paddingHorizontal: tokens.space[1],
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  trackOn: { backgroundColor: tokens.color.primary, justifyContent: "flex-end" },
+  trackOff: {
+    borderWidth: tokens.size.switchBorder,
+    borderColor: tokens.color.outline,
+    justifyContent: "flex-start",
+  },
+  thumbOn: {
+    width: tokens.size.switchThumbOn,
+    height: tokens.size.switchThumbOn,
+    borderRadius: tokens.radius.pill,
+    backgroundColor: tokens.color.white,
+  },
+  thumbOff: {
+    width: tokens.size.switchThumbOff,
+    height: tokens.size.switchThumbOff,
+    marginHorizontal: tokens.space[1],
+    borderRadius: tokens.radius.pill,
+    backgroundColor: tokens.color.outline,
+  },
+  disabled: { opacity: 0.5 },
   badge: {
     alignSelf: "flex-start",
     paddingHorizontal: tokens.space[3],

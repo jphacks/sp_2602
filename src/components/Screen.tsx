@@ -4,7 +4,7 @@
 //   <Screen title="アプリごとの利用時間" onBack={() => router.back()}>…</Screen>
 import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppText } from "./AppText";
 import { Icon } from "./Icon";
@@ -49,8 +49,12 @@ export function Screen({ title, onBack, right, footer, scroll = true, bottomInse
         </View>
         {right}
       </View>
-      <View style={styles.fill}>{body}</View>
-      {footer && <View style={styles.footer}>{footer}</View>}
+      {/* Android 15 以降は画面が端まで広がるため、キーボードが出ても画面が縮まず、下の入力欄がキーボードに隠れる
+          （実機 SC-53C・Android 16 で親02 の「最終目標」が隠れた）。キーボードの高さだけ下を空けて、本文を縮める */}
+      <KeyboardAvoidingView style={styles.fill} behavior="padding">
+        <View style={styles.fill}>{body}</View>
+        {footer && <View style={styles.footer}>{footer}</View>}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

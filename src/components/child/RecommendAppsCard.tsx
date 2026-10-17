@@ -15,7 +15,10 @@ export function RecommendAppsCard({ onPress }: { onPress: () => void }) {
     >
       <Icon name="apps" color={tokens.color.primary} />
       <View style={styles.text}>
-        <AppText variant="title">お勧めアプリはこちらです</AppText>
+        {/* Figma 子11 は1行（16 の中くらいの太さ）。title だと文字を大きくした端末で「す」だけ次の行に落ちる */}
+        <AppText variant="body" strong>
+          お勧めアプリはこちらです
+        </AppText>
       </View>
       <Icon name="chevron_right" color={tokens.color.primary} />
     </Pressable>

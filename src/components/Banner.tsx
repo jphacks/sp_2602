@@ -45,7 +45,8 @@ export function Banner({ message, hint, icon, tone = "info", action }: Props) {
     >
       <Icon name={icon ?? defaultIcon[tone]} color={fg[tone]} />
       <View style={styles.text}>
-        <AppText variant="body" tone={textTone[tone]}>
+        {/* Figma 子03・子11・子14 の帯の文は 14 の太字 */}
+        <AppText variant="label" tone={textTone[tone]} strong>
           {message}
         </AppText>
         {hint ? (
@@ -62,7 +63,7 @@ export function Banner({ message, hint, icon, tone = "info", action }: Props) {
 const styles = StyleSheet.create({
   box: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     gap: tokens.space[3],
     padding: tokens.space[4],
     borderRadius: tokens.radius.md,

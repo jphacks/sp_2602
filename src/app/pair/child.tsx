@@ -217,7 +217,8 @@ export default function PairChild() {
       // 子14（子18 はこの上のダイアログ）
       return (
         <Screen title="Slope" footer={quit}>
-          <Banner icon="info" message="保護者のスマホで、このQRコードを読み取ってもらおう" />
+          {/* Figma 子14 と同じ所（「、」のあと）で改行する */}
+          <Banner icon="info" message={"保護者のスマホで、\nこのQRコードを読み取ってもらおう"} />
           {view.screen === "showing" && view.offline && (
             <Banner
               tone="warning"

@@ -11,7 +11,7 @@ import type { ExcludedAppsView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
 import { useCallback, useState } from "react";
-import { StyleSheet, Switch, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Chip, ErrorBanner, Screen, StateView } from "@/components";
 import { ChildGate } from "@/components/parent/data";
 import {
@@ -22,7 +22,7 @@ import {
   hasUnsaved,
   removedVersions,
 } from "@/components/parent/excluded";
-import { AppInitial } from "@/components/parent/parts";
+import { AppInitial, Toggle } from "@/components/parent/parts";
 import { call, errorOf } from "@/lib/api";
 import { useParentData } from "@/lib/parent-data";
 import { usePolling } from "@/lib/polling";
@@ -183,10 +183,12 @@ function AppRow({ row, onToggle, disabled }: { row: ExcludedRow; onToggle: (on: 
     <View style={styles.row}>
       <AppInitial initial={row.initial} />
       <View style={styles.middle}>
-        <AppText variant="title">{row.label}</AppText>
+        <AppText variant="body" strong>
+          {row.label}
+        </AppText>
         {row.status === "pending" ? (
           <View style={styles.chipRow}>
-            <Chip label={statusText.pending} />
+            <Chip label={statusText.pending} small />
           </View>
         ) : (
           <AppText variant="caption" tone={row.status === "unsaved" ? "warning" : "muted"}>
@@ -194,12 +196,10 @@ function AppRow({ row, onToggle, disabled }: { row: ExcludedRow; onToggle: (on: 
           </AppText>
         )}
       </View>
-      <Switch
+      <Toggle
         value={row.on}
         onValueChange={onToggle}
         disabled={disabled}
-        trackColor={{ false: tokens.color.track, true: tokens.color.primary }}
-        thumbColor={tokens.color.white}
         accessibilityLabel={`${row.label}を制限の対象外にする（${statusText[row.status]}）`}
       />
     </View>

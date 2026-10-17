@@ -73,31 +73,37 @@ export default function ChildUsage() {
       footer={<Button variant="outline" label="ホームに戻る" onPress={goHome} />}
     >
       {stale && <Banner tone="warning" icon="cloud_off" message={stale.message} hint={stale.hint} />}
-      <View style={styles.heading}>
-        <AppText variant="title" center accessibilityRole="header">
-          今日の使用量
-        </AppText>
-        <AppText tone="muted" center>
-          {formatDateJa(today)}
-        </AppText>
+      {/* 見出しとゲージは詰めて並べる（Figma 子02 は「ホームに戻る」の上まで1画面に収まる。見出しは 16、日付は 14） */}
+      <View style={styles.top}>
+        <View style={styles.heading}>
+          <AppText variant="body" strong center accessibilityRole="header">
+            今日の使用量
+          </AppText>
+          <AppText variant="small" tone="muted" center>
+            {formatDateJa(today)}
+          </AppText>
+        </View>
+        {view.kind === "message" ? (
+          <UsageMessage message={view.message} onAction={onAction} center />
+        ) : (
+          // 読み込み中は「--」（0% にしない）
+          // 中央の数字は黒（Figma 子02。子01 の青い数字と違う）
+          <Gauge percent={view.kind === "percent" ? view.percent : null} caption="使いました" valueTone="default" />
+        )}
       </View>
-      {view.kind === "message" ? (
-        <UsageMessage message={view.message} onAction={onAction} center />
-      ) : (
-        // 読み込み中は「--」（0% にしない）
-        // 中央の数字は黒（Figma 子02。子01 の青い数字と違う）
-        <Gauge percent={view.kind === "percent" ? view.percent : null} caption="使いました" valueTone="default" />
-      )}
       {pace && <Chip tone={pace.tone} icon={pace.icon} label={pace.label} />}
       <View style={styles.week}>
-        <AppText variant="label">今週の使用割合</AppText>
-        <BarChart bars={bars} scaleMax={100} accessibilityLabel={weekBarsLabel(bars)} />
+        <AppText variant="label" strong>
+          今週の使用割合
+        </AppText>
+        <BarChart bars={bars} scaleMax={100} accessibilityLabel={weekBarsLabel(bars)} compact />
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: { gap: tokens.space[1] },
-  week: { gap: tokens.space[3] },
+  top: { gap: tokens.space[2] },
+  heading: { gap: tokens.space[0] },
+  week: { gap: tokens.space[2] },
 });

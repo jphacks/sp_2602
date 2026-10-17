@@ -53,11 +53,12 @@ export function Dialog({
               <Icon name={icon} size={tokens.size.iconLarge} color={iconColor[iconTone]} />
             </View>
           )}
-          <AppText variant="title" center={centered || !!icon} accessibilityRole="header">
+          <AppText variant="headline" center={centered || !!icon} accessibilityRole="header">
             {title}
           </AppText>
           {body ? (
-            <AppText tone="muted" center={centered}>
+            // Figma のダイアログの本文は 14（題名より小さい）
+            <AppText variant="small" tone="muted" center={centered}>
               {body}
             </AppText>
           ) : null}

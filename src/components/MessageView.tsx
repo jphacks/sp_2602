@@ -33,7 +33,8 @@ export function MessageView({ title, body, icon, tone = "info", iconTone, spinne
           {title}
         </AppText>
         {body ? (
-          <AppText tone="muted" center>
+          // Figma 親10・子13 の本文は 14（16 だと文字を大きくした端末で「…ため／に、」と1文字だけ落ちる）
+          <AppText variant="small" tone="muted" center>
             {body}
           </AppText>
         ) : null}

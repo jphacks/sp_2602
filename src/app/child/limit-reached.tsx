@@ -59,8 +59,9 @@ export default function ChildLimitReached() {
         visible={cannotOpen}
         title="お勧めアプリを開けませんでした"
         body="勉強に使うアプリを、おうちの人と一緒に決めよう"
+        centered
         onClose={() => setCannotOpen(false)}
-        actions={<Button variant="text" label="OK" onPress={() => setCannotOpen(false)} />}
+        actions={<Button variant="pill" label="OK" onPress={() => setCannotOpen(false)} />}
       />
     </Screen>
   );

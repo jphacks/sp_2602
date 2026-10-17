@@ -6,7 +6,9 @@ import { AppText, type TextTone } from "./AppText";
 import { Icon, type IconName } from "./Icon";
 
 type Tone = "info" | "success" | "warning" | "danger";
-type Props = { label: string; icon?: IconName; tone?: Tone };
+// align: 札の置き場所（既定は中央。一覧の上の「反映待ち」のように左の文とそろえるときは "start"）
+// small: 行の中の小さい札（Figma 親16 の行の「反映待ち」。文字 12）
+type Props = { label: string; icon?: IconName; tone?: Tone; align?: "center" | "start"; small?: boolean };
 
 const fg: Record<Tone, string> = {
   info: tokens.color.onPrimarySoft,
@@ -21,11 +23,12 @@ const textTone: Record<Tone, TextTone> = {
   danger: "danger",
 };
 
-export function Chip({ label, icon, tone = "info" }: Props) {
+export function Chip({ label, icon, tone = "info", align = "center", small = false }: Props) {
   return (
-    <View style={[styles.chip, toneStyles[tone]]}>
+    <View style={[styles.chip, toneStyles[tone], align === "start" && styles.start, small && styles.small]}>
       {icon && <Icon name={icon} size={tokens.size.iconSmall} color={fg[tone]} />}
-      <AppText variant="label" tone={textTone[tone]}>
+      {/* Figma の札の文字は太字（子02「ちょうどいいペース！」・子14「あと 9分41秒…」） */}
+      <AppText variant={small ? "caption" : "label"} tone={textTone[tone]} strong>
         {label}
       </AppText>
     </View>
@@ -42,6 +45,8 @@ const styles = StyleSheet.create({
     paddingVertical: tokens.space[1],
     borderRadius: tokens.radius.pill,
   },
+  start: { alignSelf: "flex-start" },
+  small: { paddingHorizontal: tokens.space[2], paddingVertical: tokens.space[0] },
 });
 
 const toneStyles = StyleSheet.create({

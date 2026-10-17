@@ -53,7 +53,8 @@ export function Button({ label, onPress, variant = "primary", icon, trailingIcon
       ) : (
         <View style={styles.row}>
           {icon && <Icon name={icon} size={tokens.size.iconSmall} color={color} />}
-          <AppText variant="label" tone={danger ? "danger" : tone[variant]}>
+          {/* 2行に折り返したときも中央にそろえる（ログインの「はじめての人として…」が左寄せになっていた） */}
+          <AppText variant="label" tone={danger ? "danger" : tone[variant]} center>
             {label}
           </AppText>
           {trailingIcon && <Icon name={trailingIcon} size={tokens.size.iconSmall} color={color} />}
@@ -66,20 +67,22 @@ export function Button({ label, onPress, variant = "primary", icon, trailingIcon
 const styles = StyleSheet.create({
   base: {
     minHeight: tokens.size.button,
-    borderRadius: tokens.radius.pill,
+    // Figma 子03 の「登録する」「キャンセル」は角丸 16（全丸ではない）。soft・pill は下で全丸にする
+    borderRadius: tokens.radius.card,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: tokens.space[6],
   },
   primary: { backgroundColor: tokens.color.primary, alignSelf: "stretch" },
+  // Figma の outlined ボタン: 地なし・枠 #777680（tokens.color.outline）
   outline: {
     borderWidth: tokens.size.border,
-    borderColor: tokens.color.line,
-    backgroundColor: tokens.color.surface,
+    borderColor: tokens.color.outline,
     alignSelf: "stretch",
   },
   soft: {
     backgroundColor: tokens.color.primarySoft,
+    borderRadius: tokens.radius.pill,
     minHeight: tokens.size.touch,
     paddingHorizontal: tokens.space[4],
     alignSelf: "flex-end",
@@ -88,7 +91,9 @@ const styles = StyleSheet.create({
   pill: {
     minHeight: tokens.size.touch, // Figma は 40 だが、押せる高さの下限 44 にそろえる
     minWidth: tokens.size.pillMinWidth,
-    paddingHorizontal: tokens.space[6],
+    borderRadius: tokens.radius.pill,
+    // 24 だと文字を大きくした端末で「キャンセル」「ログアウト」が横に並ばず縦に落ちる（Figma 親07 は横並び）
+    paddingHorizontal: tokens.space[4],
     borderWidth: tokens.size.border,
     borderColor: tokens.color.outline,
     alignSelf: "center",

@@ -17,29 +17,36 @@ export type Bar = {
   highlight?: boolean; // 今日（濃い色）
 };
 
-type Props = { bars: Bar[]; scaleMax?: number; accessibilityLabel?: string };
+// compact: 子02 の小さいグラフ（棒の高さ 90）。ゲージと同じ画面に収めるため
+type Props = { bars: Bar[]; scaleMax?: number; accessibilityLabel?: string; compact?: boolean };
 
-export function BarChart({ bars, scaleMax, accessibilityLabel }: Props) {
+export function BarChart({ bars, scaleMax, accessibilityLabel, compact = false }: Props) {
   const max =
     scaleMax ?? Math.max(1, ...bars.flatMap((b) => [b.capacity ?? 0, b.value ?? 0]).filter((n) => Number.isFinite(n)));
-  const h = (n: number) => ({ height: Math.round((Math.min(n, max) / max) * tokens.size.chartHeight) });
+  const height = compact ? tokens.size.chartHeightSmall : tokens.size.chartHeight;
+  const h = (n: number) => ({ height: Math.round((Math.min(n, max) / max) * height) });
+  // 棒の上の数字の行は、どれかの棒に数字があるときだけ空ける（子02 は数字がないので空けない）
+  const hasTop = bars.some((b) => b.topLabel != null);
   return (
     <View style={styles.row} accessibilityLabel={accessibilityLabel}>
       {bars.map((b) => (
         <View key={b.key} style={styles.col}>
-          <AppText variant="caption" tone={b.highlight ? "primary" : "muted"}>
-            {b.topLabel ?? " "}
-          </AppText>
-          <View style={styles.area}>
+          {hasTop && (
+            <AppText variant="caption" tone={b.highlight ? "primary" : "muted"}>
+              {b.topLabel ?? " "}
+            </AppText>
+          )}
+          <View style={[styles.area, compact && styles.areaSmall]}>
             <View style={[styles.track, h(b.capacity ?? max)]}>
               {b.value != null && <View style={[styles.fill, b.highlight && styles.today, h(b.value)]} />}
             </View>
           </View>
-          <AppText variant="label" tone={b.highlight ? "primary" : "default"}>
+          {/* 今日は青の太字（Figma 子02 の「木 10/15」） */}
+          <AppText variant="label" tone={b.highlight ? "primary" : "default"} strong={b.highlight}>
             {b.label}
           </AppText>
           {b.sublabel ? (
-            <AppText variant="caption" tone={b.highlight ? "primary" : "muted"}>
+            <AppText variant="micro" tone={b.highlight ? "primary" : "muted"} strong={b.highlight}>
               {b.sublabel}
             </AppText>
           ) : null}
@@ -69,6 +76,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
   col: { alignItems: "center", gap: tokens.space[1] },
   area: { height: tokens.size.chartHeight, justifyContent: "flex-end" },
+  areaSmall: { height: tokens.size.chartHeightSmall },
   track: {
     width: tokens.size.chartBarWidth,
     backgroundColor: tokens.color.track,

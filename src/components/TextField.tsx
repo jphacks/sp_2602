@@ -25,6 +25,9 @@ export function TextField({ label, error, trailingIcon, ...input }: Props) {
             {...input}
             accessibilityLabel={input.accessibilityLabel ?? label}
             placeholderTextColor={tokens.color.muted}
+            // カーソルと選択の色をアクセントに合わせる（Android の既定は緑）
+            cursorColor={tokens.color.primary}
+            selectionColor={tokens.color.primarySoft}
             style={styles.input}
           />
         </View>
@@ -47,10 +50,10 @@ export const fieldStyles = StyleSheet.create({
     alignItems: "center",
     gap: tokens.space[3],
     paddingHorizontal: tokens.space[4],
-    backgroundColor: tokens.color.surface,
+    // Figma の TextField（outlined）: 地なし・枠 #777680
     borderRadius: tokens.radius.sm,
     borderWidth: tokens.size.border,
-    borderColor: tokens.color.line,
+    borderColor: tokens.color.outline,
   },
   fieldError: { borderColor: tokens.color.danger },
 });
@@ -60,5 +63,11 @@ const styles = StyleSheet.create({
   field: fieldStyles.field,
   fieldError: fieldStyles.fieldError,
   text: { flex: 1, justifyContent: "center" },
-  input: { fontSize: tokens.font.base, color: tokens.color.text, paddingVertical: tokens.space[0] },
+  // Android の TextInput は既定で左右に余白があり、ラベルと値の左端がずれるので 0 にする
+  input: {
+    fontSize: tokens.font.base,
+    color: tokens.color.text,
+    paddingVertical: tokens.space[0],
+    paddingHorizontal: tokens.space[0],
+  },
 });

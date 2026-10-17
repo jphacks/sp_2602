@@ -139,7 +139,9 @@ function WeekCard({ state, today, onRetry }: { state: UsageState; today: string;
   return (
     <Card>
       <View style={styles.titleRow}>
-        <AppText variant="label">今週の使用時間（分）</AppText>
+        <AppText variant="label" strong>
+          今週の使用時間（分）
+        </AppText>
         <Legend
           items={[
             { label: "上限", tone: "track" },

@@ -59,7 +59,8 @@ export default function PairStart() {
 
   return (
     <Screen title="Slope" footer={<Button variant="text" label="ログアウト" onPress={logout} />}>
-      <Banner icon="group" message="このスマホを使う人をえらんでください" />
+      {/* 幅まかせだと「くだ／さい」で切れるので、言葉の切れ目で改行する */}
+      <Banner icon="group" message={"このスマホを使う人を\nえらんでください"} />
       <View style={styles.choices}>
         <RoleChoice
           icon="camera"

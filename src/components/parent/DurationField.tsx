@@ -31,6 +31,8 @@ export function DurationField({ label, value, onChange, error, hint }: Props) {
               maxLength={2}
               placeholder="0"
               placeholderTextColor={tokens.color.muted}
+              cursorColor={tokens.color.primary}
+              selectionColor={tokens.color.primarySoft}
               accessibilityLabel={`${label}、時間`}
               style={styles.input}
             />
@@ -42,6 +44,8 @@ export function DurationField({ label, value, onChange, error, hint }: Props) {
               maxLength={2}
               placeholder="0"
               placeholderTextColor={tokens.color.muted}
+              cursorColor={tokens.color.primary}
+              selectionColor={tokens.color.primarySoft}
               accessibilityLabel={`${label}、分`}
               style={styles.input}
             />

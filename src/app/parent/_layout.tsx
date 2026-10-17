@@ -3,7 +3,7 @@
 // ParentDataProvider で、見ている子ども（MVP は1人。Q2）とその設定の組（C7）を、どのタブからも同じ値で使えるようにする。
 // タブに出ない画面（タブは出たまま）: schedules（親05）・app-usage（親09）・excluded-apps（親16）・blank-periods（空白期間。Q7）
 import { Redirect, Tabs } from "expo-router";
-import { TabIcon, useTabBarOptions } from "@/components/TabIcon";
+import { hiddenTabOptions, TabIcon, useTabBarOptions } from "@/components/TabIcon";
 import { ParentDataProvider } from "@/lib/parent-data";
 import { useSession } from "@/lib/session";
 
@@ -13,7 +13,8 @@ export default function ParentLayout() {
   if (state.status !== "signedIn" || state.session.role !== "parent") return <Redirect href="/" />;
   return (
     <ParentDataProvider>
-      <Tabs screenOptions={tabBarOptions}>
+      {/* backBehavior="history": 「←」や戻るボタンで、来た画面へ戻す（既定の firstRoute だと、タブに出ない画面からいつもホームへ戻る） */}
+      <Tabs screenOptions={tabBarOptions} backBehavior="history">
         <Tabs.Screen
           name="home"
           options={{ title: "ホーム", tabBarIcon: (p) => <TabIcon name="home" focused={p.focused} /> }}
@@ -30,10 +31,10 @@ export default function ParentLayout() {
           name="settings"
           options={{ title: "設定", tabBarIcon: (p) => <TabIcon name="settings" focused={p.focused} /> }}
         />
-        <Tabs.Screen name="schedules" options={{ href: null }} />
-        <Tabs.Screen name="app-usage" options={{ href: null }} />
-        <Tabs.Screen name="excluded-apps" options={{ href: null }} />
-        <Tabs.Screen name="blank-periods" options={{ href: null }} />
+        <Tabs.Screen name="schedules" options={hiddenTabOptions} />
+        <Tabs.Screen name="app-usage" options={hiddenTabOptions} />
+        <Tabs.Screen name="excluded-apps" options={hiddenTabOptions} />
+        <Tabs.Screen name="blank-periods" options={hiddenTabOptions} />
       </Tabs>
     </ParentDataProvider>
   );

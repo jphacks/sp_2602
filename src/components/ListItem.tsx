@@ -21,6 +21,7 @@ type Props = {
   danger?: boolean;
   iconTone?: "primary" | "default" | "muted"; // アイコンの色（既定 primary。danger のときは赤）
   strong?: boolean; // 題名を太字にする
+  chevron?: boolean; // 押せるときの右の › を出すか（既定 true。Figma 子07・親04 の「ログアウト」は › なし）
   accessibilityLabel?: string;
 };
 
@@ -37,13 +38,15 @@ export function ListItem({
   danger,
   iconTone = "primary",
   strong,
+  chevron = true,
   accessibilityLabel,
 }: Props) {
   const content = (
     <>
       {leading ?? (icon && <Icon name={icon} color={danger ? tokens.color.danger : iconColors[iconTone]} />)}
       <View style={styles.text}>
-        <AppText variant={strong ? "title" : "body"} tone={danger ? "danger" : "default"}>
+        {/* Figma の項目名は 16 の中くらいの太さ（カードの見出しより小さい） */}
+        <AppText variant="body" strong={strong} tone={danger ? "danger" : "default"}>
           {title}
         </AppText>
         {subtitle ? (
@@ -57,7 +60,7 @@ export function ListItem({
           {value}
         </AppText>
       ) : null}
-      {trailing ?? (onPress && !danger ? <Icon name="chevron_right" color={tokens.color.muted} /> : null)}
+      {trailing ?? (onPress && !danger && chevron ? <Icon name="chevron_right" color={tokens.color.muted} /> : null)}
     </>
   );
   if (!onPress)
@@ -70,7 +73,7 @@ export function ListItem({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityLabel={accessibilityLabel ?? title.replace(/\n/g, "")}
       style={({ pressed }) => [styles.item, subtitle ? styles.tall : null, pressed && styles.pressed]}
     >
       {content}

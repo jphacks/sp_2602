@@ -199,6 +199,8 @@ function PlanBody({ childId }: { childId: string }) {
       <Dialog
         visible={confirmation != null}
         icon="check_circle"
+        iconTone="success"
+        centered
         title="計画を作りました"
         body={
           confirmation === "confirmed"
@@ -206,7 +208,8 @@ function PlanBody({ childId }: { childId: string }) {
             : "保存して、上限を計算し直しました。新しい上限のグラフは、通信できると自動で表示されます。"
         }
         onClose={() => setSavedVersion(null)}
-        actions={<Button variant="text" label="OK" onPress={() => setSavedVersion(null)} />}
+        // 完了のダイアログは Figma 子04 と同じ形（中央・枠付きの丸い「OK」）にそろえる
+        actions={<Button variant="pill" label="OK" onPress={() => setSavedVersion(null)} />}
       />
     </Screen>
   );

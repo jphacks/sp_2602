@@ -35,19 +35,33 @@ export function WeekBars({ bars, accessibilityLabel }: Props) {
                 </AppText>
               )}
             </View>
-            <AppText variant="label" tone={b.emphasis ? "primary" : "default"}>
+            {/* 強調する棒（今日など）は青の太字（Figma 親01 の「木 10/15」）。
+                2行目がないとき（親03 の週の「10/12」）は日付なので小さい文字にする（大きいと隣の日付とくっつく） */}
+            <AppText
+              variant={b.sublabel ? "label" : "micro"}
+              tone={b.emphasis ? "primary" : "default"}
+              strong={b.emphasis}
+            >
               {b.label}
             </AppText>
             {b.sublabel ? (
-              <AppText variant="caption" tone={b.emphasis ? "primary" : "muted"}>
+              <AppText variant="micro" tone={b.emphasis ? "primary" : "muted"} strong={b.emphasis}>
                 {b.sublabel}
               </AppText>
             ) : null}
             {b.tags.map((t) => (
-              <View key={t.label} style={[styles.tag, tags[t.tone]]}>
-                <AppText variant="caption" tone={t.tone === "strong" ? "onPrimary" : "onPrimarySoft"}>
-                  {t.label}
-                </AppText>
+              // 札（「今の試験」など）は棒の幅より広いので、1行のまま棒の左右にはみ出して出す（Figma 親03）
+              <View key={t.label} style={styles.tagRow}>
+                <View style={[styles.tag, tags[t.tone]]}>
+                  <AppText
+                    variant="micro"
+                    strong
+                    numberOfLines={1}
+                    tone={t.tone === "strong" ? "onPrimary" : "onPrimarySoft"}
+                  >
+                    {t.label}
+                  </AppText>
+                </View>
               </View>
             ))}
           </View>
@@ -76,6 +90,7 @@ const styles = StyleSheet.create({
   },
   fill: { width: "100%", borderRadius: tokens.radius.sm },
   bare: { width: tokens.size.chartBarWidth },
+  tagRow: { width: tokens.size.chartTagWidth, alignItems: "center" },
   tag: { paddingHorizontal: tokens.space[1], borderRadius: tokens.radius.sm },
 });
 
