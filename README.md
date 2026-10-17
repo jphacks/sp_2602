@@ -27,6 +27,7 @@
 <img width="180" height="400" alt="子12 ウィジェット（Android のホーム） 最新" src="https://github.com/user-attachments/assets/a9eff279-50ac-40b5-9129-95d9fd09383e" />
 
 ### 解決出来ること
+スマホの利用時間を少しづつ減らし、勉強時間を上げることができます。
 ### 今後の展望
 ### 注力したこと（こだわり等）
 * 
