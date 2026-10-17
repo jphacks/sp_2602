@@ -22,6 +22,7 @@ import {
   ExcludedAppsSaveResult,
   ExcludedAppsView,
   Family,
+  FamilyUnlinkResult,
   GoogleSignIn,
   LinkStatus,
   PairClaim,
@@ -37,6 +38,8 @@ import {
   PlanSaveResult,
   PlanView,
   Session,
+  SignOutRequest,
+  SignOutResult,
   TestPeriodCreate,
   TestPeriodList,
   TestPeriodSaveResult,
@@ -66,6 +69,9 @@ export const api = {
   authGoogle: post("/api/auth/google", "none", GoogleSignIn, Session),
   // 今の合言葉の持ち主（役割を含む）。アプリの起動時に、どの画面に進むかを決めるのに使う
   authMe: { kind: "json", method: "GET", path: "/api/auth/me", auth: "signedIn", req: z.void(), res: Session },
+  // ログアウト。サーバ側で合言葉を使えなくする（otherDevices: true なら、この端末以外の合言葉をすべて）
+  // 足した理由: 端末の中の合言葉を消すだけでは、なくした端末・盗まれた合言葉が期限まで使えたままになるため
+  authSignOut: post("/api/auth/sign-out", "signedIn", SignOutRequest, SignOutResult),
 
   // ── C1: QR の紐づけ。役割がまだない人（role: null）が使う。MVP は親1人↔子1人（2人目は conflict。Q2）──
   // 子ども: QR を出す（保護者・連携済みの子どもは conflict。前に出した未使用の QR は無効になる。Q10）
@@ -91,6 +97,10 @@ export const api = {
   },
   // 保護者: 連携済みの子どもの一覧
   familyGet: { kind: "json", method: "GET", path: "/api/family/get", auth: "parent", req: z.void(), res: Family },
+  // 保護者: 子どもとの連携を外す（連携済みの子どもだけ。route.ts が確かめる）。子どもの合言葉はすべて使えなくなり、
+  // 子どもは役割のない状態（role: null）に戻る（もう一度 QR で紐づけ直せる）。子どもの端末をなくしたときにも使う
+  // 足した理由: 保護者が子どもを外す手段・なくした子どもの端末の合言葉を止める手段がなかったため
+  familyUnlink: post("/api/family/unlink", "parent", ChildQuery, FamilyUnlinkResult),
 
   // ── D8: 通常上限と計画（C10 の入力）──
   // 親子: 計画と通常上限を見る（子どもは閲覧のみ）

@@ -41,6 +41,11 @@ import { computeDailyLimits, type DailyLimitOptions, mergeWithFinalized, PlanCal
 export const PAIR_TTL_MS = 10 * 60_000;
 // 合言葉の期限: 最後に使ってから30日（作り直し前の決定 10/17）
 export const SESSION_IDLE_MS = 30 * 86_400_000;
+// QR の番号を送る回数の上限（総当たりを防ぐ）: 同じ人が PAIR_CLAIM_WINDOW_MS の間に PAIR_CLAIM_MAX_FAILURES 回まちがえたら、
+// その間は rate_limited で断る。番号は 40 文字の乱数なので当てるのは現実的に無理だが、何度でも試せる状態は残さない。
+// 数えるのは失敗（知らない番号・期限切れ・使用済み など）だけ。成功したら数え直す
+export const PAIR_CLAIM_MAX_FAILURES = 10;
+export const PAIR_CLAIM_WINDOW_MS = 10 * 60_000;
 // TODO(未決): C10 の日別上限を何日先まで作るか（図・仕様に数値がない）。今は保存した日から 120 日先まで
 export const LIMIT_HORIZON_DAYS = 120;
 // 日別上限の残りがこの日数を切ったら、configGet のときに作り足す（今日から LIMIT_HORIZON_DAYS 日先まで作り直す）。
@@ -146,6 +151,7 @@ export class MemoryStore {
   private googleUsers = new Map<string, string>(); // Google の sub → userId
   private sessions = new Map<string, SessionRow>();
   private pairs = new Map<string, Pair>();
+  private claimFailures = new Map<string, number[]>(); // userId → QR の番号の読み取りに失敗した時刻（PAIR_CLAIM_WINDOW_MS の分だけ）
   private links = new Set<string>(); // `${parentId}|${childId}`
   private configs = new Map<string, ChildConfig>();
   private batches = new Map<string, Batch>();
@@ -202,6 +208,23 @@ export class MemoryStore {
     }
     row.lastUsedAt = now;
     return this.sessionOf(token, row.userId);
+  }
+
+  // ログアウト。otherDevices なら同じ人のほかの合言葉をすべて、そうでなければこの合言葉だけを使えなくする
+  signOut(caller: Session, otherDevices: boolean): { revoked: number } {
+    if (otherDevices) return { revoked: this.revokeSessionsOf(caller.userId, caller.token) };
+    return { revoked: this.sessions.delete(caller.token) ? 1 : 0 };
+  }
+
+  // userId の合言葉をすべて使えなくする（keepToken だけは残す）。使えなくした数を返す
+  private revokeSessionsOf(userId: string, keepToken?: string): number {
+    let revoked = 0;
+    for (const [token, row] of this.sessions) {
+      if (row.userId !== userId || token === keepToken) continue;
+      this.sessions.delete(token);
+      revoked++;
+    }
+    return revoked;
   }
 
   private sessionOf(token: string, userId: string): Session {
@@ -290,8 +313,29 @@ export class MemoryStore {
     return this.statusOf(p);
   }
 
-  // 保護者: QR の番号を送る。同じ QR を2回読んでも、2回目は使用済み（conflict）になる
+  // 保護者: QR の番号を送る。同じ QR を2回読んでも、2回目は使用済み（conflict）になる。
+  // まちがいが続いたら、しばらく断る（PAIR_CLAIM_MAX_FAILURES）
   pairClaim(caller: Session, code: string): PairStatus {
+    const now = this.now().getTime();
+    const recent = (this.claimFailures.get(caller.userId) ?? []).filter((t) => now - t < PAIR_CLAIM_WINDOW_MS);
+    if (recent.length >= PAIR_CLAIM_MAX_FAILURES)
+      throw new AppError(
+        "rate_limited",
+        "QR コードの読み取りに何度も失敗したため、しばらく受け付けません",
+        "10分ほど待ってから、子どもの端末で QR を出し直して読み取ってください",
+      );
+    try {
+      const status = this.claim(caller, code);
+      this.claimFailures.delete(caller.userId);
+      return status;
+    } catch (e) {
+      if (e instanceof AppError && (e.code === "not_found" || e.code === "conflict"))
+        this.claimFailures.set(caller.userId, [...recent, now]);
+      throw e;
+    }
+  }
+
+  private claim(caller: Session, code: string): PairStatus {
     if (caller.role === "child")
       throw new AppError("forbidden", "子どもの端末では QR を読み取れません", "保護者の端末で読み取ってください");
     const p = [...this.pairs.values()].find((x) => x.code === code);
@@ -365,6 +409,20 @@ export class MemoryStore {
     }
     const role = this.users.get(caller.userId)?.role ?? null;
     return { state: partners.length > 0 ? "linked" : "unlinked", role, partners };
+  }
+
+  // 保護者: 子どもとの連携を外す。子どもの合言葉をすべて使えなくし、子どもを役割のない状態（role: null）に戻す。
+  // 子どもの出しかけの QR も無効にする。連携していない子どもは not_found（route.ts の checkChildAccess で先に 403 になる）
+  // TODO(未決): 外した子どもの設定・利用記録を消すか残すか。今は残す（同じ保護者と紐づけ直したときに続きから使えるように）。
+  //   別の保護者と紐づけ直すと、その保護者に前の利用記録が見える。消す場合は configs・usage・batches からも消す
+  unlinkChild(caller: Session, childId: string): { childId: string; revokedSessions: number } {
+    if (!this.links.delete(`${caller.userId}|${childId}`))
+      throw new AppError("not_found", "連携している子どもが見つかりません", "家族の一覧を更新してください");
+    const child = this.users.get(childId);
+    if (child && !this.hasParent(childId)) child.role = null;
+    for (const p of this.pairs.values())
+      if (p.childUserId === childId && (p.state === "waiting" || p.state === "claimed")) p.state = "expired";
+    return { childId, revokedSessions: this.revokeSessionsOf(childId) };
   }
 
   family(caller: Session): { children: { id: string; name: string }[] } {

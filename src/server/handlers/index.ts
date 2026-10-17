@@ -3,6 +3,7 @@
 
 export { default as authGoogle } from "./authGoogle";
 export { default as authMe } from "./authMe";
+export { default as authSignOut } from "./authSignOut";
 export { default as blankPeriodCreate } from "./blankPeriodCreate";
 export { default as blankPeriodDelete } from "./blankPeriodDelete";
 export { default as blankPeriodList } from "./blankPeriodList";
@@ -11,6 +12,7 @@ export { default as configGet } from "./configGet";
 export { default as excludedAppsGet } from "./excludedAppsGet";
 export { default as excludedAppsSave } from "./excludedAppsSave";
 export { default as familyGet } from "./familyGet";
+export { default as familyUnlink } from "./familyUnlink";
 export { default as health } from "./health";
 export { default as linkStatus } from "./linkStatus";
 export { default as pairCancel } from "./pairCancel";

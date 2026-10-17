@@ -62,6 +62,15 @@ export const Session = z.object({
 });
 export type Session = z.infer<typeof Session>;
 
+// ログアウト（サーバ側で合言葉を使えなくする）。端末の中の合言葉を消すだけだと、盗まれた・なくした端末の合言葉が
+// 期限（最後に使ってから30日）まで使えたままになるため。
+//   otherDevices を省く・false : この端末の合言葉だけを使えなくする（ふつうのログアウト）
+//   otherDevices: true          : この端末以外の、同じ人の合言葉をすべて使えなくする（端末をなくしたとき、別の端末から）
+export const SignOutRequest = z.object({ otherDevices: z.boolean().optional() });
+export type SignOutRequest = z.infer<typeof SignOutRequest>;
+export const SignOutResult = z.object({ revoked: z.number().int().min(0) }); // 使えなくした合言葉の数
+export type SignOutResult = z.infer<typeof SignOutResult>;
+
 // 子ども1人。id は子どもの userId
 export const Child = z.object({
   id: z.string().min(1),
@@ -133,6 +142,13 @@ export type LinkStatus = z.infer<typeof LinkStatus>;
 // 保護者の家族（連携済みの子どもの一覧）。MVP は最大1人だが、形は一覧のまま（Q2）
 export const Family = z.object({ children: z.array(Child) });
 export type Family = z.infer<typeof Family>;
+
+// 保護者が子どもとの連携を外した結果。外すと、子どもの端末の合言葉もすべて使えなくなる（子どもの端末をなくしたときにも使う）
+export const FamilyUnlinkResult = z.object({
+  childId: z.string().min(1),
+  revokedSessions: z.number().int().min(0), // 使えなくした、子どもの合言葉の数
+});
+export type FamilyUnlinkResult = z.infer<typeof FamilyUnlinkResult>;
 
 // ── 1日の上限の値（C10 が作り、C3・C6 が使う）──────────────────────
 // 1日の上限は3つの状態を取り違えないよう kind で分ける（Q7）:

@@ -96,6 +96,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const who = current.current;
+    // サーバ側でもこの端末の合言葉を使えなくする（端末の中で消すだけだと、期限まで使えたままになるため）。
+    // 通信できなくても、端末の中のログアウトは続ける
+    if (who) await call("authSignOut", {}).catch(() => undefined);
     await signOutGoogle();
     if (who) await clearLocalDataFor(who.userId).catch(() => undefined);
     // C4・C5: 子どもの端末の監視（Kotlin の Foreground Service）を止め、Kotlin が端末に残した値（判定の値・今日の使用量・
