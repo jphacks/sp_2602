@@ -89,8 +89,10 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
     throw new ApiCallError({ code: "network", ...errorText.network }, 0);
   }
   if (!res.ok) {
-    if (res.status === 401 && headers.Authorization) onUnauthorized?.();
     const parsed = ApiError.safeParse(await res.json().catch(() => null));
+    if (res.status === 401 && headers.Authorization && parsed.success && parsed.data.code === "unauthorized") {
+      onUnauthorized?.();
+    }
     throw new ApiCallError(parsed.success ? parsed.data : { code: "internal", ...errorText.internal }, res.status);
   }
   return res;
