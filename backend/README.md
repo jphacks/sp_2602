@@ -14,6 +14,12 @@ Node.js + TypeScript, PostgreSQL, and Drizzle ORM for the Slope MVP. The current
 
 Docker is not required. For contributors who prefer an isolated local instance, `docker compose up -d postgres` is an optional shortcut that binds PostgreSQL to localhost and initializes both databases. The initialization script runs only when the Compose volume is first created. If it changes afterward, the existing databases can be created manually; `docker compose down -v` would remove the local database contents.
 
+## Vercel and Neon
+
+The backend has a dedicated Vercel project named `slope-backend`, linked locally from this directory with the Vercel CLI. The local `.vercel` project link and environment files are ignored by Git. The project is not connected to the GitHub repository and has not been deployed.
+
+Neon is not connected yet. After the Neon Marketplace integration is authorized for this Vercel project, pull its environment variables into `backend/.env` with `vercel env pull .env --yes`, then run the existing migration and connection-check commands from this directory. Never commit `.env` or paste its values into logs. The current `src/server.ts` starts a long-running HTTP listener; add a Vercel-compatible function entry point before enabling deployments.
+
 ## Schema overview
 
 | Table | Purpose |
