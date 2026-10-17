@@ -1,5 +1,32 @@
-// C8: 子どもの端末が利用記録（今日と昨日の2日分）を送る。同じ送信 ID の送り直しは二重に保存しない。
-import { getStore } from "../mock/store";
-import { handle } from "../route";
+// C8: preserve each device snapshot and its idempotency key in PostgreSQL.
+import { persistUsageSubmission, UsageSubmissionConflictError } from "../../../backend/src/db/usage-persistence.js";
+import { db } from "../db/index.js";
+import { AppError } from "../errors.js";
+import { handle } from "../route.js";
 
-export default handle("usageUpload", async (req) => getStore().usageUpload(req.childId, req.submissionId, req.days));
+export default handle("usageUpload", async (req) => {
+  if (new Set(req.days.map((day) => day.date)).size !== req.days.length) {
+    throw new AppError("bad_request", "同じ送信内に同じ日付の記録が複数あります。この形式の扱いは未確定です");
+  }
+  try {
+    const result = await persistUsageSubmission(await db(), {
+      submissionId: req.submissionId,
+      childId: req.childId,
+      days: req.days,
+    });
+    return {
+      submissionId: req.submissionId,
+      status: result.status === "stored" ? "accepted" : "duplicate",
+      appliedDates: result.appliedDates,
+    };
+  } catch (error) {
+    if (error instanceof UsageSubmissionConflictError) {
+      throw new AppError(
+        "conflict",
+        "同じ送信 ID で、違う内容の記録が届きました",
+        "この記録は送り直さずに、新しい送信 ID で送ってください",
+      );
+    }
+    throw error;
+  }
+});

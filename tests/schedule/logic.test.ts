@@ -138,6 +138,14 @@ describe("入力の検査（送る前に止める。サーバでも断られる�
     );
   });
 
+  it("テスト期間で開始日も終了日も同じものは重なりにしない（同じ日の数学と英語。サーバは1件として計算する。D-93）。空白期間は止める", () => {
+    const same = { name: "英語", startDate: "2026-10-28", endDate: "2026-10-30" };
+    expect(validatePeriod(same, [math], "test").ok).toBe(true);
+    expect(validatePeriod(same, [{ ...math, id: "b1", name: "冬休み" }], "blank").ok).toBe(false);
+    // 1日でもずれていれば、これまでどおり重なりとして止める
+    expect(validatePeriod({ ...same, endDate: "2026-10-31" }, [math], "test").ok).toBe(false);
+  });
+
   it("変更では自分自身との重なりは見ない", () => {
     const d = { name: "数学", startDate: "2026-10-27", endDate: "2026-10-29" };
     expect(validatePeriod(d, [math], "test", "t1").ok).toBe(true);

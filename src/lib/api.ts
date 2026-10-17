@@ -105,11 +105,13 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
     throw new ApiCallError({ code: "network", ...errorText.network }, 0);
   }
   if (!res.ok) {
-    // 401 で「ログアウト扱い」にするのは、送った合言葉がまだ今の合言葉のときだけ。
-    // なぜ: 合言葉が無効になってログイン画面へ戻り、ログインし直したあとに、前の合言葉で送っていた呼び出し（時間のかかる取得・
-    //   送信待ちの送信など）の 401 が遅れて届くと、新しくログインした人までログアウトさせてしまうため
-    if (res.status === 401 && sentToken && sentToken === sessionToken) onUnauthorized?.();
     const parsed = ApiError.safeParse(await res.json().catch(() => null));
+    // 401 で「ログアウト扱い」にするのは、次の両方のときだけ。
+    //   - サーバの返事の形（ApiError）で unauthorized（Vercel の保護ページなど、ほかの 401 でログアウトして端末のデータを消さない）
+    //   - 送った合言葉がまだ今の合言葉（ログインし直したあとに、前の合言葉で送っていた呼び出しの 401 が遅れて届いても、
+    //     新しくログインした人までログアウトさせない）。本文を読み終えたあとで比べる（読んでいる間にログインし直すこともあるため）
+    const unauthorized = res.status === 401 && parsed.success && parsed.data.code === "unauthorized";
+    if (unauthorized && sentToken && sentToken === sessionToken) onUnauthorized?.();
     throw new ApiCallError(parsed.success ? parsed.data : { code: "internal", ...errorText.internal }, res.status);
   }
   return res;

@@ -1,11 +1,11 @@
 // MOCK 用の固定データと、各 API の返り値の例。
-//   - mockSessions / mockLogins: MOCK=1 のときのログイン（保護者・子ども・はじめての人）。サーバの store.ts が起動時にこの3人を作る
+//   - mockSessions / mockLogins: MOCK=1 のときのログイン（保護者・子ども・はじめての人）。サーバが DB を開くときにこの3人を入れる（src/server/seed/demo.ts）
 //   - mockPair: ペアリングの状態ごとの例（画面がすべての分かれ道を試せるように）
 //   - mockExcludedAppCandidates: 親16 で対象外を選ぶ候補（TODO(保留): Q15）
 //   - fixtures: 各 API の返り値の例（画面を作るときの見本・テストの期待値）。日付は Figma の見本に合わせて 2026-10-12 の週
 // 画面の見本データとして使ってよいが、本番の値の代わりに画面へ直書きしない（取れなかった値を見本で埋めない）。
-import type { Res } from "./api";
-import type { AppMinutes, ExcludedAppInput, UsageDayReport } from "./schemas";
+import type { Res } from "./api.js";
+import type { AppMinutes, ExcludedAppInput, UsageDayReport } from "./schemas.js";
 
 // ── ログイン ──
 
@@ -13,11 +13,22 @@ import type { AppMinutes, ExcludedAppInput, UsageDayReport } from "./schemas";
 // ここにない "mock-" で始まる idToken（例: "mock-new-端末ごとの番号"）は、その番号の「はじめての人」を新しく作る
 // （2台の端末で、それぞれ別の「はじめての人」としてログインし、QR の紐づけを試すため。src/lib/google.ts が作る）
 // デモの保護者とデモの子どもは、はじめから連携済み（親1人↔子1人。Q2）
+// userId は DB の形（uuid）にそろえた固定の値（DB を空にして入れ直しても同じ人になる）
+export const demoUserIds = {
+  parent: "00000000-0000-4000-8000-0000000000a1",
+  child: "00000000-0000-4000-8000-0000000000a2",
+  new: "00000000-0000-4000-8000-0000000000a3",
+} as const;
 export const mockSessions = {
-  "mock-google-parent": { token: "mock-token-parent", userId: "demo-parent", name: "デモの保護者", role: "parent" },
-  "mock-google-child": { token: "mock-token-child", userId: "demo-child", name: "デモの子ども", role: "child" },
+  "mock-google-parent": {
+    token: "mock-token-parent",
+    userId: demoUserIds.parent,
+    name: "デモの保護者",
+    role: "parent",
+  },
+  "mock-google-child": { token: "mock-token-child", userId: demoUserIds.child, name: "デモの子ども", role: "child" },
   // ログインしたが、まだ QR の紐づけをしていない人（親子どちらにも分かれていない）
-  "mock-google-new": { token: "mock-token-new", userId: "demo-new", name: "はじめての人", role: null },
+  "mock-google-new": { token: "mock-token-new", userId: demoUserIds.new, name: "はじめての人", role: null },
 } satisfies Record<string, Res<"authGoogle">>;
 
 // MOCK のログイン画面に並べる3人（idToken と、ボタンに出す名前）
@@ -29,7 +40,7 @@ export const mockLogins = [
 
 // ── ペアリング ──
 
-export const demoChild = { id: "demo-child", name: "デモの子ども" };
+export const demoChild = { id: demoUserIds.child, name: "デモの子ども" };
 const pairBase = { pairId: "demo-pair", child: demoChild, expiresAt: "2026-10-17T10:10:00+09:00" };
 export const mockPair = {
   ticket: { pairId: "demo-pair", code: "demo-code-123456", expiresAt: pairBase.expiresAt },
@@ -76,7 +87,7 @@ export const demoUsageDay = (date: string, measuredAt: string): UsageDayReport =
 // ── 各 API の返り値の例 ──
 
 const plan = {
-  childId: "demo-child",
+  childId: demoUserIds.child,
   planStartDate: "2026-10-01",
   startLimitMinutes: 300,
   finalGoalMinutes: 120,
@@ -90,7 +101,7 @@ const testPeriods = [
     name: "数学",
     startDate: "2026-10-28",
     endDate: "2026-10-30",
-    createdByUserId: "demo-child",
+    createdByUserId: demoUserIds.child,
     createdByRole: "child",
   },
 ] satisfies Res<"testPeriodList">["testPeriods"];
@@ -109,7 +120,7 @@ const weekLimits = [300, 287, 273, 260, 247, 233, 220];
 const weekUsed = [255, 243, 222, 120, null, null, null];
 
 const snapshot = {
-  childId: "demo-child",
+  childId: demoUserIds.child,
   configVersion: 3,
   calculationVersion: 2,
   usualLimitMinutes: 180,
@@ -125,7 +136,7 @@ export const fixtures = {
   health: { ok: true, mock: true } satisfies Res<"health">,
   authGoogle: mockSessions["mock-google-parent"] satisfies Res<"authGoogle">,
   authMe: mockSessions["mock-google-parent"] satisfies Res<"authMe">,
-  authSignOut: { ok: true } satisfies Res<"authSignOut">,
+  authSignOut: { ok: true, revoked: 1 } satisfies Res<"authSignOut">,
   pairStart: mockPair.ticket,
   pairStatus: mockPair.waiting,
   pairClaim: mockPair.claimed,
@@ -133,11 +144,12 @@ export const fixtures = {
   linkStatus: {
     state: "linked",
     role: "parent",
-    partners: [{ userId: "demo-child", name: "デモの子ども", role: "child" }],
+    partners: [{ userId: demoUserIds.child, name: "デモの子ども", role: "child" }],
   } satisfies Res<"linkStatus">,
   familyGet: { children: [demoChild] } satisfies Res<"familyGet">,
+  familyUnlink: { childId: demoUserIds.child, revokedSessions: 1 } satisfies Res<"familyUnlink">,
   planGet: {
-    childId: "demo-child",
+    childId: demoUserIds.child,
     plan,
     usualLimitMinutes: 180,
     configVersion: 3,
@@ -146,7 +158,7 @@ export const fixtures = {
   planSave: { plan, usualLimitMinutes: 180, configVersion: 3, calculationVersion: 2 } satisfies Res<"planSave">,
   usualLimitSave: { usualLimitMinutes: 180, configVersion: 1, calculationVersion: 1 } satisfies Res<"usualLimitSave">,
   testPeriodList: {
-    childId: "demo-child",
+    childId: demoUserIds.child,
     testPeriods,
     periodsChangedVersion: 2, // 数学を足した版
     configVersion: 3,
@@ -168,7 +180,7 @@ export const fixtures = {
     calculationVersion: 4,
   } satisfies Res<"testPeriodDelete">,
   blankPeriodList: {
-    childId: "demo-child",
+    childId: demoUserIds.child,
     blankPeriods,
     blankChangedVersion: 3, // 冬休みを足した版
     configVersion: 3,
@@ -196,7 +208,7 @@ export const fixtures = {
     appliedDates: ["2026-10-14", "2026-10-15"],
   } satisfies Res<"usageUpload">,
   usageGet: {
-    childId: "demo-child",
+    childId: demoUserIds.child,
     from: "2026-10-12",
     to: "2026-10-18",
     days: week.map((date, i) => {
@@ -219,7 +231,7 @@ export const fixtures = {
     lastUploadedAt: "2026-10-15T09:00:00.000Z",
   } satisfies Res<"usageGet">,
   excludedAppsGet: {
-    childId: "demo-child",
+    childId: demoUserIds.child,
     apps: excludedApps,
     removedApps: [],
     appsChangedVersion: 3, // 英単語カードを足した版

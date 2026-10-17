@@ -43,7 +43,7 @@ flowchart TD
   C -- "合わない・壊れた JSON" --> E3["400 bad_request（issues つき）"]
   C -- "OK" --> D{"3. childId があれば checkChildAccess"}
   D -- "扱えない子ども" --> E4["403 forbidden"]
-  D -- "OK" --> F["4. 処理（handlers/ → store）"]
+  D -- "OK" --> F["4. 処理（handlers/ → auth.ts・services/ → backend/src/db の DB の処理）"]
   F -- "AppError を投げた" --> E5["そのコードのエラー"]
   F --> G{"5. 出力を契約の Zod で検査"}
   G -- "合わない" --> E6["500 internal（サーバの不具合）"]
@@ -64,14 +64,15 @@ flowchart TD
 | `health` | GET `/api/health` | none | なし | `{ ok: true, mock: boolean }` | — |
 | `authGoogle` | POST `/api/auth/google` | none | `{ idToken }` | `Session`（`token`・`userId`・`name`・`role`） | 401（トークンが正しくない・`MOCK=1` でないのに `mock-`）、502 `upstream_failed`（サーバに `GOOGLE_WEB_CLIENT_ID` がない・Google の鍵が取れない） |
 | `authMe` | GET `/api/auth/me` | signedIn | なし | `Session` | 401 |
-| `authSignOut` | POST `/api/auth/sign-out` | signedIn | なし（本文を付けない） | `{ ok: true }`。呼んだ合言葉をサーバから消す（以後その合言葉は 401。同じ人のほかの端末の合言葉は残る） | 401、400（本文に何か入れた） |
+| `authSignOut` | POST `/api/auth/sign-out` | signedIn | なし（本文を付けない）か `{ otherDevices: true }` | `{ ok: true, revoked }`（`revoked` は無効にした合言葉の数）。本文なしなら呼んだ合言葉だけ、`otherDevices: true` なら同じ人のほかの合言葉をすべて無効にする（以後その合言葉は 401） | 401、400（知らない項目を入れた） |
 | `pairStart` | POST `/api/pair/start` | signedIn | `{ name? }`（画面に出す呼び名） | `PairTicket`（`pairId`・`code`・`expiresAt`） | 409（保護者の端末・すでに連携済み） |
 | `pairStatus` | POST `/api/pair/status` | signedIn | `{ pairId }` | `PairStatus` | 404（自分が関わっていないペアリングも 404。あるかどうかを漏らさない） |
-| `pairClaim` | POST `/api/pair/claim` | signedIn | `{ code }` | `PairStatus`（`claimed`） | 403（子どもの端末）、404（知らない番号）、409（期限切れ・使用済み・自分の QR・どちらかが連携済み） |
+| `pairClaim` | POST `/api/pair/claim` | signedIn | `{ code }` | `PairStatus`（`claimed`） | 403（子どもの端末）、404（知らない番号）、409（期限切れ・使用済み・自分の QR・どちらかが連携済み）、429 `rate_limited`（10分のうちに 404・409 を10回。正しい番号でも断る。D-102） |
 | `pairConfirm` | POST `/api/pair/confirm` | signedIn | `{ pairId, accept }` | `PairStatus`（`linked` か `rejected`） | 403（QR を出した子ども以外）、404、409（期限切れ・まだ読まれていない・役割が合わない・連携済み） |
 | `pairCancel` | POST `/api/pair/cancel` | signedIn | `{ pairId }` | `PairStatus`（`waiting`・`claimed` は `expired` にする。`expired`・`rejected` はそのまま） | 403（QR を出した子ども以外）、404（関わっていないペアリング）、409（もう `linked`） |
 | `linkStatus` | GET `/api/link/status` | signedIn | なし | `LinkStatus`（`state`・`role`・`partners`） | — |
 | `familyGet` | GET `/api/family/get` | parent | なし | `Family`（`children`。MVP は最大1人） | 403（保護者以外） |
+| `familyUnlink` | POST `/api/family/unlink` | parent | `{ childId }` | `FamilyUnlinkResult`（`childId`・`revokedSessions`）。連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする。子どものデータは残す（D-101） | 403（保護者以外・連携していない子ども） |
 
 ### 通常上限・計画（D8）
 
@@ -111,7 +112,9 @@ flowchart TD
 
 **子どもが呼んだとき**は、送った `knownVersion` を「子どもの端末が使っている版」（`childAppliedVersion`）として覚えます（サーバの版より大きい値は覚えない）。保護者が呼んでも変わりません。
 
-日別上限の残りが 60 日を切っていたら、`configGet` が今日から 120 日先まで作り足します（中身が変わったときだけ版が 1 上がる。[flows.md の 5章](flows.md)）。そのため、**読む API でも版が上がることがあります**。保護者がその前に読んだ版で保存すると conflict になるので、画面は読み直して保存し直します。
+まだ一度も日別上限を計算していない子ども（紐づけ直後で、通常上限も計画も保存していない）には、エラーにせず `calculationVersion: 0`・日別上限なし（上限未設定）を返します。
+
+日別上限の残りが 60 日を切っていたら、`configGet` のときに今日から 120 日先まで作り足し、設定の版を 1 上げます（`backend/src/db/c10-recalculate.ts` の `topUpDailyLimits`。D-54）。読む API で版が上がるのはこのときだけです。
 
 ### 利用記録（C8・C6）
 
@@ -176,16 +179,16 @@ flowchart TD
 
 | 決まり | 担当 |
 |---|---|
-| 版は 0 から始まる（0 = まだ何も保存していない）。紐づけの確定で器ができる。例外: 手元の開発サーバでは、**デモの子ども**の版をサーバの起動時刻（ミリ秒）から数える（MOCK のサーバを再起動しても版が前より大きくなり、子どもの端末が新しい設定を取り込めるように。`startupVersionBase`） | `store.configFor`・`getStore` |
-| 設定を変える9種類の API（`planSave`・`usualLimitSave`・`testPeriodCreate/Update/Delete`・`blankPeriodCreate/Update/Delete`・`excludedAppsSave`）は、成功すると版をちょうど **1** 上げる | `store.mutate` |
-| これらは `expectedVersion` を受け取り、今の版と**違えば**（古くても新しくても）`409 conflict`「ほかの端末で先に変更されました」。何も変えない | `store.mutate` |
-| 日別上限を作り直した保存では `calculationVersion` も 1 上がる（`excludedAppsSave` は作り直さないので上がらない） | `store.recalculate` |
-| 読む API（`planGet`・`testPeriodList`・`blankPeriodList`・`excludedAppsGet`・`configGet`）は今の `configVersion` を返す。画面はこれを次の `expectedVersion` に使う | 各 store の関数 |
-| `configGet` に `knownVersion` を送ると、同じ版なら中身を省く | `store.configGet` |
-| 子どもが送った `knownVersion` は `childAppliedVersion` として覚え、読む API で返す（「反映済み／反映待ち」に使う） | `store.configGet` |
-| `configGet` は日別上限の残りが 60 日を切っていたら作り足し、中身が変わったときだけ `configVersion`・`calculationVersion` を 1 上げる | `store.topUpDailyLimits` |
-| 保存した計画の `plan.version`、対象外アプリの `sinceVersion`（対象外になった版）・`removedVersion`（外した版）・`appsChangedVersion`（一覧が最後に変わった版。同じ中身の保存では進まない）は、その変更が入った版 | `store.planSave`・`store.excludedAppsSave` |
-| テスト期間の `periodsChangedVersion`・空白期間の `blankChangedVersion` は、その一覧（名前・期間）が最後に変わった版（一度も変わっていなければ 0）。ほかの設定の保存・同じ中身の更新・失敗した保存では進まない。親05・空白期間の一覧の「反映済み／反映待ち」は、`childAppliedVersion` がこれ以上かで決める（0 なら反映済み。`schedule/logic.ts` の `appliedStatus`） | `store.mutate` |
+| 版は 0 から始まる（0 = まだ何も保存していない。DB の `child_config_versions.version` の既定 0。D-104）。紐づけの確定で器ができる | `src/server/auth.ts` の `confirmPair`・`backend/src/db/*.ts` |
+| 設定を変える9種類の API（`planSave`・`usualLimitSave`・`testPeriodCreate/Update/Delete`・`blankPeriodCreate/Update/Delete`・`excludedAppsSave`）は、成功すると版をちょうど **1** 上げる | `backend/src/db/*.ts` の保存の処理（版の確かめ・変更・版を上げるを1回のトランザクションで） |
+| これらは `expectedVersion` を受け取り、今の版と**違えば**（古くても新しくても）`409 conflict`「ほかの端末で先に変更されました」。何も変えない | 同上 |
+| 日別上限を作り直した保存では `calculationVersion` も 1 上がる（`excludedAppsSave` は作り直さないので上がらない） | `backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction` |
+| 読む API（`planGet`・`testPeriodList`・`blankPeriodList`・`excludedAppsGet`・`configGet`）は今の `configVersion` を返す。画面はこれを次の `expectedVersion` に使う | `src/server/services/*.ts` |
+| `configGet` に `knownVersion` を送ると、同じ版なら中身を省く | `src/server/services/config-snapshot.ts` の `getConfigForCaller` |
+| 子どもが送った `knownVersion` は `childAppliedVersion` として覚え、読む API で返す（「反映済み／反映待ち」に使う） | 同上（表 `child_applied_versions`） |
+| `configGet` で日別上限を作り足したとき（残り 60 日を切ったとき。D-54） | `topUpDailyLimits` |
+| 保存した計画の `plan.version`、対象外アプリの `sinceVersion`（対象外になった版）・`removedVersion`（外した版）・`appsChangedVersion`（一覧が最後に変わった版。同じ中身の保存では進まない）は、その変更が入った版 | `backend/src/db/plan-settings.ts`・`excluded-app-settings.ts` |
+| テスト期間の `periodsChangedVersion`・空白期間の `blankChangedVersion` は、その一覧（名前・期間）が最後に変わった版（一度も変わっていなければ 0）。ほかの設定の保存・同じ中身の更新・失敗した保存では進まない。親05・空白期間の一覧の「反映済み／反映待ち」は、`childAppliedVersion` がこれ以上かで決める（0 なら反映済み。`schedule/logic.ts` の `appliedStatus`） | `backend/src/db/test-periods.ts`・`blank-periods.ts`（DB の列 `test_periods_changed_version`・`blank_periods_changed_version`） |
 
 画面がどの版を送るか:
 

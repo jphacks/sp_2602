@@ -1,5 +1,5 @@
 // サーバの API が契約どおりに応答するかのテスト。サーバは Hono の app.request で、本物のネットワークを使わずに呼ぶ。
-// 状態はメモリ上の store（src/server/mock/store.ts）。テストごとに時計を固定した新しい store に入れ替える（MOCK=1 なのでデモの3人つき）。
+// 状態は手元の DB（PGlite）。テストごとに空にしてデモの3人と見本を入れ直し、時計（Date）を固定する（tests/verify/helpers.ts の fresh）。
 // 確かめること: auth の 401/403・子どもは自分だけ・親は連携済みの子どもだけ・ペアリングの状態の進み方と失敗（期限切れ・使用済み・二重読取・
 // 親1↔子1）・計画と空白期間・C8 の重複防止・C9 は親だけ・C7 の版・エラーの形・ストリームの仕組み。
 import { api, type StreamDef, streamLine } from "@contracts/api";
@@ -9,9 +9,10 @@ import { ConfigResult, PairState, PairStatus, PairTicket, Session } from "@contr
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import app from "@/server/app";
+import { PAIR_TTL_MS } from "@/server/auth";
 import { AppError } from "@/server/errors";
-import { PAIR_TTL_MS, resetStore } from "@/server/mock/store";
 import { handle, streamHandler } from "@/server/route";
+import { clock, fresh } from "../verify/helpers";
 
 // 合言葉（MOCK=1 の mockSessions）
 const PARENT = mockSessions["mock-google-parent"].token;
@@ -19,13 +20,11 @@ const CHILD = mockSessions["mock-google-child"].token;
 const NEW = mockSessions["mock-google-new"].token;
 const CHILD_ID = mockSessions["mock-google-child"].userId;
 
-// 時計（日本時間 2026-10-15 12:00）。テストの中で進められる
-let nowMs = Date.parse("2026-10-15T03:00:00Z");
+// 時計（日本時間 2026-10-15 12:00）。テストの中で clock.addMs で進められる
 const TODAY = "2026-10-15";
 
-beforeEach(() => {
-  nowMs = Date.parse("2026-10-15T03:00:00Z");
-  resetStore({ seed: true, now: () => new Date(nowMs) });
+beforeEach(async () => {
+  await fresh("2026-10-15T03:00:00Z");
 });
 
 const auth = (token: string | null): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {});
@@ -116,7 +115,7 @@ describe("ログインと合言葉（C1）", () => {
 
   it("authMe は合言葉の持ち主を返す。紐づけ前の人は role が null", async () => {
     const me = api.authMe.res.parse(await (await get("/api/auth/me", NEW)).json());
-    expect(me.userId).toBe("demo-new");
+    expect(me.userId).toBe(mockSessions["mock-google-new"].userId);
     expect(me.role).toBeNull();
   });
 
@@ -137,7 +136,7 @@ describe("ログインと合言葉（C1）", () => {
     expect(tablet.userId).toBe(phone.userId);
     const res = await app.request("/api/auth/sign-out", { method: "POST", headers: auth(phone.token) });
     expect(res.status).toBe(200);
-    expect(api.authSignOut.res.parse(await res.json())).toEqual({ ok: true });
+    expect(api.authSignOut.res.parse(await res.json())).toEqual({ ok: true, revoked: 1 });
     expect((await get("/api/auth/me", phone.token)).status).toBe(401);
     expect((await post("/api/pair/start", {}, phone.token)).status).toBe(401);
     expect((await get("/api/auth/me", tablet.token)).status).toBe(200);
@@ -154,7 +153,7 @@ describe("ログインと合言葉（C1）", () => {
   });
 
   it("30日使われなかった合言葉は無効になる", async () => {
-    nowMs += 31 * 86_400_000;
+    clock.addMs(31 * 86_400_000);
     expect((await get("/api/auth/me", PARENT)).status).toBe(401);
   });
 });
@@ -266,7 +265,7 @@ describe("QR の紐づけ（C1・Q2・Q10）", () => {
     const child = await newPerson("c3");
     const parent = await newPerson("p3");
     const ticket = PairTicket.parse(await (await post("/api/pair/start", {}, child.token)).json());
-    nowMs += PAIR_TTL_MS + 1000;
+    clock.addMs(PAIR_TTL_MS + 1000);
     const claim = await post("/api/pair/claim", { code: ticket.code }, parent.token);
     expect(claim.status).toBe(409);
     const status = PairStatus.parse(
@@ -453,6 +452,29 @@ describe("通常上限・計画・空白期間（D8・Q7・Q14）と C7", () => 
       await (await post("/api/test-period/list", { childId: CHILD_ID }, CHILD)).json(),
     );
     expect(after.configVersion).toBe(saved.configVersion);
+
+    // 開始日も終了日も同じテスト（同じ日の英語と数学）は重なりにしない。両方残り、計算は1件として扱う（D-93）
+    const sameRange = await post(
+      "/api/test-period/create",
+      {
+        childId: CHILD_ID,
+        expectedVersion: saved.configVersion,
+        name: "数学",
+        startDate: "2026-11-10",
+        endDate: "2026-11-11",
+      },
+      CHILD,
+    );
+    expect(sameRange.status).toBe(200);
+    const both = api.testPeriodList.res.parse(
+      await (await post("/api/test-period/list", { childId: CHILD_ID }, CHILD)).json(),
+    );
+    expect(
+      both.testPeriods
+        .filter((t) => t.startDate === "2026-11-10")
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(["数学", "英語"].sort());
   });
 
   it("C7: 同じ版なら中身を省く。子どもが送った版は「子どもが使っている版」として親に見える（Q6）", async () => {
@@ -510,6 +532,40 @@ describe("C8: 利用記録", () => {
       CHILD,
     );
     expect(changed.status).toBe(409);
+  });
+
+  it("1日分に同じpackageNameが重複する送信は受け付けない", async () => {
+    const app = { packageName: "com.example.video", label: "動画", usedMinutes: 5, excluded: false };
+    const response = await post(
+      "/api/usage/upload",
+      {
+        submissionId: crypto.randomUUID(),
+        childId: CHILD_ID,
+        days: [
+          {
+            date: TODAY,
+            measuredAt: "2026-10-15T02:00:00.000Z",
+            restrictedMinutes: 10,
+            apps: [app, app],
+          },
+        ],
+      },
+      CHILD,
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("同じ日付を複数回含む送信は受け付けない", async () => {
+    const response = await post(
+      "/api/usage/upload",
+      {
+        submissionId: crypto.randomUUID(),
+        childId: CHILD_ID,
+        days: [day(TODAY, "2026-10-15T02:00:00.000Z", 10), day(TODAY, "2026-10-15T03:00:00.000Z", 20)],
+      },
+      CHILD,
+    );
+    expect(response.status).toBe(400);
   });
 
   it("日ごとに、測った時刻が一番新しい記録を正とする（古い記録が後から届いても上書きしない）", async () => {

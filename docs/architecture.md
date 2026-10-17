@@ -20,11 +20,11 @@ flowchart LR
   subgraph SV["サーバ（Hono）src/server/"]
     R["入口 app.ts・route.ts・auth.ts"]
     H["処理 handlers/"]
-    ST[("メモリの store mock/store.ts")]
-    C10["C10 日別上限の計算 plan/daily-limits.ts"]
+    SVC["services/・auth.ts と backend/src/db（保存）"]
+    C10["C10 の計算 plan/daily-limits.ts"]
   end
   G["Google（ID トークンの公開鍵）"]
-  DB[("backend/ の PostgreSQL（試験用・まだつないでいない）")]
+  DB[("Neon PostgreSQL / local PGlite")]
 
   PA --> PL
   CA --> CL
@@ -32,10 +32,10 @@ flowchart LR
   CL --> K
   PL -- "HTTP（JSON）＋合言葉" --> R
   CL -- "HTTP（JSON）＋合言葉" --> R
-  R --> H --> ST
-  ST --> C10
+  R --> H
+  H --> SVC --> DB
+  SVC --> C10
   R -.->|"ID トークンの署名を確かめる"| G
-  ST -.->|"将来ここを DB に置き換える"| DB
 ```
 
 | 部分 | 何をするか | 主なファイル |
@@ -43,16 +43,17 @@ flowchart LR
 | 端末のアプリ | 画面を出し、サーバと通信する。保護者用・子ども用は同じアプリで、役割によって出す画面が変わる | `src/app/`・`src/components/`・`src/lib/` |
 | Kotlin の窓口 | Android だけでできること（C2 使用時間の取得・C4 監視と制限画面）を呼ぶ入口。Kotlin の中身は `modules/kit-native/android/.../engine/`（Kotlin がない環境では安全な既定値） | `contracts/native.ts`・`src/lib/native.ts`・`modules/kit-native/` |
 | Hono のサーバ | 窓口（API）を受け、ログインと権限を確かめ、データを保存し、上限を計算する | `src/server/` |
-| メモリの store | サーバのデータの置き場。**今はメモリの上だけ**で、サーバを止めると消える。状態は持つので、2台の端末で紐づけ〜表示まで通せる | `src/server/mock/store.ts` |
-| DB | 試験用の PostgreSQL の表の設計。**今のサーバはまだ使っていない** | `backend/` |
+| サーバの処理 | ログイン・合言葉・QR の紐づけ・家族（`auth.ts`）、計画・日程・対象外アプリ・設定の組（`services/`）。保存は `backend/src/db/` の Drizzle の処理を呼ぶ | `src/server/auth.ts`・`src/server/services/`・`backend/src/db/` |
+| DB | サーバのデータの置き場（すべての API が DB だけを通る）。Vercel では Neon（`DATABASE_URL`）、手元とテストでは PGlite（Node の中で動く Postgres）。表の設計は `backend/src/db/schema/`、変更の記録は `backend/drizzle/` | `src/server/db/index.ts`・`backend/` |
+| 見本のデータ | `MOCK=1` のとき、DB を開いたときにデモの3人と見本を1回だけ入れる。本番の DB には `npm run db:seed-demo` で入れる | `src/server/seed/demo.ts`・`scripts/seed-demo.ts` |
 | Google | 本物のログインのときだけ。サーバは Google の公開鍵で ID トークンの署名を確かめる | `src/server/auth/google.ts`・`src/lib/google.ts` |
 
 ### 本番と手元
 
 - **本番は Vercel の Hono** です。リポジトリ直下の `server.ts` が `src/server/app.ts` をそのまま公開します（Vercel は直下の `server.ts` の default export を使う）。
 - **手元**では `npm run dev:server`（`src/server/dev.ts`）が `http://localhost:3000` にサーバを立てます。同じネットワークのすべてのアドレスで待つので、実機やエミュレータからも届きます。
-- **`backend/`** は試験用の PostgreSQL（Docker Compose でも立てられる）と Drizzle の表の設計です。独立した npm のプロジェクトで、ルートの型の検査・整形の検査（`npm run check`）からは外してあります（`tsconfig.json`・`biome.json` の `backend` の除外）。
-- 注意: 今のサーバはデータを**プロセスのメモリ**に持ちます。`src/server/db/index.ts` のコメントのとおり、Vercel では関数のメモリにデータを置いても残らない（呼ぶたびに別のインスタンスになりうる）ので、**DB につなぐまでは手元の PC のサーバで試します**。DB につなぐときにやることは [open-questions.md の「次の段階（DB につなぐ）でやること」](open-questions.md) にまとめました。
+- **`backend/`** は Drizzle の表の設計（`src/db/schema/`）・保存の処理（`src/db/*.ts`）・migration（`drizzle/`）です。独立した npm のプロジェクトで、ルートの型の検査・整形の検査（`npm run check`）からは外してあります（`tsconfig.json`・`biome.json` の `backend` の除外）。サーバは `backend/src/db/` の処理をそのまま import して使います。
+- 注意: Vercel では関数のメモリにデータを置いても残らない（呼ぶたびに別のインスタンスになりうる）ので、サーバはデータをメモリに持ちません。QR の番号のまちがいの数なども DB の表に数えます（`src/server/db/index.ts` のコメント）。表を変えたときは、コードを出す前に Neon に migration を入れます（[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。
 
 ## 2. フォルダごとの役割
 
@@ -61,18 +62,21 @@ flowchart LR
 | `contracts/` | **契約（型）**。アプリとサーバの両方がここだけを見てつながる。`api.ts`（API の表）・`schemas.ts`（データの形）・`errors.ts`（エラーの形と文言）・`dates.ts`（日付の計算と、画面に出す日付の文言）・`fixtures.ts`（MOCK の人と見本のデータ）・`native.ts`（Kotlin の窓口の型）・`tokens.ts`（色・余白・文字の大きさ） |
 | `src/server/app.ts` | サーバの入口。`contracts/api.ts` の表をそのまま Hono の道につなぐ（道を手書きしない） |
 | `src/server/route.ts` | API 1本ぶんの処理の枠（`handle()`）。ログインの確認 → 入力の検査 → 子どもの範囲の確認 → 処理 → 出力の検査、の順に必ず通す |
-| `src/server/auth.ts`・`auth/google.ts` | 合言葉から「呼んだ人」を決める・役割を確かめる・子どもの範囲を確かめる。Google の ID トークンの検証 |
-| `src/server/handlers/` | API 1本につき1ファイル（名前は API 名と同じ）。中身はほぼ store を呼ぶだけ |
-| `src/server/mock/store.ts` | データの置き場（`MemoryStore`）。ログイン・QR・家族・計画・日程・日別上限・対象外アプリ・利用記録・版 |
+| `src/server/auth.ts`・`auth/google.ts`・`auth/digest.ts` | 合言葉から「呼んだ人」を決める・役割を確かめる・子どもの範囲を確かめる。ログイン・ログアウト・QR の紐づけ・家族（外すことも）。Google の ID トークンの検証。合言葉と QR の番号は SHA-256 のハッシュでだけ DB に残す（`digest.ts`） |
+| `src/server/handlers/` | API 1本につき1ファイル（名前は API 名と同じ）。中身はほぼ `auth.ts`・`services/`・`backend/src/db/` を呼ぶだけ |
+| `src/server/services/` | 計画・通常上限・テスト期間・空白期間・対象外アプリ・設定の組（C7）の処理。権限の確かめと、`backend/src/db/` の保存の処理の呼び出し |
+| `src/server/seed/demo.ts` | 見本のデータを DB に入れる（`seedMockAccounts`・`seedDemoFamily`） |
 | `src/server/plan/daily-limits.ts` | C10 の日別上限の計算（純粋な関数） |
 | `src/server/env.ts`・`errors.ts`・`dev.ts` | 環境変数の読み取り・サーバのエラー（`AppError`）・手元用のサーバ |
-| `src/server/db/` | ひな型から残っている DB の接続口（Neon / PGlite）と例の表（`rules`・`usage`）。**今の API は使っていない**（`tests/server/db.test.ts` だけが使う） |
+| `src/server/db/` | Honoの共通DB接続口。`backend/src/db/schema` とリポジトリを使い、手元・テストは PGlite（手元のサーバは `state/pglite` に残す）、Vercel は Neon へ接続する |
 | `src/lib/` | アプリ側の仕組み。`api.ts`（通信）・`session.tsx`（ログイン状態）・`google.ts`（Google ログイン）・`storage.ts`（端末の保存）・`config-cache.ts`（C7）・`usage-calc.ts`（C3）・`usage-outbox.ts`（C8）・`native.ts`（Kotlin の窓口）・`polling.ts`（30秒ごとの取得）・`flow.tsx`（画面の間の受け渡し）・`child-data.tsx`・`parent-data.tsx`（子ども用・保護者用のデータの共有）・`sign-out.ts`（ログアウトで端末のデータを消す） |
 | `src/components/` | 共通の部品（`Screen`・`Card`・`Button`・`StateView` など）。`child/`・`pair/`・`parent/`・`schedule/` は機能ごとの部品と、画面の判断をまとめた純粋な関数 |
 | `src/app/` | 画面（Expo Router。ファイルの場所がそのまま道になる）。`index.tsx`（入口）・`login.tsx`・`pair/`・`child/`・`parent/` |
 | `modules/kit-native/` | Kotlin のモジュール（Expo Modules）。`engine/`（C2 使用時間・C4 監視の Foreground Service と案内・再起動後の再開）、`widget/`（C5）、`admin/`（Device Owner。デモ専用） |
 | `tests/` | Vitest のテスト。フォルダの分け方は [development.md](development.md#テストの構成) |
-| `backend/` | 試験用の DB の表の設計（別のプロジェクト） |
+| `backend/` | DB の表の設計・保存の処理・migration（別のプロジェクト） |
+| `scripts/seed-demo.ts` | 本番・プレビューの DB に見本を入れる（`npm run db:seed-demo`。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)） |
+| `metro.config.js` | アプリのまとめ（Metro）の設定。`contracts/` の `./errors.js` のような import を、見つからなければ拡張子なしで探し直す（Vercel の Node のために `.js` を付けているため） |
 | `server.ts` | Vercel の入口（`src/server/app.ts` を公開するだけ） |
 | `app.json` | Expo の設定。名前 `Slope`・scheme `slope`・Android だけ・使う部品（カメラ・日付の選択・Google ログイン） |
 | `.env.example` | 手元用の環境変数の見本（[development.md の「環境変数の項目」](development.md#環境変数の項目)） |
@@ -87,11 +91,12 @@ flowchart LR
 ```mermaid
 sequenceDiagram
   participant P as 保護者のアプリ
-  participant S as サーバ（store）
+  participant S as サーバ
   participant C as 子どものアプリ
   P->>S: planSave など（expectedVersion つき）
-  Note over S: 版を確かめる → 写しを変える → C10 で今日から先を計算し直す → 入れ替えて版 +1
-  S-->>P: 新しい configVersion
+  Note over S: DB-backed: expectedVersion とD3/D8/C9の更新を同一transactionで保存
+  Note over S: D3/D8更新とC10計算・D6/計算版保存を1つのDB transactionで行う
+  S-->>P: 新しい configVersion・calculationVersion
   loop 画面が出ている間 30秒ごと
     C->>S: configGet（knownVersion = 手元の版）
     Note over S: 子どもが送った版を「子どもが使っている版」として覚える
@@ -107,7 +112,7 @@ sequenceDiagram
 sequenceDiagram
   participant K as Kotlin の窓口（C2）
   participant C as 子どものアプリ
-  participant S as サーバ（store）
+  participant S as サーバ（DB）
   participant P as 保護者のアプリ
   C->>K: getDailyUsage（今日・昨日）
   K-->>C: アプリ別の分数（取れなければ unavailable）
@@ -132,9 +137,9 @@ sequenceDiagram
 | **「制限なし」「上限未設定」「0 分」を型で分ける** | 3つとも「制限しない／できない」ように見えるが意味が違う（Q7） | `DayLimit`・`DailyLimit` の `kind`（`contracts/schemas.ts`）、`LimitInput`（`usage-calc.ts`）、`NativeRestriction.limit`（`contracts/native.ts`）。詳しくは [data.md の 2章](data.md) |
 | **保存はサーバの確定を待ってから「成功」と出す** | 押しただけで成功と出すと、届かなかったときに嘘になる（MVP_SPEC 5.3） | `Button` の `loading` で二重に押せない。日程は `PeriodEditor`、計画は `plan.tsx`（`saveConfirmation`）、紐づけは `linked` を見るまで成功を出さない（`child-flow.ts`・`parent-flow.ts`） |
 | **入口と出口の両方を契約で検査する** | 形の違うデータで処理が進まないように | サーバは `route.ts` で入力（400）と出力（500 = サーバの不具合）を検査。アプリは `call()` で応答を検査 |
-| **保存と C10 の計算は1回の処理（全部うまくいったときだけ成功）** | 途中で失敗して、日程だけ変わって上限が古い、を起こさない（Q5） | `store.ts` の `mutate`（写しを作って変える → `recalculate` → 入れ替えて版 +1）。失敗したら何も変えない |
-| **版で取り違えを防ぐ** | 別の端末が先に変えたのに上書きする・古い設定と新しい設定を混ぜる、を防ぐ（Q6） | 書く API は `expectedVersion` を受け、ずれていたら `conflict`（`store.ts` の `mutate`）。端末は版の違う組を混ぜない（`config-cache.ts` の `reconcileConfig`） |
-| **「今日」は日本時間で1か所だけで出す** | 端末とサーバで日付がずれないように（Q3） | `contracts/dates.ts` の `todayString`（UTC+9・0時区切り） |
+| **DB-backedの設定書き込みは版と同じ transaction で保存する** | 途中失敗時に設定と版の不一致を防ぐ | `backend/src/db` repositories と `c10-recalculate.ts`。D3/D8/空白期間/通常上限の更新時にC10日別上限と計算版を同一 transaction で保存する。C7 snapshot はこの計算結果を読む |
+| **版で取り違えを防ぐ** | 別の端末が先に変えたのに上書きする・古い設定と新しい設定を混ぜる、を防ぐ（Q6） | 書く API は `expectedVersion` を受け、ずれていたら `conflict`（`backend/src/db/*.ts` の保存の処理が、版の確かめ・保存・版を上げるを1回の DB の処理（トランザクション）で行う）。端末は版の違う組を混ぜない（`config-cache.ts` の `reconcileConfig`） |
+| **日付はAPI契約のcalendar-dateとして検証する** | 日本時間0時を日付境界とし、設定変更は翌日から適用 | `contracts/dates.ts` と `c10-recalculate.ts` |
 | **計算・判断は画面から切り離した純粋な関数にしてテストする** | 画面を動かさなくても正しさを確かめられるように | C10 `daily-limits.ts`、C3 `usage-calc.ts`、C7 `reconcileConfig`、C8 `createUsageOutbox`、紐づけの表示 `child-flow.ts`・`parent-flow.ts`・`link-check.ts`、画面の文言 `child-view.ts`・`schedule/logic.ts`・`parent/*.ts` |
 | **見た目は `contracts/tokens.ts` の名前だけ** | 色や余白をそろえ、あとで変えやすくする | 色はテーマ（白色・黒色）ごとに2組で、画面は `src/lib/theme.tsx` の `makeStyles`・`useColors` から `c.primary` のように使う。`style={{…}}` と色コードの直書きはない（自動の検査はなく、書く人が守る約束） |
 | **Android 固有の処理は窓口を通す** | Kotlin がない環境（テスト・Expo Go）でも落ちない。将来 iOS に差し替えられる | `src/lib/native.ts` が `KitNative` を名前で探し、なければ安全な既定値（権限なし・使用時間は取得不可・制限画面は出せない）を返す |
@@ -157,6 +162,5 @@ sequenceDiagram
 
 ## 6. まだ無いもの
 
-- **DB への保存**。サーバはメモリの store。
 - **ウィジェット（C5）**。MVP の後。ダークテーマ（テーマカラーの「黒色」）はアプリの画面だけで、ウィジェットは白のまま。
 - **画面が出ていないときの予備の取得（15分ごと）**。`src/lib/polling.ts` の `TODO(未決)`。今は画面が前に出ている間だけ取りに行く。

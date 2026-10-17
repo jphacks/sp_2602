@@ -8,6 +8,83 @@
       "when": 1792217075313,
       "tag": "0000_keen_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792217742275,
+      "tag": "0001_burly_captain_britain",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792223676395,
+      "tag": "0002_daily_limits_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792229000000,
+      "tag": "0003_usage_day_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792240000000,
+      "tag": "0004_auth_pair_storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792240100000,
+      "tag": "0005_settings_snapshot_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792240200000,
+      "tag": "0006_c10_input_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792240300000,
+      "tag": "0007_usual_limit_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792240400000,
+      "tag": "0008_usage_records_app_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792250000000,
+      "tag": "0009_c10_unlimited_daily_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792250100000,
+      "tag": "0010_c10_finalized_legacy_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792252277000,
+      "tag": "0011_auth_rules_and_list_versions",
+      "breakpoints": true
     }
   ]
 }

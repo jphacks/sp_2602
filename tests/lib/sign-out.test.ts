@@ -10,7 +10,7 @@ import { clearLocalDataFor, REVOKE_TIMEOUT_MS, revokeServerSession } from "@/lib
 import { type KeyValueStorage, storageKeys } from "@/lib/storage";
 import { createUsageOutbox } from "@/lib/usage-outbox";
 import app from "@/server/app";
-import { resetStore } from "@/server/mock/store";
+import { resetDatabaseForTests } from "@/server/db";
 
 function memoryStorage(): KeyValueStorage & { keys: () => string[] } {
   const data = new Map<string, string>();
@@ -115,7 +115,7 @@ describe("ログアウトで合言葉をサーバでも無効にする（revokeS
   });
 
   it("サーバとつないで: 呼んだあとは、その合言葉で呼ぶと 401（端末から抜き出された合言葉でも使えない）", async () => {
-    resetStore({ seed: true });
+    await resetDatabaseForTests({ seed: true });
     vi.stubGlobal("fetch", (url: string, init: RequestInit) => app.request(url, init));
     const token = mockSessions["mock-google-parent"].token;
     setSessionToken(token);

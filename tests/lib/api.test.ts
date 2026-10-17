@@ -116,6 +116,17 @@ describe("call", () => {
     expect(errorOf(e)?.code).toBe("internal");
   });
 
+  it("HTML の 401 ではログアウト扱いにしない", async () => {
+    const { call, errorOf, setSessionToken, setUnauthorizedHandler } = await load("http://h");
+    const seen: string[] = [];
+    setUnauthorizedHandler(() => seen.push("401"));
+    setSessionToken("old");
+    mockFetch(() => new Response("<html>", { status: 401 }));
+    const e = await call("planGet", { childId: "c1" }).catch((x) => x);
+    expect(errorOf(e)?.code).toBe("internal");
+    expect(seen).toEqual([]);
+  });
+
   it("つながらないときは network", async () => {
     const { call, errorOf } = await load("http://h");
     vi.stubGlobal("fetch", () => Promise.reject(new TypeError("Network request failed")));
@@ -204,7 +215,7 @@ describe("合言葉", () => {
     expect(((calls[1]?.init.headers ?? {}) as Record<string, string>).Authorization).toBeUndefined();
   });
 
-  it("合言葉を付けて 401 が返ったら、登録した関数を呼ぶ（session.tsx がログアウト扱いにする）", async () => {
+  it("合言葉を付けて unauthorized の 401 が返ったら、登録した関数を呼ぶ（session.tsx がログアウト扱いにする）", async () => {
     const { call, setSessionToken, setUnauthorizedHandler } = await load("http://h");
     const seen: string[] = [];
     setUnauthorizedHandler(() => seen.push("401"));

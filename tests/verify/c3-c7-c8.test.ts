@@ -18,7 +18,7 @@ import { createConfigCache } from "@/lib/config-cache";
 import type { KeyValueStorage } from "@/lib/storage";
 import { calcUsage, ESSENTIAL_PACKAGES, limitForDate, toUsageDayReport } from "@/lib/usage-calc";
 import { createUsageOutbox } from "@/lib/usage-outbox";
-import { resetStore } from "@/server/mock/store";
+import { resetDatabaseForTests } from "@/server/db";
 import { CHILD, CHILD_ID, clock, fresh, ok, PARENT, post, versionOf } from "./helpers";
 
 const TODAY = "2026-10-15";
@@ -142,8 +142,8 @@ const serverConfig = (token: string) => (childId: string, knownVersion: number |
   post("/api/config/get", { childId, knownVersion }, token).then((r) => asCall(r, (b) => ConfigResult.parse(b)));
 
 describe("V: C7 をサーバとつないで確かめる", () => {
-  beforeEach(() => {
-    fresh("2026-10-15T03:00:00Z");
+  beforeEach(async () => {
+    await fresh("2026-10-15T03:00:00Z");
   });
 
   it("親が変えると、子どもの次の取得で新しい組（版が上がった）を採用し、その版の日別上限・対象外アプリを使う", async () => {
@@ -240,7 +240,7 @@ describe("V: C7 をサーバとつないで確かめる", () => {
     const cachedVersion = cached.snapshot.configVersion;
 
     // (a) 再起動後、サーバの版が手元より小さい → 「古い応答」として捨て、stale のまま
-    resetStore({ seed: true, now: () => new Date(clock.ms) });
+    await resetDatabaseForTests({ seed: true });
     await bump(21);
     expect(await versionOf(CHILD_ID, PARENT)).toBe(cachedVersion - 1);
     expect(await cache.refresh(CHILD_ID)).toMatchObject({ status: "stale", reason: "older_response" });
@@ -256,8 +256,8 @@ describe("V: C7 をサーバとつないで確かめる", () => {
 });
 
 describe("V: C8 をサーバとつないで確かめる", () => {
-  beforeEach(() => {
-    fresh("2026-10-15T03:00:00Z");
+  beforeEach(async () => {
+    await fresh("2026-10-15T03:00:00Z");
   });
 
   const day = (date: string, measuredAt: string, minutes: number) => ({
@@ -404,8 +404,8 @@ describe("V 回帰: 不具合2 toUsageDayReport が契約に合わない記録�
 
 describe("V 回帰: 不具合3 日時として読めない measuredAt を受け付け、その日の記録が二度と更新されなくなった（store.usageUpload）", () => {
   // 原因: 契約の IsoDateTime が空でない文字列なら何でも通していた。直し方: タイムゾーンつきの ISO 8601 だけを受け付ける
-  beforeEach(() => {
-    fresh("2026-10-15T03:00:00Z");
+  beforeEach(async () => {
+    await fresh("2026-10-15T03:00:00Z");
   });
 
   it("measuredAt が日時でない記録は 400 bad_request", async () => {

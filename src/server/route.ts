@@ -14,9 +14,9 @@ import {
   type Res,
   type StreamDef,
   type StreamRoute,
-} from "../../contracts/api";
-import { authorize, type Caller, checkChildAccess } from "./auth";
-import { badRequest, toApiError } from "./errors";
+} from "../../contracts/api.js";
+import { authorize, type Caller, checkChildAccess } from "./auth.js";
+import { badRequest, toApiError } from "./errors.js";
 
 // 処理に渡す、入力以外の情報。caller は auth が "none" の API でだけ null
 export type Ctx = { caller: Caller | null };
@@ -63,7 +63,7 @@ async function prepare(
     return Response.json(body, { status });
   }
   try {
-    checkChildAccess(ctx.caller, parsed.data);
+    await checkChildAccess(ctx.caller, parsed.data);
   } catch (e) {
     return errorResponse(e);
   }

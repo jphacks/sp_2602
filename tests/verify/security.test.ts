@@ -28,8 +28,8 @@ import {
 
 const TODAY = "2026-10-15";
 
-beforeEach(() => {
-  fresh("2026-10-15T03:00:00Z");
+beforeEach(async () => {
+  await fresh("2026-10-15T03:00:00Z");
 });
 
 const period = { name: "テスト", startDate: "2026-11-01", endDate: "2026-11-02" };
@@ -358,7 +358,7 @@ describe("V: 余計な項目で中身を書き換えられない", () => {
           id: created.testPeriod.id,
           ...period,
           createdByRole: "parent",
-          createdByUserId: "demo-parent",
+          createdByUserId: mockSessions["mock-google-parent"].userId,
         },
         CHILD,
       ),

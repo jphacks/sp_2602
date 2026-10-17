@@ -62,8 +62,14 @@ export const Session = z.object({
 });
 export type Session = z.infer<typeof Session>;
 
-// ログアウト（authSignOut）の結果。サーバはその合言葉を消してから ok を返す
-export const SignOutResult = z.object({ ok: z.literal(true) });
+// ログアウト（authSignOut）の入力。本文なし（undefined）はふつうのログアウト（この端末の合言葉だけ）。
+//   otherDevices: true … この端末以外の、同じ人の合言葉をすべて使えなくする（端末をなくしたとき、別の端末から）
+// 知らない項目は bad_request（入力を間違えたまま、思っていたのと違うログアウトをしないように）
+export const SignOutRequest = z.strictObject({ otherDevices: z.boolean().optional() }).optional();
+export type SignOutRequest = z.infer<typeof SignOutRequest>;
+
+// ログアウト（authSignOut）の結果。サーバは合言葉を消してから ok を返す。revoked は使えなくした合言葉の数
+export const SignOutResult = z.object({ ok: z.literal(true), revoked: z.number().int().min(0) });
 export type SignOutResult = z.infer<typeof SignOutResult>;
 
 // 子ども1人。id は子どもの userId
@@ -138,6 +144,13 @@ export type LinkStatus = z.infer<typeof LinkStatus>;
 export const Family = z.object({ children: z.array(Child) });
 export type Family = z.infer<typeof Family>;
 
+// 保護者が子どもとの連携を外した結果（familyUnlink）。外すと、子どもの端末の合言葉もすべて使えなくなる
+export const FamilyUnlinkResult = z.object({
+  childId: z.string().min(1),
+  revokedSessions: z.number().int().min(0), // 使えなくした、子どもの合言葉の数
+});
+export type FamilyUnlinkResult = z.infer<typeof FamilyUnlinkResult>;
+
 // ── 1日の上限の値（C10 が作り、C3・C6 が使う）──────────────────────
 // 1日の上限は3つの状態を取り違えないよう kind で分ける（Q7）:
 //   limited   : 上限あり（limitMinutes 分。0 分も有効な上限 = その日は使えない）
@@ -160,7 +173,7 @@ export const UsualLimitSave = z.object({
 export type UsualLimitSave = z.infer<typeof UsualLimitSave>;
 
 // 計画の中身（親02 で親が入力する3つの値。Q14: 3つとも必須・分は 0〜1440 の整数・G ≤ S・開始日は今日以降）
-// 「開始日は今日以降」は今日がサーバの時計で決まるため、サーバの store.ts で確かめる（ここでは形だけ）
+// 「開始日は今日以降」は今日がサーバの時計で決まるため、サーバの src/server/services/plan-settings.ts の savePlanForCaller で確かめる（ここでは形だけ）
 const planFields = {
   planStartDate: IsoDate, // 計画開始日 d0
   startLimitMinutes: Minutes, // 開始上限 S（分）
@@ -427,21 +440,49 @@ export type AppMinutes = z.infer<typeof AppMinutes>;
 
 // 1日ぶんの利用記録（Q8: その日のアプリ別の累計＋測った時刻＋制限対象の合計分）。
 // サーバは日ごとに「測った時刻が一番新しいもの」を正とする（古い記録が後から届いても上書きしない）
-export const UsageDayReport = z.object({
-  date: IsoDate,
-  measuredAt: IsoDateTime, // 端末で測った時刻
-  restrictedMinutes: Minutes, // 制限対象アプリの合計（C3 と同じ計算。親の画面はこれを使う = 新しい設定で過去を計算し直さない）
-  apps: z.array(AppMinutes).max(1000),
-});
+export const UsageDayReport = z
+  .object({
+    date: IsoDate,
+    measuredAt: IsoDateTime, // 端末で測った時刻
+    restrictedMinutes: Minutes, // 制限対象アプリの合計（C3 と同じ計算。親の画面はこれを使う = 新しい設定で過去を計算し直さない）
+    apps: z.array(AppMinutes).max(1000),
+  })
+  .superRefine((report, context) => {
+    const seen = new Set<string>();
+    report.apps.forEach((app, index) => {
+      if (seen.has(app.packageName)) {
+        context.addIssue({
+          code: "custom",
+          path: ["apps", index, "packageName"],
+          message: "An app can appear only once per usage date.",
+        });
+      }
+      seen.add(app.packageName);
+    });
+  });
 export type UsageDayReport = z.infer<typeof UsageDayReport>;
 
 // 利用記録の送信（子どもだけ）。毎回「今日と昨日」の2日分を送る（Q8）。
 // submissionId は端末が作る送信 ID（UUID）。送り直しでも同じ ID を使う（冪等キー）
-export const UsageUpload = z.object({
-  submissionId: z.uuid(),
-  childId: z.string().min(1),
-  days: z.array(UsageDayReport).min(1).max(7),
-});
+export const UsageUpload = z
+  .object({
+    submissionId: z.uuid(),
+    childId: z.string().min(1),
+    days: z.array(UsageDayReport).min(1).max(7),
+  })
+  .superRefine((upload, ctx) => {
+    const seen = new Set<string>();
+    upload.days.forEach((day, index) => {
+      if (seen.has(day.date)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["days", index, "date"],
+          message: "A usage upload can contain only one report per date.",
+        });
+      }
+      seen.add(day.date);
+    });
+  });
 export type UsageUpload = z.infer<typeof UsageUpload>;
 
 // 送信の結果。duplicate は「同じ ID・同じ中身をもう受け付け済み」（二重には保存していない）。どちらも送信待ちから消してよい

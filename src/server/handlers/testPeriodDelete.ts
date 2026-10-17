@@ -1,7 +1,5 @@
-// D3: テスト期間を消す（親子）。保存と同時に C10 で日別上限を作り直す。
-import { getStore } from "../mock/store";
-import { handle } from "../route";
+// D3: テスト期間を消す（親子）。削除とC10再計算をDB transactionで行う。
+import { callerOf, handle } from "../route.js";
+import { deleteTestPeriodForCaller } from "../services/test-periods.js";
 
-export default handle("testPeriodDelete", async (req) =>
-  getStore().testPeriodDelete(req.childId, req.expectedVersion, req.id),
-);
+export default handle("testPeriodDelete", async (input, ctx) => deleteTestPeriodForCaller(callerOf(ctx), input));

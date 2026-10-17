@@ -1,40 +1,79 @@
-// DB への接続（back-a の担当）。使う側は `const d = await db()` → `d.insert(rules).values(...)` のように Drizzle で書く。
-//   DATABASE_URL あり（Vercel の本番・プレビュー、手元で vercel env pull した時）→ Neon（HTTP で1回ずつ問い合わせる。接続の使い回しが要らない）
-//   DATABASE_URL なし（手元・テスト・CI）→ メモリ上の Postgres（PGlite）。テーブルは schema.ts から作る。サーバを止めると空に戻る
+// DB への接続（API の処理と backend/ の保存処理が同じ表を使う）。使う側は `const d = await db()` → Drizzle で書く。
+//   DATABASE_URL あり（Vercel の本番・プレビュー）→ Neon。C8・C10 は何段階かの書き込みを1回の処理（トランザクション）で
+//     行うので、HTTP ではなく WebSocket の接続（pooled の URL）を使う
+//   DATABASE_URL なし（手元・テスト）→ PGlite（Node の中で動く Postgres）。表は backend/src/db/schema から作る。
+//     LOCAL_DB_DIR があればそのフォルダに残し（手元のサーバ。src/server/dev.ts が state/pglite を渡す）、なければメモリの上だけ
+// MOCK=1 なら、開いたときにデモの3人と見本を入れる（もう入っていれば何もしない。src/server/seed/demo.ts）。
 // Vercel では関数のメモリにデータを置いても残らない（呼ぶたびに別のインスタンスになりうる）。保存したいものは必ずここを通す。
-// Neon の HTTP 接続では db.transaction() が使えない。まとめて書くなら db.batch([...])。
-import type { NeonHttpDatabase } from "drizzle-orm/neon-http";
-import * as schema from "./schema";
+import { fileURLToPath } from "node:url";
+import { getTableName, is, sql } from "drizzle-orm";
+import { PgTable } from "drizzle-orm/pg-core";
+import type { Database } from "../../../backend/src/db/index.js";
+import * as schema from "../../../backend/src/db/schema/index.js";
+import { isMock } from "../env.js";
+import { seedMockAccounts } from "../seed/demo.js";
 
-export type Db = NeonHttpDatabase<typeof schema>;
+export { isDatabaseHealthy } from "../../../backend/src/db/health.js";
+export type Db = Database;
 
+type RuntimeDb = { db: Db; kind: "neon" | "pglite"; close?: () => Promise<void> };
 // 開発中の再読み込みでも作り直さないよう、プロセスに1つだけ持つ
-const g = globalThis as unknown as { __kitDb?: Promise<Db> };
+const g = globalThis as unknown as { __slopeRuntimeDb?: Promise<RuntimeDb> };
 
-export function db(): Promise<Db> {
-  g.__kitDb ??= open().catch((e) => {
-    g.__kitDb = undefined; // 失敗したら次の呼び出しでやり直す
-    throw e;
-  });
-  return g.__kitDb;
+export async function db(): Promise<Db> {
+  return (await runtime()).db;
 }
 
-async function open(): Promise<Db> {
+function runtime(): Promise<RuntimeDb> {
+  g.__slopeRuntimeDb ??= open().catch((error) => {
+    g.__slopeRuntimeDb = undefined; // 失敗したら次の呼び出しでやり直す
+    throw error;
+  });
+  return g.__slopeRuntimeDb;
+}
+
+async function open(): Promise<RuntimeDb> {
+  const opened = await connect();
+  if (isMock()) await seedMockAccounts(opened.db);
+  return opened;
+}
+
+async function connect(): Promise<RuntimeDb> {
   const url = process.env.DATABASE_URL;
   if (url) {
-    const { neon } = await import("@neondatabase/serverless");
-    const { drizzle } = await import("drizzle-orm/neon-http");
-    return drizzle({ client: neon(url), schema });
+    const [{ Pool }, { drizzle }] = await Promise.all([
+      import("@neondatabase/serverless"),
+      import("drizzle-orm/neon-serverless"),
+    ]);
+    const pool = new Pool({ connectionString: url, max: 1 });
+    return { db: drizzle({ client: pool, schema }) as unknown as Db, kind: "neon", close: () => pool.end() };
   }
-  // 本番で黙ってメモリに保存すると、データが消えても気づけない
-  if (process.env.VERCEL_ENV === "production")
-    throw new Error("DATABASE_URL が未設定（Vercel の本番では必須。Neon を Marketplace から追加すると入る）");
-  const { PGlite } = await import("@electric-sql/pglite");
-  const { drizzle } = await import("drizzle-orm/pglite");
-  const local = drizzle({ client: new PGlite(), schema });
-  const { pushSchema } = await import("drizzle-kit/api");
-  const { apply } = await pushSchema(schema, local as never);
-  await apply();
-  // 問い合わせの書き方は同じなので、型は本番（Neon）にそろえる
-  return local as unknown as Db;
+  // 本番で黙って手元の DB に保存すると、データが消えても気づけない
+  if (process.env.VERCEL_ENV === "production") throw new Error("DATABASE_URL が未設定です（Vercel の本番では必須）");
+  const [{ PGlite }, { drizzle }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite")]);
+  const dir = process.env.LOCAL_DB_DIR?.trim();
+  const client = dir ? new PGlite(dir) : new PGlite();
+  const local = drizzle({ client, schema });
+  // 表は本番（Neon）と同じマイグレーション（backend/drizzle）で作る。フォルダに残した DB には、まだ当てていない分だけ当てる。
+  // なぜ: 前は drizzle-kit の pushSchema で表の形を合わせていたが、データの入った DB では確認の質問を出そうとして、
+  //   何も表示せずにプロセスを終わらせた（立て直したサーバが起動しない）。マイグレーションなら質問は出ず、
+  //   テストのたびに「マイグレーションと表の定義（backend/src/db/schema）が合っているか」も確かめられる
+  const { migrate } = await import("drizzle-orm/pglite/migrator");
+  await migrate(local, { migrationsFolder: fileURLToPath(new URL("../../../backend/drizzle", import.meta.url)) });
+  // 問い合わせの書き方は同じなので、型は本番にそろえる
+  return { db: local as unknown as Db, kind: "pglite", close: () => client.close() };
+}
+
+// テスト用: 手元の DB（PGlite）を空にして、seed なら見本を入れ直す。Neon には決して使わない（本物のデータを消さないように）
+export async function resetDatabaseForTests(opts: { seed: boolean }): Promise<Db> {
+  if (process.env.DATABASE_URL || process.env.LOCAL_DB_DIR || !process.env.VITEST)
+    throw new Error("resetDatabaseForTests はテストのメモリ上の DB でだけ使えます");
+  const opened = await runtime();
+  if (opened.kind !== "pglite") throw new Error("resetDatabaseForTests はテストのメモリ上の DB でだけ使えます");
+  const tables = Object.values(schema)
+    .filter((value) => is(value, PgTable))
+    .map((table) => `"${getTableName(table as PgTable)}"`);
+  await opened.db.execute(sql.raw(`TRUNCATE ${tables.join(", ")} RESTART IDENTITY CASCADE`));
+  if (opts.seed) await seedMockAccounts(opened.db);
+  return opened.db;
 }

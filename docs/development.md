@@ -21,15 +21,15 @@ cp .env.example .env   # 手元用の環境変数（.env は Git に入れない
 
 | 項目 | 使う側 | 意味 | 手元の値 |
 |---|---|---|---|
-| `MOCK` | サーバ | `1` にすると `mock-` で始まるログイン（保護者・子ども・はじめての人）を受け付け、見本のデータを用意する（`src/server/mock/store.ts`）。**本番では入れない** | `1` |
-| `DATABASE_URL` | サーバ | `src/server/db/`（ひな型の DB の接続口）が使う。空なら手元のメモリ上の Postgres（PGlite）。**今の API は使っていない** | 空 |
+| `MOCK` | サーバ | `1` にすると、(1) `mock-` で始まるログイン（保護者・子ども・はじめての人）を受け付け、(2) DB を開いたときにデモの3人と見本のデータを DB に1回だけ入れる（`src/server/seed/demo.ts`）。処理（API）は `MOCK` があってもなくても同じ DB の処理を通る。Vercel の本番（`VERCEL_ENV=production`）では入れても無視する（デモの人の合言葉は固定で、だれでも知っているため）。**本番では入れない** | `1` |
+| `DATABASE_URL` | サーバ | Hono APIがNeonのpooled PostgreSQLへ接続する。本番では必須。空なら手元の PGlite（Node の中で動く Postgres。`npm run dev:server` は `state/pglite` に残す。テストはメモリの上だけ） | 空 |
 | `EXPO_PUBLIC_API_URL` | アプリ | アプリがつなぐサーバ。空なら `http://10.0.2.2:3000`（Android エミュレータから見た手元の PC）。実機なら PC の LAN の IP（例 `http://192.168.0.5:3000`） | 空（エミュレータ）／PC の IP（実機） |
 | `GOOGLE_WEB_CLIENT_ID` | サーバ | 本物の Google ログインで、ID トークンの宛先（aud）として確かめる Web のクライアント ID | 空（MOCK のログイン） |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | アプリ | 上と同じ値。あればログイン画面が本物の「Google でログイン」になる。空なら MOCK のボタンを出す | 空 |
 | `EXPO_PUBLIC_FAKE_USAGE` | アプリ | `1` にすると、Kotlin の部品がなくても仮の使用時間を返す（`src/lib/native.ts`） | デモでは `1` |
 | `PORT` | サーバ | 手元のサーバの番号（`.env.example` にはない。なければ 3000） | 書かない |
-| `MOCK_PERSIST` | サーバ | `0` にすると、`MOCK=1` のサーバのデータをファイルに残さない（メモリだけ。`.env.example` にはない） | 書かない |
-| `MOCK_STORE_FILE` | サーバ | `MOCK=1` のサーバのデータを残すファイル（`.env.example` にはない。なければ `state/mock-store.json`） | 書かない |
+| `MOCK_PERSIST` | サーバ | `0` にすると、`DATABASE_URL` がないときの手元の DB（PGlite）をフォルダに残さない（メモリだけ。止めると消える。`.env.example` にはない） | 書かない |
+| `LOCAL_DB_DIR` | サーバ | `DATABASE_URL` がないときに手元の DB（PGlite）を残すフォルダ（`.env.example` にはない。なければ `state/pglite`。`src/server/dev.ts`） | 書かない |
 
 `EXPO_PUBLIC_` の値を変えたら、Metro（`npm run dev`）を止めて立て直してください（アプリに埋め込まれるため）。
 
@@ -47,7 +47,7 @@ npm run dev       # 2回目からは Metro だけ立てる（開発用のアプ�
 ```
 
 - サーバが立つと `サーバが立ちました: http://localhost:3000（MOCK=1）` と出ます。`http://localhost:3000/api/health` を開くと `{"ok":true,"mock":true}` が返ります。
-- `npm run dev:server` は `tsx watch` です。サーバのファイルを書き換えるとサーバが立ち直ります。`MOCK=1` なら、データ（ログイン・紐づけ・日程など）は `state/mock-store.json` から読み直すので消えません（7章「MOCK のサーバを立て直すと」）。
+- `npm run dev:server` は `tsx watch` です。サーバのファイルを書き換えるとサーバが立ち直ります。データ（ログイン・紐づけ・日程など）は手元の DB（`state/pglite`）に残っているので消えません（7章「手元のサーバを立て直すと」）。
 - Kotlin（`modules/kit-native/`）を書き換えたら、`npm run android` で作り直します（画面の即時反映では変わらない）。
 - `npm run dev` は `expo start --dev-client` です。`npm run android` で入れた開発用のアプリ（`expo-dev-client`。Google ログイン・カメラなどの部品を含む）から使います。
 
@@ -87,22 +87,26 @@ Kotlin の中身はまだないので、そのままでは子どもの画面は�
 3. `npm run android` でアプリを作り直す（Google ログインは端末側の部品を使う）。サーバも立て直す。
 4. ログイン画面が「Google でログイン」だけになる。
 
-- サーバは `MOCK=1` のままでも本物のトークンを確かめます（`mock-` のログインも受け付けたまま）。本番では `MOCK` を入れません。
+- サーバは `MOCK=1` のままでも本物のトークンを確かめます（`mock-` のログインも受け付けたまま）。本番では `MOCK` を入れません（入れても `VERCEL_ENV=production` では無視します。`src/server/env.ts` の `isMock`）。
 - サーバに `GOOGLE_WEB_CLIENT_ID` がないと、本物のトークンは `upstream_failed`「サーバに Google ログインの設定がありません」になります。
 
 ## テストの構成
 
 テストは Vitest で、`tests/**/*.test.ts` を走らせます（`vitest.config.ts`）。テストのときは `MOCK=1` が入り、`expo/fetch` と AsyncStorage はメモリ上の代わり（`tests/stubs/`）に置き換わります。サーバは本物のネットワークを使わず `app.request` で呼びます。
 
+- サーバのデータはメモリの上の PGlite（手元の DB）に入ります。`tests/verify/helpers.ts` の `fresh(nowIso)` が、テストごとに DB を空にして見本を入れ直します（`src/server/db/index.ts` の `resetDatabaseForTests`。Neon につないでいるときは動かない）。
+- 時計は `Date` だけを偽物にします（`vi.useFakeTimers({ toFake: ["Date"] })`）。`clock.set`・`clock.addMs` で時刻を動かします。タイマーは本物のままなので、DB の処理は止まりません。
+- PGlite は開くのに数秒かかるので、`hookTimeout` を 60 秒にしてあります。
+
 | フォルダ | 確かめること |
 |---|---|
 | `tests/lib/` | アプリの仕組み: 通信（`api.test.ts`）・C7（`config-cache.test.ts`）・日付の文言（`dates.test.ts`）・Kotlin の窓口（`native.test.ts`）・ログアウトで消すもの（`sign-out.test.ts`）・C3 と送る記録の形（`usage-calc.test.ts`）・C8（`usage-outbox.test.ts`） |
-| `tests/server/` | サーバ: 契約と入口・ログイン・役割・紐づけ・計画・C7・C8・C9・エラー（`api.test.ts`）、C10（`daily-limits.test.ts`）、ひな型の DB（`db.test.ts`）、再起動後の版・日別上限の作り足し・QR の取り消し・対象外アプリの版（`store-lifecycle.test.ts`） |
+| `tests/server/` | サーバ: 契約と入口・ログイン・役割・紐づけ・計画・C7・C8・C9・エラー（`api.test.ts`）、C10（`daily-limits.test.ts`）、DB の決まり（`db.test.ts`）、合言葉・QR をハッシュで残すこと（`auth-pair-persistence.test.ts`）、本文の大きさの上限（`body-limit.test.ts`）、未来の測定時刻（`usage-clock.test.ts`）、利用記録の保存（`usage-db.test.ts`） |
 | `tests/pair/` | ログイン・紐づけの画面の判断（`child-flow`・`parent-flow`・`link-check`・`usual-limit-and-login`） |
 | `tests/child/` | 子どもの画面の判断（`child-view.test.ts`）、仮の使用時間から表示まで（`fake-usage.test.ts`） |
 | `tests/schedule/` | 日程の判断（`logic.test.ts`）と、サーバにつないだ保存（`actions.test.ts`） |
 | `tests/parent/` | 保護者の画面の判断（`charts`・`excluded`・`format`・`plan-form`・`review`・`today`） |
-| `tests/verify/` | 確かめ役（V）: 決定 Q1〜Q14（`decisions`）・C10 の手計算（`c10-hand`）・C3/C7/C8 の境界（`c3-c7-c8`）・権限と安全（`security`）・Google のトークン（`google-token`）。見つかって直した不具合は「V 回帰: 不具合1〜4」として `c3-c7-c8`・`decisions` に残してある。共通の道具は `helpers.ts` |
+| `tests/verify/` | 確かめ役（V）: 決定 Q1〜Q14（`decisions`）・C10 の手計算（`c10-hand`）・C3/C7/C8 の境界（`c3-c7-c8`）・権限と安全（`security`）・Google のトークン（`google-token`）・ログアウト・子どもを外す・QR の番号を送る回数の上限（`revoke-and-limit`）。見つかって直した不具合は「V 回帰: 不具合1〜4」として `c3-c7-c8`・`decisions` に残してある。共通の道具は `helpers.ts` |
 | `tests/stubs/` | テスト用の代わり（テストではない） |
 
 ### `npm run check`
@@ -117,30 +121,30 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 
 ## 7. デモの前の注意
 
-### MOCK のサーバを立て直すと
+### 手元のサーバを立て直すと
 
-`MOCK=1` の `npm run dev:server` は、サーバのデータ（ログイン・紐づけ・計画・日程・利用記録）を `state/mock-store.json`（Git に入らない）に書き出し、立て直したときに読み込みます（`src/server/mock/persist.ts`）。止めた・ファイルを書き換えて立ち直ったときも、**合言葉と紐づけはそのまま**です。
+`DATABASE_URL` がないときの `npm run dev:server` は、サーバのデータ（ログイン・紐づけ・計画・日程・利用記録）を手元の DB（PGlite）に入れ、フォルダ `state/pglite`（Git に入らない）に残します（`src/server/dev.ts`・`src/server/db/index.ts`）。止めた・ファイルを書き換えて立ち直ったときも、**合言葉と紐づけはそのまま**です。表の形は立ち上げのときに今のコードに合わせます。
 
-- **見本だけに戻したいとき**: サーバを止めてから `state/mock-store.json` を消す。残したくないときは `MOCK_PERSIST=0`、置き場所を変えるときは `MOCK_STORE_FILE`。
-- ファイルには合言葉が入ります。人に渡さないでください。読めないファイルは `.broken-…` に名前を変えて残し、見本から始めます。
-- サーバを新しい版に入れ替えても、前の版が書き出したファイルはそのまま読めます。あとから足した項目（テスト期間・空白期間・対象外アプリの「最後に変わった版」など）は読み込むときに補います（分からない版は今の版とみなすので、子どもの端末が次に設定を取りに来るまで、保護者の一覧が「反映待ち」と出ることがあります。[decisions.md](decisions.md) の D-89）。
+- `MOCK=1` なら、DB を開いたときにデモの3人と見本を入れます。もう入っていれば何もしません（`src/server/seed/demo.ts` の `seedMockAccounts`）。
+- **見本だけに戻したいとき**: サーバを止めてから `state/pglite` のフォルダを消す。残したくないときは `MOCK_PERSIST=0`、置き場所を変えるときは `LOCAL_DB_DIR`。
+- 合言葉と QR の番号は、DB にはハッシュ（SHA-256）でだけ残します（`src/server/auth/digest.ts`）。それでもフォルダは人に渡さないでください。
 - ログアウトすると、その合言葉はサーバでも無効になります（`authSignOut`。D-90）。同じ人がもう一度ログインすれば、同じ人として新しい合言葉が出ます（紐づけはそのまま）。
 
-以下は、ファイルを消した・`MOCK_PERSIST=0` のとき（データはメモリだけ）の動きです。
+以下は、フォルダを消した・`MOCK_PERSIST=0` で立て直したとき（データが見本だけに戻る）の動きです。
 
 - **「はじめての人」で紐づけた2台**: 合言葉が無効になり、アプリはログイン画面に戻ります。もう一度ログインすると別の人として作られるので、**紐づけからやり直し**です。
-- **デモの保護者・子ども**: 合言葉が固定なので、ログインしたままです。データは見本に戻ります（変えた計画や日程は消える）。設定の版はサーバの起動時刻から数えるので、前の起動の版より大きくなり、子どもの端末は新しい設定をそのまま取り込めます（[decisions.md](decisions.md) の D-53）。
+- **デモの保護者・子ども**: 合言葉が固定なので、ログインしたままです。データは見本に戻ります（変えた計画や日程は消える）。設定の版も見本の版から数え直します。子どもの端末に前のもっと大きい版が残っていると、C7 は「手元より古い版」として新しい設定を捨てるので、サーバの版が追いつくまで取り込みません。そのときは子どもの端末でログアウトしてログインし直してください（ログアウトで設定のキャッシュが消える。D-60）。
 - 同じ端末で別の人に切り替えるときは、設定の「ログアウト」を使ってください。ログアウトで、その端末の設定のキャッシュと、その人の送信待ちが消えます（前の人の設定や記録が混ざらない）。**子どもの端末でログアウトすると、まだ送っていない利用記録も消えます**。
 - 送信待ちに残っていた前の子どもの記録は、新しい子どもでは送れない（403）ので隔離され、自動では送り直されません。
 
 ### 見せ方のこつ
 
-- サーバは **PC で立てる**（Vercel には置かない。今のサーバはメモリにデータを持つので、Vercel では保存が残らない）。
+- サーバは PC で立てても、Vercel（Neon の DB）に置いてもよい。どちらも同じ DB の処理を通る。Vercel の本番では `MOCK` のログインが使えないので、Google でログインして QR で紐づけた親子に `npm run db:seed-demo` で見本を入れる（8章）。
 - 子どもの端末は `EXPO_PUBLIC_FAKE_USAGE=1` で仮の使用時間を出す。
 - 設定の変更は、子どもの画面が出ている間なら **30秒以内**に届きます（アプリを開き直す・前面に戻すとすぐ取りに行く）。画面が出ていないときの取得はまだない。
 - QR は **10分**で切れます。
 - **上限に届いたところを見せる**: 今日の日別上限を小さくする（例: 親02 で開始上限・最終目標を小さくして保存する。計画もテストもない子どもなら通常上限を小さくする）。上限 0 分は必ず到達になる。割合の表示は到達するまで最大 99% で、到達したときだけ 100% になります。子01 ホームが見えているときに子11 へ進みます（その日1回だけ）。Kotlin がないので、ほかのアプリの上に制限画面は出ません。
-- **親03 振り返りの文を Figma どおりにする**: デモの子どものテストは「数学」1件だけなので、お知らせは「テスト（◯/◯）が最後のテストです。終わったあとも、上限は最終目標の 120分 のままです。」になります。**テストを2件以上登録する**（数学より後にもう1件）と、Figma と同じ「テスト（◯/◯）が終わると、上限は一度少し戻ります。」になります。期間の帯の「前の試験 ◯/◯」は、今日より前に終わったテストがあるときだけ出ます（ないときは「計画の開始 ◯/◯」）。
+- **親03 振り返りの文を Figma どおりにする**: 最終テスト終了日の翌日から通常上限に戻ります。中間テスト後は回復式で上限が一度戻ります。期間の帯の「前の試験 ◯/◯」は、今日より前に終わったテストがあるときだけ出ます（ないときは「計画の開始 ◯/◯」）。
 - デモの子どもの計画は「14日前に始まった」見本です（本物の保存では開始日は今日以降）。親02 で計画を保存し直すと、開始日が今日になり、上限の下がり方が今日から始まり直します。
 - 親16 の候補のアプリ（学習ノートなど）は MOCK の固定の一覧です（Q15 保留）。
 
@@ -149,7 +153,45 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 | 症状 | 確かめること |
 |---|---|
 | 「通信できませんでした」 | `EXPO_PUBLIC_API_URL` が PC の IP か・同じ Wi-Fi か・サーバが立っているか・Metro を立て直したか |
-| ログイン画面に戻された（「ログインの期限が切れました」） | サーバを立て直していないか（上の「MOCK のサーバを立て直すと」） |
+| ログイン画面に戻された（「ログインの期限が切れました」） | `state/pglite` を消した・`MOCK_PERSIST=0` で立て直していないか（上の「手元のサーバを立て直すと」）。30日使わなかった合言葉も無効になる（D-1） |
 | 「開発用のログインはこのサーバでは使えません」 | サーバの `.env` に `MOCK=1` があるか |
 | Google ログインで DEVELOPER_ERROR | [google-login-setup.md](google-login-setup.md) の「気をつけること」（パッケージ名・SHA-1・Web のクライアント ID） |
 | 子どもの画面が「使った時間を取得できませんでした」 | `EXPO_PUBLIC_FAKE_USAGE=1` にして Metro を立て直したか |
+
+## 8. Vercel の DB（Neon）を扱う
+
+Vercel の本番・プレビューは、それぞれの環境の `DATABASE_URL`（Neon）を使います。値は `vercel env pull` で手元のファイルに取れます（Git に入れない）。
+
+```bash
+vercel env pull --environment=preview .env.preview.local
+vercel env pull --environment=production .env.production.local
+```
+
+### 表の変更（migration）を入れる
+
+`backend/drizzle/` に新しい migration があるときは、**コードを Vercel に出す前に**、プレビューと本番の両方の DB に入れます。新しいコードは新しい表・列があるものとして動くので、先にコードを出すと API が失敗します。
+
+```bash
+# 入れたい環境の DATABASE_URL を渡す（.env の空の DATABASE_URL より、ここで渡した値が使われる）
+DATABASE_URL='<プレビューの DATABASE_URL>' npm run db:migrate
+DATABASE_URL='<本番の DATABASE_URL>' npm run db:migrate
+# PowerShell なら: $env:DATABASE_URL = '<URL>'; npm run db:migrate
+```
+
+- 今入れる必要があるのは `0011_auth_rules_and_list_versions.sql` です。QR の番号のまちがいの記録の表（`pair_claim_failures`）、テスト期間・空白期間の一覧が最後に変わった版の列（`child_config_versions.test_periods_changed_version`・`blank_periods_changed_version`）を足し、設定の版を 0 から始められるようにします（`version` の既定値 0・0 以上の決まり）。
+- 入れたかどうかは、Neon の表 `drizzle.__drizzle_migrations` に行が増えたかで分かります。
+- 手元の DB（PGlite）は、立ち上げのときに表の形を自動で合わせるので、この作業は要りません。
+
+### 本番の DB に見本を入れる（`npm run db:seed-demo`）
+
+本番では `MOCK` のログインが使えないので、デモの見本は Google でログインして QR で紐づけた親子に入れます（`scripts/seed-demo.ts`）。デモの固定の合言葉は作りません。
+
+```bash
+# 1. 連携済みの親子の一覧を出す（何も書かない）
+npm run db:seed-demo -- --env-file=.env.production.local
+# 2. 一覧に出た子どもの userId を指定して、その親子に見本を入れる
+npm run db:seed-demo -- --env-file=.env.production.local --child <子どもの userId>
+```
+
+- 入れるもの（`src/server/seed/demo.ts` の `seedDemoFamily`。`MOCK=1` の見本と同じ値）: 通常上限 180 分・14日前に始まった計画（開始上限 300 分・最終目標 120 分）・11〜13日先のテスト「数学」・対象外アプリ「学習ノート」・過去6日の利用記録。
+- 計画・通常上限・テスト・対象外アプリは見本で上書きします。利用記録は、その日にもっと新しい測定があれば、そちらが残ります。

@@ -40,7 +40,7 @@ describe("C10: 日別上限", () => {
   it("通常の減少: 基準曲線 B(d) = S − (S − G)u² に沿って下がり、最後のテストの開始日に G になる", () => {
     const out = computeDailyLimits(inputs({ testPeriods: [finalTest] }), "2026-10-01", "2026-10-21");
     expect(limitOn(out, "2026-10-01")).toBe(240); // u = 0
-    expect(limitOn(out, "2026-10-06")).toBe(229); // u = 0.25 → 228.75
+    expect(limitOn(out, "2026-10-06")).toBe(228); // u = 0.25 → 228.75 を切り捨て
     expect(limitOn(out, "2026-10-11")).toBe(195); // u = 0.5 → 195
     expect(limitOn(out, "2026-10-21")).toBe(60); // u = 1 → G
     const values = out.map((l) => (l.kind === "limited" ? l.limitMinutes : 0));
@@ -49,7 +49,7 @@ describe("C10: 日別上限", () => {
 
   it("途中のテストの間は Q を維持し、終わった翌日に回復して、次のテストの目標まで線形に下がる", () => {
     const out = computeDailyLimits(inputs({ testPeriods: [midTest, finalTest] }), "2026-10-01", "2026-10-21");
-    expect(limitOn(out, "2026-10-10")).toBe(204); // B = 203.55
+    expect(limitOn(out, "2026-10-10")).toBe(203); // B = 203.55 を切り捨て
     // テスト中は Q₁ = B(10/11) = 195 のまま
     expect([limitOn(out, "2026-10-11"), limitOn(out, "2026-10-12"), limitOn(out, "2026-10-13")]).toEqual([
       195, 195, 195,
@@ -58,7 +58,7 @@ describe("C10: 日別上限", () => {
     expect(limitOn(out, "2026-10-14")).toBe(218);
     // 10/14 の R から 10/21 の G=60 まで 7 日で線形: 1日 −22.577
     expect(limitOn(out, "2026-10-15")).toBe(195); // 195.46
-    expect(limitOn(out, "2026-10-20")).toBe(83); // 82.58
+    expect(limitOn(out, "2026-10-20")).toBe(82); // 82.58 を切り捨て
     expect(limitOn(out, "2026-10-21")).toBe(60);
   });
 
@@ -67,15 +67,38 @@ describe("C10: 日別上限", () => {
     const out = computeDailyLimits(inputs({ testPeriods: [midTest, back, finalTest] }), "2026-10-11", "2026-10-21");
     expect(limitOn(out, "2026-10-13")).toBe(195);
     // 回復せず、すぐ次のテストの Q₂ = B(10/14)（u = 0.65 → 163.95）
-    expect(limitOn(out, "2026-10-14")).toBe(164);
-    expect(limitOn(out, "2026-10-15")).toBe(164);
+    expect(limitOn(out, "2026-10-14")).toBe(163);
+    expect(limitOn(out, "2026-10-15")).toBe(163);
     // 2つ目のテストの後は回復する（ピーク P は前のまま S=240。u_end = 0.7 → r = 0.408 → R = 194.98）
-    expect(limitOn(out, "2026-10-16")).toBe(195);
+    expect(limitOn(out, "2026-10-16")).toBe(194); // 194.98 を切り捨て
   });
 
-  it("最後のテストが始まったら G、終わった後もずっと G を維持する", () => {
-    const out = computeDailyLimits(inputs({ testPeriods: [midTest, finalTest] }), "2026-10-21", "2026-12-31");
-    expect(out.every((l) => l.kind === "limited" && l.limitMinutes === 60)).toBe(true);
+  it("金曜から月曜のテストは連続扱いとし、週末の間も直前の上限を維持する", () => {
+    const fridayTest = { startDate: "2026-10-09", endDate: "2026-10-09" };
+    const mondayTest = { startDate: "2026-10-12", endDate: "2026-10-12" };
+    const duplicatedSameDay = { ...fridayTest };
+    const out = computeDailyLimits(
+      inputs({ testPeriods: [fridayTest, duplicatedSameDay, mondayTest, finalTest] }),
+      "2026-10-09",
+      "2026-10-12",
+    );
+    expect(limitOn(out, "2026-10-10")).toBe(limitOn(out, "2026-10-09"));
+    expect(limitOn(out, "2026-10-11")).toBe(limitOn(out, "2026-10-09"));
+    expect(limitOn(out, "2026-10-12")).toBe(185); // 月曜のテスト目標は B(10/12)=185.55→185
+  });
+
+  it("最終テスト期間中は G を維持し、終了翌日から通常上限に戻る", () => {
+    const out = computeDailyLimits(inputs({ testPeriods: [midTest, finalTest] }), "2026-10-21", "2026-10-26");
+    expect(out.map((l) => limitOn([l], l.date))).toEqual([60, 60, 60, 180, 180, 180]);
+  });
+
+  it("通常上限が G 以下でも終了翌日から通常上限をそのまま適用する", () => {
+    const out = computeDailyLimits(
+      inputs({ usualLimitMinutes: 40, testPeriods: [finalTest] }),
+      "2026-10-21",
+      "2026-10-24",
+    );
+    expect(out.map((l) => limitOn([l], l.date))).toEqual([60, 60, 60, 40]);
   });
 
   it("計画開始日より前の日は通常上限（TODO(未決) の既定。引数で S にもできる）", () => {
@@ -131,15 +154,23 @@ describe("C10: 日別上限", () => {
     );
   });
 
-  it("D=0（計画開始日に最後のテスト）は S=G なら S、S≠G なら計算できない", () => {
+  it("D=0（計画開始日に最終テスト開始）は S/G に関係なく G を期間中に適用する", () => {
     const t = { startDate: "2026-10-01", endDate: "2026-10-02" };
-    expect(() => computeDailyLimits(inputs({ testPeriods: [t] }), "2026-10-01", "2026-10-01")).toThrow(PlanCalcError);
+    const different = computeDailyLimits(inputs({ testPeriods: [t] }), "2026-10-01", "2026-10-03");
+    expect(different.map((l) => limitOn([l], l.date))).toEqual([60, 60, 180]);
     const same = computeDailyLimits(
       inputs({ plan: { ...plan, finalGoalMinutes: 240 }, testPeriods: [t] }),
       "2026-10-01",
       "2026-10-03",
     );
-    expect(same.map((l) => limitOn([l], l.date))).toEqual([240, 240, 240]);
+    expect(same.map((l) => limitOn([l], l.date))).toEqual([240, 240, 180]);
+  });
+
+  it("最後のテスト開始日が計画開始日より前ならエラーにする", () => {
+    const earlyTest = { startDate: "2026-09-30", endDate: "2026-09-30" };
+    expect(() => computeDailyLimits(inputs({ testPeriods: [earlyTest] }), "2026-10-01", "2026-10-02")).toThrow(
+      PlanCalcError,
+    );
   });
 
   it("丸め方と1日の最大の減少幅は引数で変えられる（TODO(未決)）", () => {
@@ -150,7 +181,7 @@ describe("C10: 日別上限", () => {
     const capped = computeDailyLimits(inputs({ testPeriods: [midTest, finalTest] }), "2026-10-20", "2026-10-21", {
       maxDailyDecrease: 10,
     });
-    expect(limitOn(capped, "2026-10-21")).toBe(73); // 83 から 10 分までしか下げない
+    expect(limitOn(capped, "2026-10-21")).toBe(72); // 82 から 10 分までしか下げない
   });
 
   it("再計算で昨日以前の確定値は変えない（mergeWithFinalized。AC-07）", () => {
