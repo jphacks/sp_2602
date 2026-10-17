@@ -5,8 +5,16 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { createDatabase } from "../index.js";
 import { users } from "../schema/users.js";
 import { familyLinks } from "../schema/family.js";
-import { planCalculationVersions, dailyLimits } from "../schema/planning.js";
+import { planCalculationVersions, dailyLimits, testPeriods } from "../schema/planning.js";
 import { usageSyncBatches, usageRecords } from "../schema/usage.js";
+import { childConfigVersions } from "../schema/family.js";
+import {
+  createTestPeriod,
+  deleteTestPeriod,
+  listTestPeriods,
+  TestPeriodAccessDeniedError,
+  updateTestPeriod,
+} from "../test-periods.js";
 
 const testUrl = process.env.TEST_DATABASE_URL;
 const suite = describe.skipIf(!testUrl);
@@ -117,5 +125,71 @@ suite("PostgreSQL schema and persistence", () => {
     const remaining = await db!.select().from(dailyLimits).where(eq(dailyLimits.childId, childId));
     expect(remaining).toHaveLength(0);
     await db!.delete(users).where(eq(users.id, childId));
+  });
+
+  it("supports linked-parent and own-child D3 CRUD with atomic config revisions", async () => {
+    const parentId = crypto.randomUUID();
+    const childId = crypto.randomUUID();
+    const strangerId = crypto.randomUUID();
+    await db!.insert(users).values([
+      { id: parentId, role: "parent" },
+      { id: childId, role: "child" },
+      { id: strangerId, role: "parent" },
+    ]);
+    await db!.insert(familyLinks).values({ parentId, childId });
+    try {
+      const created = await createTestPeriod(db!, {
+        actorId: childId,
+        childId,
+        name: "  Mock Exam  ",
+        startDate: "2099-01-10",
+        endDate: "2099-01-12",
+      });
+      expect(created.changed).toBe(true);
+      expect(created.configVersion).toBe(2);
+      expect(created.testPeriod?.name).toBe("Mock Exam");
+
+      const listed = await listTestPeriods(db!, parentId, childId);
+      expect(listed).toHaveLength(1);
+      expect(listed[0]?.startDate).toBe("2099-01-10");
+      const noOpUpdate = await updateTestPeriod(db!, {
+        actorId: parentId,
+        childId,
+        testPeriodId: created.testPeriod!.id,
+        name: "Mock Exam",
+        startDate: "2099-01-10",
+        endDate: "2099-01-12",
+      });
+      expect(noOpUpdate).toMatchObject({ changed: false, configVersion: 2 });
+
+      await expect(listTestPeriods(db!, strangerId, childId)).rejects.toBeInstanceOf(TestPeriodAccessDeniedError);
+      const updated = await updateTestPeriod(db!, {
+        actorId: parentId,
+        childId,
+        testPeriodId: created.testPeriod!.id,
+        name: "Final Exam",
+        startDate: "2099-01-11",
+        endDate: "2099-01-13",
+      });
+      expect(updated).toMatchObject({ changed: true, configVersion: 3 });
+
+      const deleted = await deleteTestPeriod(db!, {
+        actorId: childId,
+        childId,
+        testPeriodId: created.testPeriod!.id,
+      });
+      expect(deleted).toMatchObject({ changed: true, configVersion: 4 });
+      const repeatedDelete = await deleteTestPeriod(db!, {
+        actorId: childId,
+        childId,
+        testPeriodId: created.testPeriod!.id,
+      });
+      expect(repeatedDelete).toMatchObject({ changed: false, configVersion: 4 });
+    } finally {
+      await db!.delete(testPeriods).where(eq(testPeriods.childId, childId));
+      await db!.delete(childConfigVersions).where(eq(childConfigVersions.childId, childId));
+      await db!.delete(familyLinks).where(eq(familyLinks.parentId, parentId));
+      await db!.delete(users).where(inArray(users.id, [parentId, childId, strangerId]));
+    }
   });
 });
