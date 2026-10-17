@@ -17,6 +17,7 @@ export function WeekBars({ bars, accessibilityLabel }: Props) {
   const max = Math.max(1, ...bars.flatMap((b) => [b.track ?? 0, b.value ?? 0]));
   const h = (n: number) => ({ height: Math.round((Math.min(n, max) / max) * tokens.size.chartHeight) });
   const notes = chartNotes(bars);
+  const anyMissing = bars.some((b) => b.missing);
   return (
     <View style={styles.wrap}>
       <View style={styles.row} accessibilityLabel={accessibilityLabel}>
@@ -33,12 +34,14 @@ export function WeekBars({ bars, accessibilityLabel }: Props) {
               ) : b.value != null ? (
                 <View style={[styles.fill, styles.bare, fills[b.fill], h(b.value)]} />
               ) : null}
-              {b.missing && (
-                <AppText variant="caption" tone="muted" center>
-                  ？
-                </AppText>
-              )}
             </View>
+            {/* 「？」は棒の下に自分の行を持つ（棒の場所の中に置くと、上限いっぱいの棒が「？」の分だけ上へはみ出し、
+                上の数字（親01 の今日の「120」）に重なっていた）。どれかの棒に「？」があれば、全部の棒で同じ高さを空けてそろえる */}
+            {anyMissing && (
+              <AppText variant="caption" tone="muted" center>
+                {b.missing ? "？" : " "}
+              </AppText>
+            )}
             {/* 強調する棒（今日など）は青の太字（Figma 親01 の「木 10/15」）。
                 2行目がないとき（親03 の週の「10/12」）は日付なので小さい文字にする（大きいと隣の日付とくっつく） */}
             <AppText
