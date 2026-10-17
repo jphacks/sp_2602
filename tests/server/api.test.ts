@@ -2,10 +2,21 @@
 // 状態は手元の DB（PGlite）。テストごとに空にしてデモの3人と見本を入れ直し、時計（Date）を固定する（tests/verify/helpers.ts の fresh）。
 // 確かめること: auth の 401/403・子どもは自分だけ・親は連携済みの子どもだけ・ペアリングの状態の進み方と失敗（期限切れ・使用済み・二重読取・
 // 親1↔子1）・計画と空白期間・C8 の重複防止・C9 は親だけ・C7 の版・エラーの形・ストリームの仕組み。
+
+import { createHash } from "node:crypto";
 import { api, type StreamDef, streamLine } from "@contracts/api";
 import { ApiError } from "@contracts/errors";
 import { mockPair, mockSessions } from "@contracts/fixtures";
-import { ConfigResult, PairState, PairStatus, PairTicket, Session } from "@contracts/schemas";
+import {
+  ConfigResult,
+  MAX_APP_ICON_BYTES,
+  MAX_APP_ICONS_PER_CALL,
+  MAX_CHILD_APPS,
+  PairState,
+  PairStatus,
+  PairTicket,
+  Session,
+} from "@contracts/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import app from "@/server/app";
@@ -78,8 +89,15 @@ describe("契約と入口", () => {
       expect(["none", "signedIn", "parent", "child"], `${name} の auth`).toContain(route.auth);
   });
 
-  it("子どもの端末のアプリ一覧を送る API はない（Q15 保留）", () => {
-    expect(Object.keys(api).some((k) => /installed/i.test(k))).toBe(false);
+  it("子どもの端末のアプリ一覧とアイコン（Q15・D-110）は、子どもが送る（child）2本・保護者が読む（parent）2本だけ", () => {
+    expect([api.childAppsUpload.auth, api.childAppIconsUpload.auth]).toEqual(["child", "child"]);
+    expect([api.childAppsGet.auth, api.childAppIconsGet.auth]).toEqual(["parent", "parent"]);
+    expect(Object.keys(api).filter((k) => /^childApp/.test(k))).toEqual([
+      "childAppsUpload",
+      "childAppIconsUpload",
+      "childAppsGet",
+      "childAppIconsGet",
+    ]);
   });
 });
 
@@ -508,6 +526,192 @@ describe("C9: 対象外アプリ", () => {
     const body = { childId: CHILD_ID, expectedVersion: view.configVersion, apps: [] };
     expect((await post("/api/excluded-apps/save", body, CHILD)).status).toBe(403);
     expect((await post("/api/excluded-apps/save", body, PARENT)).status).toBe(200);
+  });
+});
+
+describe("Q15: 子どもの端末のアプリ一覧（D-110）", () => {
+  const app1 = { packageName: "com.example.video", label: "動画アプリ" };
+  const app2 = { packageName: "com.example.camera", label: "カメラ" };
+  const upload = (childId: string, apps: unknown, token: string | null) =>
+    post("/api/child-apps/upload", { childId, apps }, token);
+  const read = (childId: string, token: string | null) => post("/api/child-apps/get", { childId }, token);
+
+  it("まだ届いていなければ receivedAt: null（空の一覧とは分ける）。届いたら全件の置き換えで、表示名の順に返す", async () => {
+    const child = await newPerson("apps-c");
+    const parent = await newPerson("apps-p");
+    await link(child.token, parent.token);
+    const before = api.childAppsGet.res.parse(await (await read(child.userId, parent.token)).json());
+    expect(before).toEqual({ childId: child.userId, apps: [], receivedAt: null });
+
+    const first = await upload(child.userId, [app1, app2], child.token);
+    expect(first.status).toBe(200);
+    expect(api.childAppsUpload.res.parse(await first.json()).appCount).toBe(2);
+    const after = api.childAppsGet.res.parse(await (await read(child.userId, parent.token)).json());
+    expect(after.apps.map((a) => a.label)).toEqual(["カメラ", "動画アプリ"]);
+    expect(after.receivedAt).not.toBeNull();
+
+    // 全件の置き換え: 送らなかったアプリ（消されたアプリ）は一覧から消え、名前の変わったアプリは新しい名前になる
+    await upload(child.userId, [{ ...app1, label: "動画" }], child.token);
+    const replaced = api.childAppsGet.res.parse(await (await read(child.userId, parent.token)).json());
+    expect(replaced.apps).toEqual([{ packageName: app1.packageName, label: "動画", iconHash: null }]);
+
+    // 空の一覧も「届いた」（receivedAt あり）
+    await upload(child.userId, [], child.token);
+    const empty = api.childAppsGet.res.parse(await (await read(child.userId, parent.token)).json());
+    expect(empty.apps).toEqual([]);
+    expect(empty.receivedAt).not.toBeNull();
+  });
+
+  it("送るのは子ども本人だけ。保護者は 403、ほかの子どもの childId は 403、紐づけ前の人は 403", async () => {
+    expect((await upload(CHILD_ID, [app1], PARENT)).status).toBe(403);
+    const other = await newPerson("apps-other-c");
+    await link(other.token, (await newPerson("apps-other-p")).token);
+    expect((await upload(other.userId, [app1], CHILD)).status).toBe(403);
+    expect((await upload(mockSessions["mock-google-new"].userId, [app1], NEW)).status).toBe(403);
+  });
+
+  it("読むのは連携している保護者だけ。子どもは自分の分でも 403、連携していない子どもは 403", async () => {
+    expect((await read(CHILD_ID, CHILD)).status).toBe(403);
+    expect((await read(CHILD_ID, PARENT)).status).toBe(200);
+    const stranger = await newPerson("apps-stranger");
+    expect((await read(stranger.userId, PARENT)).status).toBe(403);
+  });
+
+  it("合言葉の確認は入力の検査より先（形の違う入力でも、合言葉がなければ 401）", async () => {
+    const res = await upload("", "not-a-list", null);
+    expect(res.status).toBe(401);
+  });
+
+  it("件数・文字の長さの上限、空白だけの名前、同じアプリの重複は bad_request で、前の一覧は変わらない", async () => {
+    await upload(CHILD_ID, [app1], CHILD);
+    const many = Array.from({ length: MAX_CHILD_APPS + 1 }, (_, i) => ({ packageName: `p.app${i}`, label: `a${i}` }));
+    const bad = [
+      many,
+      [{ packageName: "p".repeat(256), label: "x" }],
+      [{ packageName: "p.app", label: "x".repeat(121) }],
+      [{ packageName: "p.app", label: "   " }],
+      [{ packageName: "   ", label: "x" }],
+      [app1, { ...app1, label: "もう1つ" }],
+    ];
+    for (const apps of bad) {
+      const res = await upload(CHILD_ID, apps, CHILD);
+      expect(res.status, JSON.stringify(apps).slice(0, 60)).toBe(400);
+      expect(await codeOf(res)).toBe("bad_request");
+    }
+    const view = api.childAppsGet.res.parse(await (await read(CHILD_ID, PARENT)).json());
+    expect(view.apps).toEqual([{ ...app1, iconHash: null }]);
+  });
+
+  it("上限ちょうど（1000 件・120 文字）は受け付ける", async () => {
+    const full = Array.from({ length: MAX_CHILD_APPS }, (_, i) => ({
+      packageName: `com.example.app${String(i).padStart(4, "0")}`,
+      label: i === 0 ? "あ".repeat(120) : `アプリ${i}`,
+    }));
+    const res = await upload(CHILD_ID, full, CHILD);
+    expect(res.status).toBe(200);
+    const view = api.childAppsGet.res.parse(await (await read(CHILD_ID, PARENT)).json());
+    expect(view.apps).toHaveLength(MAX_CHILD_APPS);
+  });
+
+  it("一覧を送っても設定の版は上がらない（親の設定ではないので、親05・親16 が「反映待ち」にならない）", async () => {
+    const before = api.planGet.res.parse(await (await post("/api/plan/get", { childId: CHILD_ID }, PARENT)).json());
+    await upload(CHILD_ID, [app1, app2], CHILD);
+    const after = api.planGet.res.parse(await (await post("/api/plan/get", { childId: CHILD_ID }, PARENT)).json());
+    expect(after.configVersion).toBe(before.configVersion);
+  });
+});
+
+describe("Q15: 子どもの端末のアプリのアイコン（D-110）", () => {
+  // PNG の頭＋中身。ハッシュは中身の SHA-256
+  const png = (seed: string, size = 32) => {
+    const head = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const bytes = Buffer.concat([head, Buffer.alloc(Math.max(0, size - head.length), seed)]);
+    return { png: bytes.toString("base64"), iconHash: createHash("sha256").update(bytes).digest("hex") };
+  };
+  const video = { packageName: "com.example.video", label: "動画アプリ" };
+  const camera = { packageName: "com.example.camera", label: "カメラ" };
+  const sendList = (apps: unknown) => post("/api/child-apps/upload", { childId: CHILD_ID, apps }, CHILD);
+  const sendIcons = (icons: unknown, token: string | null = CHILD) =>
+    post("/api/child-apps/icons/upload", { childId: CHILD_ID, icons }, token);
+  const readIcons = (packageNames: string[], token: string | null = PARENT) =>
+    post("/api/child-apps/icons/get", { childId: CHILD_ID, packageNames }, token);
+  const listView = async () =>
+    api.childAppsGet.res.parse(await (await post("/api/child-apps/get", { childId: CHILD_ID }, PARENT)).json());
+
+  it("一覧のハッシュのうち、サーバにない・中身が違うアイコンだけを iconsNeeded で返す。送ったら一覧に iconHash が出る", async () => {
+    const v1 = png("v1");
+    const first = api.childAppsUpload.res.parse(
+      await (await sendList([{ ...video, iconHash: v1.iconHash }, camera])).json(),
+    );
+    expect(first.iconsNeeded).toEqual([video.packageName]); // カメラはアイコンなし（ハッシュを送っていない）
+    expect((await listView()).apps.find((a) => a.packageName === video.packageName)?.iconHash).toBeNull();
+
+    const saved = await sendIcons([{ packageName: video.packageName, ...v1 }]);
+    expect(api.childAppIconsUpload.res.parse(await saved.json()).saved).toBe(1);
+    expect((await listView()).apps.find((a) => a.packageName === video.packageName)?.iconHash).toBe(v1.iconHash);
+
+    // 同じハッシュなら要らない。アイコンが変わったら要る
+    const same = api.childAppsUpload.res.parse(await (await sendList([{ ...video, iconHash: v1.iconHash }])).json());
+    expect(same.iconsNeeded).toEqual([]);
+    const v2 = png("v2");
+    const changed = api.childAppsUpload.res.parse(await (await sendList([{ ...video, iconHash: v2.iconHash }])).json());
+    expect(changed.iconsNeeded).toEqual([video.packageName]);
+  });
+
+  it("保護者は頼んだアプリのアイコンだけを読める（ないアプリは入らない）。一覧から消えたアプリのアイコンは消える", async () => {
+    const v1 = png("v1");
+    await sendList([{ ...video, iconHash: v1.iconHash }, camera]);
+    await sendIcons([{ packageName: video.packageName, ...v1 }]);
+    const got = api.childAppIconsGet.res.parse(await (await readIcons([video.packageName, camera.packageName])).json());
+    expect(got.icons).toEqual([{ packageName: video.packageName, ...v1 }]);
+
+    await sendList([camera]); // 動画アプリを消した
+    const after = api.childAppIconsGet.res.parse(await (await readIcons([video.packageName])).json());
+    expect(after.icons).toEqual([]);
+  });
+
+  it("今の一覧にないアプリのアイコンは保存しない", async () => {
+    await sendList([camera]);
+    const res = api.childAppIconsUpload.res.parse(
+      await (await sendIcons([{ packageName: video.packageName, ...png("x") }])).json(),
+    );
+    expect(res.saved).toBe(0);
+  });
+
+  it("PNG でない・ハッシュが中身と合わない・20KB を超える・base64 が正しくないアイコンは bad_request", async () => {
+    await sendList([video]);
+    const notPng = Buffer.from("GIF89a-not-a-png");
+    const big = png("b", MAX_APP_ICON_BYTES + 1);
+    const bad = [
+      { png: notPng.toString("base64"), iconHash: createHash("sha256").update(notPng).digest("hex") },
+      { png: png("a").png, iconHash: png("b").iconHash },
+      big,
+      { png: "iVBORw0KGgo", iconHash: png("a").iconHash }, // = が足りない（読み直すと違う文字になる）
+    ];
+    for (const icon of bad) {
+      const res = await sendIcons([{ packageName: video.packageName, ...icon }]);
+      expect(res.status).toBe(400);
+      expect(await codeOf(res)).toBe("bad_request");
+    }
+    // 1回の枚数の上限
+    const many = Array.from({ length: MAX_APP_ICONS_PER_CALL + 1 }, (_, i) => ({ packageName: `p${i}`, ...png("x") }));
+    expect((await sendIcons(many)).status).toBe(400);
+    expect((await readIcons(many.map((m) => m.packageName))).status).toBe(400);
+  });
+
+  it("送るのは子ども本人だけ・読むのは連携している保護者だけ（子どもは自分の分でも 403）。合言葉の確認は入力より先", async () => {
+    await sendList([video]);
+    const icon = [{ packageName: video.packageName, ...png("x") }];
+    expect((await sendIcons(icon, PARENT)).status).toBe(403);
+    expect((await readIcons([video.packageName], CHILD)).status).toBe(403);
+    const stranger = await newPerson("icons-stranger");
+    const res = await post(
+      "/api/child-apps/icons/get",
+      { childId: stranger.userId, packageNames: [video.packageName] },
+      PARENT,
+    );
+    expect(res.status).toBe(403);
+    expect((await post("/api/child-apps/icons/upload", { childId: "", icons: "x" }, null)).status).toBe(401);
   });
 });
 

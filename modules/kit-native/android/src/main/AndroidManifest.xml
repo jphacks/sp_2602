@@ -7,7 +7,24 @@
   <!-- 使用状況へのアクセス（UsageStatsManager）。設定画面でユーザーが許可する特別な権限（宣言だけでは使えない） -->
   <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
   <!-- アプリ名（label）・ランチャーの一覧・学習用アプリを開くために、ほかのアプリが見える必要がある（Android 11 以降） -->
+  <!-- Q15 のアプリ一覧（engine/LauncherApps.kt）はこれに頼らず、下の <queries> で見える分だけを読む。
+       これを外すかは別に決める（外すと、ホーム画面に出ないアプリの使用時間の名前が packageName になる） -->
   <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+  <!-- ── Q15: 見えるアプリの範囲の宣言（Android 11 以降のパッケージの見え方）──
+       MAIN + LAUNCHER: ホーム画面に出るアプリ（親16 の候補。engine/LauncherApps.kt）。学習用アプリを開く（getLaunchIntentForPackage）にも足りる
+       MAIN + HOME    : ランチャー（ホーム画面のアプリ）。使用時間に数えないアプリを見分ける（engine/UsageReader.kt の ignoredPackages）
+       なぜ: Google Play は QUERY_ALL_PACKAGES を限られた用途にしか認めない。ここで宣言した範囲なら、それなしでも見える -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.HOME" />
+    </intent>
+  </queries>
   <!-- 監視の Foreground Service（Android 14 以降は種類ごとの権限も要る。種類は specialUse） -->
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />

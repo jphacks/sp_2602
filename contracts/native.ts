@@ -3,7 +3,7 @@
 // Kotlin の中身: modules/kit-native/android/src/main/java/dev/hackathon/kit/kitnative/（KitNativeModule.kt と engine/）。
 // 将来 iOS に対応するときは、Swift 側に同じ形を作れば画面を直さずに差し替えられる。
 //   C2: 使用状況アクセスの権限・日別アプリ別の使用時間
-//   （端末のアプリ一覧を取る窓口は置かない。TODO(保留): Q15 親が選ぶ候補をどこから得るかは保留）
+//   Q15: ホーム画面に出るアプリの一覧とアイコン（親16 で対象外を選ぶ候補・保護者の画面のアイコンとして、サーバへ送る。D-110）
 //   C4: 上限に達したときの制限画面（OS が許す範囲で出す。強制停止・常時遮断は保証しない。MVP_SPEC 2章）
 
 // 必要な権限（どれも Android の設定画面でユーザーが許可する。許可の順番もこの順）
@@ -68,6 +68,24 @@ export type NativeParentWidget = {
   testPeriods: NativeTestPeriod[]; // 右「テストまで」（子どものウィジェットと同じ決め方で次のテストを選ぶ）
 };
 
+// ホーム画面に出るアプリ1つ（Q15。ACTION_MAIN + CATEGORY_LAUNCHER のあるアプリ。Slope 自身は入らない）。
+// 送るのは識別子・表示名・アイコンだけ（使用時間・入れた日は入れない。D-110）
+export type NativeLauncherApp = {
+  packageName: string;
+  label: string; // 画面に出すアプリ名（引けなければ packageName）
+  // アイコン（一辺 96px ほどの PNG・base64・改行なし。20KB 以下に収まるまで小さくする）と、その PNG の SHA-256（16進・小文字）。
+  // 作れなかった・収まらなかったアプリは null（保護者の画面は仮のアイコンのまま）。古い版の Kotlin では無い
+  iconPng?: string | null;
+  iconHash?: string | null;
+};
+
+// アプリ一覧の取得結果。取れなかったときを「アプリが0個」にしない（空の一覧を送ると、親16 の候補が全部消えるため）
+//   ok          : 取れた（packageName の順。同じアプリは1つだけ）
+//   unavailable : 取れない（モジュールがない・OS のエラー）→ 送らない
+export type NativeLauncherAppsResult =
+  | { status: "ok"; apps: NativeLauncherApp[] }
+  | { status: "unavailable"; reason: string };
+
 // 監視・制限エンジンの状態
 export type EngineStatus = {
   running: boolean;
@@ -83,6 +101,10 @@ export interface NativeEngine {
   openPermissionSettings(permission: NativePermission): void;
   // 指定した日の、アプリ別の使用時間
   getDailyUsage(date: string): Promise<NativeUsageResult>;
+
+  // ── Q15 ──
+  // ホーム画面に出るアプリの一覧（QUERY_ALL_PACKAGES は使わず、<queries> の宣言で見える範囲だけ）
+  getLauncherApps(): Promise<NativeLauncherAppsResult>;
 
   // ── C4 ──
   // 判定に使う値を端末に保存する。以後はオフラインでもこれで判定する

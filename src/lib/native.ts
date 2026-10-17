@@ -3,11 +3,12 @@
 // （KitNativeModule.kt と engine/）。Kotlin に関数を足したら modules/kit-native/src/KitNativeModule.ts に型を足す
 // （ここは名前で探すので、Kotlin に無い間は安全な既定値を返す）。
 // Kotlin のモジュールや関数が無いとき（Expo Go・テスト・作り直す前のアプリ）・Kotlin が例外を出したときは落とさずに:
-//   権限は全部 false、使用時間は unavailable（0 分にしない）、制限画面は出せない（false）、エンジンは止まっている。
-// 開発用: EXPO_PUBLIC_FAKE_USAGE=1（.env）か setFakeUsage(true) で、Kotlin がなくても仮の使用時間を返す
+//   権限は全部 false、使用時間は unavailable（0 分にしない）、アプリ一覧は unavailable（0 個にしない）、
+//   制限画面は出せない（false）、エンジンは止まっている。
+// 開発用: EXPO_PUBLIC_FAKE_USAGE=1（.env）か setFakeUsage(true) で、Kotlin がなくても仮の使用時間とアプリ一覧を返す
 //   （C3・画面の確認用。仮の値であることは native.fake で分かる）。
 import { demoAppMinutes } from "@contracts/fixtures";
-import type { EngineStatus, NativeEngine, NativeUsageResult } from "@contracts/native";
+import type { EngineStatus, NativeEngine, NativeLauncherAppsResult, NativeUsageResult } from "@contracts/native";
 import { requireOptionalNativeModule } from "expo";
 
 // 無いかもしれないので、モジュールも関数も1つずつ確かめてから呼ぶ
@@ -59,6 +60,13 @@ function fakeUsage(date: string): NativeUsageResult {
   };
 }
 
+// 仮のアプリ一覧: 仮の使用時間と同じアプリ（packageName の順。Kotlin の返す形にそろえる）
+function fakeLauncherApps(): NativeLauncherAppsResult {
+  const apps = demoAppMinutes.map((r) => ({ packageName: r.packageName, label: r.label }));
+  apps.sort((a, b) => (a.packageName < b.packageName ? -1 : a.packageName > b.packageName ? 1 : 0));
+  return { status: "ok", apps };
+}
+
 export const native: NativeEngine & {
   available: boolean; // Kotlin のモジュールがあるか（画面はこれを見て「この端末では使えません」と出せる）
   readonly fake: boolean; // 仮の値を返しているか
@@ -90,6 +98,23 @@ export const native: NativeEngine & {
     }
     if (fake) return fakeUsage(date);
     return { status: "unavailable", reason: "この端末では使用時間を取得できません（Kotlin の部品がまだありません）" };
+  },
+
+  // ── Q15 ──
+  getLauncherApps: async () => {
+    const fn = pick("getLauncherApps");
+    if (fn) {
+      try {
+        return await fn();
+      } catch (e) {
+        return { status: "unavailable", reason: e instanceof Error ? e.message : "アプリの一覧を取得できませんでした" };
+      }
+    }
+    if (fake) return fakeLauncherApps();
+    return {
+      status: "unavailable",
+      reason: "この端末ではアプリの一覧を取得できません（Kotlin の部品がまだありません）",
+    };
   },
 
   // ── C4 ──

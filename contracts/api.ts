@@ -15,6 +15,13 @@ import {
   BlankPeriodList,
   BlankPeriodSaveResult,
   BlankPeriodUpdate,
+  ChildAppIconsQuery,
+  ChildAppIconsUpload,
+  ChildAppIconsUploadResult,
+  ChildAppIconsView,
+  ChildAppsUpload,
+  ChildAppsUploadResult,
+  ChildAppsView,
   ChildQuery,
   ConfigQuery,
   ConfigResult,
@@ -143,7 +150,19 @@ export const api = {
   excludedAppsGet: post("/api/excluded-apps/get", "signedIn", ChildQuery, ExcludedAppsView),
   // 保護者: 対象外アプリを保存する（全件の置き換え。子どもは forbidden。版がずれていたら conflict）
   excludedAppsSave: post("/api/excluded-apps/save", "parent", ExcludedAppsSave, ExcludedAppsSaveResult),
-  // TODO(保留): Q15 子どもの端末のアプリ一覧をサーバへ送る API は作らない（プライバシーの検討中）
+
+  // ── Q15: 子どもの端末のアプリ一覧とアイコン（親16 の候補・親09 と親16 のアイコン。docs/decisions.md D-110）──
+  // 子ども: ホーム画面に出るアプリの一覧（packageName・表示名・アイコンのハッシュ）を送る。全件の置き換え（差分ではない）。
+  //   端末は前に送った中身から変わったときだけ送る（起動時と1日1回ほど確かめる。src/lib/child-apps-sync.ts）。
+  //   応答の iconsNeeded（サーバにないアイコン）だけを、続けて childAppIconsUpload で送る
+  childAppsUpload: post("/api/child-apps/upload", "child", ChildAppsUpload, ChildAppsUploadResult),
+  // 子ども: アイコンの PNG を送る（50 枚ずつ。PNG であること・20KB 以下・ハッシュが合うことをサーバが確かめる）
+  childAppIconsUpload: post("/api/child-apps/icons/upload", "child", ChildAppIconsUpload, ChildAppIconsUploadResult),
+  // 保護者: 連携済みの子どもの端末のアプリ一覧（まだ届いていなければ receivedAt: null）。各アプリのアイコンのハッシュつき。
+  //   excludedAppsGet に入れない理由: 親16 は excludedAppsGet を 30 秒ごとに取り直すので、数百件の一覧を毎回運ばないため
+  childAppsGet: post("/api/child-apps/get", "parent", ChildQuery, ChildAppsView),
+  // 保護者: アイコンの PNG を読む（50 個ずつ。端末に持っていない・ハッシュが変わったものだけを頼む。src/lib/app-icons.ts）
+  childAppIconsGet: post("/api/child-apps/icons/get", "parent", ChildAppIconsQuery, ChildAppIconsView),
 } as const satisfies Record<string, { auth: AuthRule; [key: string]: unknown }>;
 
 export type Api = typeof api;

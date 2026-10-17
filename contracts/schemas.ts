@@ -367,8 +367,8 @@ export type RemovedExcludedApp = z.infer<typeof RemovedExcludedApp>;
 //   appsChangedVersion : 対象外アプリの一覧（アプリの組・名前）が最後に変わった設定の版。一度も変わっていなければ 0。
 //                        childAppliedVersion がこれ以上なら、一覧の全体が子どもの端末に届いている
 //   apps[].sinceVersion: そのアプリが対象外になった版 / removedApps[].removedVersion: そのアプリを外した版
-// TODO(保留): Q15 親が選ぶ候補（子どもの端末のアプリ一覧）をどこから得るかは保留。サーバへ送る API は作らない。
-//   親16 の候補は contracts/fixtures.ts の mockExcludedAppCandidates（MOCK の固定値）を使う
+// 親16 で選ぶ候補（子どもの端末のアプリ一覧）はここには入れない（Q15・D-110）。別の API childAppsGet で読む
+// （なぜ: この一覧は 30 秒ごとに取り直すので、数百件になりうるアプリ一覧を毎回運ばないため）
 export const ExcludedAppsView = z.object({
   childId: z.string().min(1),
   apps: z.array(ExcludedApp),
@@ -392,6 +392,109 @@ export const ExcludedAppsSaveResult = z.object({
   configVersion: ConfigVersion,
 });
 export type ExcludedAppsSaveResult = z.infer<typeof ExcludedAppsSaveResult>;
+
+// ── Q15: 子どもの端末のアプリ一覧とアイコン（親16 の候補・親09 と親16 のアイコン。D-110）────────────────
+
+// 子どもの端末から送るアプリの数の上限。ホーム画面に出るアプリはふつう数十〜300 ほどなので、余裕をみて 1000
+export const MAX_CHILD_APPS = 1000;
+// アイコン1枚（PNG）の大きさの上限（バイト）と、base64 にしたときの文字数の上限。端末は一辺 96px ほどに縮めて送る
+export const MAX_APP_ICON_BYTES = 20 * 1024;
+export const MAX_APP_ICON_BASE64 = Math.ceil(MAX_APP_ICON_BYTES / 3) * 4;
+// 1回で送る・読むアイコンの数の上限（1回の本文を 1.5MB ほどまでにする。Vercel の本文の上限 4.5MB より十分小さく）
+export const MAX_APP_ICONS_PER_CALL = 50;
+
+// 空白だけの文字は受け付けない（DB の「空でない」の決まりに当たって 500 にならないよう、入口で 400 にする）
+const notBlank = (s: string) => s.trim().length > 0;
+
+// アイコンの PNG の中身の SHA-256（16進 64 文字・小文字）。中身が変わったアイコンだけを送る・読み直すのに使う
+export const AppIconHash = z.string().regex(/^[0-9a-f]{64}$/, "アイコンのハッシュの形が違います");
+// アイコンの PNG（base64・改行なし）。PNG であること・大きさ・ハッシュが合うかはサーバが中身を読んで確かめる
+export const AppIconPng = z
+  .string()
+  .min(1)
+  .max(MAX_APP_ICON_BASE64)
+  .regex(/^[A-Za-z0-9+/]+={0,2}$/, "アイコンは base64 で送ってください");
+
+// 子どもの端末のホーム画面に出るアプリ1つ。送るのはアプリの識別子・画面に出す名前・アイコン（の中身のハッシュ）だけ
+// （使用時間・入れた日などは送らない。使用時間は C8 の利用記録で別に送る。プライバシーの説明は docs/decisions.md D-110）。
+// iconHash がない = 端末でアイコンを作れなかった（保護者の画面は仮のアイコンのまま）
+export const ChildApp = z.object({
+  packageName: PackageName.refine(notBlank, "アプリの識別子が空です"),
+  label: z.string().min(1).max(120).refine(notBlank, "アプリの名前が空です"), // 対象外アプリ（ExcludedAppInput）と同じ長さ
+  iconHash: AppIconHash.optional(),
+});
+export type ChildApp = z.infer<typeof ChildApp>;
+
+// 子どもが一覧を送る（全件の置き換え。差分ではない）。同じ packageName が2回あるのは端末の不具合なので断る。
+// アイコンの画像はここには入れない（重いので、サーバが持っていないものだけを childAppIconsUpload で送る）
+export const ChildAppsUpload = z.object({
+  childId: z.string().min(1),
+  apps: z
+    .array(ChildApp)
+    .max(MAX_CHILD_APPS)
+    .refine((apps) => new Set(apps.map((a) => a.packageName)).size === apps.length, "同じアプリが2回入っています"),
+});
+export type ChildAppsUpload = z.infer<typeof ChildAppsUpload>;
+
+export const ChildAppsUploadResult = z.object({
+  appCount: z.number().int().min(0), // 保存した件数
+  receivedAt: IsoDateTime, // サーバが受け取った時刻
+  // サーバが持っていない（または中身が違う）アイコンのアプリ。端末はこのアプリのアイコンだけを childAppIconsUpload で送る
+  iconsNeeded: z.array(PackageName),
+});
+export type ChildAppsUploadResult = z.infer<typeof ChildAppsUploadResult>;
+
+// アイコン1枚（送る・読むの両方の形）
+export const ChildAppIcon = z.object({ packageName: PackageName, iconHash: AppIconHash, png: AppIconPng });
+export type ChildAppIcon = z.infer<typeof ChildAppIcon>;
+
+const uniquePackages = (items: readonly { packageName: string }[]) =>
+  new Set(items.map((i) => i.packageName)).size === items.length;
+
+// 子どもがアイコンを送る（MAX_APP_ICONS_PER_CALL 枚ずつ）。今の一覧にないアプリのアイコンは保存しない
+export const ChildAppIconsUpload = z.object({
+  childId: z.string().min(1),
+  icons: z
+    .array(ChildAppIcon)
+    .min(1)
+    .max(MAX_APP_ICONS_PER_CALL)
+    .refine(uniquePackages, "同じアプリのアイコンが2回入っています"),
+});
+export type ChildAppIconsUpload = z.infer<typeof ChildAppIconsUpload>;
+
+export const ChildAppIconsUploadResult = z.object({
+  saved: z.number().int().min(0), // 保存した枚数（今の一覧にないアプリの分は数えない）
+});
+export type ChildAppIconsUploadResult = z.infer<typeof ChildAppIconsUploadResult>;
+
+// 保護者がアイコンを読む（MAX_APP_ICONS_PER_CALL 個ずつ。端末に持っていない・ハッシュが変わったものだけを頼む）
+export const ChildAppIconsQuery = z.object({
+  childId: z.string().min(1),
+  packageNames: z.array(PackageName).min(1).max(MAX_APP_ICONS_PER_CALL),
+});
+export type ChildAppIconsQuery = z.infer<typeof ChildAppIconsQuery>;
+
+// 頼んだアプリのうち、サーバにアイコンがあるものだけ（ないアプリは入らない＝仮のアイコンのまま）
+export const ChildAppIconsView = z.object({ childId: z.string().min(1), icons: z.array(ChildAppIcon) });
+export type ChildAppIconsView = z.infer<typeof ChildAppIconsView>;
+
+// 保護者が読む一覧の1つ。iconHash はサーバにあるアイコンのハッシュ（ない = null。仮のアイコンを出す）
+export const ChildAppEntry = z.object({
+  packageName: ChildApp.shape.packageName,
+  label: ChildApp.shape.label,
+  iconHash: AppIconHash.nullable(),
+});
+export type ChildAppEntry = z.infer<typeof ChildAppEntry>;
+
+// 保護者が読む子どもの端末のアプリ一覧。receivedAt が null = まだ一度も届いていない（apps は空）。
+// 届いた一覧が空（apps: [] で receivedAt あり）とは分ける（「まだ届いていません」と「アプリがありません」を取り違えないため）。
+// apps は表示名の順に並べてある（同じ名前なら packageName の順）
+export const ChildAppsView = z.object({
+  childId: z.string().min(1),
+  apps: z.array(ChildAppEntry),
+  receivedAt: IsoDateTime.nullable(),
+});
+export type ChildAppsView = z.infer<typeof ChildAppsView>;
 
 // ── C7: 設定のスナップショット ────────────────────────────────────
 

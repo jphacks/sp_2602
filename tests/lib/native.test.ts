@@ -19,6 +19,8 @@ describe("native（モジュールなし）", () => {
       batteryOptimization: false,
     });
     expect((await native.getDailyUsage("2026-10-17")).status).toBe("unavailable");
+    // アプリ一覧も 0 個ではなく unavailable（空の一覧を送って親16 の候補を消さないように。Q15）
+    expect((await native.getLauncherApps()).status).toBe("unavailable");
     expect(native.getEngineStatus()).toEqual({ running: false, restrictionDate: null });
     expect(native.showLimitReached()).toBe(false);
     expect(native.openApp("com.example.studynote")).toBe(false);
@@ -46,6 +48,12 @@ describe("native（モジュールなし）", () => {
     const r = await native.getDailyUsage("2026-10-17");
     expect(r.status).toBe("ok");
     expect(native.fake).toBe(true);
+    // 仮のアプリ一覧は、仮の使用時間と同じアプリを packageName の順で（Kotlin の返す形にそろえる）
+    const apps = await native.getLauncherApps();
+    expect(apps.status).toBe("ok");
+    const names = apps.status === "ok" ? apps.apps.map((a) => a.packageName) : [];
+    expect(names.length).toBeGreaterThan(0);
+    expect(names).toEqual([...names].sort());
     setFakeUsage(false);
   });
 });

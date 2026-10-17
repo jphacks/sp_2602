@@ -132,7 +132,22 @@ flowchart TD
 | `excludedAppsGet` | POST `/api/excluded-apps/get` | signedIn | `{ childId }` | `ExcludedAppsView`（`apps`・`removedApps`（外したアプリと外した版）・`appsChangedVersion`（一覧が最後に変わった版）・`configVersion`・`childAppliedVersion`） | 403 |
 | `excludedAppsSave` | POST `/api/excluded-apps/save` | parent | `{ childId, expectedVersion, apps（全件。500件まで）}` | `ExcludedAppsSaveResult`（`apps`・`configVersion`） | 403（子どもは保存できない）、409 |
 
-子どもの端末のアプリ一覧をサーバへ送る API は**ありません**（Q15 保留。`tests/server/api.test.ts` の「子どもの端末のアプリ一覧を送る API はない（Q15 保留）」で確かめている）。
+### 子どもの端末のアプリ一覧とアイコン（Q15・D-110）
+
+親16 の候補（子どもの端末のホーム画面に出るアプリ）と、親09・親16 のアプリの本物のアイコン。送るのは packageName・表示名・アイコン（PNG）だけで、使用時間は C8 で別に送ります。設定の版は上げません（親の設定ではないので、親05・親16 が「反映待ち」にならない）。
+
+| 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
+|---|---|---|---|---|---|
+| `childAppsUpload` | POST `/api/child-apps/upload` | child | `{ childId, apps（全件。1000件まで）: [{ packageName（255文字まで）, label（120文字まで）, iconHash?（PNG の SHA-256・16進 64 文字）}] }` | `ChildAppsUploadResult`（`appCount`・`receivedAt`・`iconsNeeded`（サーバにない・中身が違うアイコンのアプリ）） | 400（件数・長さの上限・空白だけの文字・同じアプリが2回）、403（保護者・ほかの子ども） |
+| `childAppIconsUpload` | POST `/api/child-apps/icons/upload` | child | `{ childId, icons（1〜50枚）: [{ packageName, iconHash, png（base64）}] }` | `ChildAppIconsUploadResult`（`saved`：保存した枚数。今の一覧にないアプリの分は保存せず数えない） | 400（PNG でない・20KB を超える・base64 が正しくない・ハッシュが中身と合わない・51 枚以上）、403 |
+| `childAppsGet` | POST `/api/child-apps/get` | parent | `{ childId }` | `ChildAppsView`（`apps`（表示名の順。`iconHash` はサーバにあるアイコンのハッシュ、なければ `null`）・`receivedAt`（まだ届いていなければ `null`）） | 403（子どもは自分の分でも 403・連携していない子ども） |
+| `childAppIconsGet` | POST `/api/child-apps/icons/get` | parent | `{ childId, packageNames（1〜50個）}` | `ChildAppIconsView`（`icons`：頼んだうちサーバにあるものだけ） | 400（51 個以上）、403 |
+
+- `childAppsUpload` は全件の置き換えです。送らなかったアプリは一覧から消え、そのアイコンも消えます。`receivedAt: null`（まだ届いていない）と、届いた一覧が空（`apps: []`）は分けます。
+- 端末はアイコンの画像を一覧に入れず、ハッシュだけを入れます。サーバが `iconsNeeded` で返したアプリのアイコンだけを、50 枚ずつ `childAppIconsUpload` で送ります（`src/lib/child-apps-sync.ts`）。
+- サーバはアイコンの中身を確かめます（base64 を読み直して同じになる・PNG の頭・20KB 以下・SHA-256 が `iconHash` と同じ。`src/server/services/child-apps.ts` の `checkIconPng`）。保護者の端末はこの中身をそのまま画像として出すためです。
+- 保護者の端末は、端末にない・ハッシュが変わったアイコンだけを 50 個ずつ `childAppIconsGet` で読みます（`src/lib/app-icons.ts`）。
+- `excludedAppsGet` に入れない理由: 親16 は `excludedAppsGet` を 30 秒ごとに取り直すので、数百件の一覧を毎回運ばないためです。
 
 ## 4. エラーの形
 
