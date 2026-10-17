@@ -8,6 +8,13 @@
       "when": 1792217075313,
       "tag": "0000_keen_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792217742275,
+      "tag": "0001_burly_captain_britain",
+      "breakpoints": true
     }
   ]
 }

@@ -19,13 +19,12 @@ import { users } from "./users.js";
 export const usageSyncBatches = pgTable("usage_sync_batches", {
   submissionId: uuid("submission_id").notNull(),
   childId: uuid("child_id").notNull().references(() => users.id),
-  payloadHash: text("payload_hash").notNull(),
+  payloadHash: text("payload_hash"),
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   primaryKey({ name: "usage_sync_batches_pk", columns: [table.submissionId] }),
   unique("usage_sync_batches_submission_child_unique").on(table.submissionId, table.childId),
   index("usage_sync_batches_child_received_idx").on(table.childId, table.receivedAt),
-  check("usage_sync_batches_payload_hash_not_blank", sql`length(${table.payloadHash}) > 0`),
 ]);
 
 /** Rows are immutable accepted snapshots; later aggregation semantics belong to C8/C6. */
