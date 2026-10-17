@@ -215,4 +215,41 @@ describe("合言葉", () => {
     setSessionToken(null);
     setUnauthorizedHandler(null);
   });
+
+  // 合言葉が無効になる（サーバが DB 版に替わる等）→ ログイン画面 → ログインし直した後に、前の合言葉で送っていた呼び出しの 401 が
+  // 遅れて届いても、新しくログインした人をログアウトさせない
+  it("前の合言葉で送った呼び出しの 401 が、ログインし直した後に届いても、登録した関数を呼ばない", async () => {
+    const { call, setSessionToken, setUnauthorizedHandler } = await load("http://h");
+    const seen: string[] = [];
+    setUnauthorizedHandler(() => seen.push("401"));
+    let reply: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", () => new Promise<Response>((r) => (reply = r)));
+    setSessionToken("old");
+    const pending = call("planGet", { childId: "c1" }).catch((e: unknown) => e);
+    setSessionToken("new"); // 待っている間にログインし直した
+    reply(Response.json({ code: "unauthorized", message: "m", hint: "h" }, { status: 401 }));
+    const err = await pending;
+    expect((err as { status?: number }).status).toBe(401); // 呼んだ画面には 401 のエラーとして返す
+    expect(seen).toEqual([]);
+    setSessionToken(null);
+    setUnauthorizedHandler(null);
+  });
+
+  it("isUnauthorized: 本文が読めない 401 も「合言葉が無効」とみなす（起動時に offline と取り違えない）", async () => {
+    const { ApiCallError, isUnauthorized } = await load("http://h");
+    expect(isUnauthorized(new ApiCallError({ code: "internal", message: "m", hint: "" }, 401))).toBe(true);
+    expect(isUnauthorized(new ApiCallError({ code: "unauthorized", message: "m", hint: "" }, 401))).toBe(true);
+    expect(isUnauthorized(new ApiCallError({ code: "network", message: "m", hint: "" }, 0))).toBe(false);
+    expect(isUnauthorized(new ApiCallError({ code: "forbidden", message: "m", hint: "" }, 403))).toBe(false);
+    expect(isUnauthorized(new Error("x"))).toBe(false);
+  });
+
+  // 合言葉は有効なまま、サーバ上の id・役割が変わる（#49: デモの人の合言葉は固定で id が uuid に）と、自分の設定の取得が 403 になる
+  it("needsIdentityCheck: 403（forbidden）だけ、サーバに自分は誰かを確かめ直す", async () => {
+    const { needsIdentityCheck } = await load("http://h");
+    expect(needsIdentityCheck({ code: "forbidden", message: "m", hint: "" })).toBe(true);
+    expect(needsIdentityCheck({ code: "network", message: "m", hint: "" })).toBe(false);
+    expect(needsIdentityCheck({ code: "unauthorized", message: "m", hint: "" })).toBe(false); // 401 はログアウト扱い（別の道）
+    expect(needsIdentityCheck(null)).toBe(false);
+  });
 });

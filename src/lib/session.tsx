@@ -11,7 +11,7 @@
 import type { ApiError } from "@contracts/errors";
 import { Session } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiCallError, call, errorOf, setSessionToken, setUnauthorizedHandler } from "./api";
+import { call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
@@ -66,7 +66,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       await adopt(await call("authMe"));
     } catch (e) {
-      if (e instanceof ApiCallError && e.error.code === "unauthorized") await forget(null);
+      // 401 なら（本文の code が読めなくても）保存を消してログイン画面へ。通信できないときだけ保存した Session で続ける
+      if (isUnauthorized(e)) await forget(null);
       else setState({ status: "signedIn", session: saved, offline: true });
     }
   }, [adopt, forget]);

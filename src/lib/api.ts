@@ -63,6 +63,20 @@ export class ApiCallError extends Error {
   }
 }
 
+// 合言葉が無効と言われたか（401）。本文が読めない 401（間にある仕組みが返したもの等）も含める。
+// session.tsx の起動時の確認で、これを「通信できない（offline で続ける）」と取り違えないため
+export function isUnauthorized(e: unknown): boolean {
+  return e instanceof ApiCallError && (e.status === 401 || e.error.code === "unauthorized");
+}
+
+// 自分の役割・自分の子どもの範囲で呼んだのに 403（forbidden）が返ったか。返ったら、サーバに「自分は誰か」を確かめ直す
+// （session.tsx の refresh。child-data.tsx・parent-data.tsx が使う）。
+// なぜ: 合言葉はまだ有効なのに、サーバ側の人の id・役割が変わることがある（#49 の DB 版のサーバでは、デモの人の合言葉は固定のまま
+//   id が uuid になる）。前は起動し直すまで古い id のまま呼び続け、設定は「最新でない可能性」のまま、利用記録は送るたびに隔離されて溜まった
+export function needsIdentityCheck(error: ApiError | null | undefined): boolean {
+  return error?.code === "forbidden";
+}
+
 // どんな例外でも画面に出せる形にする。自分で中断した場合だけ null（エラー表示しない）
 export function errorOf(e: unknown): ApiError | null {
   if (e instanceof ApiCallError) return e.error;
@@ -73,7 +87,9 @@ export function errorOf(e: unknown): ApiError | null {
 async function send(path: string, method: string, body: unknown, signal?: AbortSignal): Promise<Response> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`;
+  // 送ったときの合言葉（401 が返ったとき、それがまだ今の合言葉かを確かめるため）
+  const sentToken = sessionToken;
+  if (sentToken) headers.Authorization = `Bearer ${sentToken}`;
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
@@ -89,7 +105,10 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
     throw new ApiCallError({ code: "network", ...errorText.network }, 0);
   }
   if (!res.ok) {
-    if (res.status === 401 && headers.Authorization) onUnauthorized?.();
+    // 401 で「ログアウト扱い」にするのは、送った合言葉がまだ今の合言葉のときだけ。
+    // なぜ: 合言葉が無効になってログイン画面へ戻り、ログインし直したあとに、前の合言葉で送っていた呼び出し（時間のかかる取得・
+    //   送信待ちの送信など）の 401 が遅れて届くと、新しくログインした人までログアウトさせてしまうため
+    if (res.status === 401 && sentToken && sentToken === sessionToken) onUnauthorized?.();
     const parsed = ApiError.safeParse(await res.json().catch(() => null));
     throw new ApiCallError(parsed.success ? parsed.data : { code: "internal", ...errorText.internal }, res.status);
   }

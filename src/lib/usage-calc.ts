@@ -210,6 +210,20 @@ export function clipText(text: string, max: number): string {
   return out;
 }
 
+// 同じアプリ（packageName）が2回出てきたら、使った時間を足して1つにする（名前は最初のもの。順番は最初に出てきた位置）。
+// なぜ: #49 の契約では、1日の記録に同じアプリが2回あると形の誤り（UsageDayReport の superRefine）になり、その日の記録が丸ごと
+//   隔離されて親に届かなくなる。ふだんの Kotlin（UsageReader）はアプリごとにまとめて返すが、まとめる前の形が来ても落とさないため
+function mergeSamePackage<A extends { packageName: string; label: string; usedMinutes: number }>(
+  apps: readonly A[],
+): A[] {
+  const byPackage = new Map<string, A>();
+  for (const a of apps) {
+    const seen = byPackage.get(a.packageName);
+    byPackage.set(a.packageName, seen ? { ...seen, usedMinutes: seen.usedMinutes + a.usedMinutes } : a);
+  }
+  return [...byPackage.values()];
+}
+
 // C2 の実績を、C8 で送る1日ぶんの利用記録の形にする（Q8: アプリ別の累計＋測った時刻＋制限対象の合計分）。
 // excluded と restrictedMinutes は C3 と同じ判定で付ける（親の画面はこの合計を使い、新しい設定で過去を計算し直さない）
 // 作った記録が必ず契約に合うようにする（なぜ: 合わない記録はサーバで 400 になり、その日の記録が親に届かないため）:
@@ -221,7 +235,7 @@ export function toUsageDayReport(
   excludedPackages: readonly string[],
   essentialPackages: readonly string[] = ESSENTIAL_PACKAGES,
 ): UsageDayReport {
-  const all = usage.apps.map((a) => ({
+  const all = mergeSamePackage(usage.apps).map((a) => ({
     packageName: a.packageName,
     label: clipText(a.label.trim() || a.packageName, APP_LABEL_MAX),
     usedMinutes: Math.min(1440, Math.max(0, Math.round(a.usedMinutes))),
