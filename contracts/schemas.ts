@@ -419,12 +419,25 @@ export const ConfigQuery = z.object({
 });
 export type ConfigQuery = z.infer<typeof ConfigQuery>;
 
-// C7 の取得の結果。changed: false なら手元の組をそのまま使ってよい
+// C7 の epoch（docs/decisions.md D-109）。サーバの DB ごとに1つ決まる値（DB を作ったときに1回だけ作る uuid。表 server_meta）。
+// DB を作り直す・PGlite と Neon を切り替えると変わり、サーバを再起動しても変わらない。
+// なぜ: 版（configVersion）は DB の中の数なので、DB を作り直すと 0 から数え直す。端末が手元の大きな版を信じ続けて
+//   新しい設定を「古い応答」として捨てないよう、版を比べる前に「同じ DB の版か」を epoch で確かめる
+export const ConfigEpoch = z.string().min(1).max(100);
+export type ConfigEpoch = z.infer<typeof ConfigEpoch>;
+
+// C7 の取得の結果。changed: false なら手元の組をそのまま使ってよい（ただし epoch が手元と同じときだけ）。
+// epoch はどちらの形にも必ず入る。端末は手元の epoch と違えば、版を比べずに手元を捨てる（changed: false なら knownVersion なしで取り直す）
 export const ConfigResult = z.discriminatedUnion("changed", [
-  z.object({ changed: z.literal(false), configVersion: ConfigVersion }),
-  z.object({ changed: z.literal(true), snapshot: ConfigSnapshot }),
+  z.object({ changed: z.literal(false), configVersion: ConfigVersion, epoch: ConfigEpoch }),
+  z.object({ changed: z.literal(true), snapshot: ConfigSnapshot, epoch: ConfigEpoch }),
 ]);
 export type ConfigResult = z.infer<typeof ConfigResult>;
+
+// 端末に保存する C7 の組（src/lib/config-cache.ts。AsyncStorage の slope.config.<childId>）。
+// epoch はその組をくれたサーバの DB の値。epoch を足す前に保存した組には epoch がない（読めるが「epoch が違う」として扱い、次の取得で捨てる）
+export const CachedConfig = z.object({ snapshot: ConfigSnapshot, savedAt: z.string(), epoch: ConfigEpoch.optional() });
+export type CachedConfig = z.infer<typeof CachedConfig>;
 
 // ── C8: 利用記録（子どもの端末 → サーバ）────────────────────────
 

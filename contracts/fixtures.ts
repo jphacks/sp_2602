@@ -201,7 +201,7 @@ export const fixtures = {
     configVersion: 6,
     calculationVersion: 5,
   } satisfies Res<"blankPeriodDelete">,
-  configGet: { changed: true, snapshot } satisfies Res<"configGet">,
+  configGet: { changed: true, snapshot, epoch: "3f0c9a52-6d1e-4b7a-9c2f-8e4d1a6b5c70" } satisfies Res<"configGet">,
   usageUpload: {
     submissionId: "7f1c2b4e-8d3a-4f6b-9c2d-1e5a7b9c0d12",
     status: "accepted",

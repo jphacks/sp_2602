@@ -3,6 +3,7 @@ import { topUpDailyLimits } from "../../../backend/src/db/c10-recalculate.js";
 import { readChildConfigSnapshot } from "../../../backend/src/db/config-snapshot.js";
 import { childAppliedVersions } from "../../../backend/src/db/schema/settings-state.js";
 import { users } from "../../../backend/src/db/schema/users.js";
+import { readServerEpoch } from "../../../backend/src/db/server-epoch.js";
 import { listTestPeriods, TestPeriodAccessDeniedError } from "../../../backend/src/db/test-periods.js";
 import type { Caller } from "../auth.js";
 import { db } from "../db/index.js";
@@ -20,6 +21,8 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
   // 日別上限の残りが少なければ、ここで作り足す（設定の版が 1 上がる。LIMIT_TOPUP_MIN_DAYS）
   await topUpDailyLimits(database, childId);
   const snapshot = await readChildConfigSnapshot(database, childId);
+  // この DB の epoch（D-109）。changed: false の応答にも必ず入れる（端末は手元の epoch と違えば、版を比べずに取り直す）
+  const epoch = await readServerEpoch(database);
   const configVersion = snapshot.configVersion ?? 0;
 
   // まだ一度も日別上限を作っていない（紐づけ直後で、通常上限も計画も保存していない）は「未設定」: 計算の版 0・日別上限なし。
@@ -42,7 +45,7 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
       });
   }
 
-  if (knownVersion === configVersion) return { changed: false as const, configVersion };
+  if (knownVersion === configVersion) return { changed: false as const, configVersion, epoch };
 
   const authors = snapshot.testPeriods.length
     ? await database
@@ -62,6 +65,7 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
 
   return {
     changed: true as const,
+    epoch,
     snapshot: {
       childId,
       configVersion,
