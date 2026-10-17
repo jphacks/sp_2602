@@ -3,10 +3,10 @@
 // パスの手書きはしない。API を足すときは契約に足し、handlers/ に同じ名前の処理を置いて index.ts から export する。
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { api } from "../../contracts/api";
-import { errorStatus, errorText } from "../../contracts/errors";
-import { toApiError } from "./errors";
-import * as handlers from "./handlers";
+import { api } from "../../contracts/api.js";
+import { errorStatus, errorText } from "../../contracts/errors.js";
+import { toApiError } from "./errors.js";
+import * as handlers from "./handlers/index.js";
 
 type Handler = (request: Request) => Promise<Response>;
 

@@ -512,6 +512,40 @@ describe("C8: 利用記録", () => {
     expect(changed.status).toBe(409);
   });
 
+  it("1日分に同じpackageNameが重複する送信は受け付けない", async () => {
+    const app = { packageName: "com.example.video", label: "動画", usedMinutes: 5, excluded: false };
+    const response = await post(
+      "/api/usage/upload",
+      {
+        submissionId: crypto.randomUUID(),
+        childId: CHILD_ID,
+        days: [
+          {
+            date: TODAY,
+            measuredAt: "2026-10-15T02:00:00.000Z",
+            restrictedMinutes: 10,
+            apps: [app, app],
+          },
+        ],
+      },
+      CHILD,
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("同じ日付を複数回含む送信は受け付けない", async () => {
+    const response = await post(
+      "/api/usage/upload",
+      {
+        submissionId: crypto.randomUUID(),
+        childId: CHILD_ID,
+        days: [day(TODAY, "2026-10-15T02:00:00.000Z", 10), day(TODAY, "2026-10-15T03:00:00.000Z", 20)],
+      },
+      CHILD,
+    );
+    expect(response.status).toBe(400);
+  });
+
   it("日ごとに、測った時刻が一番新しい記録を正とする（古い記録が後から届いても上書きしない）", async () => {
     await post(
       "/api/usage/upload",

@@ -1,7 +1,5 @@
 // C9: 保護者が対象外アプリを保存する（子どもは契約の auth: parent で forbidden）。
-import { getStore } from "../mock/store";
-import { handle } from "../route";
+import { callerOf, handle } from "../route.js";
+import { saveExcludedAppsForParent } from "../services/excluded-apps.js";
 
-export default handle("excludedAppsSave", async (req) =>
-  getStore().excludedAppsSave(req.childId, req.expectedVersion, req.apps),
-);
+export default handle("excludedAppsSave", async (req, ctx) => saveExcludedAppsForParent(callerOf(ctx), req));

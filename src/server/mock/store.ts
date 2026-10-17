@@ -6,8 +6,8 @@
 // 設定を変える操作は「写しを作って変える → C10 で日別上限を作り直す → 全部うまくいったら入れ替えて版を上げる」の1回の処理（Q5）。
 //   途中で失敗したら前の状態のまま（DB のトランザクションの代わり）。
 // MOCK=1 のときは、デモの3人（contracts/fixtures.ts の mockSessions）と、見本の計画・利用記録を用意する。
-import { addDays, datesInRange, todayString } from "../../../contracts/dates";
-import { demoUsageDay, mockSessions } from "../../../contracts/fixtures";
+import { addDays, datesInRange, todayString } from "../../../contracts/dates.js";
+import { demoUsageDay, mockSessions } from "../../../contracts/fixtures.js";
 import type {
   BlankPeriod,
   ConfigResult,
@@ -30,19 +30,24 @@ import type {
   UsageDay,
   UsageDayReport,
   UsageUploadResult,
-} from "../../../contracts/schemas";
-import { isMock } from "../env";
-import { AppError } from "../errors";
-import { computeDailyLimits, type DailyLimitOptions, mergeWithFinalized, PlanCalcError } from "../plan/daily-limits";
+} from "../../../contracts/schemas.js";
+import { isMock } from "../env.js";
+import { AppError } from "../errors.js";
+import {
+  computeDailyLimits,
+  type DailyLimitOptions,
+  LIMIT_HORIZON_DAYS,
+  mergeWithFinalized,
+  PlanCalcError,
+} from "../plan/daily-limits.js";
+
+export { LIMIT_HORIZON_DAYS } from "../plan/daily-limits.js";
 
 // ── 決まりごと ──
 
-// QR の有効期限は 10 分・1回だけ・出し直したら前の QR は無効（Q10）
-export const PAIR_TTL_MS = 10 * 60_000;
-// 合言葉の期限: 最後に使ってから30日（作り直し前の決定 10/17）
-export const SESSION_IDLE_MS = 30 * 86_400_000;
-// TODO(未決): C10 の日別上限を何日先まで作るか（図・仕様に数値がない）。今は保存した日から 120 日先まで
-export const LIMIT_HORIZON_DAYS = 120;
+// QR の有効期限・再発行時の扱いは未決。MOCK でも期限を設定せず、既存の QR を残す。
+// セッションの期限は未決。MOCK は期限なしで扱い、DB側も expiresAt が null の間は期限判定しない。
+// TODO(未決): C10 の日別上限を何日先まで作るか（図・仕様に数値がない）。現状の見本動作は120日先まで。
 // 日別上限の残りがこの日数を切ったら、configGet のときに作り足す（今日から LIMIT_HORIZON_DAYS 日先まで作り直す）。
 // なぜ: 保存した日から 120 日先までしか作らないと、設定を変えないまま 120 日たつと「上限未設定」の日になってしまうため。
 //   日数を大きく伸ばす案もあるが、それでも「いつかは切れる」ので、取りに来たときに足りなければ作り足す形にした。
@@ -68,7 +73,7 @@ export type StoreOptions = {
 };
 
 type User = { userId: string; name: string; role: Role | null };
-type SessionRow = { token: string; userId: string; lastUsedAt: number };
+type SessionRow = { token: string; userId: string };
 type Pair = {
   pairId: string;
   code: string;
@@ -76,7 +81,7 @@ type Pair = {
   childName: string;
   parentUserId: string | null;
   state: PairStatus["state"];
-  expiresAt: number;
+  expiresAt: number | null;
 };
 type ChildConfig = {
   configVersion: number;
@@ -149,13 +154,6 @@ function fingerprintOf(days: UsageDayReport[]): string {
 const versionConflict = () =>
   new AppError("conflict", "ほかの端末で先に変更されました", "画面を更新して、もう一度変更してください");
 
-const oneToOne = () =>
-  new AppError(
-    "conflict",
-    "すでにほかの家族と連携しています",
-    "いまは保護者1人と子ども1人だけで連携できます（2人目は連携できません）",
-  );
-
 export class MemoryStore {
   private readonly now: () => Date;
   private readonly calcOptions: DailyLimitOptions;
@@ -195,7 +193,7 @@ export class MemoryStore {
     if (fixed) {
       if (!this.users.has(fixed.userId))
         this.users.set(fixed.userId, { userId: fixed.userId, name: fixed.name, role: fixed.role });
-      this.sessions.set(fixed.token, { token: fixed.token, userId: fixed.userId, lastUsedAt: this.now().getTime() });
+      this.sessions.set(fixed.token, { token: fixed.token, userId: fixed.userId });
       return this.sessionOf(fixed.token, fixed.userId);
     }
     const suffix = idToken.slice("mock-".length) || "anonymous";
@@ -211,20 +209,14 @@ export class MemoryStore {
       this.users.set(userId, { userId, name, role: null });
     }
     const token = randomId(); // TODO(未決): 本物の DB では合言葉をハッシュで保存する（作り直し前の方針）
-    this.sessions.set(token, { token, userId, lastUsedAt: this.now().getTime() });
+    this.sessions.set(token, { token, userId });
     return this.sessionOf(token, userId);
   }
 
-  // 合言葉から呼んだ人を探す。30日使われていなければ無効。使うたびに期限を延ばす
+  // セッション期限は未決なので、MOCK では時刻を根拠に失効させない。
   findSession(token: string): Session | null {
     const row = this.sessions.get(token);
     if (!row) return null;
-    const now = this.now().getTime();
-    if (now - row.lastUsedAt > SESSION_IDLE_MS) {
-      this.sessions.delete(token);
-      return null;
-    }
-    row.lastUsedAt = now;
     return this.sessionOf(token, row.userId);
   }
 
@@ -247,24 +239,10 @@ export class MemoryStore {
 
   // ── QR の紐づけ（C1）──
 
-  private hasChild(parentId: string): boolean {
-    for (const key of this.links) if (key.startsWith(`${parentId}|`)) return true;
-    return false;
-  }
-
-  private hasParent(childId: string): boolean {
-    for (const key of this.links) if (key.endsWith(`|${childId}`)) return true;
-    return false;
-  }
-
-  // 子ども: QR を出す。前に出した未使用の QR は無効にする（Q10）。すでに連携済みなら conflict（親1人↔子1人。Q2）
+  // 子ども: QR を出す。期限・再発行時の扱いは未決なので、期限なしで既存の QR も保持する。
   pairStart(caller: Session, name?: string): PairTicket {
     if (caller.role === "parent")
       throw new AppError("conflict", "保護者の端末では QR を出せません", "子どもの端末で QR を出してください");
-    if (this.hasParent(caller.userId)) throw oneToOne();
-    const now = this.now().getTime();
-    for (const p of this.pairs.values())
-      if (p.childUserId === caller.userId && (p.state === "waiting" || p.state === "claimed")) p.state = "expired";
     const pair: Pair = {
       pairId: randomId(),
       code: randomCode(),
@@ -272,15 +250,16 @@ export class MemoryStore {
       childName: name ?? caller.name,
       parentUserId: null,
       state: "waiting",
-      expiresAt: now + PAIR_TTL_MS,
+      expiresAt: null,
     };
     this.pairs.set(pair.pairId, pair);
-    return { pairId: pair.pairId, code: pair.code, expiresAt: new Date(pair.expiresAt).toISOString() };
+    return { pairId: pair.pairId, code: pair.code, expiresAt: null };
   }
 
   // 期限が過ぎていれば expired にする（聞かれたときに確かめる）
   private refreshExpiry(p: Pair): void {
-    if ((p.state === "waiting" || p.state === "claimed") && this.now().getTime() > p.expiresAt) p.state = "expired";
+    if ((p.state === "waiting" || p.state === "claimed") && p.expiresAt !== null && this.now().getTime() >= p.expiresAt)
+      p.state = "expired";
   }
 
   private statusOf(p: Pair): PairStatus {
@@ -289,7 +268,7 @@ export class MemoryStore {
       state: p.state,
       child: { id: p.childUserId, name: p.childName },
       parentName: p.parentUserId ? (this.users.get(p.parentUserId)?.name ?? null) : null,
-      expiresAt: new Date(p.expiresAt).toISOString(),
+      expiresAt: p.expiresAt === null ? null : new Date(p.expiresAt).toISOString(),
     };
   }
 
@@ -332,7 +311,6 @@ export class MemoryStore {
       throw new AppError("conflict", "この QR コードはもう使われています", "子どもの端末で QR を出し直してください");
     if (p.childUserId === caller.userId)
       throw new AppError("conflict", "自分の QR コードは読み取れません", "保護者の端末で読み取ってください");
-    if (this.hasChild(caller.userId) || this.hasParent(p.childUserId)) throw oneToOne();
     p.parentUserId = caller.userId;
     p.state = "claimed";
     return this.statusOf(p);
@@ -360,8 +338,6 @@ export class MemoryStore {
     const child = this.userOf(p.childUserId);
     if (parent.role === "child" || child.role === "parent")
       throw new AppError("conflict", "役割が合わないため連携できません", "QR をもう一度出してください");
-    // 読み取りから確定までの間に、どちらかが別の相手と連携していないかを確かめ直す（Q2）
-    if (this.hasChild(parentId) || this.hasParent(child.userId)) throw oneToOne();
     // ここから先は失敗しない書き込みだけ（役割・呼び名・つながり・設定の器・QR の使用済み）を、まとめて行う
     parent.role = "parent";
     child.role = "child";
@@ -456,7 +432,7 @@ export class MemoryStore {
     return draft;
   }
 
-  // C10: 今日から先の日別上限を作り直す（昨日以前の値は変えない。Q4）
+  // C10: 今日の確定値は保ち、翌日から先の日別上限を作り直す（Q4・同日設定変更は翌日反映）
   private recalculate(draft: ChildConfig): void {
     const today = this.today();
     let computed: DailyLimit[];
@@ -476,7 +452,7 @@ export class MemoryStore {
       if (e instanceof PlanCalcError) throw new AppError("bad_request", e.message, "入力を見直してください");
       throw e;
     }
-    draft.dailyLimits = mergeWithFinalized(draft.dailyLimits, computed, today);
+    draft.dailyLimits = mergeWithFinalized(draft.dailyLimits, computed, addDays(today, 1));
     draft.calculationVersion += 1;
   }
 

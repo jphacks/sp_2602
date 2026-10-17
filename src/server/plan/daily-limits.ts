@@ -7,15 +7,18 @@
 // 式（MVP_SPEC 4.4）:
 //   基準曲線 B(d) = S − (S − G)·u²、u = clamp((d − d0) / D, 0, 1)。d0 = 計画開始日、D = d0 から最後のテストの開始日までの日数
 //   テスト i の開始日の目標 Qᵢ = B(開始日)（最後のテストは G）。テスト期間中は Qᵢ を維持する
-//   最後のテストが始まったら G、終わった後も G を維持する
+//   最後のテストが始まったら G、終了日の翌日から通常上限に戻す
 //   最後ではないテストの終了後: rᵢ = clamp(0.8(1 − u_end²), 0, 0.8)（u_end はテスト終了日の u）、
 //     Rᵢ = Qᵢ + rᵢ(Pᵢ − Qᵢ)（Pᵢ は前の回復のピーク。最初は P₁ = S）。終了の翌日を Rᵢ とし、次のテストの開始日の目標まで実日数で線形補間する
 //   連続したテスト（終了の翌日が次の開始日）では回復しない
 //   途中は丸めずに計算し、最後に分単位の整数へ丸める
 //   計画がない・テスト期間が0件なら、すべての日を親の通常上限にする（通常上限も未設定なら「上限未設定」）
 //   空白期間の日は、上の計算に関係なく「制限なし」。空白期間が終わった日からは、上の計算の値（元の上限）に戻る（Q7）
-import { addDays, datesInRange, daysBetween } from "../../../contracts/dates";
-import type { DailyLimit } from "../../../contracts/schemas";
+import { addDays, datesInRange, daysBetween } from "../../../contracts/dates.js";
+import type { DailyLimit } from "../../../contracts/schemas.js";
+
+// Existing MVP behavior; exact product horizon remains unresolved in MVP_SPEC.
+export const LIMIT_HORIZON_DAYS = 120;
 
 // 計算に使う計画の値（D8。Q14 で開始日・S・G の3つ）
 export type PlanInput = {
@@ -43,7 +46,7 @@ export type DailyLimitOptions = {
   firstSegment?: "curve" | "linear";
   // TODO(未決): 計画開始日より前の日の上限。既定は通常上限（"usual"）。"start" なら S
   beforePlanStart?: "usual" | "start";
-  // TODO(未決): 丸め方（MVP_SPEC 9章 High「C10の境界ケース：丸め方法」）。既定は四捨五入
+  // MVP決定: 日別上限の確定時は分単位で切り捨てる。
   rounding?: "round" | "floor" | "ceil";
   // TODO(未決): 1日に下げてよい最大の幅（分）（MVP_SPEC 4.4「最大日次減少幅」）。既定は null = 制限しない
   maxDailyDecrease?: number | null;
@@ -64,6 +67,11 @@ export class PlanCalcError extends Error {
 }
 
 const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+const isCalendarDate = (value: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value.startsWith("0000")) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value;
+};
 const byStart = <T extends PeriodInput>(a: T, b: T) =>
   a.startDate < b.startDate ? -1 : a.startDate > b.startDate ? 1 : 0;
 
@@ -71,7 +79,8 @@ const byStart = <T extends PeriodInput>(a: T, b: T) =>
 function sortedNoOverlap<T extends PeriodInput>(periods: T[], what: string): T[] {
   const sorted = [...periods].sort(byStart);
   for (const p of sorted)
-    if (p.endDate < p.startDate) throw new PlanCalcError("invalid_range", `終了日が開始日より前の${what}があります`);
+    if (!isCalendarDate(p.startDate) || !isCalendarDate(p.endDate) || p.endDate < p.startDate)
+      throw new PlanCalcError("invalid_range", `日付が不正、または終了日が開始日より前の${what}があります`);
   for (let i = 1; i < sorted.length; i++) {
     const prev = sorted[i - 1];
     const cur = sorted[i];
@@ -85,10 +94,36 @@ function sortedNoOverlap<T extends PeriodInput>(periods: T[], what: string): T[]
 // TODO(未決): 「有効なテスト」の条件（FigJam の図の矛盾 17）。今は「開始日が計画開始日以降のもの」だけを使い、それより前のテストは無視する。
 // TODO(未決): 重なる期間・同じ日の期間の扱い（MVP_SPEC 9章 High）。今は重なりを計算できない入力（overlap）として断る
 export function selectPeriods(plan: PlanInput, periods: PeriodInput[]): PeriodInput[] {
-  return sortedNoOverlap(
-    periods.filter((p) => p.startDate >= plan.planStartDate),
-    "テスト期間",
-  );
+  if (!isCalendarDate(plan.planStartDate)) throw new PlanCalcError("invalid_range", "計画開始日が不正です");
+  const all = normalizeTestPeriods(periods);
+  if (all.length > 0 && (all[all.length - 1]?.startDate ?? "") < plan.planStartDate)
+    throw new PlanCalcError("invalid_range", "最後のテスト開始日は計画開始日以降にしてください");
+  const eligible = all.filter((p) => p.startDate >= plan.planStartDate);
+  const merged: PeriodInput[] = [];
+  for (const period of eligible) {
+    const previous = merged.at(-1);
+    // Multiple exams registered on the same day are one logical test date.
+    if (previous?.startDate === period.startDate && previous.endDate === period.endDate) continue;
+    merged.push(period);
+  }
+  return merged;
+}
+
+function normalizeTestPeriods(periods: PeriodInput[]): PeriodInput[] {
+  const uniqueByRange = new Map(periods.map((period) => [`${period.startDate}|${period.endDate}`, period]));
+  return sortedNoOverlap([...uniqueByRange.values()], "テスト期間");
+}
+
+function isWeekend(date: string): boolean {
+  const weekday = new Date(`${date}T00:00:00.000Z`).getUTCDay();
+  return weekday === 0 || weekday === 6;
+}
+
+function noWeekdayBetween(endDate: string, nextStartDate: string): boolean {
+  for (let date = addDays(endDate, 1); date < nextStartDate; date = addDays(date, 1)) {
+    if (!isWeekend(date)) return false;
+  }
+  return true;
 }
 
 // 空白期間を除いた、1日ぶんの丸める前の上限を返す関数を作る（null = 上限未設定）。入力の検査もここで行う
@@ -99,7 +134,10 @@ export function buildRawLimit(
   const usual = inputs.usualLimitMinutes;
   const plan = inputs.plan;
   // 計画がない: 通常上限（未設定なら null）
-  if (!plan) return () => usual;
+  if (!plan) {
+    normalizeTestPeriods(inputs.testPeriods);
+    return () => usual;
+  }
 
   const S = plan.startLimitMinutes;
   const G = plan.finalGoalMinutes;
@@ -112,9 +150,7 @@ export function buildRawLimit(
 
   const last = tests[tests.length - 1] as PeriodInput;
   const D = daysBetween(d0, last.startDate);
-  if (D === 0 && S !== G)
-    // TODO(未決): D=0（計画開始日に最後のテストが始まる）で S≠G の扱い（MVP_SPEC 9章 High「D=0」）。図のとおり計算できない入力にする
-    throw new PlanCalcError("zero_span", "計画開始日と最後のテストの開始日が同じです。開始日を前にずらしてください");
+  if (D < 0) throw new PlanCalcError("invalid_range", "最後のテスト開始日は計画開始日以降にしてください");
 
   const u = (d: string) => (D === 0 ? 1 : clamp(daysBetween(d0, d) / D, 0, 1));
   const B = (d: string) => S - (S - G) * u(d) ** 2;
@@ -138,16 +174,20 @@ export function buildRawLimit(
     const t = tests[i] as PeriodInput;
     const q = Q[i] as number;
     if (i === tests.length - 1) {
-      // 最後のテスト: 始まったら G、終わった後もずっと G
-      segments.push({ from: t.startDate, to: "9999-12-31", value: () => G });
+      // 最後のテスト期間中は G を維持し、終了日の翌日から通常上限に戻す。
+      segments.push({ from: t.startDate, to: t.endDate, value: () => G });
       break;
     }
     segments.push({ from: t.startDate, to: t.endDate, value: () => q });
     const next = tests[i + 1] as PeriodInput;
     const qNext = Q[i + 1] as number;
     const recoveryDay = addDays(t.endDate, 1);
-    if (recoveryDay >= next.startDate) {
-      // 連続テスト: 回復しない
+    if (noWeekdayBetween(t.endDate, next.startDate)) {
+      // Keep the finished test's cap across a weekend-only gap. Without
+      // a segment, the gap falls through to the plan's start limit.
+      if (recoveryDay < next.startDate) {
+        segments.push({ from: recoveryDay, to: addDays(next.startDate, -1), value: () => q });
+      }
       if ((opts.consecutivePeak ?? "keep") === "test") P = q;
       continue;
     }
@@ -165,13 +205,14 @@ export function buildRawLimit(
 
   return (date: string) => {
     if (date < d0) return before;
+    if (date > last.endDate) return usual;
     const seg = segments.find((s) => s.from <= date && date <= s.to);
     return seg ? seg.value(date) : S;
   };
 }
 
 const roundBy = (mode: DailyLimitOptions["rounding"]) =>
-  mode === "floor" ? Math.floor : mode === "ceil" ? Math.ceil : Math.round;
+  mode === "ceil" ? Math.ceil : mode === "round" ? Math.round : Math.floor;
 
 // from〜to（両端を含む）の日別上限を作る。上限未設定の日は結果に入れない。limited の値は 0〜1440 の整数（分）
 export function computeDailyLimits(
@@ -180,6 +221,20 @@ export function computeDailyLimits(
   to: string,
   opts: DailyLimitOptions = {},
 ): DailyLimit[] {
+  if (!isCalendarDate(from) || !isCalendarDate(to) || from > to)
+    throw new PlanCalcError("invalid_range", "計算対象の日付範囲が不正です");
+  if (
+    inputs.usualLimitMinutes !== null &&
+    (!Number.isInteger(inputs.usualLimitMinutes) || inputs.usualLimitMinutes < 0 || inputs.usualLimitMinutes > 1440)
+  )
+    throw new PlanCalcError("invalid_range", "通常上限は0〜1440分の整数にしてください");
+  if (
+    inputs.plan &&
+    [inputs.plan.startLimitMinutes, inputs.plan.finalGoalMinutes].some(
+      (limit) => !Number.isInteger(limit) || limit < 0 || limit > 1440,
+    )
+  )
+    throw new PlanCalcError("invalid_range", "計画上限は0〜1440分の整数にしてください");
   const raw = buildRawLimit(inputs, opts);
   // TODO(未決): 空白期間どうしが重なるときの扱い。今はテスト期間と同じく計算できない入力として断る
   const blanks = sortedNoOverlap(inputs.blankPeriods, "空白期間");
@@ -213,6 +268,9 @@ export function mergeWithFinalized(
 ): DailyLimit[] {
   const byDate = new Map<string, DailyLimit>();
   for (const e of existing) if (e.date < firstMutableDate) byDate.set(e.date, e);
-  for (const c of computed) if (c.date >= firstMutableDate) byDate.set(c.date, c);
+  for (const c of computed) {
+    if (c.date >= firstMutableDate) byDate.set(c.date, c);
+    else if (!byDate.has(c.date)) byDate.set(c.date, c);
+  }
   return [...byDate.values()].sort((a, b) => (a.date < b.date ? -1 : 1));
 }

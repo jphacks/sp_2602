@@ -20,11 +20,12 @@ flowchart LR
   subgraph SV["サーバ（Hono）src/server/"]
     R["入口 app.ts・route.ts・auth.ts"]
     H["処理 handlers/"]
-    ST[("メモリの store mock/store.ts")]
-    C10["C10 日別上限の計算 plan/daily-limits.ts"]
+    ST[("MOCK=1: メモリ store")]
+    SVC["DB-backed services"]
+    C10["C10 calculation: pending"]
   end
   G["Google（ID トークンの公開鍵）"]
-  DB[("backend/ の PostgreSQL（試験用・まだつないでいない）")]
+  DB[("Neon PostgreSQL / local PGlite")]
 
   PA --> PL
   CA --> CL
@@ -32,10 +33,11 @@ flowchart LR
   CL --> K
   PL -- "HTTP（JSON）＋合言葉" --> R
   CL -- "HTTP（JSON）＋合言葉" --> R
-  R --> H --> ST
-  ST --> C10
+  R --> H
+  H --> ST
+  H --> SVC --> DB
+  SVC -. "needs approved policy and engine" .-> C10
   R -.->|"ID トークンの署名を確かめる"| G
-  ST -.->|"将来ここを DB に置き換える"| DB
 ```
 
 | 部分 | 何をするか | 主なファイル |
@@ -66,7 +68,7 @@ flowchart LR
 | `src/server/mock/store.ts` | データの置き場（`MemoryStore`）。ログイン・QR・家族・計画・日程・日別上限・対象外アプリ・利用記録・版 |
 | `src/server/plan/daily-limits.ts` | C10 の日別上限の計算（純粋な関数） |
 | `src/server/env.ts`・`errors.ts`・`dev.ts` | 環境変数の読み取り・サーバのエラー（`AppError`）・手元用のサーバ |
-| `src/server/db/` | ひな型から残っている DB の接続口（Neon / PGlite）と例の表（`rules`・`usage`）。**今の API は使っていない**（`tests/server/db.test.ts` だけが使う） |
+| `src/server/db/` | Honoの共通DB接続口。`backend/src/db/schema` とリポジトリを使い、ローカルは一時PGlite、Vercel本番はNeonへ接続する |
 | `src/lib/` | アプリ側の仕組み。`api.ts`（通信）・`session.tsx`（ログイン状態）・`google.ts`（Google ログイン）・`storage.ts`（端末の保存）・`config-cache.ts`（C7）・`usage-calc.ts`（C3）・`usage-outbox.ts`（C8）・`native.ts`（Kotlin の窓口）・`polling.ts`（30秒ごとの取得）・`flow.tsx`（画面の間の受け渡し）・`child-data.tsx`・`parent-data.tsx`（子ども用・保護者用のデータの共有）・`sign-out.ts`（ログアウトで端末のデータを消す） |
 | `src/components/` | 共通の部品（`Screen`・`Card`・`Button`・`StateView` など）。`child/`・`pair/`・`parent/`・`schedule/` は機能ごとの部品と、画面の判断をまとめた純粋な関数 |
 | `src/app/` | 画面（Expo Router。ファイルの場所がそのまま道になる）。`index.tsx`（入口）・`login.tsx`・`pair/`・`child/`・`parent/` |
@@ -87,11 +89,12 @@ flowchart LR
 ```mermaid
 sequenceDiagram
   participant P as 保護者のアプリ
-  participant S as サーバ（store）
+  participant S as サーバ
   participant C as 子どものアプリ
   P->>S: planSave など（expectedVersion つき）
-  Note over S: 版を確かめる → 写しを変える → C10 で今日から先を計算し直す → 入れ替えて版 +1
-  S-->>P: 新しい configVersion
+  Note over S: DB-backed: expectedVersion とD3/D8/C9の更新を同一transactionで保存
+  Note over S: D3/D8更新とC10計算・D6/計算版保存を1つのDB transactionで行う
+  S-->>P: 新しい configVersion・calculationVersion
   loop 画面が出ている間 30秒ごと
     C->>S: configGet（knownVersion = 手元の版）
     Note over S: 子どもが送った版を「子どもが使っている版」として覚える
@@ -132,9 +135,9 @@ sequenceDiagram
 | **「制限なし」「上限未設定」「0 分」を型で分ける** | 3つとも「制限しない／できない」ように見えるが意味が違う（Q7） | `DayLimit`・`DailyLimit` の `kind`（`contracts/schemas.ts`）、`LimitInput`（`usage-calc.ts`）、`NativeRestriction.limit`（`contracts/native.ts`）。詳しくは [data.md の 2章](data.md) |
 | **保存はサーバの確定を待ってから「成功」と出す** | 押しただけで成功と出すと、届かなかったときに嘘になる（MVP_SPEC 5.3） | `Button` の `loading` で二重に押せない。日程は `PeriodEditor`、計画は `plan.tsx`（`saveConfirmation`）、紐づけは `linked` を見るまで成功を出さない（`child-flow.ts`・`parent-flow.ts`） |
 | **入口と出口の両方を契約で検査する** | 形の違うデータで処理が進まないように | サーバは `route.ts` で入力（400）と出力（500 = サーバの不具合）を検査。アプリは `call()` で応答を検査 |
-| **保存と C10 の計算は1回の処理（全部うまくいったときだけ成功）** | 途中で失敗して、日程だけ変わって上限が古い、を起こさない（Q5） | `store.ts` の `mutate`（写しを作って変える → `recalculate` → 入れ替えて版 +1）。失敗したら何も変えない |
+| **DB-backedの設定書き込みは版と同じ transaction で保存する** | 途中失敗時に設定と版の不一致を防ぐ | `backend/src/db` repositories と `c10-recalculate.ts`。D3/D8/空白期間/通常上限の更新時にC10日別上限と計算版を同一 transaction で保存する。C7 snapshot はこの計算結果を読む |
 | **版で取り違えを防ぐ** | 別の端末が先に変えたのに上書きする・古い設定と新しい設定を混ぜる、を防ぐ（Q6） | 書く API は `expectedVersion` を受け、ずれていたら `conflict`（`store.ts` の `mutate`）。端末は版の違う組を混ぜない（`config-cache.ts` の `reconcileConfig`） |
-| **「今日」は日本時間で1か所だけで出す** | 端末とサーバで日付がずれないように（Q3） | `contracts/dates.ts` の `todayString`（UTC+9・0時区切り） |
+| **日付はAPI契約のcalendar-dateとして検証する** | 日本時間0時を日付境界とし、設定変更は翌日から適用 | `contracts/dates.ts` と `c10-recalculate.ts` |
 | **計算・判断は画面から切り離した純粋な関数にしてテストする** | 画面を動かさなくても正しさを確かめられるように | C10 `daily-limits.ts`、C3 `usage-calc.ts`、C7 `reconcileConfig`、C8 `createUsageOutbox`、紐づけの表示 `child-flow.ts`・`parent-flow.ts`・`link-check.ts`、画面の文言 `child-view.ts`・`schedule/logic.ts`・`parent/*.ts` |
 | **見た目は `contracts/tokens.ts` の名前だけ** | 色や余白をそろえ、あとで変えやすくする | 色はテーマ（白色・黒色）ごとに2組で、画面は `src/lib/theme.tsx` の `makeStyles`・`useColors` から `c.primary` のように使う。`style={{…}}` と色コードの直書きはない（自動の検査はなく、書く人が守る約束） |
 | **Android 固有の処理は窓口を通す** | Kotlin がない環境（テスト・Expo Go）でも落ちない。将来 iOS に差し替えられる | `src/lib/native.ts` が `KitNative` を名前で探し、なければ安全な既定値（権限なし・使用時間は取得不可・制限画面は出せない）を返す |

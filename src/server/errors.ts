@@ -3,7 +3,7 @@
 //   throw new AppError("not_found", "その結果は見つかりません");   // 文を上書き
 
 import { ZodError } from "zod";
-import { type ApiError, type ErrorCode, errorStatus, errorText } from "../../contracts/errors";
+import { type ApiError, type ErrorCode, errorStatus, errorText } from "../../contracts/errors.js";
 
 // "network" はクライアントが「サーバに届かなかった」ときにだけ作る。サーバから外部APIに繋がらないときは "upstream_failed"。
 export type ServerErrorCode = Exclude<ErrorCode, "network">;

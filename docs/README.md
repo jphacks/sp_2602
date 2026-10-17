@@ -41,7 +41,7 @@
 | C1〜C10 | 機能の番号（MVP_SPEC 4章・FigJam）。C1 ログインと QR の紐づけ、C2 使用時間の取得、C3 割合と到達の計算、C4 上限に届いたときの案内、C5 ウィジェット（MVP の後）、C6 親が見るグラフ、C7 設定の取得とキャッシュ、C8 利用記録の送信、C9 制限対象外アプリ、C10 日別上限の計算 |
 | D1〜D8 | データの置き場の番号（MVP_SPEC 6章）。D1 利用者、D2 家族のつながり、D3 テスト日程、D4 使用時間、D6 日別上限、D7 制限対象外アプリ、D8 利用計画 |
 | 子01・親01・共01 など | Figma の画面の番号（子＝子ども用、親＝保護者用、共＝両方）。一覧は [screens.md](screens.md) |
-| Q1〜Q23 | 仕様の質問の番号。Q1〜Q15 は人間が決めた（[decisions.md](decisions.md)）、Q16〜Q23 はまだ（[open-questions.md](open-questions.md)） |
+| Q1〜Q23 | 仕様の質問番号。承認済み事項は [decisions.md](decisions.md)、未承認・保留事項は [open-questions.md](open-questions.md) |
 | 契約 | アプリとサーバの「この形で送ると、この形で返る」という約束。`contracts/` に型として書いてある |
 | API | サーバの窓口。`/api/plan/save` のような道（path）で呼ぶ |
 | 合言葉（セッション） | ログインするとサーバが出す文字列（token）。以後の API に付けて「誰が呼んだか」を示す |

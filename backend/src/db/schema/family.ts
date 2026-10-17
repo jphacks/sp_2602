@@ -30,5 +30,10 @@ export const familyLinks = pgTable("family_links", {
 export const childConfigVersions = pgTable("child_config_versions", {
   childId: uuid("child_id").primaryKey().references(() => users.id),
   version: integer("version").default(1).notNull(),
+  /** Advances only when D3, D8, or blank-period inputs to C10 change. */
+  c10InputVersion: integer("c10_input_version").default(1).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [check("child_config_versions_positive", sql`${table.version} > 0`)]);
+}, (table) => [
+  check("child_config_versions_positive", sql`${table.version} > 0`),
+  check("child_config_versions_c10_input_positive", sql`${table.c10InputVersion} > 0`),
+]);

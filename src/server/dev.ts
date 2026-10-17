@@ -3,9 +3,9 @@
 // MOCK=1 のときは、store の中身（ログイン・紐づけ・計画・日程・利用記録）を state/mock-store.json に残し、
 // 立て直したときに読み込む（src/server/mock/persist.ts）。残したくないときは MOCK_PERSIST=0、置き場所は MOCK_STORE_FILE で変える。
 import { serve } from "@hono/node-server";
-import app from "./app";
-import { isMock } from "./env";
-import { DEFAULT_MOCK_STORE_FILE, enableMockPersistence } from "./mock/persist";
+import app from "./app.js";
+import { isMock } from "./env.js";
+import { DEFAULT_MOCK_STORE_FILE, enableMockPersistence } from "./mock/persist.js";
 
 const persistence =
   isMock() && process.env.MOCK_PERSIST !== "0"

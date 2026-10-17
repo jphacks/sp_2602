@@ -12,7 +12,9 @@
     "lint": "biome ci .",
     "fix": "biome check --write .",
     "check": "npm run lint && npm run typecheck && npm run test",
-    "db:push": "node --env-file-if-exists=.env --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs push"
+    "db:generate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file-if-exists=.env --env-file-if-exists=.env.local node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.config.ts",
+    "db:push": "npm run db:generate && npm run db:migrate"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.9",
@@ -31,6 +33,7 @@
     "expo-status-bar": "~58.0.3",
     "hono": "^4.13.13",
     "jose": "^6.2.12",
+    "postgres": "^3.4.9",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "0.88.0",

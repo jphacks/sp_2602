@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDatabase } from "../index.js";
 import { validateTestDatabaseUrl } from "../validate-test-database-url.js";
+import { createTestPeriod, InvalidTestPeriodError } from "../test-periods.js";
 
 describe("database configuration", () => {
   it("rejects a non-PostgreSQL connection URL before opening a connection", () => {
@@ -30,5 +31,16 @@ describe("database configuration", () => {
       "postgres://test_user:test_pass@localhost:5432/slope%5Ftest",
       "postgres://app_user:other_pass@localhost:5432/slope_test",
     )).toThrow("TEST_DATABASE_URL must point to a different database than DATABASE_URL.");
+  });
+
+  it("rejects invalid D3 dates and blank names before opening a database transaction", async () => {
+    const unavailableDb = {} as ReturnType<typeof createDatabase>["db"];
+    await expect(createTestPeriod(unavailableDb, {
+      actorId: crypto.randomUUID(),
+      childId: crypto.randomUUID(),
+      name: "  ",
+      startDate: "2026-02-29",
+      endDate: "2026-02-28",
+    })).rejects.toBeInstanceOf(InvalidTestPeriodError);
   });
 });
