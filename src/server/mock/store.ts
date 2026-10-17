@@ -761,7 +761,12 @@ export class MemoryStore {
       this.usage.set(childId, byDate);
     }
     const appliedDates: string[] = [];
-    for (const day of days) {
+    const nowMs = this.now().getTime();
+    for (const sent of days) {
+      // サーバの今より先の測定時刻は、サーバの今として残す。
+      // なぜ: 端末の時計が先に進んでいた（子どもが日時を変えた・時計のずれ）記録をそのまま残すと、その日の記録は
+      //   「一番新しい測定」のまま居座り、時計を戻した後の正しい記録が何度届いても古いとみなされて、親の画面が更新されなくなった
+      const day = measuredMs(sent.measuredAt) > nowMs ? { ...sent, measuredAt: new Date(nowMs).toISOString() } : sent;
       const current = byDate.get(day.date);
       if (!current || measuredMs(day.measuredAt) > measuredMs(current.measuredAt)) {
         byDate.set(day.date, day);
