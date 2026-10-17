@@ -228,6 +228,11 @@ export class MemoryStore {
     return this.sessionOf(token, row.userId);
   }
 
+  // ログアウト: その合言葉を消す（以後その合言葉は無効）。同じ人のほかの端末の合言葉は消さない
+  signOut(token: string): void {
+    this.sessions.delete(token);
+  }
+
   private sessionOf(token: string, userId: string): Session {
     const user = this.users.get(userId);
     if (!user) throw new AppError("internal");

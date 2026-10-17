@@ -125,6 +125,7 @@ export const fixtures = {
   health: { ok: true, mock: true } satisfies Res<"health">,
   authGoogle: mockSessions["mock-google-parent"] satisfies Res<"authGoogle">,
   authMe: mockSessions["mock-google-parent"] satisfies Res<"authMe">,
+  authSignOut: { ok: true } satisfies Res<"authSignOut">,
   pairStart: mockPair.ticket,
   pairStatus: mockPair.waiting,
   pairClaim: mockPair.claimed,

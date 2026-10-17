@@ -3,6 +3,7 @@
 
 export { default as authGoogle } from "./authGoogle";
 export { default as authMe } from "./authMe";
+export { default as authSignOut } from "./authSignOut";
 export { default as blankPeriodCreate } from "./blankPeriodCreate";
 export { default as blankPeriodDelete } from "./blankPeriodDelete";
 export { default as blankPeriodList } from "./blankPeriodList";

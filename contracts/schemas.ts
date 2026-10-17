@@ -62,6 +62,10 @@ export const Session = z.object({
 });
 export type Session = z.infer<typeof Session>;
 
+// ログアウト（authSignOut）の結果。サーバはその合言葉を消してから ok を返す
+export const SignOutResult = z.object({ ok: z.literal(true) });
+export type SignOutResult = z.infer<typeof SignOutResult>;
+
 // 子ども1人。id は子どもの userId
 export const Child = z.object({
   id: z.string().min(1),
