@@ -13,7 +13,8 @@ export default function ChildLayout() {
   const { state } = useSession();
   if (state.status !== "signedIn" || state.session.role !== "child") return <Redirect href="/" />;
   return (
-    <ChildDataProvider childId={state.session.userId}>
+    // key: サーバ上の自分の id が変わったら（child-data.tsx が 403 で確かめ直した結果）、前の id の設定・使用時間を持ち越さずに作り直す
+    <ChildDataProvider key={state.session.userId} childId={state.session.userId}>
       {/* backBehavior="history": 「←」や戻るボタンで、来た画面へ戻す（既定の firstRoute だと、タブに出ない画面からいつもホームへ戻る） */}
       <Tabs screenOptions={tabBarOptions} backBehavior="history">
         <Tabs.Screen
