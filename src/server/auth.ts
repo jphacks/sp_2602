@@ -9,10 +9,10 @@
 //   - MOCK=1 でないサーバでは、MOCK のログインの人（デモの3人・はじめての人）の合言葉は 401（findSession。D-126）
 import { randomBytes } from "node:crypto";
 import { and, count, eq, gt, inArray, isNull, lte, ne, notExists, or } from "drizzle-orm";
+import { clearChildFamilyData, recordFamilyUnlink } from "../../backend/src/db/family-unlink.js";
 import {
   authIdentities,
   childConfigVersions,
-  deviceStatuses,
   familyLinks,
   pairClaimFailures,
   pairTickets,
@@ -507,9 +507,11 @@ export async function readFamily(caller: Caller): Promise<{ children: { id: stri
 
 // 保護者: 子どもとの連携を外す。子どもの合言葉をすべて使えなくし、子どもを役割のない状態（role: null）に戻す。
 // 子どもの出しかけの QR も無効にする。連携していない子どもは not_found（route.ts の checkChildAccess で先に 403 になる）
-// TODO(未決): 外した子どもの設定・利用記録を消すか残すか。今は残す（同じ保護者と紐づけ直したときに続きから使えるように）。
-//   別の保護者と紐づけ直すと、その保護者に前の利用記録・端末のアプリ一覧とアイコン（Q15）が見える。
-//   消す場合は設定・利用記録・アプリ一覧（child_app_lists）の表からも消す
+// 外した子どもの家庭ごとのデータ（利用記録・計画・テスト期間・空白期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・
+// 端末の許可の状態）は同じトランザクションで消す（backend/src/db/family-unlink.ts）。
+// なぜ: 残すと、別の保護者と紐づけ直したときに、その保護者に前の家庭の時期のデータが見える（セキュリティ検査 F-2 / PII-10）。
+// 同じ保護者と紐づけ直しても、設定は最初から入れ直しになる。
+// 誰が・いつ・どの子どもを外したかは audit_events に残す（F-7 / IPA-15）
 export async function unlinkChild(
   caller: Caller,
   childId: string,
@@ -530,8 +532,8 @@ export async function unlinkChild(
       .update(pairTickets)
       .set({ state: "expired", revokedAt: new Date() })
       .where(and(eq(pairTickets.childId, childId), inArray(pairTickets.state, ["waiting", "claimed"])));
-    // 端末の許可の状態（D-113）は消す（次に紐づけた保護者に前の様子を見せない。紐づけ直せば端末がすぐ送り直す）
-    await tx.delete(deviceStatuses).where(eq(deviceStatuses.childId, childId));
+    await clearChildFamilyData(tx, childId);
+    await recordFamilyUnlink(tx, caller.userId, childId);
     return { childId, revokedSessions: await revokeAllSessions(tx, childId) };
   });
 }

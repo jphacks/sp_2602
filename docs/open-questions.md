@@ -79,7 +79,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | `src/server/plan/daily-limits.ts` の `DailyLimitOptions`・`selectPeriods`・`buildRawLimit`・`computeDailyLimits` | C10 の細かい決まり | → Q16 | → Q16 |
 | `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS` | 日別上限を何日先まで作るか | 保存した日から 120 日（残り 60 日で作り足す） | → Q16-7 |
 | `src/server/services/plan-settings.ts` の `savePlanForCaller`・`src/components/parent/plan-form.ts` の `planFormFromView` | 始まった計画の S・G だけを変えたいとき | 開始日は今日以降でないと保存できないので、親02 は開始日の初期値を今日にする（＝今日から計画を作り直すことになる） | `savePlanForCaller` の開始日の確認と `planFormFromView` |
-| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | 残す（同じ保護者と紐づけ直したときに続きから使えるように）。別の保護者と紐づけ直すと、その保護者に前の利用記録・端末のアプリ一覧とアイコン（Q15）が見える。端末の許可の状態（`device_statuses`。D-113）だけは消す | 消すなら `unlinkChild` のトランザクションで、設定・期間・日別上限・対象外アプリ・利用記録・アプリ一覧（`child_app_lists`。中身とアイコンは一緒に消える）の表からもその子どもの行を消す |
+| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | **決めた（2026-10-18・セキュリティ検査 F-2）: 消す**。`unlinkChild` のトランザクションで、利用記録・日別上限・計画・通常上限・期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の許可の状態を消し、設定の版を 1 上げる（`backend/src/db/family-unlink.ts`）。外した記録は `audit_events` に残す（F-7） | 同じ保護者と紐づけ直しても設定は最初から。子どもの端末の送信待ち（今日・昨日の分）は 401 では消えないので、紐づけ直したあとに送られることがある（SECURITY_TEST/fixes.md） |
 | `contracts/schemas.ts` の `periodFields` | 期間の終了日を含むか | 含む | → Q16-11 |
 
 ### 端末の仕組み（`src/lib/`）
