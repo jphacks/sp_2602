@@ -18,7 +18,7 @@
 | F-5 AVL-01 ログイン・QR の発行に回数の上限がない | 修正 | 下の F-5 |
 | M-1〜M-5・M-7 main へ入れる前の点検で見つけたもの | 修正 | 下の「main へ入れる前の点検」 |
 | M-6 Keystore の鍵が壊れると直らなかった | 修正（実機の確認待ち） | 下の「main へ入れる前の点検」 |
-| M-8〜M-14 最終点検のあとに見つけたもの | 修正 | 下の「main へ入れる前の点検」の「最終点検のあと」 |
+| M-8〜M-15 最終点検のあとに見つけたもの | 修正 | 下の「main へ入れる前の点検」の「最終点検のあと」 |
 
 ## 1. 合言葉の平文保存（F-1）
 
@@ -96,7 +96,7 @@
 - 限界: 監査ログ（AVL-01 の期待結果）は出していない。
 - テスト: `tests/verify/revoke-and-limit.test.ts` の F-5（pairStart は 5 回の次が 429・ほかの子どもは止まらない・1 分たてば出せる。authGoogle は同じ人 10 回の次が 429・ほかの人は止まらない・1 分たてば入れる。同じ IP 20 回の次が 429・ほかの IP は止まらない・通らない idToken でも数える）。`tests/verify/security.test.ts` の「QR の code を 20 回出す」は、上限にかからないように 12 秒ずつ時計を進めるようにした。
 
-## main へ入れる前の点検（M-1〜M-14）
+## main へ入れる前の点検（M-1〜M-15）
 
 main へ入れる前に、このブランチの差分（`origin/main...HEAD`）を、DB・サーバ・契約・Android・アプリ・文書に分けて読み直した。見つけたものと直し方。
 
@@ -110,7 +110,7 @@ main へ入れる前に、このブランチの差分（`origin/main...HEAD`）�
 - ほか: 429 のときにサーバの hint（「1分ほど待ってから」など）をログイン・子どもの QR・保護者の QR 読み取りの画面に出す。古い dev client（`sealSecret` がない）で動かすと、開発中だけ警告を出す。
 - 出す前の作業（`docs/development.md` 8 章）: 0016・0017・0018 をプレビュー・本番へ先に入れる。範囲外の古いデータが残っていないか SQL で確かめる。dev client を作り直す。
 
-### 最終点検のあと（M-8〜M-14）
+### 最終点検のあと（M-8〜M-15）
 
 連携を外す機能（D-133・D-134）と子どものログアウトの廃止（D-136）を入れたあと、main へ入れる前の最終点検で見つけて直したもの。
 
@@ -121,6 +121,8 @@ main へ入れる前に、このブランチの差分（`origin/main...HEAD`）�
 - **M-12 監視の見張りのたびに Keystore で合言葉を開けていた（電池）**: Kotlin の合言葉は、開けたものをプロセスのメモリにだけ持つ（`EngineStore` の `OpenedSecretCache`。封をした値と組にして、封が変われば開け直す）。Keystore で開けるのは、起動後の最初の1回と、封が変わったときだけ。ディスクには平文で置かない。テスト（JVM）: `EngineRulesTest` › `開けた合言葉は同じ封の間はメモリから返し_封が変わったら開け直す`・`入れ替えと消すで前の合言葉を返さない`。
 - **M-13 形の違うアプリの識別子が1件あると、その日の記録・アプリ一覧の送信が全部 400 になった（D-129 の再対応）**: 利用記録（`src/lib/usage-calc.ts` の `toUsageDayReport`）とアプリ一覧（`src/lib/child-apps-sync.ts` の `prepareChildApps`）は、契約の `PackageName` に合わない識別子を1件ずつ外す（利用記録では合計の分数には入れたまま）。テスト: `tests/lib/usage-calc.test.ts`・`tests/lib/child-apps-sync.test.ts` › 「prepareChildApps: 契約の PackageName の形に合わないアプリは1件ずつ外す」。
 - **M-14 DB を閉じて開き直すテストが、ほかのテストと一緒に流すと時間切れになった**: `tests/server/db-unavailable.test.ts` の重いテストに、それぞれ 90 秒の上限（`REOPEN_TIMEOUT_MS`）を付けた（中身は変えない）。
+
+- **M-15 監視が止まらないまま抜けられなくなる（再検査）**: 子どもの端末の JS が family_unlink 以外（封が開けられない・別の端末からのログアウト・期限切れ）でログアウト状態になると、Kotlin の送り先と合言葉も消え、そのあと保護者が外しても気づけず、監視と Device Owner が残ったままになった。①外すとき、その子どもの合言葉は**すでに無効・期限切れのものも**理由を `family_unlink` にする（無効にした時刻はそのまま。`revokeAllSessionsForUnlink`）。②監視が動いている端末では、JS がログアウト状態・子ども以外の役割になっても Kotlin の送り先と合言葉を消さない（`statusReporterAction`）。③Kotlin は理由のない 401 でも、監視が動いている間は合言葉を残して 15 分ごとに確かめ続ける（`StatusReportRules.replyAction`。偽の 401 への対策 M-8 は中の `guardUnlinked` で守る）。新しい合言葉が渡されたら入れ替えてすぐ確かめる。あわせて、送信待ちの flush の途中で外されたら、その子どもの残りは送らない。テスト: `tests/verify/unlink-notice.test.ts`・`tests/lib/status-reporter.test.ts`・`usage-outbox.test.ts`・`trust-unlink.test.ts`、Kotlin `StatusReportTest`・`SessionCheckTest`。
 
 ### まだ直していないもの
 
