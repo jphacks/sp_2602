@@ -254,7 +254,9 @@ D = 10/01 から 11/10 まで = 40 日。B(d) = 300 − 240·u²、u = (d − 10
 `MOCK=1` は処理を変えません。変わるのは次の2つだけです（`src/server/env.ts` の `isMock`。Vercel の本番 `VERCEL_ENV=production` では無視する）。
 
 - `mock-` で始まる idToken のログインを受け付ける（`src/server/auth.ts` の `signInMock`）。
-- DB を開いたときに、下の見本を DB に1回だけ入れる（`src/server/seed/demo.ts` の `seedMockAccounts`。もう入っていれば何もしない）。
+- 手元の DB（PGlite。`DATABASE_URL` が空のとき）を開いたときに、下の見本を DB に1回だけ入れる（`src/server/seed/demo.ts` の `seedMockAccounts`。もう入っていれば何もしない）。`DATABASE_URL` の DB（Neon）には自動では入れない（`src/server/db/index.ts` の `seedsMockOnOpen`。D-126）。
+
+`MOCK=1` でないサーバは、MOCK のログイン（`auth_identities.provider = 'mock'`）の人の合言葉を受け付けない（401。`src/server/auth.ts` の `findSession`。D-126）。DB に見本の人が残っていても、固定の合言葉では入れない。
 
 ### `MOCK=1` のときに入る見本（`seedMockAccounts`・`seedDemoFamily`）
 
