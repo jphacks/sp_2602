@@ -236,7 +236,9 @@ describe("合言葉", () => {
       Response.json({ code: "unauthorized", message: "m", hint: "h", reason: "family_unlink" }, { status: 401 }),
     );
     await call("planGet", { childId: "c1" }).catch(() => undefined);
-    mockFetch(() => Response.json({ code: "unauthorized", message: "m", hint: "h", reason: "future_reason" }, { status: 401 }));
+    mockFetch(() =>
+      Response.json({ code: "unauthorized", message: "m", hint: "h", reason: "future_reason" }, { status: 401 }),
+    );
     await call("planGet", { childId: "c1" }).catch(() => undefined);
     expect(seen).toEqual(["family_unlink", null]);
     setSessionToken(null);

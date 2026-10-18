@@ -25,7 +25,9 @@ async function unauthorizedBody(res: Response) {
 
 const reasonOf = async (token: string) =>
   (
-    await (await db())
+    await (
+      await db()
+    )
       .select({ reason: userSessions.revokedReason, revokedAt: userSessions.revokedAt })
       .from(userSessions)
       .where(eq(userSessions.tokenHash, digest(token)))
@@ -39,7 +41,11 @@ describe("V: 外された子どもの端末には、401 に理由（family_unlin
 
     for (const token of [child.token, child2.token]) {
       const me = await unauthorizedBody(await get("/api/auth/me", token));
-      expect(me).toMatchObject({ code: "unauthorized", reason: "family_unlink", message: "保護者との連携が外れました" });
+      expect(me).toMatchObject({
+        code: "unauthorized",
+        reason: "family_unlink",
+        message: "保護者との連携が外れました",
+      });
       // 子どもだけの API・子どもの範囲を確かめる API でも同じ（役割を確かめるより先に 401 になる）
       const config = await unauthorizedBody(await post("/api/config/get", { childId: child.userId }, token));
       expect(config.reason).toBe("family_unlink");

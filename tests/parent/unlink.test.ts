@@ -47,7 +47,12 @@ describe("unlinkReducer: 二段階の確認", () => {
   });
 
   it("失敗したら閉じて帯を出す。「もう一度ためす」は確かめの段から（警告はもう読んだ）", () => {
-    const failed = run([{ type: "open", child }, { type: "next" }, { type: "send" }, { type: "failed", error: err("rate_limited") }]);
+    const failed = run([
+      { type: "open", child },
+      { type: "next" },
+      { type: "send" },
+      { type: "failed", error: err("rate_limited") },
+    ]);
     expect(failed.step).toBe("closed");
     expect(failed.failure).toEqual({ error: err("rate_limited"), reload: false, retry: true });
     const again = unlinkReducer(failed, { type: "retry" });
@@ -55,12 +60,22 @@ describe("unlinkReducer: 二段階の確認", () => {
   });
 
   it("もう外れていた（not_found）・403 は「もう一度」を出さない（retry は無視）", () => {
-    const failed = run([{ type: "open", child }, { type: "next" }, { type: "send" }, { type: "failed", error: err("not_found") }]);
+    const failed = run([
+      { type: "open", child },
+      { type: "next" },
+      { type: "send" },
+      { type: "failed", error: err("not_found") },
+    ]);
     expect(unlinkReducer(failed, { type: "retry" })).toBe(failed);
   });
 
   it("また行を押したら、前の帯は消える", () => {
-    const failed = run([{ type: "open", child }, { type: "next" }, { type: "send" }, { type: "failed", error: err("network") }]);
+    const failed = run([
+      { type: "open", child },
+      { type: "next" },
+      { type: "send" },
+      { type: "failed", error: err("network") },
+    ]);
     expect(unlinkReducer(failed, { type: "open", child }).failure).toBeNull();
   });
 });
@@ -92,7 +107,17 @@ describe("unlinkText: ダイアログの文", () => {
     expect(t.title).toBe("「たろう」との連携を外しますか？");
     expect(t.body).toContain("元に戻せません");
     const effects = UNLINK_EFFECTS.join("\n");
-    for (const word of ["ログアウト", "制限が止まります", "利用記録", "計画", "テスト日程", "空白期間", "制限対象外アプリ", "Web サイト", "QR コード"])
+    for (const word of [
+      "ログアウト",
+      "制限が止まります",
+      "利用記録",
+      "計画",
+      "テスト日程",
+      "空白期間",
+      "制限対象外アプリ",
+      "Web サイト",
+      "QR コード",
+    ])
       expect(effects).toContain(word);
   });
 
