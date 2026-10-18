@@ -7,6 +7,11 @@
 //   - 契約（UsageDayReport）に合わない記録は、入れるとき（enqueue）と読むとき（1件ずつ）に検査し、合わない分だけ隔離する
 //     （なぜ: 前は送信待ちの一覧全体をまとめて検査していたので、1件でも合わないと一覧が「ない」扱いになり、
 //      次の書き込みでまだ送っていない記録まで消えていた。MVP_SPEC 4.3「検証エラーは該当データを隔離し、他の正常データは同期継続」）
+//   - その子どもの送信待ちを消した（removeChild: ログアウト・連携が外れた）あとに、消す前に始まった書き込み（enqueue）が届いたら、
+//     書かずに捨てる（消した回数＝世代を、config-cache.ts と同じく enqueue の始めに覚えて比べる）。
+//     なぜ: 連携が外れて片付けている間に、子どもの画面の定期取得（child-data.tsx）の enqueue が終わると、
+//     外された子どもの記録が送信待ちに戻り、次に紐づけた保護者へ送られうるため（D-133 の再検査）。
+//     端末の一覧の読み・書きは1つずつ順に行う（読んでから書くまでの間に、ほかの書き込み・消すが割り込まないように）
 // 中心は createUsageOutbox（保存・送信・時計・ID を外から渡す。テストで差し替える）。
 //   await usageOutbox.enqueue(childId, days);  // C2 の結果（今日と昨日の UsageDayReport）を送信待ちに入れる
 //   await usageOutbox.flush();                     // 起動時・通信の復帰時・画面を開いたときなどに呼ぶ
@@ -108,19 +113,33 @@ export function createUsageOutbox(deps: OutboxDeps) {
   const write = (items: OutboxItem[]) => writeJson(deps.storage, storageKeys.outbox, items);
   let flushing: Promise<FlushResult> | null = null;
 
-  // 1件ずつ読み・書きし直す（送っている間に enqueue された分を消さないため）
-  const update = async (submissionId: string, fn: (item: OutboxItem) => OutboxItem | null) => {
-    const items = await read();
-    const next: OutboxItem[] = [];
-    for (const item of items) {
-      if (item.submissionId !== submissionId) next.push(item);
-      else {
-        const changed = fn(item);
-        if (changed) next.push(changed);
-      }
-    }
-    await write(next);
+  // 端末の一覧の読み・書きを1つずつ順に行う（読んでから書くまでの間に、ほかの書き込み・removeChild が割り込んで、
+  // 消した記録を書き戻したり、足した記録を消したりしないように）
+  let queue: Promise<unknown> = Promise.resolve();
+  const exclusive = <T>(fn: () => Promise<T>): Promise<T> => {
+    const run = queue.then(fn, fn);
+    queue = run.catch(() => undefined);
+    return run;
   };
+
+  // 消した回数（子どもごと）。enqueue の始めに覚え、書く前に変わっていたら（消された）書かずに捨てる
+  const removedTimes = new Map<string, number>();
+  const generation = (childId: string) => removedTimes.get(childId) ?? 0;
+
+  // 1件ずつ読み・書きし直す（送っている間に enqueue された分を消さないため）
+  const update = (submissionId: string, fn: (item: OutboxItem) => OutboxItem | null) =>
+    exclusive(async () => {
+      const items = await read();
+      const next: OutboxItem[] = [];
+      for (const item of items) {
+        if (item.submissionId !== submissionId) next.push(item);
+        else {
+          const changed = fn(item);
+          if (changed) next.push(changed);
+        }
+      }
+      await write(next);
+    });
 
   async function flushOnce(): Promise<FlushResult> {
     const result: FlushResult = { sent: 0, retrying: 0, quarantined: 0, skipped: 0 };
@@ -173,8 +192,10 @@ export function createUsageOutbox(deps: OutboxDeps) {
   return {
     // 記録を送信待ちに入れる（送信 ID はここで1回だけ作る）。
     // 契約（UsageDayReport）に合う記録は送る1件に、合わない記録は別の1件にして隔離する（合わない記録が、ほかの記録を巻き込まないように）。
-    // 返すのは送る1件（合う記録がなければ隔離した1件。同じ中身を何度も入れ直さないよう、呼んだ側が「入れた」と覚えるため）
+    // 返すのは送る1件（合う記録がなければ隔離した1件。同じ中身を何度も入れ直さないよう、呼んだ側が「入れた」と覚えるため）。
+    // 呼んでから書くまでの間に、その子どもの送信待ちを消していたら（removeChild）、書かずに null（外された子どもの記録を戻さない）
     async enqueue(childId: string, days: readonly UsageDayReport[]): Promise<OutboxItem | null> {
+      const gen = generation(childId);
       if (days.length === 0) return null;
       const valid: UsageDayReport[] = [];
       const invalid: unknown[] = [];
@@ -205,8 +226,14 @@ export function createUsageOutbox(deps: OutboxDeps) {
           state: "quarantined",
           lastError: { ...invalidError },
         });
-      await write([...(await read()), ...added]);
-      return added[0] ?? null;
+      return exclusive(async () => {
+        if (generation(childId) !== gen) return null;
+        const current = await read();
+        // 読んでいる間に消されたときも書かない（消す側は順番を待っているので、書いても消えるが、呼んだ側に「入れた」と思わせない）
+        if (generation(childId) !== gen) return null;
+        await write([...current, ...added]);
+        return added[0] ?? null;
+      });
     },
 
     // 送れるものを送る。同時に2回呼ばれても、送るのは1回（同じ記録を並べて送らない）
@@ -221,10 +248,14 @@ export function createUsageOutbox(deps: OutboxDeps) {
     list: read,
 
     // ある子どもの送信待ちを全部消す（その子どもがこの端末でログアウトしたとき。別の人で入り直したときに混ざらないように）。
-    // 送っている途中のものは、送り終えたときにもう一覧にないので、そのまま消えたままになる
-    async removeChild(childId: string): Promise<void> {
-      const items = await read();
-      if (items.some((x) => x.childId === childId)) await write(items.filter((x) => x.childId !== childId));
+    // 送っている途中のものは、送り終えたときにもう一覧にないので、そのまま消えたままになる。
+    // 消す前に始まった enqueue の書き込みも捨てる（世代を進める。呼んだ時点で進めるので、順番待ちの間に届いた分も捨てる）
+    removeChild(childId: string): Promise<void> {
+      removedTimes.set(childId, generation(childId) + 1);
+      return exclusive(async () => {
+        const items = await read();
+        if (items.some((x) => x.childId === childId)) await write(items.filter((x) => x.childId !== childId));
+      });
     },
 
     // 隔離した記録をもう一度送る対象に戻す（原因を直したあと。自動では呼ばない）。

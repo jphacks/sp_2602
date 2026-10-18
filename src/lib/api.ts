@@ -54,6 +54,12 @@ export function setSessionToken(token: string | null): void {
   sessionToken = token;
 }
 
+// 今覚えている合言葉（ログアウト・401 のあとは null）。待っている間に Session が入れ替わった・消えたかを見るため
+// （child-data.tsx の定期取得。session-core.ts はログアウト状態にするとき、まず null にする）
+export function currentSessionToken(): string | null {
+  return sessionToken;
+}
+
 // 合言葉を付けて送ったのに 401 が返ったときに呼ぶ関数（session.tsx が登録する。null で外す）。サーバの返事（ApiError）を渡す
 export function setUnauthorizedHandler(fn: ((error: ApiError) => void) | null): void {
   onUnauthorized = fn;

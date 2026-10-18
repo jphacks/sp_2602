@@ -10,14 +10,17 @@
 //   権限: 使用状況へのアクセス・重ねて表示・通知・電池の最適化の状態を読み直す（設定画面で許可して戻ってきたときに出し分けを変える）
 // 監視（Kotlin の Foreground Service）を始めるきっかけ: この Provider が出たとき（＝子どもとしてログインした後）と、設定を取れたとき。
 //   監視は Slope の画面が閉じても続き、上限に届いたら Kotlin が案内を前に出す（modules/kit-native/.../engine/MonitorService.kt）。
-//   止めるのはログアウトのとき（session.tsx の signOut）。
+//   止めるのは保護者が連携を外したとき（family_unlink。session.tsx の clearUnlinked と Kotlin の LocalData.clearUnlinked。D-133・D-136）。
+// 取得を待ったあとに、Session が入れ替わった・消えた、または設定の取得が 401 だったら、続き（saveRestriction・startEngine・
+//   送信待ち・アプリの一覧）をしない（外された片付けのあとで制限を戻さないように。child-refresh-guard.ts）。
 // 画面では: const { config, usage, calc, test, blank, permissions, refresh } = useChildData();
 import { addDays, todayString } from "@contracts/dates";
 import type { NativePermissionStatus, NativeUsageResult } from "@contracts/native";
 import type { UsageDayReport } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { needsIdentityCheck } from "./api";
+import { currentSessionToken, needsIdentityCheck } from "./api";
 import { childAppsSync } from "./child-apps-sync";
+import { canApplyChildRefresh } from "./child-refresh-guard";
 import { type ConfigState, configCache } from "./config-cache";
 import { native } from "./native";
 import { usePolling } from "./polling";
@@ -76,6 +79,8 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
   const refresh = useCallback(async () => {
     const date = todayString();
     const yesterday = addDays(date, -1);
+    // 始めたときの合言葉（待っている間に Session が入れ替わった・消えたかを見る）
+    const token = currentSessionToken();
     setToday(date);
     // 設定の組・権限・使用時間は、中身が変わっていなければ前の値のまま（30 秒ごとに子どもの全部の画面を描き直さない）
     const perms = native.getPermissions();
@@ -87,6 +92,9 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
     ]);
     setConfig((prev) => keepIfSame(prev, cfg));
     setUsage((prev) => keepIfSame(prev, use));
+    // 待っている間に Session が入れ替わった・消えた、または設定の取得が 401 だった（連携が外れた片付けが走っている）なら、
+    // ここで止める（このあとの saveRestriction・startEngine で、止めた制限を戻さない。送信待ちに外された子どもの記録を入れない）
+    if (!canApplyChildRefresh(token, currentSessionToken(), cfg)) return;
     // 自分の設定なのに 403 → サーバ上の自分の id・役割が変わった。確かめ直す（id が変われば child/_layout.tsx が新しい id で作り直し、
     // 役割がなくなっていれば入口へ戻る。needsIdentityCheck）
     if (cfg.status !== "fresh" && needsIdentityCheck(cfg.error)) void recheckSession();
@@ -120,6 +128,8 @@ export function ChildDataProvider({ childId, children }: { childId: string; chil
       const item = await usageOutbox.enqueue(childId, days).catch(() => null);
       if (item) lastSent.current = key;
     }
+    // 入れている間にログアウト状態になっていたら送らない（合言葉なしで送っても 401 になるだけ）
+    if (currentSessionToken() !== token) return;
     await usageOutbox.flush().catch(() => undefined);
   }, [childId, recheckSession]);
 
