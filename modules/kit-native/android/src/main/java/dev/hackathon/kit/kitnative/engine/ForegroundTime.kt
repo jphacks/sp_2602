@@ -26,14 +26,14 @@ enum class FgKind {
   SHUTDOWN;
 
   companion object {
-    // Stable UsageEvents.Event values. DEVICE_SHUTDOWN is 17 (not 26).
+    // UsageEvents.Event の値（android.jar で確認。DEVICE_SHUTDOWN は 26。17 は KEYGUARD_SHOWN なので数えない）
     fun fromUsageEventType(type: Int): FgKind? =
       when (type) {
         1 -> RESUMED // ACTIVITY_RESUMED / MOVE_TO_FOREGROUND
         2 -> PAUSED // ACTIVITY_PAUSED / MOVE_TO_BACKGROUND
         16 -> SCREEN_OFF // SCREEN_NON_INTERACTIVE
         23 -> STOPPED // ACTIVITY_STOPPED
-        17 -> SHUTDOWN // DEVICE_SHUTDOWN
+        26 -> SHUTDOWN // DEVICE_SHUTDOWN
         else -> null
       }
   }

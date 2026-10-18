@@ -3,6 +3,7 @@
 更新日: 2026-10-18
 基点: `main` `9883d2b` から作成した `feature/d9-usage-window-validation`
 目的: DB・API・画面を変更せず、Android の使用イベントから前面利用区間を再構成し、解除時間との重複をミリ秒で計算できるか検証する。
+範囲: この文書の「変更していない」「実行結果」は、D9 検証のコミット（`c3e77a0`）についての記述。同じブランチのほかのコミット（セキュリティ対応など）は DB・API・画面を変更しており、この文書の対象外。
 
 ## 実装した検証用処理
 
@@ -24,7 +25,8 @@
 | アプリ切替 | 前のアプリを次の `RESUMED` 時刻で閉じ、アプリ別区間を返す |
 | `STOPPED`、画面消灯 | 取得できた終了イベントで利用区間を閉じる |
 | `PAUSED`/`STOPPED` の欠損 | 次のアプリイベントがあればそこで閉じる。後続イベントも無い場合は実際の終了時刻を復元できない |
-| 使用状況イベント値 | `DEVICE_SHUTDOWN=17`、`SCREEN_NON_INTERACTIVE=16`、`ACTIVITY_STOPPED=23` を使う |
+| 使用状況イベント値 | `DEVICE_SHUTDOWN=26`、`SCREEN_NON_INTERACTIVE=16`、`ACTIVITY_STOPPED=23` を使う（17 は `KEYGUARD_SHOWN`。android.jar の定数と比べるテストあり） |
+| 電源断 | `RESUMED` → `DEVICE_SHUTDOWN` → 再起動後の別アプリの `RESUMED` で、電源断の時刻で区間を閉じる |
 | 対象外アプリ | 計算へ渡した制限対象パッケージだけ U/X に含める |
 | 既存集計との比較 | 生のミリ秒合計は前面区間の合計と一致する。分換算は後述の丸め差を確認する |
 
@@ -45,6 +47,8 @@
 - 実機での誤差、Samsung 独自のイベント保持・省電力挙動は未確定。
 
 ## 実行結果
+
+以下は `c3e77a0` 時点の結果。その後、`DEVICE_SHUTDOWN` を 17 と誤っていた点（正しくは 26）を直し、`:kit-native:testDebugUnitTest --rerun` を再実行した（`BUILD SUCCESSFUL`。`UsageWindowCalculatorTest` 13件を含む52件すべて成功）。
 
 - `npm run test -- --reporter=dot`: **66 test files, 873 tests passed**。
 - 追跡済み JS/TS/JSON 等443ファイルへの Biome lint: errors なし（2 warnings）。

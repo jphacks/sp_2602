@@ -1,5 +1,6 @@
 package dev.hackathon.kit.kitnative.engine
 
+import android.app.usage.UsageEvents
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -140,10 +141,42 @@ class UsageWindowCalculatorTest {
 
   @Test
   fun UsageStatsイベントの終了値を公式値へ対応づける() {
-    assertEquals(FgKind.SHUTDOWN, FgKind.fromUsageEventType(17))
-    assertNull(FgKind.fromUsageEventType(26))
+    assertEquals(FgKind.SHUTDOWN, FgKind.fromUsageEventType(26))
+    assertNull(FgKind.fromUsageEventType(17)) // KEYGUARD_SHOWN（電源断ではない）
     assertEquals(FgKind.SCREEN_OFF, FgKind.fromUsageEventType(16))
     assertEquals(FgKind.STOPPED, FgKind.fromUsageEventType(23))
+  }
+
+  @Test
+  fun UsageStatsイベントの値はandroid_jarの定数と一致する() {
+    // 定数はコンパイル時に埋め込まれるので、JVM のテストでも android.jar の値と比べられる
+    assertEquals(FgKind.RESUMED, FgKind.fromUsageEventType(UsageEvents.Event.ACTIVITY_RESUMED))
+    assertEquals(FgKind.PAUSED, FgKind.fromUsageEventType(UsageEvents.Event.ACTIVITY_PAUSED))
+    assertEquals(FgKind.STOPPED, FgKind.fromUsageEventType(UsageEvents.Event.ACTIVITY_STOPPED))
+    assertEquals(FgKind.SCREEN_OFF, FgKind.fromUsageEventType(UsageEvents.Event.SCREEN_NON_INTERACTIVE))
+    assertEquals(FgKind.SHUTDOWN, FgKind.fromUsageEventType(UsageEvents.Event.DEVICE_SHUTDOWN))
+    assertNull(FgKind.fromUsageEventType(UsageEvents.Event.KEYGUARD_SHOWN))
+  }
+
+  @Test
+  fun 電源断で区間を閉じ再起動後の別アプリは新しい区間になる() {
+    val (foreground, totals) = calculate(
+      listOf(
+        event("game", "Main", FgKind.RESUMED, at(8)),
+        event("", "", FgKind.SHUTDOWN, at(8, 30)), // 電源断（PAUSED は来ない）
+        event("video", "Player", FgKind.RESUMED, at(9)), // 再起動後
+        event("video", "Player", FgKind.PAUSED, at(9, 20)),
+      ),
+      emptyList(),
+      restricted = setOf("game", "video"),
+      end = at(12),
+    )
+
+    assertEquals(listOf(ForegroundInterval(at(8), at(8, 30))), foreground.intervalsByPackage["game"])
+    assertEquals(listOf(ForegroundInterval(at(9), at(9, 20))), foreground.intervalsByPackage["video"])
+    assertEquals(30 * minute, foreground.msByPackage["game"])
+    assertNull(foreground.foregroundAtEnd)
+    assertEquals(50 * minute, totals.actualMs)
   }
 
   @Test
@@ -155,6 +188,8 @@ class UsageWindowCalculatorTest {
       end = at(10),
     )
     assertEquals(2 * 60 * minute, foreground.msByPackage["game"])
+    assertEquals(listOf(ForegroundInterval(at(8), at(10))), foreground.intervalsByPackage["game"])
+    assertEquals("game", foreground.foregroundAtEnd)
     assertEquals(foreground.msByPackage.values.sum(), totals.actualMs)
   }
 
