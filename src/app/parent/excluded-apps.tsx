@@ -8,6 +8,9 @@
 //   もの（消されたアプリなど）を後ろに足す（excluded.ts の candidateApps）。一覧は開いたときに1回読む（まだ届いていない・読めない
 //   ときは、届くまで 30 秒ごとの取り直しのたびに読み直す）。届いていなければ見本で埋めず「まだ届いていません」と出す。
 //   アプリが多いので名前で絞り込める（filterRows）。アイコンは子どもの端末から届いた本物（useAppIcons。なければ頭文字）。
+// 「ON = 制限しない」が分かるように（2026-10-18 実機: YouTube を制限したつもりで ON にした人がいた）、一覧の上に意味の説明、
+//   見出しに「オン＝制限しない」、スイッチの横に「制限しない／制限する」（switchText）を出す。行の反映の状態は rowNote
+//   （対象外にしていない落ち着いた行には出さない）。
 import type { ApiError } from "@contracts/errors";
 import type { ChildAppsView, ExcludedAppsView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
@@ -24,6 +27,8 @@ import {
   filterRows,
   hasUnsaved,
   removedVersions,
+  rowNote,
+  switchText,
   syncExcludedDraft,
 } from "@/components/parent/excluded";
 import { AppIcon, Toggle } from "@/components/parent/parts";
@@ -208,9 +213,13 @@ function ExcludedBody({ childId }: { childId: string }) {
               hint="反映の状態は、通信できると自動で更新します"
             />
           )}
-          <Banner icon="edit" message="選んだアプリは、使用時間にふくまれなくなります。変更できるのは保護者だけです" />
+          <Banner
+            icon="info"
+            message="オンにしたアプリは、上限に数えず、時間が終わってもいつでも使えます（勉強用のアプリなど）"
+            hint="オフのアプリは、ふだんどおり使用時間に数え、時間が終わると止まります。制限したいアプリはオフのままにしてください。変更できるのは保護者だけです"
+          />
           <View style={styles.listHead}>
-            <AppText variant="label">子どものアプリ</AppText>
+            <AppText variant="label">子どものアプリ（オン＝制限しない）</AppText>
             {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
             {!loadError && <ListStatus status={excludedListStatus(view)} />}
           </View>
@@ -218,7 +227,7 @@ function ExcludedBody({ childId }: { childId: string }) {
             <Banner
               icon="info"
               message="子どもの端末からアプリの一覧がまだ届いていません"
-              hint="子どもの端末で Slope を開くと届きます。届くまでは、対象外にしたアプリだけを出しています"
+              hint="子どもの端末で Slope を開くと届きます。届くまでは、制限しない（対象外にした）アプリだけを出しています"
             />
           )}
           {!childApps && childAppsError && (
@@ -226,7 +235,7 @@ function ExcludedBody({ childId }: { childId: string }) {
               tone="warning"
               icon="cloud_off"
               message="子どもの端末のアプリの一覧を読み込めませんでした"
-              hint="通信できると自動で読み込み直します。それまでは、対象外にしたアプリだけを出しています"
+              hint="通信できると自動で読み込み直します。それまでは、制限しない（対象外にした）アプリだけを出しています"
             />
           )}
           {listed && rows.length > 0 && (
@@ -261,8 +270,6 @@ function ExcludedBody({ childId }: { childId: string }) {
   );
 }
 
-const statusText = { applied: "反映済み", pending: "反映待ち", unsaved: "まだ保存していません" } as const;
-
 function ListStatus({ status }: { status: "applied" | "pending" }) {
   return status === "applied" ? (
     <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
@@ -283,6 +290,7 @@ function AppRow({
   disabled: boolean;
 }) {
   const styles = useStyles();
+  const note = rowNote(row);
   return (
     <View style={styles.row}>
       <AppIcon initial={row.initial} uri={icon} />
@@ -296,22 +304,29 @@ function AppRow({
             子どものスマホに見つかりません（消されたかもしれません）
           </AppText>
         )}
-        {row.status === "pending" ? (
-          <View style={styles.chipRow}>
-            <Chip label={statusText.pending} small />
-          </View>
-        ) : (
-          <AppText variant="caption" tone={row.status === "unsaved" ? "warning" : "muted"}>
-            {statusText[row.status]}
-          </AppText>
-        )}
+        {note &&
+          (note.kind === "chip" ? (
+            <View style={styles.chipRow}>
+              <Chip label={note.label} small />
+            </View>
+          ) : (
+            <AppText variant="caption" tone={note.kind}>
+              {note.label}
+            </AppText>
+          ))}
       </View>
-      <Toggle
-        value={row.on}
-        onValueChange={onToggle}
-        disabled={disabled}
-        accessibilityLabel={`${row.label}を制限の対象外にする（${statusText[row.status]}）`}
-      />
+      {/* スイッチの横に ON/OFF の意味（ON = 制限しない）を文字で出す */}
+      <View style={styles.switchBox}>
+        <Toggle
+          value={row.on}
+          onValueChange={onToggle}
+          disabled={disabled}
+          accessibilityLabel={`${row.label}を制限しない（制限の対象外にする）${note ? `。${note.label}` : ""}`}
+        />
+        <AppText variant="caption" tone={row.on ? "primary" : "muted"} strong={row.on}>
+          {switchText(row.on)}
+        </AppText>
+      </View>
     </View>
   );
 }
@@ -339,5 +354,6 @@ const useStyles = makeStyles((c) =>
       gap: tokens.space[2],
     },
     chipRow: { flexDirection: "row" },
+    switchBox: { alignItems: "center", gap: tokens.space[1] },
   }),
 );
