@@ -181,13 +181,13 @@ DATABASE_URL='<本番の DATABASE_URL>' npm run db:migrate
 # PowerShell なら: $env:DATABASE_URL = '<URL>'; npm run db:migrate
 ```
 
-> **注意（必ず先にやる）: この版（セキュリティ検査の直し・2026-10-18）を出す前に、`0016_family_unlink_audit.sql` と `0017_rate_limit_hits.sql` を、プレビューと本番の両方の DB に上の `npm run db:migrate` で入れてください。**
+> **注意（必ず先にやる）: この版（セキュリティ検査の直し・子どもを外す画面・2026-10-18）を出す前に、`0016_family_unlink_audit.sql`・`0017_rate_limit_hits.sql`・`0018_session_revoked_reason.sql` を、プレビューと本番の両方の DB に上の `npm run db:migrate` で入れてください。**
 >
-> 入れずにコードを出すと、`authGoogle`（ログイン）と `pairStart`（QR を出す）が表 `rate_limit_hits` が無くて **500 になり、だれもログインできなくなります**。`familyUnlink`（子どもを外す）も表 `audit_events` が無くて 500 になります。
+> 入れずにコードを出すと、`authGoogle`（ログイン）と `pairStart`（QR を出す）が表 `rate_limit_hits` が無くて **500 になり、だれもログインできなくなります**。`familyUnlink`（子どもを外す）も表 `audit_events` が無くて 500 になります。`0018` が無いと、ログアウト（`authSignOut`）・子どもを外す・無効になった合言葉での呼び出し（ふつうは 401 のところ）が、列 `user_sessions.revoked_reason` が無くて 500 になります。
 > 入れたあと、下の「出す前に確かめる SQL」で古いデータが残っていないかも確かめてください。
 
 - `npm run db:migrate` は、まだ入っていない migration を番号の順に全部入れます。`0011_auth_rules_and_list_versions.sql`（QR の番号のまちがいの記録の表 `pair_claim_failures`、テスト期間・空白期間の一覧が最後に変わった版の列 `child_config_versions.test_periods_changed_version`・`blank_periods_changed_version`、設定の版を 0 から始める決まり）など前のものをまだ入れていなければ、それも一緒に入ります。
-- `0016_family_unlink_audit.sql`: 表 `audit_events`（子どもを外した記録。D-101）。`0017_rate_limit_hits.sql`: 表 `rate_limit_hits`（ログイン・QR を出す回数の上限。D-131）。
+- `0016_family_unlink_audit.sql`: 表 `audit_events`（子どもを外した記録。D-101）。`0017_rate_limit_hits.sql`: 表 `rate_limit_hits`（ログイン・QR を出す回数の上限。D-131）。`0018_session_revoked_reason.sql`: 列 `user_sessions.revoked_reason`（合言葉を無効にした理由。連携を外された子どもの端末に、401 で理由を返すため。D-133。列を足すだけで、今ある行は NULL のまま）。
 - 入れたかどうかは、Neon の表 `drizzle.__drizzle_migrations` に行が増えたかで分かります。
 
 #### 出す前に確かめる SQL（範囲の外の古いデータ）
@@ -223,6 +223,7 @@ UNION ALL SELECT 'child_app_icons', count(*) FROM child_app_icons WHERE app_id !
 #### この版を入れたら dev client を作り直す
 
 合言葉を Android Keystore の鍵で封をする `sealSecret`・`openSecret` が Kotlin（`modules/kit-native/` の `SecretBox`）に増えました。**dev client を `npm run android` で作り直してください**（画面の即時反映では入りません）。作り直さないと、古い dev client には封の関数がないので合言葉を端末に置けず、起動のたびに何も言わずにログインし直しになります（開発中は Metro のログに「dev client を作り直してください（sealSecret がありません）」が1回出ます。`src/lib/native.ts`）。
+Kotlin の許可の状態の送信が「連携が外れた」401（`reason: "family_unlink"`）を受けたら監視を止めるようにもしました（`LocalData.kt`・`StatusReporter`。D-133）。作り直さない dev client でも、アプリを開いたときに JS が同じ 401 を受けて止めますが、アプリを開くまでは制限が残ります。
 - 手元の DB（PGlite）は、立ち上げのときに表の形を自動で合わせるので、この作業は要りません。
 
 ### 本番の DB に見本を入れる（`npm run db:seed-demo`）

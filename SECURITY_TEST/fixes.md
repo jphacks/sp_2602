@@ -75,7 +75,7 @@
 - 同じ保護者と紐づけ直しても、設定は最初からになる（前は「続きから使えるように」残していた。open-questions.md の `unlinkChild` の項目を決めた）。
 - 直し方（F-7）: 新しい表 `audit_events`（migration `0016_family_unlink_audit.sql`）に、`action = "family_unlink"`・`actor_user_id`（外した保護者）・`child_id`・`created_at` を、外すのと同じトランザクションで1行書く。消したデータの中身は残さない。外せなかったとき（403・not_found）は書かない。読む API・画面はまだない（DB を見る）。
 - テスト: `tests/verify/unlink-data.test.ts`（result.md の手順どおり: 子C が C1 とデータを作る → C1 が外す → 子C が C2 と連携 → C2 の `usageGet`・`testPeriodList`・空白期間・計画・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の状態・子どもの `configGet` に前の家庭のデータが出ない。版は前より大きい。ほかの家庭のデータは消えない。監査の行が1行残り、403 のときは残らない）。
-- 残り: 子どもの端末の送信待ち（`src/lib/usage-outbox.ts`）は 401 では消さない（同じ人がログインし直して送れるように）ので、外された時点で送れていなかった今日・昨日の分は、別の保護者と紐づけ直したあとに送られて、新しい保護者に見えることがある。端末側で「連携が外れた」ことを知って送信待ちを消すのは別の対応。
+- 残り（2026-10-18 に直した。D-133）: 前は、子どもの端末の送信待ち（`src/lib/usage-outbox.ts`）を 401 では消さなかった（同じ人がログインし直して送れるように）ので、外された時点で送れていなかった今日・昨日の分が、別の保護者と紐づけ直したあとに送られて、新しい保護者に見えることがあった。今は、外すときに子どもの合言葉を理由 `family_unlink` で無効にし（`user_sessions.revoked_reason`。migration `0018_session_revoked_reason.sql`）、その合言葉で呼ばれたら 401 に `reason: "family_unlink"` を付ける。子どもの端末はそれを見て、送信待ち・設定のキャッシュを消し、端末の制限も止める（`src/lib/session-core.ts` の `expire`・Kotlin の `StatusReporter`）。期限切れなど理由のない 401 では今までどおり消さない。テスト: `tests/verify/unlink-notice.test.ts`・`tests/lib/session-core.test.ts` › 「session-core: 401 の理由（D-133）」。
 
 ## F-5. ログイン・QR の発行の回数の上限（AVL-01）
 

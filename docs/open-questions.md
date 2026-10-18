@@ -79,7 +79,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | `src/server/plan/daily-limits.ts` の `DailyLimitOptions`・`selectPeriods`・`buildRawLimit`・`computeDailyLimits` | C10 の細かい決まり | → Q16 | → Q16 |
 | `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS` | 日別上限を何日先まで作るか | 保存した日から 120 日（残り 60 日で作り足す） | → Q16-7 |
 | `src/server/services/plan-settings.ts` の `savePlanForCaller`・`src/components/parent/plan-form.ts` の `planFormFromView` | 始まった計画の S・G だけを変えたいとき | 開始日は今日以降でないと保存できないので、親02 は開始日の初期値を今日にする（＝今日から計画を作り直すことになる） | `savePlanForCaller` の開始日の確認と `planFormFromView` |
-| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | **決めた（2026-10-18・セキュリティ検査 F-2）: 消す**。`unlinkChild` のトランザクションで、利用記録・日別上限・計画・通常上限・期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の許可の状態を消し、設定の版を 1 上げる（`backend/src/db/family-unlink.ts`）。外した記録は `audit_events` に残す（F-7） | 同じ保護者と紐づけ直しても設定は最初から。子どもの端末の送信待ち（今日・昨日の分）は 401 では消えないので、紐づけ直したあとに送られることがある（SECURITY_TEST/fixes.md） |
+| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | **決めた（2026-10-18・セキュリティ検査 F-2）: 消す**。`unlinkChild` のトランザクションで、利用記録・日別上限・計画・通常上限・期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の許可の状態を消し、設定の版を 1 上げる（`backend/src/db/family-unlink.ts`）。外した記録は `audit_events` に残す（F-7） | 同じ保護者と紐づけ直しても設定は最初から。子どもの端末の送信待ちは、外された 401（`reason: family_unlink`）を受けたときに消す（D-133）。外す画面は親04 設定（D-133） |
 | `contracts/schemas.ts` の `periodFields` | 期間の終了日を含むか | 含む | → Q16-11 |
 
 ### 端末の仕組み（`src/lib/`）
@@ -137,13 +137,14 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 
 ### Neon に migration を入れる
 
-- **コードを Vercel に出す前に、プレビューと本番の両方の DB に `backend/drizzle/0016_family_unlink_audit.sql`・`0017_rate_limit_hits.sql` を入れる**（それぞれの `DATABASE_URL` で `npm run db:migrate`。まだ入っていない `0011_auth_rules_and_list_versions.sql` などの前のものも一緒に入る。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。**入れずに出すと、`authGoogle`・`pairStart` が表 `rate_limit_hits` が無くて 500 になり、ログインできなくなります**（`familyUnlink` も `audit_events` が無くて 500）。0011 を入れていなければ、QR の読み取り・期間の一覧・設定の保存も失敗します。
+- **コードを Vercel に出す前に、プレビューと本番の両方の DB に `backend/drizzle/0016_family_unlink_audit.sql`・`0017_rate_limit_hits.sql`・`0018_session_revoked_reason.sql` を入れる**（それぞれの `DATABASE_URL` で `npm run db:migrate`。まだ入っていない `0011_auth_rules_and_list_versions.sql` などの前のものも一緒に入る。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。**入れずに出すと、`authGoogle`・`pairStart` が表 `rate_limit_hits` が無くて 500 になり、ログインできなくなります**（`familyUnlink` も `audit_events` が無くて 500。0018 が無いと、ログアウト・子どもを外す・無効な合言葉での呼び出しが列 `revoked_reason` が無くて 500）。0011 を入れていなければ、QR の読み取り・期間の一覧・設定の保存も失敗します。
 - 出す前に、範囲の外の古いデータ（2000〜2099 年の外の日付・Android の形でないアプリ名）が残っていないかを SQL で確かめる（[development.md の「出す前に確かめる SQL」](development.md#出す前に確かめる-sql範囲の外の古いデータ)）。残っていると、それを返す API が出力の契約チェックで 500 になります（D-128・D-129）。
 - この版を入れたら dev client を作り直す（合言葉を封する `sealSecret`・`openSecret` が Kotlin に増えたため。[development.md](development.md#この版を入れたら-dev-client-を作り直す)）。
 
 ### 外した子どものデータ
 
-- **決めた（2026-10-18・セキュリティ検査 F-2）: 消す**。`familyUnlink` で外した子どもの家庭ごとのデータは、同じトランザクションで消し、設定の版を 1 上げ、外した記録を `audit_events` に残します（D-101。上の 2章の「サーバ」の表）。残っている気がかりは、子どもの端末の送信待ち（今日・昨日の分）が紐づけ直したあとに送られることがある点です（同じ表の「変えるときに直す所」）。
+- **決めた（2026-10-18・セキュリティ検査 F-2）: 消す**。`familyUnlink` で外した子どもの家庭ごとのデータは、同じトランザクションで消し、設定の版を 1 上げ、外した記録を `audit_events` に残します（D-101。上の 2章の「サーバ」の表）。子どもの端末の送信待ち（今日・昨日の分）が紐づけ直したあとに送られることがある点は、2026-10-18 に直しました（外された子どもの端末は 401 の理由 `family_unlink` を見て送信待ちを消す。D-133）。
+- **決めた（2026-10-18）: 子どもを外す画面を作る**。親04 設定の「子どもとの連携を外す」から、警告 → もう一度確かめるの二段階で外します（D-133。[flows.md の 3章](flows.md#子どもとの連携を外すd-133)）。子どもの端末からは外せません（今までどおり、子どもは保護者を外せない）。
 
 ## 5. デバッグで残った、判断が要るもの（2026-10-17）
 

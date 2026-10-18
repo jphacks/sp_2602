@@ -299,7 +299,7 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 
 | データ | DBの表 | 備考 |
 |---|---|---|
-| ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull。合言葉は SHA-256 の hash でだけ保存し（`src/server/auth/digest.ts`）、最後に使ってから30日で無効（使うたびに延長。D-1）。ログアウトで失効（`otherDevices: true` なら同じ人のほかの合言葉も）。子どもを外すと、その子どもの合言葉はすべて失効 |
+| ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull。合言葉は SHA-256 の hash でだけ保存し（`src/server/auth/digest.ts`）、最後に使ってから30日で無効（使うたびに延長。D-1）。ログアウトで失効（`otherDevices: true` なら同じ人のほかの合言葉も）。子どもを外すと、その子どもの合言葉はすべて失効。失効させるときは `user_sessions.revoked_reason`（varchar 40・NULL 可。migration `0018_session_revoked_reason.sql`）に理由を残す: `sign_out`（その端末のログアウト）・`sign_out_others`（ほかの端末からのログアウト）・`family_unlink`（子どもを外した）。NULL は失効していない行か、0018 より前に失効させた行。`family_unlink` の合言葉で呼ばれたときだけ 401 に `reason` を付ける（D-133）。デモの人の固定の合言葉は、ログインし直すと `revoked_at`・`revoked_reason` とも NULL に戻る |
 | 親子関係・QR | `family_links`, `pair_tickets`, `pair_claim_failures` | 親1人↔子1人（Q2）。QRは10分・1回だけ・出し直しで前を無効（Q10）。QRコードそのものではなくhashを保存。番号のまちがい（`pairClaim` の not_found・conflict）を人ごとに `pair_claim_failures` に数え、10分に10回で `rate_limited`。成功したら消す（Vercel のインスタンスはメモリを共有しないので表に数える） |
 | DB の epoch（C7） | `server_meta` | 1行だけ（`id` は必ず 1）。`epoch` は uuid で、最初に読んだときに作る（`backend/src/db/server-epoch.ts` の `readServerEpoch`。migration `0012_server_meta_epoch.sql`）。DB を作り直す・PGlite と Neon を切り替えると別の値、再起動では同じ値。`configGet` の応答に入れる（D-109）。手で書き換えない（書き換えると全部の端末が設定を取り直す） |
 | 設定版・反映版 | `child_config_versions`, `child_applied_versions` | 全体 `version` とC10入力専用 `c10_input_version` を別管理。`version` は 0 から（0 = まだ一度も保存していない。0 以上の決まりつき）。一覧が最後に変わった版 `test_periods_changed_version`・`blank_periods_changed_version` が API の `periodsChangedVersion`・`blankChangedVersion` になる |
