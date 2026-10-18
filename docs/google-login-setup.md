@@ -53,6 +53,6 @@ Slope は、保護者も子どもも Google アカウントでログインしま
   ```
 
   出力の `SHA-1 digest` が登録した値と同じならよい。
-- 発表用に **release 版**（別の鍵で署名）を作るときも、その鍵の SHA-1 で Android のクライアントを登録する。
+- 発表用の **release 版**は、開発用の鍵ではなく自分たちの鍵で署名する（開発用の鍵では作れないようにしてある）。その鍵の SHA-1 で Android のクライアント「Slope Android (release)」をもう1つ登録する。鍵の作り方・SHA-1 の出し方・登録は [release-signing.md](release-signing.md)。
 - 「DEVELOPER_ERROR」でログインが失敗するときは、ほぼ「パッケージ名か SHA-1 が登録と合っていない」か「Web のクライアント ID が違う」。
 - クライアント ID は秘密ではないが、`.env` は Git に入れない（`.gitignore` 済み）。

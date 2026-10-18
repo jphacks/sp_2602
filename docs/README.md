@@ -24,6 +24,7 @@
 
 - [MVP_SPEC.md](MVP_SPEC.md) … いちばん上の仕様書（C1〜C10・D1〜D8・受け入れ条件 AC-01〜17）。説明書はこれを書き換えない。
 - [google-login-setup.md](google-login-setup.md) … 本物の Google ログインを使うための Google Cloud の登録手順。
+- [release-signing.md](release-signing.md) … release 版を自分たちの鍵で署名する手順（鍵の作り方・`gradle.properties`・Google ログイン用の SHA-1 の登録し直し）。
 - [device-owner.md](device-owner.md) … デモの間 Slope を消せないようにする手順（Device Owner。スマホの初期化が要る・デモ専用）と解除のしかた。
 
 ## まず読む順番

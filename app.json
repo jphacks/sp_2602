@@ -18,6 +18,7 @@
     },
     "plugins": [
       "./plugins/with-android-no-backup.ts",
+      "./plugins/with-release-signing.ts",
       "expo-router",
       "expo-status-bar",
       [
