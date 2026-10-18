@@ -138,6 +138,35 @@ describe("createConfigCache", () => {
     expect(sent).toEqual([undefined, 1]);
   });
 
+  it("新しい版を採用したら、すぐにその版をサーバへ知らせる（次の取得を待たずに「反映済み」にする）。同じ版のままなら知らせない", async () => {
+    const storage = memoryStorage();
+    let serverVersion = 1;
+    const acked: number[] = [];
+    const cache = createConfigCache({
+      storage,
+      fetchConfig: async (_id, known) => (known === serverVersion ? same(serverVersion) : changed(snap(serverVersion))),
+      ackAdopted: async (_id, version) => {
+        acked.push(version);
+      },
+    });
+    await cache.refresh("c1"); // 初めての取得で版 1 を採用 → 知らせる
+    await cache.refresh("c1"); // 変わっていない → 知らせない
+    serverVersion = 2; // 保護者が保存した
+    await cache.refresh("c1"); // 版 2 を採用 → 知らせる
+    expect(acked).toEqual([1, 2]);
+  });
+
+  it("知らせるのに失敗しても、採用した組はそのまま fresh（取得の結果を変えない）", async () => {
+    const cache = createConfigCache({
+      storage: memoryStorage(),
+      fetchConfig: async () => changed(snap(1)),
+      ackAdopted: async () => {
+        throw networkError();
+      },
+    });
+    expect((await cache.refresh("c1")).status).toBe("fresh");
+  });
+
   it("通信に失敗したら最後の正常な組を stale で返す。手元もなければ unavailable（0 分で埋めない）", async () => {
     const storage = memoryStorage();
     let fail = false;
