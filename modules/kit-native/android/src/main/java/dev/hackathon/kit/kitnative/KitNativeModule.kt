@@ -11,6 +11,8 @@ import dev.hackathon.kit.kitnative.engine.LauncherApps
 import dev.hackathon.kit.kitnative.engine.LimitPrompt
 import dev.hackathon.kit.kitnative.engine.LimitRules
 import dev.hackathon.kit.kitnative.engine.MonitorService
+import dev.hackathon.kit.kitnative.engine.PermissionNudge
+import dev.hackathon.kit.kitnative.engine.StatusReporter
 import dev.hackathon.kit.kitnative.engine.UsageReader
 import dev.hackathon.kit.kitnative.widget.SlopeWidget
 import dev.hackathon.kit.kitnative.widget.WidgetStore
@@ -33,6 +35,7 @@ import java.util.TimeZone
 //   Q15: getLauncherApps（ホーム画面に出るアプリの一覧。親16 の候補として JS がサーバへ送る）
 //   C4: saveRestriction・startEngine・stopEngine・getEngineStatus・showLimitReached・openApp・clearLocalData
 //   C5: saveParentWidget（保護者のウィジェット。子どものウィジェットの値は saveRestriction と監視が保存する）
+//   D-113: setStatusReporter・clearStatusReporter（許可の状態をサーバへ直接送る送り先と合言葉。engine/StatusReporter.kt）
 class KitNativeModule : Module() {
   private val context: Context
     get() = appContext.reactContext?.applicationContext ?: throw Exceptions.ReactContextLost()
@@ -140,11 +143,13 @@ class KitNativeModule : Module() {
       MonitorService.start(ctx)
     }
 
-    // 監視を止める（ログアウトのとき）。再起動しても始めない
+    // 監視を止める（ログアウトのとき）。再起動しても始めない。許可の状態の生存報告と催促の通知も止める
     Function("stopEngine") {
       val ctx = context
       EngineStore.setEngineEnabled(ctx, false)
       MonitorService.stop(ctx)
+      StatusReporter.cancelHeartbeat(ctx)
+      PermissionNudge.cancel(ctx)
     }
 
     // ログアウトのときに、この端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットのテストの日程を消して、
@@ -153,10 +158,31 @@ class KitNativeModule : Module() {
       val ctx = context
       EngineStore.setEngineEnabled(ctx, false) // 先に印を消す（動いている監視が、消した値を書き戻さないように）
       MonitorService.stop(ctx)
-      EngineStore.clear(ctx)
+      EngineStore.clear(ctx) // 許可の状態の送り先と合言葉（D-113）もここで消える
+      StatusReporter.cancelHeartbeat(ctx)
+      PermissionNudge.cancel(ctx)
       LimitPrompt.cancelLimitNotification(ctx)
       WidgetStore.clear(ctx)
       SlopeWidget.requestUpdate(ctx)
+    }
+
+    // ── D-113（許可の見張りと親への通告）──────────────────────────
+
+    // 許可の状態の送り先（deviceStatusReport の完全な URL）・合言葉・子どもの id を保存する。JS が子どもとしてログインしたとき・起動時に呼ぶ
+    // （src/lib/session.tsx）。前と違えば、次の見張りを待たずに送らせる（紐づけた直後に親の画面へ早く届けるため）
+    Function("setStatusReporter") { url: String, token: String, childId: String ->
+      val ctx = context
+      if (EngineStore.saveReporter(ctx, url, token, childId)) {
+        MonitorService.checkNow()
+        StatusReporter.scheduleHeartbeat(ctx)
+      }
+    }
+
+    // 送り先と合言葉を消す（保護者・役割のない人・401 のとき。ログアウトは clearLocalData でも消える）
+    Function("clearStatusReporter") {
+      val ctx = context
+      EngineStore.clearReporter(ctx)
+      StatusReporter.cancelHeartbeat(ctx)
     }
 
     // ── C5（保護者のウィジェット・Figma 親08）──────────────────────

@@ -11,10 +11,11 @@
 import type { ApiError } from "@contracts/errors";
 import { Session } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
+import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
+import { applyStatusReporter, statusReporterAction } from "./status-reporter";
 import { appStorage, clearSessionData, readJson, storageKeys, writeJson } from "./storage";
 
 export type SessionState =
@@ -85,6 +86,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void verify();
     return () => setUnauthorizedHandler(null);
   }, [verify, forget]);
+
+  // D-113: Kotlin の監視に、許可の状態の送り先と合言葉を渡す（子どもだけ）・消す（ログアウト・401・保護者）
+  useEffect(() => {
+    applyStatusReporter(statusReporterAction(state, apiUrl("deviceStatusReport")), native);
+  }, [state]);
 
   const signIn = useCallback(
     async (idToken: string) => {

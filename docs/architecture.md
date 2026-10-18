@@ -32,6 +32,7 @@ flowchart LR
   CL --> K
   PL -- "HTTP（JSON）＋合言葉" --> R
   CL -- "HTTP（JSON）＋合言葉" --> R
+  K -. "許可の状態だけ（D-113。Kotlin から直接）" .-> R
   R --> H
   H --> SVC --> DB
   SVC --> C10
@@ -41,7 +42,7 @@ flowchart LR
 | 部分 | 何をするか | 主なファイル |
 |---|---|---|
 | 端末のアプリ | 画面を出し、サーバと通信する。保護者用・子ども用は同じアプリで、役割によって出す画面が変わる | `src/app/`・`src/components/`・`src/lib/` |
-| Kotlin の窓口 | Android だけでできること（C2 使用時間の取得・C4 監視と制限画面）を呼ぶ入口。Kotlin の中身は `modules/kit-native/android/.../engine/`（Kotlin がない環境では安全な既定値） | `contracts/native.ts`・`src/lib/native.ts`・`modules/kit-native/` |
+| Kotlin の窓口 | Android だけでできること（C2 使用時間の取得・C4 監視と制限画面）を呼ぶ入口。Kotlin の中身は `modules/kit-native/android/.../engine/`（Kotlin がない環境では安全な既定値）。**Kotlin がサーバへ直接送るのは、許可の状態（`deviceStatusReport`。D-113）だけ**（アプリを閉じていても届けるため。ほかの通信はすべて JS の `call()` を通る） | `contracts/native.ts`・`src/lib/native.ts`・`modules/kit-native/` |
 | Hono のサーバ | 窓口（API）を受け、ログインと権限を確かめ、データを保存し、上限を計算する | `src/server/` |
 | サーバの処理 | ログイン・合言葉・QR の紐づけ・家族（`auth.ts`）、計画・日程・対象外アプリ・設定の組（`services/`）。保存は `backend/src/db/` の Drizzle の処理を呼ぶ | `src/server/auth.ts`・`src/server/services/`・`backend/src/db/` |
 | DB | サーバのデータの置き場（すべての API が DB だけを通る）。Vercel では Neon（`DATABASE_URL`）、手元とテストでは PGlite（Node の中で動く Postgres）。表の設計は `backend/src/db/schema/`、変更の記録は `backend/drizzle/` | `src/server/db/index.ts`・`backend/` |
@@ -132,7 +133,7 @@ sequenceDiagram
 |---|---|---|
 | **割合・到達の判定は子どもの端末の中で行う** | 電波がなくても判定できるように。親の画面で設定を変えても、過去の記録を計算し直さないように | C3 は `src/lib/usage-calc.ts` の `calcUsage`。判定の値は `src/lib/child-data.tsx` が `native.saveRestriction` で Kotlin に渡す（Kotlin は端末に保存した値で、オフラインでも・画面が閉じていても判定する。`engine/MonitorService.kt`）。親の画面は端末が送った `restrictedMinutes`（制限対象の合計）をそのまま使う |
 | **親の権限はサーバで確かめる（画面で隠すだけにしない）** | 子どもが保護者の操作をする・他人の子どもを見る、を防ぐ（AC-04・AC-13） | API ごとの `auth` は `contracts/api.ts`。毎回 `src/server/route.ts` の `prepare` が `auth.ts` の `authorize`（役割）と `checkChildAccess`（子どもは自分だけ・保護者は連携済みの子どもだけ・紐づけ前は何も扱えない）を呼ぶ。テストは `tests/verify/security.test.ts`・`tests/server/api.test.ts` |
-| **画面はサーバと `call()` だけで話す** | 道（path）の打ち間違い・合言葉の付け忘れ・エラーの形のばらつきを防ぐ | `src/lib/api.ts` の `call()` / `stream()`。`fetch` はここにしかない。道は `contracts/api.ts` の表から引く。サーバ側も `src/server/app.ts` が同じ表から道を作り、表に処理が足りないと型の検査で落ちる |
+| **画面はサーバと `call()` だけで話す** | 道（path）の打ち間違い・合言葉の付け忘れ・エラーの形のばらつきを防ぐ | `src/lib/api.ts` の `call()` / `stream()`。`fetch` はここにしかない。道は `contracts/api.ts` の表から引く。サーバ側も `src/server/app.ts` が同じ表から道を作り、表に処理が足りないと型の検査で落ちる。**例外は1つだけ**: 許可の状態（`deviceStatusReport`）は Kotlin の `engine/StatusReporter.kt` が `HttpURLConnection` で直接送る（JS が動いていないときも届けるため。D-113）。送り先の URL は JS が `apiUrl("deviceStatusReport")`（契約の表から引いた道）で渡す |
 | **取れない値を 0 にしない** | 「0 分使った」「0 分まで」と「分からない」を取り違えると、子どもを誤って止めたり、親が誤解したりする | 使用時間は `NativeUsageResult` の `unavailable`・`permission_denied`（`contracts/native.ts`）。C3 は `UsageCalc` の状態を分ける。設定は `ConfigState` の `unavailable`（`config-cache.ts`）。親の実績は `UsageDay.recorded: false`。画面は `StateView`・`Gauge`（`null` は「--」）・件数は出さない（`countText`・`testCountLabel`） |
 | **「制限なし」「上限未設定」「0 分」を型で分ける** | 3つとも「制限しない／できない」ように見えるが意味が違う（Q7） | `DayLimit`・`DailyLimit` の `kind`（`contracts/schemas.ts`）、`LimitInput`（`usage-calc.ts`）、`NativeRestriction.limit`（`contracts/native.ts`）。詳しくは [data.md の 2章](data.md) |
 | **保存はサーバの確定を待ってから「成功」と出す** | 押しただけで成功と出すと、届かなかったときに嘘になる（MVP_SPEC 5.3） | `Button` の `loading` で二重に押せない。日程は `PeriodEditor`、計画は `plan.tsx`（`saveConfirmation`）、紐づけは `linked` を見るまで成功を出さない（`child-flow.ts`・`parent-flow.ts`） |
@@ -146,7 +147,7 @@ sequenceDiagram
 
 ## 5. 端末に残すもの
 
-`src/lib/storage.ts` の `storageKeys` にだけキーを書きます（アプリを閉じても消えない。AsyncStorage）。
+`src/lib/storage.ts` の `storageKeys` にだけキーを書きます（アプリを閉じても消えない。AsyncStorage）。Kotlin が持つ値（判定の値・今日の使用量・許可の状態の送り先と合言葉（D-113））は SharedPreferences（[data.md の 5章](data.md)）。
 
 | キー | 中身 | 消えるとき |
 |---|---|---|
@@ -159,7 +160,7 @@ sequenceDiagram
 
 読むときは Zod で形を確かめ、壊れていたら「ない」として扱います（`readJson`）。
 
-**ログアウトで消すもの**（`src/lib/sign-out.ts` の `clearLocalDataFor`。`session.tsx` の `signOut` が呼ぶ）: 設定のキャッシュ全部と、ログアウトした人の送信待ち。同じ端末で別の人がログインし直したときに、前の人の設定や記録が混ざらないようにするためです。合言葉の期限切れ（401）では呼びません。消す前に、合言葉をサーバでも無効にします（`revokeServerSession` → `authSignOut`。通信できなくてもログアウトは進める。401 のときは呼ばない）。
+**ログアウトで消すもの**（`src/lib/sign-out.ts` の `clearLocalDataFor`。`session.tsx` の `signOut` が呼ぶ）: 設定のキャッシュ全部と、ログアウトした人の送信待ち。Kotlin の保存（`native.clearLocalData`）も全部消し、許可の状態の送り先と合言葉もここで消える（401 のときは `native.clearStatusReporter` で送り先と合言葉だけ消す。D-113）。同じ端末で別の人がログインし直したときに、前の人の設定や記録が混ざらないようにするためです。合言葉の期限切れ（401）では呼びません。消す前に、合言葉をサーバでも無効にします（`revokeServerSession` → `authSignOut`。通信できなくてもログアウトは進める。401 のときは呼ばない）。
 
 ## 6. まだ無いもの
 

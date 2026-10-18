@@ -9,6 +9,11 @@
 // 入力は contracts/web-sites.ts の normalizeSitePattern でそろえてから下書きに入れる（https://・www.・大文字・末尾の / を外す。
 //   ドメインらしくないものは、入れる前に入力欄の下に理由を出す）。並べ方・状態の決め方は src/components/parent/blocked-sites.ts。
 // 行き先: 「←」→ 親04 設定。
+// ブラウザでしか止まらないこと（2026-10-18 実機: YouTube のアプリは止まらないことが画面から分からなかった）:
+//   一番上に「ブラウザで開いたときだけ止まる・アプリはアプリの上限で止まる」の帯を出す。登録したサイトのアプリが
+//   親16 で制限対象外になっているときは、その行に注意を出す（アプリでは見放題なのに気づけないため）。
+//   対象外の一覧は call("excludedAppsGet") で読み（30 秒ごとの取り直しで一緒に）、読めなければ注意を出さないだけ。
+//   サイトとアプリの対応は src/components/parent/site-apps.ts の小さな表。
 import type { ApiError } from "@contracts/errors";
 import type { BlockedSitesView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
@@ -27,6 +32,7 @@ import {
   syncSitesDraft,
 } from "@/components/parent/blocked-sites";
 import { ChildGate } from "@/components/parent/data";
+import { excludedAppWarning } from "@/components/parent/site-apps";
 import { call, errorOf } from "@/lib/api";
 import { useParentData } from "@/lib/parent-data";
 import { usePolling } from "@/lib/polling";
@@ -58,13 +64,26 @@ function BlockedSitesBody({ childId }: { childId: string }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [savedOk, setSavedOk] = useState(false);
+  // 親16 で制限対象外にしているアプリ（packageName）。null = まだ読めていない（注意を出さない）
+  const [excluded, setExcluded] = useState<ReadonlySet<string> | null>(null);
   // 取り直しの関数から、今の保存済みの一覧・下書き・版を読むため（関数を作り直さずに済むように）
   const latest = useRef({ saved: view?.sites ?? null, draft, baseVersion });
   useEffect(() => {
     latest.current = { saved: view?.sites ?? null, draft, baseVersion };
   }, [view, draft, baseVersion]);
 
+  // 対象外アプリの一覧（行の注意に使うだけ。読めなくても登録の画面は出す）
+  const loadExcluded = useCallback(async () => {
+    try {
+      const v = await call("excludedAppsGet", { childId });
+      setExcluded(new Set(v.apps.map((a) => a.packageName)));
+    } catch {
+      // 読めなければ前の値のまま（まだなければ注意を出さない）
+    }
+  }, [childId]);
+
   const load = useCallback(async () => {
+    void loadExcluded();
     try {
       const v = await call("blockedSitesGet", { childId });
       // 触りかけの下書きは戻さない。保存していない変更がなければ、サーバの今の一覧と版に合わせる
@@ -77,7 +96,7 @@ function BlockedSitesBody({ childId }: { childId: string }) {
       const error = errorOf(e);
       if (error) setLoadError(error);
     }
-  }, [childId]);
+  }, [childId, loadExcluded]);
   usePolling(load);
   // 画面を離れたら「保存しました」の帯を消す（親16 と同じ。開き直したときに古い結果が出たままにならないように）
   useFocusEffect(useCallback(() => () => setSavedOk(false), []));
@@ -183,6 +202,11 @@ function BlockedSitesBody({ childId }: { childId: string }) {
             />
           )}
           <Banner
+            icon="info"
+            message="ブラウザ（Chrome・Samsung Internet・Firefox・Edge）で開いたときだけ止まります。YouTube などのアプリは、アプリの上限で止まります"
+            hint="設定の「制限対象外アプリ」でアプリをオン（制限しない）にしていると、そのアプリでは時間が終わっても見られます"
+          />
+          <Banner
             icon="edit"
             message="その日の時間が終わったあと、子どものスマホのブラウザでここに入れたサイトを開くと、前の画面に戻して「時間は終わりです」を出します。変更できるのは保護者だけです"
           />
@@ -221,6 +245,7 @@ function BlockedSitesBody({ childId }: { childId: string }) {
             <SiteRowView
               key={r.pattern}
               row={r}
+              warning={r.status === "removing" || !excluded ? null : excludedAppWarning(r.pattern, excluded)}
               onRemove={() => remove(r.pattern)}
               onRestore={() => restore(r.pattern)}
               disabled={saving}
@@ -254,11 +279,13 @@ function ListStatus({ status }: { status: "applied" | "pending" }) {
 
 function SiteRowView({
   row,
+  warning,
   onRemove,
   onRestore,
   disabled,
 }: {
   row: SiteRow;
+  warning: string | null; // 同じサービスのアプリが制限対象外のときの注意（site-apps.ts）
   onRemove: () => void;
   onRestore: () => void;
   disabled: boolean;
@@ -284,6 +311,16 @@ function SiteRowView({
           <AppText variant="caption" tone={row.status === "applied" ? "muted" : "warning"}>
             {statusText[row.status]}
           </AppText>
+        )}
+        {warning && (
+          <View style={styles.warnRow}>
+            <Icon name="warning" size={tokens.size.iconSmall} color={c.warning} />
+            <View style={styles.warnText}>
+              <AppText variant="caption" tone="warning" strong>
+                {warning}
+              </AppText>
+            </View>
+          </View>
         )}
       </View>
       {removing ? (
@@ -320,5 +357,7 @@ const useStyles = makeStyles((c) =>
       gap: tokens.space[2],
     },
     chipRow: { flexDirection: "row" },
+    warnRow: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
+    warnText: { flexShrink: 1 },
   }),
 );

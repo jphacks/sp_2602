@@ -28,6 +28,9 @@ import {
   ChildQuery,
   ConfigQuery,
   ConfigResult,
+  DeviceStatusReport,
+  DeviceStatusReportResult,
+  DeviceStatusView,
   ExcludedAppsSave,
   ExcludedAppsSaveResult,
   ExcludedAppsView,
@@ -174,6 +177,15 @@ export const api = {
   childAppsGet: post("/api/child-apps/get", "parent", ChildQuery, ChildAppsView),
   // 保護者: アイコンの PNG を読む（50 個ずつ。端末に持っていない・ハッシュが変わったものだけを頼む。src/lib/app-icons.ts）
   childAppIconsGet: post("/api/child-apps/icons/get", "parent", ChildAppIconsQuery, ChildAppIconsView),
+
+  // ── 許可の見張りと親への通告（docs/decisions.md D-113）──
+  // 子ども: 許可の状態（許可ごとのオン/オフ・測った時刻だけ）を送る。呼ぶのは JS ではなく Kotlin の MonitorService
+  //   （アプリを閉じていても動く。変わったとき・15 分ごとの生存報告）。Kotlin がサーバへ直接送るのはこの API だけ。
+  //   childId は自分の分だけ（route.ts が確かめる）。保存先も合言葉の本人
+  deviceStatusReport: post("/api/device-status/report", "child", DeviceStatusReport, DeviceStatusReportResult),
+  // 保護者: 連携している子どもの端末の許可の状態と、最後に届いた時刻（親01 の注意の帯。まだ届いていなければ status: null）。
+  //   familyGet に入れない理由: familyGet は子どもの一覧（名前）を親の画面全体で共有する入口で、ここは親01 だけが 30 秒ごとに読むため
+  deviceStatusGet: post("/api/device-status/get", "parent", ChildQuery, DeviceStatusView),
 } as const satisfies Record<string, { auth: AuthRule; [key: string]: unknown }>;
 
 export type Api = typeof api;

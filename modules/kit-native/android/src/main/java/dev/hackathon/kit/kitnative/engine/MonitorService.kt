@@ -27,6 +27,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 //   3. 今日の使用量のまとめを端末に保存する（ウィジェット C5 が読む）。見守り中の通知の文も更新する
 //   4. 到達していて、前面のアプリが Slope・ランチャー・対象外アプリ・必須例外のどれでもなければ、Slope の案内を前に出す（LimitPrompt）。
 //      同じアプリには間をあけて出す（PromptThrottle）。端末が使えなくなるほど出し続けないため
+//   5. 許可（使用状況へのアクセス・他のアプリの上に表示・通知・ユーザー補助）の状態を確かめ、変わったとき・15 分ごとに
+//      サーバへ直接送る（StatusReporter。D-113。通信は別のスレッドで行い、この見張りは待たない）。
+//      ユーザー補助がオフ（Web サイトの登録があるとき）なら、子どもに「オンに戻してください」の通知を出す（PermissionNudge）
 // 間隔: ふだん 30 秒、到達している間は 15 秒（到達後に別のアプリを開いたとき、早めに案内するため）。画面がついた・ロックを解いた
 //   ときはすぐ1回読む。
 // なぜ Foreground Service か: Android 8 以降、裏で動くふつうの Service はすぐ止められる。通知を出し続ける Foreground Service なら
@@ -37,7 +40,9 @@ class MonitorService : Service() {
   companion object {
     const val NOTIFICATION_ID = 2600
     const val INTERVAL_MS = 30_000L
-    const val INTERVAL_REACHED_MS = 15_000L
+    // 上限に達している間は短い間隔で確かめる（開いてすぐ閉じるアプリも見逃さないため。前は 15 秒で、数秒だけ開くと素通りした。
+    // 実機 SC-53C の Gaming Hub）。数えるのはその日の分の出来事だけなので、5 秒ごとでも重くない
+    const val INTERVAL_REACHED_MS = 5_000L
 
     @Volatile
     var running = false
@@ -78,6 +83,8 @@ class MonitorService : Service() {
   private val throttle = PromptThrottle()
   private var lastDate: String? = null
   private var lastText: String? = null
+  // 催促の通知を出しているか（null = まだ確かめていない。作り直された Service が、前に出した通知を消し忘れないように）
+  private var nudgeShown: Boolean? = null
   private lateinit var reader: UsageReader
 
   // 画面がついた・ロックを解いたら、すぐ1回読む（画面が消えている間は読んでも意味がないので、待っている）
@@ -100,6 +107,8 @@ class MonitorService : Service() {
     }
     running = true
     instance = this
+    // 画面が消えている間の生存報告の目覚まし（D-113。送り先がなければ鳴っても何もしない）
+    if (EngineStore.loadReporter(this) != null) StatusReporter.scheduleHeartbeat(this)
     val filter =
       IntentFilter().apply {
         addAction(Intent.ACTION_SCREEN_ON)
@@ -140,6 +149,11 @@ class MonitorService : Service() {
   override fun onDestroy() {
     running = false
     if (instance === this) instance = null
+    // ログアウト（stopEngine・clearLocalData）で止まったときは、生存報告の目覚ましと催促の通知も止める
+    if (!EngineStore.isEngineEnabled(this)) {
+      StatusReporter.cancelHeartbeat(this)
+      PermissionNudge.cancel(this)
+    }
     scope.cancel()
     try {
       unregisterReceiver(screenReceiver)
@@ -167,6 +181,7 @@ class MonitorService : Service() {
     val summary = LimitRules.summarize(today, usage, rule, now)
     EngineStore.saveToday(this, summary)
     updateNotification(summary)
+    watchPermissions(rule, now)
 
     if (rule != null && summary.reached && usage is DailyUsage.Ok && !AppVisibility.slopeInForeground) {
       val fg = usage.foreground
@@ -175,6 +190,29 @@ class MonitorService : Service() {
       }
     }
     return if (summary.reached) INTERVAL_REACHED_MS else INTERVAL_MS
+  }
+
+  // D-113: 許可の状態を確かめ、送る時期ならサーバへ送る（通信は別のスレッド。この見張りは待たない）。
+  // ユーザー補助がオフなら（Web サイトの登録があるとき）子どもに催促の通知を出し、オンに戻ったら消す
+  private fun watchPermissions(rule: Restriction?, now: Long) {
+    val flags = EnginePermissions.flags(this)
+    val nudge = StatusReportRules.needsAccessibilityNudge(flags, rule?.blockedSites?.size ?: 0)
+    if (nudge) {
+      if (nudgeShown != true) nudgeShown = PermissionNudge.show(this)
+    } else if (nudgeShown != false) {
+      PermissionNudge.cancel(this)
+      nudgeShown = false
+    }
+    if (EngineStore.loadReporter(this) != null) {
+      val app = applicationContext
+      scope.launch(Dispatchers.IO) {
+        try {
+          StatusReporter.reportIfDue(app, flags, now)
+        } catch (e: Exception) {
+          // 次の見張りでやり直す
+        }
+      }
+    }
   }
 
   // 見守り中の通知の文（子どもが見る。分数ではなく割合で出す。MVP_SPEC 4.2）

@@ -181,6 +181,17 @@ class EngineRulesTest {
   }
 
   @Test
+  fun 既定の間隔は_同じアプリ10秒_どのアプリでも3秒() {
+    // 「閉じる」のあと同じアプリを開き直しても、10 秒で案内が戻る（前の既定 60 秒では 1 分近く使えた。D-112）
+    val t = PromptThrottle()
+    t.record("game", 0)
+    assertFalse(t.allow("video", 2_999))
+    assertTrue(t.allow("video", 3_000))
+    assertFalse(t.allow("game", 9_999))
+    assertTrue(t.allow("game", 10_000))
+  }
+
+  @Test
   fun まとめ_権限がなければ0分にしない() {
     val r = rule(DayLimit.Limited(60.0))
     val s = LimitRules.summarize("2026-10-17", DailyUsage.PermissionDenied, r, 1L)

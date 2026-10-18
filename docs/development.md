@@ -97,6 +97,8 @@ Kotlin の中身はまだないので、そのままでは子どもの画面は�
 - サーバのデータはメモリの上の PGlite（手元の DB）に入ります。`tests/verify/helpers.ts` の `fresh(nowIso)` が、テストごとに DB を空にして見本を入れ直します（`src/server/db/index.ts` の `resetDatabaseForTests`。Neon につないでいるときは動かない）。
 - 時計は `Date` だけを偽物にします（`vi.useFakeTimers({ toFake: ["Date"] })`）。`clock.set`・`clock.addMs` で時刻を動かします。タイマーは本物のままなので、DB の処理は止まりません。
 - PGlite は開くのに数秒かかるので、`hookTimeout` を 60 秒にしてあります。
+- DB はテストのファイルごとに別々です。空の PGlite を作る（約7秒）のは重いので、全体の前に1回だけマイグレーションを当てた DB を作って一時ファイルに書き出し（`tests/setup/pglite-template.ts`。`vitest.config.ts` の `globalSetup`）、各ファイルはその写しから開きます（約1秒。`src/server/db/index.ts` の `connect` が `SLOPE_TEST_PGLITE_TEMPLATE` を見る。テストのときだけ）。
+- 同時に走らせるファイルの数は CPU の数の 3 割（2〜6。`vitest.config.ts` の `maxWorkers`）に絞っています。既定（CPU の数 − 1）だと、DB を使う18ファイルが一度に DB を開き、PC が混んでいるときに最初のテストが 30 秒の時間切れになったためです。一時的に変えるときは `npx vitest run --maxWorkers=…`。
 
 | フォルダ | 確かめること |
 |---|---|

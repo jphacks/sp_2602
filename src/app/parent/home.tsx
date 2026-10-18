@@ -10,7 +10,8 @@ import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Card, Icon, Legend, ProgressBar, Screen, StateView } from "@/components";
 import { homeWeekBars } from "@/components/parent/charts";
-import { ChildGate, type UsageState, useUsage } from "@/components/parent/data";
+import { DeviceAlertBanner } from "@/components/parent/DeviceAlertBanner";
+import { ChildGate, type UsageState, useDeviceStatus, useUsage } from "@/components/parent/data";
 import { timeJst } from "@/components/parent/format";
 import { limitText, todaySummary } from "@/components/parent/today";
 import { WeekBars } from "@/components/parent/WeekBars";
@@ -34,8 +35,15 @@ function HomeBody({ childId }: { childId: string }) {
   const { config } = useParentData();
   const snapshot = config && config.status !== "unavailable" ? config.snapshot : null;
   const stale = state.status === "stale" || config?.status === "stale";
+  const device = useDeviceStatus(childId);
   return (
     <>
+      {/* D-113: 子どものスマホの許可がオフ・連絡の途絶（いちばん大事なので一番上） */}
+      <DeviceAlertBanner
+        status={device.status}
+        checkedAt={device.checkedAt}
+        hasBlockedSites={(snapshot?.blockedSites.length ?? 0) > 0}
+      />
       {snapshot && snapshot.usualLimitMinutes == null && (
         // Q7: 通常上限がまだない = 計画やテストがない日は「上限未設定」になる。決める画面へ案内する
         <Banner

@@ -547,6 +547,55 @@ export const ChildAppsView = z.object({
 });
 export type ChildAppsView = z.infer<typeof ChildAppsView>;
 
+// ── 許可の見張りと親への通告（docs/decisions.md D-113）────────────────────────
+// 子どもの端末の Kotlin（MonitorService）が、アプリを閉じていても許可の状態をサーバへ直接送る（変わったとき・15 分ごとの生存報告）。
+// 送るのは許可ごとのオン/オフと測った時刻だけ（使用時間・アプリ名・URL は送らない）。
+// 名前は contracts/native.ts の NativePermission と同じ（電池の最適化は見張らない）:
+//   usageAccess = 使用状況へのアクセス / overlay = 他のアプリの上に表示 / notifications = 通知 / accessibility = ユーザー補助（D-111）
+export const DevicePermissionKey = z.enum(["usageAccess", "overlay", "notifications", "accessibility"]);
+export type DevicePermissionKey = z.infer<typeof DevicePermissionKey>;
+
+// 許可ごとのオン/オフ
+export const DevicePermissions = z.object({
+  usageAccess: z.boolean(),
+  overlay: z.boolean(),
+  notifications: z.boolean(),
+  accessibility: z.boolean(),
+});
+export type DevicePermissions = z.infer<typeof DevicePermissions>;
+
+// 子どもが送る（Kotlin の MonitorService が送る）。childId は route.ts が「子どもは自分だけ」を確かめる。
+// measuredAt は端末で測った時刻（サーバの時計より先の時刻はサーバの今に丸める。前に届いた報告より古ければ、状態は変えず「届いた時刻」だけ進める）
+export const DeviceStatusReport = z.object({
+  childId: z.string().min(1),
+  permissions: DevicePermissions,
+  measuredAt: IsoDateTime,
+});
+export type DeviceStatusReport = z.infer<typeof DeviceStatusReport>;
+
+export const DeviceStatusReportResult = z.object({ ok: z.literal(true) });
+export type DeviceStatusReportResult = z.infer<typeof DeviceStatusReportResult>;
+
+// 保護者が読む、子どもの端末の許可の状態
+export const ChildDeviceStatus = z.object({
+  permissions: DevicePermissions,
+  // オフになった時刻（最初にオフと届いた報告の測った時刻）。オンなら null
+  offSince: z.object({
+    usageAccess: IsoDateTime.nullable(),
+    overlay: IsoDateTime.nullable(),
+    notifications: IsoDateTime.nullable(),
+    accessibility: IsoDateTime.nullable(),
+  }),
+  measuredAt: IsoDateTime, // 子どもの端末で測った時刻
+  // サーバに最後に届いた時刻（サーバの時計）。端末は 15 分ごとに送るので、30 分以上たてば「連絡が取れていない」
+  lastSeenAt: IsoDateTime,
+});
+export type ChildDeviceStatus = z.infer<typeof ChildDeviceStatus>;
+
+// deviceStatusGet の出力。status が null = まだ一度も届いていない（古いアプリ。親01 は何も出さない）
+export const DeviceStatusView = z.object({ status: ChildDeviceStatus.nullable() });
+export type DeviceStatusView = z.infer<typeof DeviceStatusView>;
+
 // ── C7: 設定のスナップショット ────────────────────────────────────
 
 // C7 で端末が取り込む「1組」。中の一覧は必ず同じ configVersion のもの（アプリはこの組を丸ごと採用し、版の違うものを混ぜない）
