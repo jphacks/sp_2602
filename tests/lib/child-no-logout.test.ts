@@ -85,11 +85,13 @@ describe("子どもの役割でログアウトに至る道がない（D-136）",
     expect(targets.length).toBeGreaterThan(5);
   });
 
-  it("子どもの設定（子07）は、テスト日程とテーマカラーの2つだけ（Figma にある「ログアウト」は出さない）", () => {
+  it("子どもの設定（子07）は、テスト日程・テーマカラー・配色の3つだけ（Figma にある「ログアウト」は出さない）", () => {
     const settings = read("src", "app", "child", "settings.tsx");
     expect(settings).not.toContain("LogoutListItem");
     expect(settings).toContain('title="テスト日程の一覧・変更"');
     expect(settings).toContain('title="テーマカラーの変更"');
+    expect(settings).toContain('title="配色の変更"');
+    expect(settings.match(/<ListItem\b/g)).toHaveLength(3);
   });
 
   it("session.tsx の signOut は、子どもなら何もしない（端末の片付けの前で canSignOut を確かめる）。片付けは clearDeviceOnSignOut を通す", () => {

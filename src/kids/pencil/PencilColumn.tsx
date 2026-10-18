@@ -2,13 +2,14 @@
 // 週の棒（子02「今週の使用割合」）。1日ごとに鉛筆を1本ずつ立てる（EXPRESSION.md 1-9。Figma 子02・子02-B・子02-C）:
 //   - 点線の箱（幅 28・#8D8A82・角 4・高さ＝上限）が鉛筆立て。値が分からない日（記録なし・未来の日）は箱だけ（0 と区別する）
 //   - 中に幅 20 の縦の鉛筆。下から 消しゴム＋金具 14・軸・削った先 20。高さ＝その日の割合（軸だけ伸びる）
-//   - 今日は濃い緑の軸 #525735、過去の日は色のうすい軸 #AAAE8C（日に焼けた古い鉛筆）
+//   - 今日は濃い軸（axis）、過去の日は色のうすい軸（axisPast。日に焼けた古い鉛筆）。どちらも今の配色の色（緑の配色で #525735・#A9AC8C）
 //   - 短いうちは、箱の下から押し上がって出てくる（削った先から見えてくる）
 // 長さ（px）と順番・時間は BarChart が決める（chart-motion の barDelays。今日は一拍おいて最後）。
 //   <PencilColumn area={90} length={grow} today />
 import { useMemo } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { pencil, pencilStroke } from "../theme/pencil";
+import { useToolColors } from "../tools/scheme-colors";
 import { Grain } from "./Grain";
 import { Facets, PencilEndUp, PencilTipUp } from "./PencilShapes";
 
@@ -27,6 +28,7 @@ type Props = {
 };
 
 export function PencilColumn({ area, pathHeight = area, length, today = false }: Props) {
+  const colors = useToolColors("pencil");
   const lines = useMemo(() => {
     if (length == null) return null;
     // 鉛筆が描ける高さ（場所の高さ − 下の空き）に縮める
@@ -47,7 +49,7 @@ export function PencilColumn({ area, pathHeight = area, length, today = false }:
           <Animated.View style={[s.pencil, { transform: [{ translateY: lines.shift }] }]}>
             <PencilTipUp width={PENCIL_W} length={TIP} />
             <Animated.View
-              style={[s.body, { height: lines.body, backgroundColor: today ? pencil.axis : pencil.axisPast }]}
+              style={[s.body, { height: lines.body, backgroundColor: today ? colors.axis : colors.axisPast }]}
             >
               <Facets vertical scale={PENCIL_W / 18} />
               <Grain />

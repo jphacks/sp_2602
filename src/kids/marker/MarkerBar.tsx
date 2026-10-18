@@ -7,7 +7,8 @@
 //   <MarkerBar length={width} />   … width は Animated.Value（px）。0 なら何も見えない
 import { Animated, Image, StyleSheet, View } from "react-native";
 import dry from "../assets/marker-dry.png";
-import { marker, stroke } from "../theme/tool";
+import { stroke } from "../theme/tool";
+import { useToolColors } from "../tools/scheme-colors";
 
 type Len = Animated.Value | Animated.AnimatedInterpolation<number> | number;
 type Props = { length: Len; color?: string; thin?: boolean; showPath?: boolean };
@@ -15,12 +16,13 @@ type Props = { length: Len; color?: string; thin?: boolean; showPath?: boolean }
 // アプリでは require した画像（数）、確認ページでは埋め込んだ data URL（文字）になる
 const drySource = typeof dry === "string" ? { uri: dry } : dry;
 
-export function MarkerBar({ length, color = marker.used, thin = false, showPath = true }: Props) {
+export function MarkerBar({ length, color, thin = false, showPath = true }: Props) {
+  const colors = useToolColors("marker"); // 色は今の配色（color を渡さなければ使った時間の色）
   const h = thin ? 8 : stroke.bar;
   return (
     <View style={[s.track, thin && s.trackThin]}>
-      {showPath && <View style={[s.path, { backgroundColor: marker.path }]} />}
-      <Animated.View style={[s.line, { width: length as never, height: h, backgroundColor: color }]}>
+      {showPath && <View style={[s.path, { backgroundColor: colors.path }]} />}
+      <Animated.View style={[s.line, { width: length as never, height: h, backgroundColor: color ?? colors.used }]}>
         <Image source={drySource} resizeMode="repeat" style={s.dry} />
       </Animated.View>
     </View>

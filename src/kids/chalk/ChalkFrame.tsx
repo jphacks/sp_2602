@@ -18,6 +18,7 @@ import boardGrain from "../assets/chalk/board.png";
 import cardGrain from "../assets/chalk/card.png";
 import { chalk, chalkStroke, chalkTool } from "../theme/chalk";
 import type { FrameKind, FrameLineProps, FrameProps } from "../tools";
+import { useToolColors } from "../tools/scheme-colors";
 import { holeLanes, useSize, useSvgId } from "./draw";
 import { Speckle } from "./Speckle";
 
@@ -110,10 +111,11 @@ export function ChalkFrame({
   ...rest
 }: FrameProps) {
   const [{ w, h }, measure] = useSize();
+  const colors = useToolColors("chalk");
   const filled = FILLED.has(kind);
   const line = kind === "banner" ? 0 : size === "small" ? chalkStroke.small : chalkStroke.frame;
-  // テストの枠（次のテストのカード・一覧の印の付いた行）はピンクのチョーク（Figma 子01・子10・子10-C の黒板）
-  const color = tone === "test" ? chalk.test : kind === "field" ? chalk.ink : chalk.line;
+  // テストの枠（次のテストのカード・一覧の印の付いた行）はテストの色のチョーク（今の配色。Figma 子01・子10・子10-C の黒板）
+  const color = tone === "test" ? colors.test : kind === "field" ? chalk.ink : chalk.line;
   const pill = kind === "chip";
   const flat = StyleSheet.flatten(style) as ViewStyle | undefined;
   const radius = pill ? 999 : typeof flat?.borderRadius === "number" ? flat.borderRadius : chalkTool.frame.radius;

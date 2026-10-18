@@ -1,8 +1,8 @@
 // 端末に残す小さなデータの置き場（AsyncStorage）。アプリを閉じても消えない。
 // 置くもの: 合言葉とログインした人（session.tsx）・C7 の設定のキャッシュ（config-cache.ts）・C8 の送信待ち（usage-outbox.ts）・MOCK のログインの端末番号（google.ts）・
-//   テーマカラー（theme-store.ts）・Q15 で前に送ったアプリの一覧（child-apps-sync.ts）。
+//   テーマカラーと配色（theme-store.ts）・Q15 で前に送ったアプリの一覧（child-apps-sync.ts）。
 // ログアウトでは、合言葉・設定のキャッシュ・その人の送信待ち・前に送ったアプリの一覧を消す（別の人で入り直したときに混ざらないように。sign-out.ts）。
-// テーマカラーはログアウトでも消さない（人ではなく端末の好みなので）。
+// テーマカラーと配色はログアウトでも消さない（人ではなく端末の好みなので）。
 // 読むときは Zod で形を確かめ、壊れていたら「ない」として扱う（古い版のアプリが書いた形でも落ちないように）。
 // テストでは tests/stubs/async-storage.ts（メモリ上）に置き換わる（vitest.config.ts）。
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -24,7 +24,8 @@ export const storageKeys = {
   configIndex: "slope.config-index", // 設定のキャッシュを持っている子どもの一覧（ログアウトで全部消すため）
   outbox: "slope.usage-outbox", // C8 の送信待ち
   mockDeviceId: "slope.mock-device-id", // MOCK の「はじめての人」をこの端末だけの人にする番号
-  theme: "slope.theme", // テーマカラー（"light" | "dark"。ログアウトでも消さない）
+  theme: "slope.theme", // テーマカラー（"light" | "dark" | "notebook"。ログアウトでも消さない）
+  colorScheme: "slope.colorScheme", // 子ども用の見た目の配色（"red" | "green" | "blue"。ログアウトでも消さない）
   childApps: (childId: string) => `slope.child-apps.${childId}`, // Q15 で前に送ったアプリの一覧（変わったときだけ送るため）
 } as const;
 

@@ -8,7 +8,7 @@
 // 穴は細かい点を一面に散らした模様（Pattern）。線の向きに関係なく同じように散り、縁にかかった点は線の縁をざらつかせる。
 // 動き: start が true になったら delay 待って duration で、書き始めから引く（ease.drag＝引きずる速さ）。動きを減らすなら引き終わった形。
 //   const u = bezier([1, 3], [[[30, 1.2], [70, 3.6], [102, 1.4]]]);
-//   <Svg …><ChalkStroke d={u.d} length={u.len} color={chalk.used} width={2.8} start delay={300} duration={520} seed={7} /></Svg>
+//   <Svg …><ChalkStroke d={u.d} length={u.len} color={colors.used} width={2.8} start delay={300} duration={520} seed={7} /></Svg>
 
 import { useMemo } from "react";
 import { Animated } from "react-native";
