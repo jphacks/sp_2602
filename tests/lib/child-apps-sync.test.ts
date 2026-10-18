@@ -308,6 +308,24 @@ describe("normalizeChildApps（契約に合う形に整える）", () => {
   });
 });
 
+describe("prepareChildApps: 契約の PackageName の形に合わないアプリは1件ずつ外す", () => {
+  it("空白入り・点が続く・点で始まる・日本語・NUL・長すぎる識別子は外し、ほかは送る（一覧の送信が 400 にならない）", () => {
+    const { apps } = prepareChildApps([
+      { packageName: "com.example.ok", label: "OK" },
+      { packageName: "com.bad name", label: "x" },
+      { packageName: "com..double", label: "x" },
+      { packageName: ".com.lead", label: "x" },
+      { packageName: "com.trail.", label: "x" },
+      { packageName: "com.ゲーム", label: "x" },
+      { packageName: "com.nul x", label: "x" },
+      { packageName: `a.${"b".repeat(254)}`, label: "x" },
+      { packageName: " com.example.trimmed ", label: "T" },
+    ]);
+    expect(apps.map((a) => a.packageName)).toEqual(["com.example.ok", "com.example.trimmed"]);
+    expect(ChildAppsUpload.safeParse({ childId: "c", apps }).success).toBe(true);
+  });
+});
+
 describe("サーバとつないで", () => {
   it("子どもが送った一覧とアイコンを、連携している保護者が表示名の順で読める。サーバにあるアイコンは送り直さない", async () => {
     await fresh("2026-10-15T03:00:00Z");

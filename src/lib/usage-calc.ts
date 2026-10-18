@@ -5,7 +5,7 @@
 //   if (r.state === "ok") { r.displayUsedPercent … r.reached … }
 import { addDays } from "@contracts/dates";
 import type { NativeAppUsage, NativeDayLimit, NativeRestriction, NativeUsageResult } from "@contracts/native";
-import type { ConfigSnapshot, UsageDayReport } from "@contracts/schemas";
+import { type ConfigSnapshot, PackageName, type UsageDayReport } from "@contracts/schemas";
 
 // 安全上の必須例外（電話・緊急通報など）。C9 の対象外アプリとは別に、いつも制限しない（MVP_SPEC 3.1・C4）
 // TODO(未決): 必須例外の正式な一覧（C4 の実機検証で決める）。今は電話・緊急・連絡先と、このアプリ自身
@@ -197,8 +197,8 @@ export function nextTest(
 }
 
 // 契約（contracts/schemas.ts の AppMinutes・UsageDayReport）の上限。ここを超える記録はサーバで 400 になり、送れなくなる
+// （アプリの識別子の形と長さは、契約の PackageName をそのまま使って確かめる）
 export const APP_LABEL_MAX = 120;
-export const PACKAGE_NAME_MAX = 255;
 export const REPORT_APPS_MAX = 1000;
 
 // 文字列を max 文字（JavaScript の文字数 = UTF-16 の数。Zod の max と同じ数え方）までに切る。
@@ -231,7 +231,8 @@ function mergeSamePackage<A extends { packageName: string; label: string; usedMi
 // excluded と restrictedMinutes は C3 と同じ判定で付ける（親の画面はこの合計を使い、新しい設定で過去を計算し直さない）
 // 作った記録が必ず契約に合うようにする（なぜ: 合わない記録はサーバで 400 になり、その日の記録が親に届かないため）:
 //   - アプリ名（label）は 120 文字までに切る。空ならアプリの識別子（packageName）で代用し、それも 120 文字までに切る
-//   - 識別子が空・255 文字を超えるアプリは、どのアプリか表せないので一覧に入れない（合計の分数には入れる）
+//   - 識別子が契約の PackageName（英数字・"_" を "." でつなぐ形・255 文字まで）に合わないアプリは、1件ずつ一覧から外す
+//     （合計の分数には入れる）。なぜ: 1件でも合わないと、その日の記録の全体が 400 になり、送信待ちから外されて届かないため
 //   - アプリは 1000 個まで（超えるときは使った時間の多い順に残す。合計の分数は全部のアプリで計算する）
 export function toUsageDayReport(
   usage: Extract<NativeUsageResult, { status: "ok" }>,
@@ -244,9 +245,7 @@ export function toUsageDayReport(
     usedMinutes: Math.min(1440, Math.max(0, Math.round(a.usedMinutes))),
     excluded: isExcluded(a.packageName, excludedPackages, essentialPackages),
   }));
-  const listed = all.filter(
-    (a) => a.packageName.length > 0 && a.packageName.length <= PACKAGE_NAME_MAX && a.label.length > 0,
-  );
+  const listed = all.filter((a) => PackageName.safeParse(a.packageName).success && a.label.length > 0);
   // 1000 個を超えるときだけ、使った時間の多い順に並べて切る（ふだんは C2 が返した順のまま）
   const apps =
     listed.length > REPORT_APPS_MAX

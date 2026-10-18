@@ -251,6 +251,26 @@ describe("C8 で送る記録は必ず契約に合う（アプリ名 120 文字�
     expect(new Set(report.apps.map((a) => a.packageName)).size).toBe(report.apps.length);
   });
 
+  it("識別子が契約の PackageName の形に合わないアプリは1件ずつ外す（合計の分数には入れる）。その日の記録は契約に合う", () => {
+    const report = toUsageDayReport(
+      usageWith([
+        { packageName: "com.game", label: "ゲーム", usedMinutes: 10 },
+        { packageName: "com.bad name", label: "空白入り", usedMinutes: 2 },
+        { packageName: "com..double", label: "点が続く", usedMinutes: 3 },
+        { packageName: ".com.lead", label: "点で始まる", usedMinutes: 1 },
+        { packageName: "com.ゲーム", label: "日本語", usedMinutes: 4 },
+        { packageName: "com.nul x", label: "NUL", usedMinutes: 1 },
+        { packageName: "", label: "空", usedMinutes: 1 },
+        { packageName: `a.${"b".repeat(254)}`, label: "長い", usedMinutes: 1 },
+        { packageName: "com.note_2", label: "ノート", usedMinutes: 5 },
+      ]),
+      [],
+    );
+    expect(report.apps.map((a) => a.packageName)).toEqual(["com.game", "com.note_2"]);
+    expect(report.restrictedMinutes).toBe(10 + 2 + 3 + 1 + 4 + 1 + 1 + 1 + 5);
+    expect(UsageDayReport.safeParse(report).success).toBe(true);
+  });
+
   it("絵文字（2つで1文字）を途中で切らない", () => {
     expect(clipText(`${"a".repeat(119)}😀`, 120)).toBe("a".repeat(119));
     expect(clipText("短い", 120)).toBe("短い");
