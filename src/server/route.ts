@@ -18,8 +18,8 @@ import {
 import { authorize, type Caller, checkChildAccess } from "./auth.js";
 import { badRequest, badRequestOf, toApiError } from "./errors.js";
 
-// 処理に渡す、入力以外の情報。caller は auth が "none" の API でだけ null
-export type Ctx = { caller: Caller | null };
+// 処理に渡す、入力以外の情報。caller は auth が "none" の API でだけ null。request は呼び出し元の IP を見るため（authGoogle の回数の上限）
+export type Ctx = { caller: Caller | null; request: Request };
 
 // auth が "none" 以外の API の処理で、呼んだ人を取り出す（null なら route の設定の誤り）
 export function callerOf(ctx: Ctx): Caller {
@@ -61,7 +61,7 @@ async function prepare(
 ): Promise<Response | { ctx: Ctx; input: unknown }> {
   let ctx: Ctx;
   try {
-    ctx = { caller: await authorize(route.auth, request) };
+    ctx = { caller: await authorize(route.auth, request), request };
   } catch (e) {
     return errorResponse(e);
   }

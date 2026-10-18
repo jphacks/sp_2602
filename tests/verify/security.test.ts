@@ -9,6 +9,7 @@ import { api } from "@contracts/api";
 import { mockSessions } from "@contracts/fixtures";
 import { PairTicket } from "@contracts/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
+import { PAIR_START_LIMIT } from "@/server/rate-limit";
 import {
   CHILD,
   CHILD_ID,
@@ -167,6 +168,8 @@ describe("V: QR の code（MVP_SPEC 4.1）", () => {
     const c = await newPerson("qr");
     const codes = new Set<string>();
     for (let i = 0; i < 20; i++) {
+      // QR を出す回数の上限（1人1分に PAIR_START_LIMIT.max 回）にかからない間隔で出す
+      clock.addMs(PAIR_START_LIMIT.windowMs / PAIR_START_LIMIT.max);
       const t = PairTicket.parse(await ok(post("/api/pair/start", { name: "たろう" }, c.token)));
       expect(t.code).toMatch(/^[0-9a-f]{40}$/);
       for (const secret of [c.token, c.userId, "たろう", c.name, t.pairId]) expect(t.code).not.toContain(secret);
