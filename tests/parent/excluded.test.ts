@@ -13,6 +13,8 @@ import {
   hasUnsaved,
   removedApps,
   removedVersions,
+  rowNote,
+  switchText,
   syncExcludedDraft,
 } from "@/components/parent/excluded";
 import { fresh, newFamily, ok, post } from "../verify/helpers";
@@ -228,5 +230,52 @@ describe("syncExcludedDraft（取り直しのときのスイッチと版）", ()
     const draft = new Set(["com.example.studynote"]); // 英単語カードを外しかけ
     const next = syncExcludedDraft({ saved, draft, baseVersion: 6 }, { apps: saved, configVersion: 9 });
     expect(next).toEqual({ draft, baseVersion: 6 });
+  });
+});
+
+describe("switchText・rowNote（2026-10-18 実機: ON = 制限しない が分からなかった）", () => {
+  it("スイッチの横の文字は、ON なら「制限しない」、OFF なら「制限する」", () => {
+    expect(switchText(true)).toBe("制限しない");
+    expect(switchText(false)).toBe("制限する");
+  });
+
+  it("対象外にしていない落ち着いた行（OFF・反映済み）には何も出さない", () => {
+    expect(rowNote({ on: false, status: "applied" })).toBeNull();
+  });
+
+  it("OFF にして保存したがまだ届いていない行は「制限にもどす: 反映待ち」", () => {
+    expect(rowNote({ on: false, status: "pending" })).toEqual({ label: "制限にもどす: 反映待ち", kind: "chip" });
+  });
+
+  it("ON の行は「制限しない」を付けて反映済み／反映待ち", () => {
+    expect(rowNote({ on: true, status: "applied" })).toEqual({ label: "制限しない: 反映済み", kind: "muted" });
+    expect(rowNote({ on: true, status: "pending" })).toEqual({ label: "制限しない: 反映待ち", kind: "chip" });
+  });
+
+  it("まだ保存していない行は、保存するとどうなるかを出す", () => {
+    expect(rowNote({ on: true, status: "unsaved" })).toEqual({
+      label: "まだ保存していません（保存すると制限しなくなります）",
+      kind: "warning",
+    });
+    expect(rowNote({ on: false, status: "unsaved" })).toEqual({
+      label: "まだ保存していません（保存すると制限にもどります）",
+      kind: "warning",
+    });
+  });
+
+  it("Figma 親16 の見本: 出るのは ON の2行だけ（OFF の動画アプリ・ゲームには出ない）", () => {
+    const rows = excludedRows({
+      childApps: mockExcludedAppCandidates,
+      saved,
+      draft: on("com.example.studynote", "com.example.wordcards"),
+      childAppliedVersion: 5,
+      removedAt: new Map(),
+    });
+    expect(rows.map((r) => [r.label, rowNote(r)?.label ?? null])).toEqual([
+      ["ゲーム", null],
+      ["英単語カード", "制限しない: 反映待ち"],
+      ["学習ノート", "制限しない: 反映済み"],
+      ["動画アプリ", null],
+    ]);
   });
 });
