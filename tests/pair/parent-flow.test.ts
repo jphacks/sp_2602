@@ -5,6 +5,8 @@ import { demoChild, mockPair } from "@contracts/fixtures";
 import type { PairStatus } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
 import {
+  CLAIM_LIMITED_FALLBACK,
+  claimLimitedText,
   initialParentPairView,
   notSlopeQr,
   type ParentPairEvent,
@@ -99,6 +101,26 @@ describe("親12 の結果", () => {
     const failed = run([{ type: "claimFailed", error: err("internal") }], verifying);
     expect(failed).toMatchObject({ screen: "saveFailed", code: "demo-code-123456" });
     expect(run([{ type: "retrySave" }], failed)).toEqual({ screen: "verifying", code: "demo-code-123456" });
+  });
+
+  it("回数の上限（429）→ 親14 にしない。サーバの hint で待つように知らせ、同じ番号の「もう一度ためす」はできない", () => {
+    const limited: ApiError = {
+      code: "rate_limited",
+      message: "QR コードの読み取りに何度も失敗したため、しばらく受け付けません",
+      hint: "10分ほど待ってから、子どもの端末で QR を出し直して読み取ってください",
+    };
+    const failed = run([{ type: "claimFailed", error: limited }], verifying);
+    expect(failed).toEqual({ screen: "claimLimited", error: limited });
+    expect(claimLimitedText(limited)).toBe("10分ほど待ってから、子どもの端末で QR を出し直して読み取ってください");
+    // 同じ番号で送り直さない（10分ほどは断られ続ける）。待った後に新しい QR を読む
+    expect(run([{ type: "retrySave" }], failed)).toBe(failed);
+    expect(shouldScan(failed)).toBe(false);
+    expect(run([{ type: "rescan" }], failed)).toEqual({ screen: "scanning" });
+  });
+
+  it("回数の上限で hint が空なら、代わりの文で待つように知らせる", () => {
+    expect(claimLimitedText({ code: "rate_limited", message: "x", hint: "" })).toBe(CLAIM_LIMITED_FALLBACK);
+    expect(claimLimitedText({ code: "rate_limited", message: "x", hint: "  " })).toBe(CLAIM_LIMITED_FALLBACK);
   });
 
   it("応答が届かない（通信・時間切れ）→ 共02（読み取りが通ったか分からないので照会する）", () => {

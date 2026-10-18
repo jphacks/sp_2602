@@ -2,7 +2,8 @@
 //   カメラの権限を確かめる → 親10 permission（権限がない）/ 親11 scanning（読み取り中）
 //   → 親12 verifying（pairClaim を送っている）→ waitingChild（子どもの「はい」を待つ。Figma にない）→ 親15 linked
 //   途中: 親13 scanFailed（読み取れない・期限切れ・使用済み・すでに連携済み）/ 親14 saveFailed（サーバの不具合で保存できない）/
-//         unsure（応答が届かず結果が分からない → 共02。MVP_SPEC 4.1）/ incomplete（子どもが「いいえ」・期限切れ → 共03）
+//         unsure（応答が届かず結果が分からない → 共02。MVP_SPEC 4.1）/ incomplete（子どもが「いいえ」・期限切れ → 共03）/
+//         claimLimited（読み取りのまちがいが続き、サーバがしばらく断っている。429 rate_limited。Figma にない）
 // 保存の確定（linked）を見るまで成功を出さない（MVP_SPEC 4.1）。
 import type { ApiError } from "@contracts/errors";
 import type { Child, PairStatus } from "@contracts/schemas";
@@ -15,6 +16,7 @@ export type ParentPairView =
   | { screen: "verifying"; code: string } // 親12
   | { screen: "scanFailed"; error: ApiError } // 親13（親11 の上のダイアログ）
   | { screen: "saveFailed"; code: string; error: ApiError } // 親14
+  | { screen: "claimLimited"; error: ApiError } // 回数の上限（429）。しばらく待つように知らせる
   | { screen: "waitingChild"; status: PairStatus; offline: boolean } // 子どもの確認待ち
   | { screen: "incomplete"; reason: "rejected" | "expired" } // 共03
   | { screen: "unsure" } // 共02（連携状態の照会へ）
@@ -27,7 +29,7 @@ export type ParentPairEvent =
   | { type: "claimFailed"; error: ApiError }
   | { type: "status"; status: PairStatus } // pairStatus の応答
   | { type: "statusFailed"; error: ApiError }
-  | { type: "rescan" } // 親13「もう一度読み取る」・共03「もう一度はじめる」
+  | { type: "rescan" } // 親13「もう一度読み取る」・共03「もう一度はじめる」・回数の上限「もう一度読み取る」
   | { type: "retrySave" }; // 親14「もう一度ためす」
 
 export const initialParentPairView: ParentPairView = { screen: "permissionChecking" };
@@ -47,6 +49,15 @@ export const notSlopeQr: ApiError = {
   message: "Slope の QR コードではありません",
   hint: "子どものスマホの Slope に出ている QR コードを読み取ってください",
 };
+
+// 回数の上限（429）のときの本文。サーバの hint（「10分ほど待ってから、子どもの端末で QR を出し直して読み取ってください」）を出す。
+// hint が空のときは、この文にする
+export const CLAIM_LIMITED_FALLBACK =
+  "しばらく待ってから、子どものスマホで新しいQRコードを出してもらい、読み取ってください。";
+
+export function claimLimitedText(error: ApiError): string {
+  return error.hint.trim() || CLAIM_LIMITED_FALLBACK;
+}
 
 // pairStatus を定期的に聞くべき表示か（子どもの確認待ちのときだけ）
 export function shouldPollParent(view: ParentPairView): boolean {
@@ -94,6 +105,10 @@ export function parentPairReducer(view: ParentPairView, event: ParentPairEvent):
       if (view.screen !== "verifying") return view;
       // 応答が届かなかった → 読み取りが通ったかどうか分からない（もう一度送ると「使用済み」になりうる）ので照会する（共02）
       if (event.error.code === "network" || event.error.code === "timeout") return { screen: "unsure" };
+      // 回数の上限（まちがいが続いた。429）→ 待つように知らせる。
+      // なぜ: 前は親14（「通信を確かめて…」と「もう一度ためす」）になり、通信のせいに見えたうえ、同じ番号で押し直しても
+      //   10分ほどは断られ続けるだけだった。親14 には進めず、待ってから新しい QR を読み直してもらう
+      if (event.error.code === "rate_limited") return { screen: "claimLimited", error: event.error };
       // サーバの不具合 → 保存できなかった（親14）。同じ番号でもう一度ためせる
       if (isUncertain(event.error)) return { screen: "saveFailed", code: view.code, error: event.error };
       // 期限切れ・使用済み・知らない番号・すでに連携済み・子どもの端末 → 読み取れませんでした（親13）
@@ -106,7 +121,10 @@ export function parentPairReducer(view: ParentPairView, event: ParentPairEvent):
       if (event.error.code === "not_found") return { screen: "incomplete", reason: "expired" };
       return view.offline ? view : { ...view, offline: true };
     case "rescan":
-      return view.screen === "scanFailed" || view.screen === "incomplete" || view.screen === "saveFailed"
+      return view.screen === "scanFailed" ||
+        view.screen === "incomplete" ||
+        view.screen === "saveFailed" ||
+        view.screen === "claimLimited"
         ? { screen: "scanning" }
         : view;
     case "retrySave":

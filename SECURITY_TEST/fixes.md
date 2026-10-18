@@ -16,7 +16,7 @@
 | F-2 PII-10 連携を外したあと、別の保護者に前の家庭のデータが見える（高） | 修正 | 下の F-2 / F-7 |
 | F-7 IPA-15 連携を外す操作の監査記録がない | 修正 | 下の F-2 / F-7 |
 | F-5 AVL-01 ログイン・QR の発行に回数の上限がない | 修正 | 下の F-5 |
-| M-1〜M-6 main へ入れる前の点検で見つけたもの | 修正 | 下の「main へ入れる前の点検」 |
+| M-1〜M-7 main へ入れる前の点検で見つけたもの | 修正 | 下の「main へ入れる前の点検」 |
 
 ## 1. 合言葉の平文保存（F-1）
 
@@ -89,7 +89,7 @@
 - 限界: 監査ログ（AVL-01 の期待結果）は出していない。
 - テスト: `tests/verify/revoke-and-limit.test.ts` の F-5（pairStart は 5 回の次が 429・ほかの子どもは止まらない・1 分たてば出せる。authGoogle は同じ人 10 回の次が 429・ほかの人は止まらない・1 分たてば入れる。同じ IP 20 回の次が 429・ほかの IP は止まらない・通らない idToken でも数える）。`tests/verify/security.test.ts` の「QR の code を 20 回出す」は、上限にかからないように 12 秒ずつ時計を進めるようにした。
 
-## main へ入れる前の点検（M-1〜M-6）
+## main へ入れる前の点検（M-1〜M-7）
 
 main へ入れる前に、このブランチの差分（`origin/main...HEAD`）を、DB・サーバ・契約・Android・アプリ・文書に分けて読み直した。見つけたものと直し方。
 
@@ -99,7 +99,8 @@ main へ入れる前に、このブランチの差分（`origin/main...HEAD`）�
 - **M-4 DB を開く失敗をすべて 503 にしていた（AVL-04 の再対応）**: `DATABASE_URL` がない・migration の誤りなどの設定ミスまで「一時的に使えない」になり、原因の場所もログに出なかった。接続の失敗だけを 503、それ以外は `DatabaseOpenError` で 500 internal にして元のエラーの種類と場所を出す。失敗した PGlite は閉じてから捨てる（`src/server/db/index.ts`）。`/api/health` は前のまま、開けなければ 503。テスト: `tests/server/db-unavailable.test.ts`。
 - **M-5 封ができない端末で、紐づけの直後にログイン画面へ戻された（F-1 の再対応）**: 封ができないと Session を端末に置かないが、`refresh()` が端末の保存しか読まなかった。今の Session をメモリにも持ち、`refresh()` はメモリ→端末の順に読む（平文では置かない）。ログアウト・401 の後にメモリの値で戻らないよう、入れ替わりの回数で遅れて届いた返事を捨てる（`src/lib/session-core.ts`）。古い平文を封し直す書き込みが失敗しても、読めた Session は返す（`session-store.ts`）。テスト: `tests/lib/session-core.test.ts`・`session-store.test.ts`。
 - **M-6 Keystore の鍵が壊れると直らなかった（F-1 の再対応）**: `SecretBox.seal` が失敗したら、まず鍵を消さずに 1 回やり直す。それでも失敗し、鍵が壊れていると分かる例外（`InvalidKeyException`・`UnrecoverableKeyException` など）のときだけ、鍵を消して 1 回だけ作り直す（Keystore の一時的な失敗で鍵を消すと、もう一方の封をした値まで開けなくなるため）。`open` の失敗では消さない。失敗は `Log.w` に例外の種類だけ残す。鍵を作り直すと前に封をした値は開けなくなり、JS はログインし直し、Kotlin は次の `setStatusReporter` で封をし直す。**確認待ち**: 実機。
-- ほか: 429 のときにサーバの hint（「1分ほど待ってから」）をログインと QR の画面に出す。古い dev client（`sealSecret` がない）で動かすと、開発中だけ警告を出す。
+- **M-7 Neon の接続断が 503 にならず、待っている間の切断でプロセスが落ちうる（AVL-04 の再対応）**: Neon（`@neondatabase/serverless`）の切断のエラーは code を持たないので、決まった文（`Connection terminated unexpectedly` など）・undici の `UND_ERR_*`・WebSocket の ErrorEvent も 503 にする（`isDatabaseUnavailable`）。Pool に `error` の受け手がなく、待っている間に Neon が接続を閉じると Node がプロセスごと落とすので、記録だけする受け手を付けた（`src/server/db/index.ts`）。あわせて、ログの場所の行は stack の頭が「種類: message」の形で、すぐ後に続く `at` の行だけを拾う（message を後から書きかえた・stack に書き足した場合も入力を出さない）。`DatabaseOpenError` は中身の SQLSTATE によらず 500。本番で `DATABASE_URL` がないときはログに `DATABASE_URL_MISSING` と出る。テスト: `tests/server/db-unavailable.test.ts`・`input-safety.test.ts`。
+- ほか: 429 のときにサーバの hint（「1分ほど待ってから」など）をログイン・子どもの QR・保護者の QR 読み取りの画面に出す。古い dev client（`sealSecret` がない）で動かすと、開発中だけ警告を出す。
 - 出す前の作業（`docs/development.md` 8 章）: 0016・0017 をプレビュー・本番へ先に入れる。範囲外の古いデータが残っていないか SQL で確かめる。dev client を作り直す。
 
 ### まだ直していないもの

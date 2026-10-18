@@ -90,6 +90,25 @@ describe("エラーのログには入力を出さない（F-4 / IN-12）", () =>
     expect(line).toBe("Error");
   });
 
+  it("stack を読んだ後で message を元の先頭部分・空に縮めても、場所として入力を出さない", () => {
+    for (const shorter of ["Failed query", ""]) {
+      const e = new Error("Failed query: select 1\nparams: x\n    at [INJECTED] secret-token-123");
+      expect(e.stack).toContain("INJECTED");
+      e.message = shorter;
+      const line = describeError(e);
+      expect(line, JSON.stringify(shorter)).not.toContain("INJECTED");
+      expect(line).toBe("Error");
+    }
+  });
+
+  it("stack の場所の行の後に書き足された行（Caused by など）からは拾わない", () => {
+    const e = new Error("boom");
+    e.stack = `${e.stack}\nCaused by: x\n    at [INJECTED] secret-token-123`;
+    const line = describeError(e);
+    expect(line).not.toContain("INJECTED");
+    expect(line).toMatch(/^Error \| at /); // 本当の場所の行は出る
+  });
+
   it("文字列のコードがおかしな形なら出さない", () => {
     const e = Object.assign(new Error("x"), { code: "a\r\nX-Injected: 1" });
     expect(describeError(e)).not.toContain("X-Injected");
