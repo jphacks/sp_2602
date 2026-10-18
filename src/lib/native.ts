@@ -28,6 +28,19 @@ export function setFakeUsage(enabled: boolean): void {
 
 const stopped: EngineStatus = { running: false, restrictionDate: null };
 
+// 封の関数（sealSecret / openSecret）がない古い dev client で新しい JS を動かすと、合言葉を置けず、起動のたびに
+// 何も言わずにログインし直しになる。開発中だけ、そのことを1回知らせる（本番のビルドでは出さない）
+let warnedNoSecretBox = false;
+function warnIfNoSecretBox(): void {
+  if (warnedNoSecretBox || (pick("sealSecret") && pick("openSecret"))) return;
+  warnedNoSecretBox = true;
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    console.warn(
+      "dev client を作り直してください（sealSecret がありません）。このままでは合言葉を端末に置けず、起動のたびにログインし直しになります",
+    );
+  }
+}
+
 // 同期の関数を呼ぶ。関数が無い・Kotlin が例外を出した（Activity がない など）ときは既定値を返す
 // （なぜ: 画面の更新の途中（child-data.tsx の refresh）で例外が出ると、C8 の送信など後ろの処理まで止まるため）
 function callSafe<K extends keyof NativeEngine>(
@@ -132,8 +145,14 @@ export const native: NativeEngine & {
   clearStatusReporter: () => callSafe("clearStatusReporter", undefined),
 
   // ── 合言葉の封（Kotlin がないときは null = 保存しない）──
-  sealSecret: (plain) => callSafe("sealSecret", null, plain),
-  openSecret: (sealed) => callSafe("openSecret", null, sealed),
+  sealSecret: (plain) => {
+    warnIfNoSecretBox();
+    return callSafe("sealSecret", null, plain);
+  },
+  openSecret: (sealed) => {
+    warnIfNoSecretBox();
+    return callSafe("openSecret", null, sealed);
+  },
 
   // ── C5（保護者のウィジェット）──
   saveParentWidget: (data) => callSafe("saveParentWidget", undefined, data),

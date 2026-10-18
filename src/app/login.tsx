@@ -10,7 +10,7 @@ import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Dialog, Screen } from "@/components";
-import { googleOutcome, type LoginFailure, loginNotice, serverFailure } from "@/components/pair";
+import { googleOutcome, LOGIN_FAILED_BODY, type LoginFailure, loginNotice, serverFailure } from "@/components/pair";
 import { withKidsUI } from "@/kids/KidsUI";
 import { googleSignInEnabled, type MockLoginChoice, mockLoginChoices, signInWithGoogle } from "@/lib/google";
 import { useSession } from "@/lib/session";
@@ -87,7 +87,7 @@ function Login() {
         icon="error"
         iconTone="danger"
         title="ログインできませんでした"
-        body="通信を確かめて、もう一度ためしてください。"
+        body={failure?.body ?? LOGIN_FAILED_BODY}
         centered
         onClose={close}
         actions={<Button variant="pill" label="OK" onPress={close} />}

@@ -4,6 +4,7 @@
 //   - 封ができない（Kotlin がない・Keystore が使えない）ときは置かない。そのときはアプリを閉じるとログインし直しになる
 //   - 開けない（鍵が作り直された・書き換えられた）・形が違うときは、置いた値を消して「ない」とする（ログインし直し）
 //   - 古い版が平文で置いた Session は、読んだときに封をし直して上書きする（封ができなければ消す）。平文のまま残さない
+//     （書き込みそのものが失敗したときだけは残り、次に読んだときにもう一度やり直す）
 // Node のテストで expo を読まずに確かめられるよう、封の道具（SecretBox）は呼ぶ側が渡す（tests/lib/session-store.test.ts）。
 import { Session } from "@contracts/schemas";
 import { z } from "zod";
@@ -47,10 +48,12 @@ export async function loadSession(storage: KeyValueStorage, box: SecretBox): Pro
     return session;
   }
 
-  // 古い版が平文で置いた Session: 封をし直して上書きする（封ができなければ消える）。この起動の間は使う
+  // 古い版が平文で置いた Session: 封をし直して上書きする（封ができなければ消える）。この起動の間は使う。
+  // 書き込みに失敗しても、読めた Session は返す（なぜ: 前はここで投げて loadSession ごと失敗し、ログアウト状態になっていた。
+  //   平文はそのまま残るので、次に読んだときにもう一度封をし直す）
   const legacy = Session.safeParse(raw);
   if (legacy.success) {
-    await saveSession(storage, box, legacy.data);
+    await saveSession(storage, box, legacy.data).catch(() => undefined);
     return legacy.data;
   }
   await storage.removeItem(storageKeys.session);

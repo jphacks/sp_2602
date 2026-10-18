@@ -56,6 +56,22 @@ describe("session-store", () => {
     expect(storage.data.has(storageKeys.session)).toBe(false);
   });
 
+  it("古い平文を封をし直す書き込みに失敗しても、読めた Session は返す（平文は残り、次に読んだときにやり直す）", async () => {
+    const storage = memory();
+    storage.data.set(storageKeys.session, JSON.stringify(session));
+    const failing: KeyValueStorage = {
+      ...storage,
+      setItem: async () => {
+        throw new Error("disk full");
+      },
+    };
+    expect(await loadSession(failing, box)).toEqual(session);
+    expect(storage.data.get(storageKeys.session)).toBe(JSON.stringify(session));
+    // 書けるようになったら、次に読んだときに封をし直す
+    expect(await loadSession(storage, box)).toEqual(session);
+    expect(storage.data.get(storageKeys.session) ?? "").not.toContain(session.token);
+  });
+
   it("開けない（鍵が作り直された）・壊れている・形が違うときは消して null（ログインし直し）", async () => {
     for (const raw of [
       JSON.stringify({ v: 1, sealed: "sb1:xxxx" }),

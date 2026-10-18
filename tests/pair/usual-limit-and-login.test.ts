@@ -66,13 +66,28 @@ describe("ログイン（子08・子09）", () => {
     expect(googleOutcome({ status: "cancelled" })).toEqual({ kind: "none" });
     expect(googleOutcome({ status: "error", message: "Google ログインに失敗しました" })).toEqual({
       kind: "failure",
-      failure: { detail: "Google ログインに失敗しました" },
+      failure: { body: "通信を確かめて、もう一度ためしてください。", detail: "Google ログインに失敗しました" },
     });
   });
 
   it("サーバが断った・通信できない → 子09 に何が起きたかを添える", () => {
     const e: ApiError = { code: "network", message: "通信できませんでした", hint: "接続を確認して" };
-    expect(serverFailure(e)).toEqual({ detail: "通信できませんでした" });
+    expect(serverFailure(e)).toEqual({
+      body: "通信を確かめて、もう一度ためしてください。",
+      detail: "通信できませんでした",
+    });
+  });
+
+  it("回数の上限（429）は、通信のせいにせず、サーバの hint で待つように知らせる", () => {
+    const e: ApiError = {
+      code: "rate_limited",
+      message: "ログインの回数が多すぎます",
+      hint: "1分ほど待ってから、もう一度ログインしてください",
+    };
+    expect(serverFailure(e)).toEqual({
+      body: "1分ほど待ってから、もう一度ログインしてください",
+      detail: "ログインの回数が多すぎます",
+    });
   });
 
   it("期限切れで戻ってきたときだけ、押す前に帯で知らせる（押した後はダイアログで知らせる）", () => {

@@ -208,6 +208,15 @@ describe("子16 の文とボタン（issueFailedText）", () => {
     }
   });
 
+  it("回数の上限（429）は、サーバの hint（待つ長さ）を出して、もう一度つくる", () => {
+    const r = issueFailedText({
+      code: "rate_limited",
+      message: "QR コードを出す回数が多すぎます",
+      hint: "1分ほど待ってから、もう一度 QR を出してください",
+    });
+    expect(r).toEqual({ body: "1分ほど待ってから、もう一度 QR を出してください", next: "retry" });
+  });
+
   it("forbidden・bad_request もサーバの hint を出してホームへ", () => {
     for (const code of ["forbidden", "bad_request", "not_found"] as const) {
       expect(issueFailedText(err(code))).toEqual({ body: "y", next: "home" });

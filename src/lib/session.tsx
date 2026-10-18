@@ -3,6 +3,8 @@
 //   - 起動時は保存した合言葉で authMe を呼び、サーバで確かめる（役割が変わっていれば新しい役割になる）
 //       401（合言葉が無効）→ 保存を消してログアウト状態
 //       通信できない → 保存してある Session で続ける（offline: true。子どもの端末が電波なしでも使えるように）
+//   - 確かめ直す（refresh）ときは、この起動の間に使っている Session（メモリ）を先に使う。封ができず端末に置けなかったときも
+//     ログイン画面へ戻されないように（session-core.ts）
 //   - ログアウトは、まず合言葉をサーバでも無効にし（authSignOut。通信できなくても進める）、保存を消し、Google のログインも外す。
 //     設定のキャッシュとその人の送信待ちも消す（sign-out.ts。別の人で入り直したときに、前の人の設定やデータが混ざらないように）。
 //     401 で自動でログアウトした（合言葉がもう無効）ときは、サーバには頼まない
@@ -14,15 +16,12 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
-import { loadSession, saveSession } from "./session-store";
+import { createSessionCore, type SessionState } from "./session-core";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
 import { applyStatusReporter, statusReporterAction } from "./status-reporter";
 import { appStorage, clearSessionData } from "./storage";
 
-export type SessionState =
-  | { status: "checking" }
-  | { status: "signedOut"; error: ApiError | null } // error はログインに失敗したとき（子09 のダイアログ）
-  | { status: "signedIn"; session: Session; offline: boolean }; // offline = サーバで確かめられていない（通信できない）
+export type { SessionState } from "./session-core";
 
 type SessionContextValue = {
   state: SessionState;
@@ -45,35 +44,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // 「ログインの期限が切れました」を出さないため（自分でログアウトしているので）
   const signingOut = useRef(false);
 
-  const forget = useCallback(async (error: ApiError | null) => {
-    setSessionToken(null);
-    await clearSessionData().catch(() => undefined);
-    setState({ status: "signedOut", error });
-  }, []);
-
-  const adopt = useCallback(async (session: Session) => {
-    setSessionToken(session.token);
-    // 合言葉は Android Keystore の鍵で封をしてから置く（session-store.ts。封ができなければ置かない）
-    await saveSession(appStorage, native, session).catch(() => undefined);
-    setState({ status: "signedIn", session, offline: false });
-  }, []);
-
-  // 保存してある合言葉で、サーバに確かめる
-  const verify = useCallback(async () => {
-    const saved = await loadSession(appStorage, native).catch(() => null);
-    if (!saved) {
-      setState({ status: "signedOut", error: null });
-      return;
-    }
-    setSessionToken(saved.token);
-    try {
-      await adopt(await call("authMe"));
-    } catch (e) {
-      // 401 なら（本文の code が読めなくても）保存を消してログイン画面へ。通信できないときだけ保存した Session で続ける
-      if (isUnauthorized(e)) await forget(null);
-      else setState({ status: "signedIn", session: saved, offline: true });
-    }
-  }, [adopt, forget]);
+  // 分かれ道（adopt・forget・verify）は session-core.ts。Provider ごとに1つだけ作る
+  const [core] = useState(() =>
+    createSessionCore({
+      storage: appStorage,
+      box: native,
+      setToken: setSessionToken,
+      authMe: () => call("authMe"),
+      isUnauthorized,
+      clearSaved: () => clearSessionData(),
+      setState,
+    }),
+  );
+  const { adopt, forget, verify } = core;
 
   useEffect(() => {
     // 使っている途中で合言葉が無効になったら（401）、ログアウト状態にする
