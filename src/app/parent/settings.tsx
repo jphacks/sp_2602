@@ -1,16 +1,19 @@
 // 親04 設定（Figma 108:7496）＋ 親06 テーマカラー変更ポップアップ（108:7548）＋ 親07 ログアウト確認（108:7584。LogoutListItem の中）。
 // 項目は Figma 親04 の4つ（Q13）: テスト日程・制限対象外アプリ・テーマカラー・ログアウト。
-//   これに Figma にない「制限する Web サイト」（D-111）を「制限対象外アプリ」の下に足した。
+//   これに Figma にない「制限する Web サイト」（D-111）を「制限対象外アプリ」の下に、
+//   「子どもとの連携を外す」（D-133。二段階の確認のダイアログつき。UnlinkChildItem）を「ログアウト」の上に足した。
 // データ: 件数は useParentData().config（C7 の設定の組）の testPeriods・excludedApps・blockedSites。読み込めていなければ件数を出さない（0件と出さない）。
 // 行き先: テスト日程 → /parent/schedules（親05）、制限対象外アプリ → /parent/excluded-apps（親16）、
 //         制限する Web サイト → /parent/blocked-sites（Figma にない。D-111）、
 //         テーマカラー → 親06 のダイアログ（「白色」「黒色」。選ぶとすぐ全画面の色が変わる。子06 と同じ ThemeDialog）、
+//         子どもとの連携を外す → 警告 → もう一度確かめる → 外しました → 親のホーム（/parent/home。QR を読み直せる）、
 //         ログアウト → 親07 の確認 → 入口（/）。
 // 空白期間（Q7）の入口は、上限に関わる 親02 計画を作る の画面に置いた（設定は Figma の4項目のままにするため）。
 import { router } from "expo-router";
 import { useState } from "react";
 import { ListItem, LogoutListItem, Reveal, RevealGroup, Screen, ThemeDialog } from "@/components";
 import { countText } from "@/components/parent/format";
+import { UnlinkChildItem } from "@/components/parent/UnlinkChildItem";
 import { useParentData } from "@/lib/parent-data";
 import { useTheme } from "@/lib/theme";
 import { themeLabel } from "@/lib/theme-store";
@@ -61,7 +64,9 @@ export default function ParentSettings() {
             onPress={() => setThemeOpen(true)}
           />
         </Reveal>
-        <Reveal index={4}>
+        {/* Figma にない行（D-133）。元に戻せない操作なので赤で、ログアウトの上に置く（子どもがいなければ出さない） */}
+        <UnlinkChildItem index={4} />
+        <Reveal index={5}>
           <LogoutListItem />
         </Reveal>
       </RevealGroup>
