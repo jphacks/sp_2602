@@ -1,6 +1,5 @@
 // 帯（Banner）の tone ごとの色の名前（純粋な表。値は今のテーマの palettes から引く）。
-// Banner.tsx の中の bg・fg の表と同じ組（Banner.tsx は React Native を読むので、テストから使えるようにここにも置いた。
-// Banner.tsx がこの表を import するように寄せるのは、Banner を触ってよい人がする）。
+// Banner.tsx はこの表を使う（Banner.tsx は React Native を読むので、テストから使えるように純粋なファイルに分けた）。
 // 使い道: 白色・黒色の両方で帯の文字が読めることのテスト（tests/parent/device-alerts.test.ts）
 import type { ColorName } from "@contracts/tokens";
 
