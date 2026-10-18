@@ -4,6 +4,7 @@
 // ウィジェットは Slope が動いていないときにも描かれるので、今日から先の日ごとの値をまとめて渡す
 // （保護者が何日か Slope を開かなくても、その日の値が出る。一覧にない日は Kotlin が「Slope を開くと出ます」と出す）。
 // 渡し方: ParentDataProvider（src/lib/parent-data.tsx）が設定を取るたびに native.saveParentWidget(parentWidgetData(...))。
+// 子どもとつながっていない（連携を外した・家族が空）ときは unlinkedParentWidgetData（前の子どもの数字を残さない。D-133）。
 // 取れない値は 0 と出さず、文で知らせる（docs/architecture.md 4章）。
 import { addDays } from "@contracts/dates";
 import type { NativeParentReduction, NativeParentWidget } from "@contracts/native";
@@ -31,6 +32,18 @@ export function reductionForWidget(r: Reduction, date: string): NativeParentRedu
     case "unknown":
       return { kind: "message", title: "まだ分かりません", body: "Slope を開くと出ます" };
   }
+}
+
+// 子どもとつながっていない保護者のウィジェット（D-133。連携を外したあと・家族の一覧が空のとき）。
+// 前の子どもの「減り」とテストの日程を残さず、毎日「つながっていません」の文にする（形は保護者のまま）
+export function unlinkedParentWidgetData(today: string, days: number = PARENT_WIDGET_DAYS): NativeParentWidget {
+  return {
+    days: Array.from({ length: days }, (_, i) => ({
+      date: addDays(today, i),
+      reduction: { kind: "message", title: "つながっていません", body: "子どもと QR でつなぐと出ます" },
+    })),
+    testPeriods: [],
+  };
 }
 
 export function parentWidgetData(

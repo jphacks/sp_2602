@@ -2,10 +2,12 @@
 // 日程の削除の確認と同じ形: 中央・枠付きの丸いボタンを2つ横に並べる。危ない操作なので、行・アイコン・押すボタンを赤（danger）にする）。
 // 分かれ道と文は unlink.ts（警告 →「次へ」→ もう一度確かめる →「連携を外す」→ 外しました）。どの段でもキャンセルが左・戻るで閉じる。
 // データ: call("familyUnlink", { childId })。外せたら、この端末に残したその子どもの設定のキャッシュとアプリのアイコンを消し、
-//   子どもの一覧を読み直す（useParentData().refresh。一覧が空になり、ほかのタブは「まだ子どもとつながっていません」になる。D-119）。
-// 行き先: 「連携を外しました」の OK → 親のホーム（/parent/home。「QRコードを読み取る」で新しくつなげる）。
+//   保護者のウィジェット（親08）を「つながっていません」にし（前の子どもの数字を残さない）、子どもの一覧を読み直す（useParentData().refresh）。
+// 行き先: 「連携を外しました」の OK（戻るも同じ）→ QR の読み取り（/pair/parent。親10〜親15）へ置き換えて移る
+//   （router.replace。読み取りの画面から戻っても、外す前の設定の画面には戻らない。2026-10-18 ユーザーが決めた）。
 // 失敗は閉じて、行の上に帯（ErrorBanner）を出す。もう外れていた（not_found）・403 は一覧を読み直す。
 //   <UnlinkChildItem index={4} />（index は設定の画面の並びの順番。子どもがいなければ行は縮めて消す）
+import { todayString } from "@contracts/dates";
 import { errorText } from "@contracts/errors";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
@@ -15,8 +17,17 @@ import { AppText, Button, Dialog, ErrorBanner, ListItem, Reveal } from "@/compon
 import { call, errorOf } from "@/lib/api";
 import { appIconCache } from "@/lib/app-icons";
 import { configCache } from "@/lib/config-cache";
+import { native } from "@/lib/native";
 import { useParentData } from "@/lib/parent-data";
-import { initialUnlinkView, UNLINK_EFFECTS, unlinkFailure, unlinkReducer, unlinkText } from "./unlink";
+import {
+  initialUnlinkView,
+  UNLINK_DONE_NEXT,
+  UNLINK_EFFECTS,
+  unlinkFailure,
+  unlinkReducer,
+  unlinkText,
+} from "./unlink";
+import { unlinkedParentWidgetData } from "./widget";
 
 export function UnlinkChildItem({ index }: { index: number }) {
   const { child, refresh } = useParentData();
@@ -33,6 +44,7 @@ export function UnlinkChildItem({ index }: { index: number }) {
       // 外した子どもの設定・アイコンを、この端末にも残さない（サーバではもう消えている）
       await configCache.clear(target.id).catch(() => undefined);
       appIconCache.clear();
+      native.saveParentWidget(unlinkedParentWidgetData(todayString()));
       dispatch({ type: "succeeded" });
       void refresh();
     } catch (e) {
@@ -44,7 +56,7 @@ export function UnlinkChildItem({ index }: { index: number }) {
 
   const finish = () => {
     dispatch({ type: "finish" });
-    router.navigate("/parent/home");
+    router.replace("/pair/parent");
   };
   const cancel = () => dispatch({ type: "cancel" });
 
@@ -102,7 +114,7 @@ export function UnlinkChildItem({ index }: { index: number }) {
           </View>
         ) : view.step === "done" ? (
           <AppText variant="small" tone="muted" center>
-            もう一度つなぐときは、ホームの「QRコードを読み取る」から始めてください。
+            {UNLINK_DONE_NEXT}
           </AppText>
         ) : null}
       </Dialog>

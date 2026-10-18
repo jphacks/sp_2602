@@ -4,7 +4,12 @@
 import type { ConfigSnapshot, DailyLimit, PlanSettings, TestPeriod } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
 import { limitReduction } from "@/components/parent/review";
-import { PARENT_WIDGET_DAYS, parentWidgetData, reductionForWidget } from "@/components/parent/widget";
+import {
+  PARENT_WIDGET_DAYS,
+  parentWidgetData,
+  reductionForWidget,
+  unlinkedParentWidgetData,
+} from "@/components/parent/widget";
 
 const today = "2026-10-15";
 const plan = (over: Partial<PlanSettings> = {}): PlanSettings => ({
@@ -108,5 +113,21 @@ describe("parentWidgetData（端末に保存する値）", () => {
   it("計画がなければ、どの日も文（計画がまだありません）", () => {
     const d = parentWidgetData(snap({ plan: null }), today, 3);
     expect(d.days.map((x) => x.reduction.kind)).toEqual(["message", "message", "message"]);
+  });
+});
+
+describe("子どもとつながっていない保護者のウィジェット（D-133）", () => {
+  it("前の子どもの数字・テストを残さず、今日から先の毎日「つながっていません」の文にする", () => {
+    const w = unlinkedParentWidgetData(today);
+    expect(w.testPeriods).toEqual([]);
+    expect(w.days).toHaveLength(PARENT_WIDGET_DAYS);
+    expect(w.days[0]?.date).toBe(today);
+    expect(w.days.at(-1)?.date).toBe("2026-11-14");
+    for (const d of w.days)
+      expect(d.reduction).toEqual({
+        kind: "message",
+        title: "つながっていません",
+        body: "子どもと QR でつなぐと出ます",
+      });
   });
 });

@@ -5,6 +5,7 @@ import type { ApiError } from "@contracts/errors";
 import { describe, expect, it } from "vitest";
 import {
   initialUnlinkView,
+  UNLINK_DONE_NEXT,
   UNLINK_EFFECTS,
   type UnlinkEvent,
   type UnlinkView,
@@ -125,6 +126,8 @@ describe("unlinkText: ダイアログの文", () => {
     expect(unlinkText("confirm", child)).toEqual(unlinkText("sending", child));
     expect(unlinkText("confirm", child).title).toBe("本当に外しますか？");
     expect(unlinkText("done", child).title).toBe("連携を外しました");
+    // OK のあとは QR の読み取りへ移ることを、押す前に知らせる
+    expect(UNLINK_DONE_NEXT).toContain("QR コードの読み取り");
   });
 
   it("名前が空なら「子ども」と出す", () => {

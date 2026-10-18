@@ -1,7 +1,7 @@
 // 親04 設定の「子どもとの連携を外す」（D-133。Figma にない）の分かれ道と文（純粋な関数。UnlinkChildItem.tsx が使う。tests/parent/unlink.test.ts）。
 // 流れ（ダイアログは1つで、中身を順に替える。どの段でもキャンセル・Android の戻るで閉じる。キャンセルが既定）:
 //   closed → warn（何が起きるかの警告。「次へ」）→ confirm（もう一度だけ確かめる。「連携を外す」）→ sending（押せない）
-//     → done（「連携を外しました」。OK で親のホームへ。ホームは「まだ子どもとつながっていません」と QR の読み取りを出す。D-119）
+//     → done（「連携を外しました」。OK で QR の読み取り（/pair/parent）へ置き換えて移る。設定の画面には戻らない）
 //     → 失敗したら閉じて、設定の画面の上に帯（ErrorBanner）を出す（PeriodEditor の削除と同じ流儀）
 // なぜ二段階か: 外すと子どもの利用記録・設定がすべて消え、元に戻せない（backend/src/db/family-unlink.ts）。1回押しただけで
 //   消えないように、警告を読んで「次へ」、もう一度「連携を外す」の2回押してはじめて送る
@@ -71,6 +71,9 @@ export const UNLINK_EFFECTS = [
   "利用記録・計画・テスト日程・空白期間・制限対象外アプリ・制限する Web サイトの設定が、すべて消えます",
   "もう一度つなぐときは、子どものスマホで QR コードを出すところからやり直します",
 ] as const;
+
+// done の下に小さく添える、次に起きること（OK で QR の読み取りへ移る）
+export const UNLINK_DONE_NEXT = "OK を押すと、新しくつなぐための QR コードの読み取りに進みます。";
 
 export type UnlinkText = { title: string; body: string };
 
