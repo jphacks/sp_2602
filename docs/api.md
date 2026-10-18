@@ -65,6 +65,7 @@ flowchart TD
 | `health` | GET `/api/health` | none | なし | `{ ok: true, mock: boolean }` | 503 `unavailable`（DB につながらない・開けない。開けない理由によらず 503。`src/server/handlers/health.ts`） |
 | `authGoogle` | POST `/api/auth/google` | none | `{ idToken }` | `Session`（`token`・`userId`・`name`・`role`） | 401（トークンが正しくない・`MOCK=1` でないのに `mock-`）、502 `upstream_failed`（サーバに `GOOGLE_WEB_CLIENT_ID` がない・Google の鍵が取れない）、429 `rate_limited`（同じ IP から1分に20回・同じ人から1分に10回をこえた。IP の分は Google の確かめより先に数える。D-131） |
 | `authMe` | GET `/api/auth/me` | signedIn | なし | `Session` | 401（保護者に連携を外された子どもの合言葉なら `reason: "family_unlink"` 付き。D-133） |
+| `authCheck` | GET `/api/auth/check` | none（処理の中で合言葉を確かめる） | なし（`Authorization: Bearer <合言葉>`） | `{ ok: true }`（中身は返さない） | 401（合言葉がない・無効。外された子どもの合言葉なら `reason: "family_unlink"`）。子どもの端末の Kotlin の監視が約1分ごとに呼ぶ（D-134）。DB は読むだけで、「最後に使った時刻」も書かない（合言葉の期限を延ばさない）。回数の上限には数えない |
 | `authSignOut` | POST `/api/auth/sign-out` | signedIn | なし（本文を付けない）か `{ otherDevices: true }` | `{ ok: true, revoked }`（`revoked` は無効にした合言葉の数）。本文なしなら呼んだ合言葉だけ、`otherDevices: true` なら同じ人のほかの合言葉をすべて無効にする（以後その合言葉は 401） | 401、400（知らない項目を入れた） |
 | `pairStart` | POST `/api/pair/start` | signedIn | `{ name? }`（画面に出す呼び名） | `PairTicket`（`pairId`・`code`・`expiresAt`） | 409（保護者の端末・すでに連携済み）、429 `rate_limited`（1人1分に5回をこえた。D-131） |
 | `pairStatus` | POST `/api/pair/status` | signedIn | `{ pairId }` | `PairStatus` | 404（自分が関わっていないペアリングも 404。あるかどうかを漏らさない） |

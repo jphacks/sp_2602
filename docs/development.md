@@ -223,7 +223,7 @@ UNION ALL SELECT 'child_app_icons', count(*) FROM child_app_icons WHERE app_id !
 #### この版を入れたら dev client を作り直す
 
 合言葉を Android Keystore の鍵で封をする `sealSecret`・`openSecret` が Kotlin（`modules/kit-native/` の `SecretBox`）に増えました。**dev client を `npm run android` で作り直してください**（画面の即時反映では入りません）。作り直さないと、古い dev client には封の関数がないので合言葉を端末に置けず、起動のたびに何も言わずにログインし直しになります（開発中は Metro のログに「dev client を作り直してください（sealSecret がありません）」が1回出ます。`src/lib/native.ts`）。
-Kotlin の許可の状態の送信が「連携が外れた」401（`reason: "family_unlink"`）を受けたら監視を止めるようにもしました（`LocalData.kt`・`StatusReporter`。D-133）。作り直さない dev client でも、アプリを開いたときに JS が同じ 401 を受けて止めますが、アプリを開くまでは制限が残ります。
+Kotlin の許可の状態の送信が「連携が外れた」401（`reason: "family_unlink"`）を受けたら監視を止めるようにもしました（`LocalData.kt`・`StatusReporter`。D-133）。作り直さない dev client でも、アプリを開いたときに JS が同じ 401 を受けて止めますが、アプリを開くまでは制限が残ります。監視が約1分ごとに合言葉を確かめる処理（`SessionCheck.kt`・D-134）と、外されたときに Device Owner をやめる `releaseDeviceOwner` も Kotlin に増えています。
 - 手元の DB（PGlite）は、立ち上げのときに表の形を自動で合わせるので、この作業は要りません。
 
 ### 本番の DB に見本を入れる（`npm run db:seed-demo`）

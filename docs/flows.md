@@ -211,10 +211,11 @@ sequenceDiagram
   P->>SV: 「連携を外す」→ familyUnlink（押している間は busy）
   SV->>SV: 連携の行を消す・子どもの役割を null・QR を無効・家庭ごとのデータを消す・audit_events・子どもの合言葉を family_unlink で無効
   SV-->>P: { childId, revokedSessions }
-  P->>P: 設定のキャッシュとアイコンを消し、子どもの一覧を読み直す →「連携を外しました」→ OK で親のホーム（QR の読み取り。D-119）
-  C->>SV: 次の呼び出し（アプリを開いた・30 秒ごとの取得・Kotlin の許可の状態の送信）
+  P->>P: 設定のキャッシュとアイコンを消し、ウィジェット（親08）を「つながっていません」にし、子どもの一覧を読み直す
+  P->>P: 「連携を外しました」→ OK で QR の読み取り（/pair/parent）へ置き換えて移る
+  C->>SV: 次の呼び出し（Kotlin の監視の約1分ごとの authCheck・アプリを開いた・許可の状態の送信）
   SV-->>C: 401 unauthorized + reason: family_unlink
-  C->>C: 制限を止める・送信待ちと設定を消す・ログイン画面に「保護者との連携が外れました」
+  C->>C: 制限を止める・送信待ちと設定を消す・Device Owner をやめる・（アプリを開いたら）ログイン画面に「保護者との連携が外れました」
 ```
 
 | 段階 | 担当 |
@@ -224,7 +225,9 @@ sequenceDiagram
 | 失敗 | ダイアログを閉じて行の上に `ErrorBanner`（`unlinkFailure`）。もう外れていた（not_found）・403 は子どもの一覧を読み直し、「もう一度」は出さない。通信できない・時間切れは読み直して「もう一度」も出す（サーバでは外れていることがあるため）。429・503 などはサーバの文のまま「もう一度」（確かめの段からやり直す） |
 | サーバ | `src/server/auth.ts` の `unlinkChild`（上の `familyUnlink`）。子どもの合言葉は理由 `family_unlink` で無効（`user_sessions.revoked_reason`） |
 | 子どもの端末（アプリ） | `src/lib/session-core.ts` の `expire`・`verify`（上の 1章「連携が外れた 401」） |
-| 子どもの端末（Kotlin） | 許可の状態の送信（`StatusReporter`）が 401 + `family_unlink` を受けたら、アプリを開いていなくても `LocalData.clear`（ログアウトと同じ。監視を止めて端末の値を消す）。送っている間に JS が新しい合言葉を渡していたら消さない |
+| 子どもの端末（Kotlin） | 監視（`MonitorService`）の見張りに相乗りして、画面がついている間は約1分ごと・消えている間は 15 分ごとに `authCheck` を呼ぶ（`engine/SessionCheck.kt`。D-134）。許可の状態の送信（`StatusReporter`）も同じ。401 + `family_unlink` を受けたら、アプリを開いていなくても `LocalData.clearUnlinked`（ログアウトと同じく監視を止めて端末の値を消し、Device Owner もやめる）。送っている間に JS が新しい合言葉を渡していたら何もしない |
+| 保護者の行き先 | 「連携を外しました」の OK（戻るも同じ）で `router.replace("/pair/parent")`。読み取りの画面から戻っても、外す前の設定の画面には戻らない。読み取りの「やめる」は今までどおり役割選び（`/pair`） |
+| 保護者のウィジェット（親08） | 外した直後に `unlinkedParentWidgetData`（毎日「つながっていません ／ 子どもと QR でつなぐと出ます」・テストなし）を保存。その後も家族の一覧が空なら `ParentWidgetSync` が同じものを保存する（前の子どもの数字を残さない） |
 
 ## 4. 通常上限を決める
 
@@ -384,7 +387,9 @@ flowchart LR
 3. **送る**: `StatusReportRules.shouldSend` が「まだ送っていない・前に送った状態と違う・前に届いてから 15 分たった」なら送る。通信は見張りとは別のスレッドで、`HttpURLConnection`（つなぐ 5 秒・読む 4 秒）。本文は `childId`・許可ごとのオン/オフ・測った時刻だけ（使用時間・アプリ名・URL は送らない）。
    - 失敗（時間切れ・通信できない・5xx・408・429）: 黙って 1 分後にやり直す。ほかの 4xx（403 など）: 15 分待つ。
    - 401 で本文がサーバの `unauthorized`: 保存した合言葉を消して送るのをやめる（連携を外された・ログアウトされた）。Vercel の保護ページなど、ほかの 401 では消さない。
-   - そのうち本文に `reason: "family_unlink"`（保護者が連携を外した）があれば、さらに監視を止めて端末に残した値を消す（`LocalData.clear`。ログアウトの `clearLocalData` と同じ。D-133）。アプリを開かなくても、生存報告（15 分ごと）か許可の変化で送ったときに制限が止まる。ほかの 401 では監視を止めない。
+   - そのうち本文に `reason: "family_unlink"`（保護者が連携を外した）があれば、さらに監視を止めて端末に残した値を消し、Device Owner もやめる（`LocalData.clearUnlinked`。D-133）。ほかの 401 では監視を止めない。
+   - 届いたら、合言葉の確かめ（`SessionCheck`。D-134）をその回は省く（届いた = 合言葉はまだ使える）。
+   - **合言葉の確かめ（D-134）**: 見張りのたびに `SessionCheck.checkIfDue` が、画面がついている間は約1分ごと・消えている間は 15 分ごとに `authCheck`（GET `/api/auth/check`。DB を読むだけ・中身なし）を呼ぶ。失敗（通信できない・503・404 など）が続いたら 1 → 2 → 4 … 最大 15 分まで延ばし、何も止めない。401 + `family_unlink` → `LocalData.clearUnlinked`。理由のない 401 → 保存した合言葉を消して確かめをやめる（監視は止めない）。送り先と合言葉がない端末（保護者・連携前・ログアウト）は呼ばない。決め方は `SessionCheckRules`（JVM のテスト `SessionCheckTest`）。
 4. **保存する**: サーバ（`src/server/services/device-status.ts`・`backend/src/db/device-status.ts`）は合言葉の本人の行（`device_statuses`）に、許可ごとのオン/オフ・オフになった時刻（最初にオフと届いた報告の測った時刻）・最後に届いた時刻（サーバの時計）を保存する。遅れて届いた古い報告では状態を変えない。
 5. **保護者に知らせる**: 親01 ホーム（`src/app/parent/home.tsx`）が `useDeviceStatus`（`src/components/parent/data.tsx`。`deviceStatusGet` を 30 秒ごと）で読み、帯の部品 `DeviceAlertBanner`（`src/components/parent/DeviceAlertBanner.tsx`。別の係が作る）に `status` と `hasBlockedSites` を渡す（[screens.md](screens.md) の親01）。最後に届いてから 30 分以上なら「連絡が取れていません」（アプリが消された・電源が切れた・通信がない可能性）。まだ一度も届いていない（古いアプリ）ときは何も出さない。
 6. **子どもに催促する**: ユーザー補助がオフで、保護者が Web サイトを1件以上登録しているときは、`MonitorService` が子どもの端末に通知「ユーザー補助をオンに戻してください。保護者に知らせました」を出す（`PermissionNudge`。チャンネル「許可を戻すお願い」）。押すと Android のユーザー補助の設定（一覧）が開く（`EnginePermissions.settingsIntent`）。オンに戻ったら消す。
