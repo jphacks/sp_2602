@@ -23,40 +23,31 @@
 #### 1. テスト日と目標を登録すると、利用上限が日ごとに自動で下がります。
 保護者は、計画の開始日、開始時の利用時間、最終目標、通常上限、利用可能時間帯を設定できます。テスト日が近づくほど上限が少しずつ下がり、テストが終わると一度回復します。日々設定を変更する手間を減らしながら、無理のないペースで利用時間を調整できます。
 
-<img width="180" height="400" alt="保護者の計画設定画面" src="docs/images/親02 計画を作る 最新.png" />
+<img width="360" height="800" alt="親02 計画を作る 最新" src="https://github.com/user-attachments/assets/19565a56-2d45-45b3-9e89-8337fc7a5ae4" />
+
 
 #### 2. 子どもには利用割合、保護者には具体的な利用時間を表示します。
 子どもの画面では、今日の利用割合や今週の推移を確認できます。保護者の画面では、今日の利用時間と上限、今週の利用時間を具体的な分数で確認できます。親子それぞれに分かりやすい形で利用状況を伝えます。
 
-<img width="180" height="400" alt="子どものホーム画面" src="docs/images/子01 ホーム画面 最新.png" />
-<img width="180" height="400" alt="子どもの利用割合画面" src="docs/images/子02 使用割合確認画面 最新.png" />
-<img width="180" height="400" alt="保護者のホーム画面" src="docs/images/親01 ホーム 最新.png" />
+<img width="360" height="800" alt="子01 ホーム画面 最新" src="https://github.com/user-attachments/assets/16401fda-f49a-4a85-bcf7-d8652aab8fa7" />
+<img width="360" height="800" alt="子02 使用割合確認画面 最新" src="https://github.com/user-attachments/assets/78713332-0558-43a0-a578-221f0994719e" />
+<img width="360" height="800" alt="親01 ホーム 最新" src="https://github.com/user-attachments/assets/8b51fd7d-9eef-4665-ab37-f240df91097e" />
+
 
 #### 3. 上限に達すると端末の利用を制限し、勉強アプリへ案内します。
 利用上限に達すると、子どもの画面に利用時間が終了したことを表示し、お勧めアプリへ進めるよう案内します。使い続けてしまう状況を抑え、勉強へ切り替えるきっかけをつくります。
 
-<img width="180" height="400" alt="利用上限に達した子どもの画面" src="docs/images/子11 利用時間が終わった画面 最新.png" />
+<img width="360" height="800" alt="子11 利用時間が終わった画面 最新" src="https://github.com/user-attachments/assets/08c659f3-3c09-41ab-a30a-e1e2f268d40f" />
 
 #### 4. 保護者は、テストまでの利用時間の変化を振り返ることができます。
 試験の初日から現在までに利用上限がどれだけ減ったかや、週ごとの1日あたりの利用時間を確認できます。試験が終わると上限が一度回復することも画面で分かります。
 
-<img width="180" height="400" alt="保護者の振り返り画面" src="docs/images/親03 振り返り 最新.png" />
+<img width="360" height="800" alt="親03 振り返り 最新" src="https://github.com/user-attachments/assets/aaee58b4-28f7-467e-8f57-1fb14bc49707" />
+
 
 #### 5. ウィジェットで使用時間をいつでも確認できます。
 ホーム画面のウィジェットから、今日の残り時間をいつでも確認できます。
 
-<img width="180" height="400" alt="子どものホーム画面のウィジェット" src="docs/images/子12 ウィジェット（Android のホーム） 最新.png" />
-
-
-
-
-#### 1. 親の画面から子供の使用時間がどのくらい減ったのかをスムーズに見ることができます。
-<img width="180" height="400" alt="親03 振り返り 最新" src="https://github.com/user-attachments/assets/6fc31543-b807-4c25-bb93-f2d09cf577e4" />
-
-#### 2. 使用時間が終わった後にお勧めアプリを表示することで勉強へスムーズに移行できます。
-<img width="180" height="400" alt="子11 利用時間が終わった画面 最新" src="https://github.com/user-attachments/assets/150106a6-d360-48ca-bed7-35dbeb91fcc6" />
-
-#### 3. ヴィジェットで使用時間を自由に確認できます。
 <img width="180" height="400" alt="子12 ウィジェット（Android のホーム） 最新" src="https://github.com/user-attachments/assets/a9eff279-50ac-40b5-9129-95d9fd09383e" />
 
 ### 解決出来ること
