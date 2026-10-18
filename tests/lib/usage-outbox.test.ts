@@ -269,4 +269,65 @@ describe("C8: 送信待ちを消した（removeChild）あとに、消す前に�
     await Promise.all([flushing, removing]);
     expect(await outbox.list()).toEqual([]);
   });
+
+  it("送っている途中に、その子どもの送信待ちを消したら、読んだ一覧の残りは送らない（ほかの子どもの分は送る）", async () => {
+    const sending = pause();
+    const sent: string[] = [];
+    let n = 0;
+    const outbox = createUsageOutbox({
+      storage: memoryStorage(),
+      send: async (u) => {
+        sent.push(`${u.childId}:${u.days[0]?.date}`);
+        if (sent.length === 1) await sending.until; // 1件目を送っている途中で止める
+        return { submissionId: u.submissionId, status: "accepted", appliedDates: [] };
+      },
+      now: () => new Date("2026-10-15T03:00:00Z"),
+      newId: () => `00000000-0000-4000-8000-00000000000${++n}`,
+    });
+    await outbox.enqueue("c1", [day("2026-10-14", 1)]);
+    await outbox.enqueue("c1", [day("2026-10-15", 2)]);
+    await outbox.enqueue("c2", [day("2026-10-15", 3)]);
+    const flushing = outbox.flush();
+    await tick();
+    expect(sent).toEqual(["c1:2026-10-14"]);
+    await outbox.removeChild("c1");
+    sending.release();
+    const result = await flushing;
+    // c1 の2件目は送らない。c2 は送る
+    expect(sent).toEqual(["c1:2026-10-14", "c2:2026-10-15"]);
+    expect(result.sent).toBe(2);
+    expect(await outbox.list()).toEqual([]);
+  });
+});
+
+describe("C8: 端末の一覧の読み・書きは1つずつ順に行う（exclusive）", () => {
+  it("同時に2本 enqueue しても、両方の記録が残る（読んでから書くまでの間に、もう1本が割り込んで上書きしない）", async () => {
+    // 読み出し（getItem）を外から止めて、2本とも読み終えてから書く順になりうるようにする
+    const data = new Map<string, string>();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const storage: KeyValueStorage = {
+      getItem: async (k) => {
+        await gate;
+        return data.get(k) ?? null;
+      },
+      setItem: async (k, v) => void data.set(k, v),
+      removeItem: async (k) => void data.delete(k),
+    };
+    let n = 0;
+    const outbox = createUsageOutbox({
+      storage,
+      send: async (u) => ({ submissionId: u.submissionId, status: "accepted", appliedDates: [] }),
+      now: () => new Date("2026-10-15T03:00:00Z"),
+      newId: () => `00000000-0000-4000-8000-00000000000${++n}`,
+    });
+    const a = outbox.enqueue("c1", [day("2026-10-14", 1)]);
+    const b = outbox.enqueue("c1", [day("2026-10-15", 2)]);
+    await new Promise((r) => setTimeout(r, 0));
+    release();
+    expect(await a).not.toBeNull();
+    expect(await b).not.toBeNull();
+    const stored = JSON.parse(data.get(storageKeys.outbox) ?? "[]") as { days: { date: string }[] }[];
+    expect(stored.map((i) => i.days[0]?.date).sort()).toEqual(["2026-10-14", "2026-10-15"]);
+  });
 });

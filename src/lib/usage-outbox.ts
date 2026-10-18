@@ -11,7 +11,8 @@
 //     書かずに捨てる（消した回数＝世代を、config-cache.ts と同じく enqueue の始めに覚えて比べる）。
 //     なぜ: 連携が外れて片付けている間に、子どもの画面の定期取得（child-data.tsx）の enqueue が終わると、
 //     外された子どもの記録が送信待ちに戻り、次に紐づけた保護者へ送られうるため（D-133 の再検査）。
-//     端末の一覧の読み・書きは1つずつ順に行う（読んでから書くまでの間に、ほかの書き込み・消すが割り込まないように）
+//     端末の一覧の読み・書きは1つずつ順に行う（読んでから書くまでの間に、ほかの書き込み・消すが割り込まないように）。
+//     送る（flush）ときも、1件送る前ごとに世代を比べ、読んだあとに消されていたら、その子どもの残りは送らない
 // 中心は createUsageOutbox（保存・送信・時計・ID を外から渡す。テストで差し替える）。
 //   await usageOutbox.enqueue(childId, days);  // C2 の結果（今日と昨日の UsageDayReport）を送信待ちに入れる
 //   await usageOutbox.flush();                     // 起動時・通信の復帰時・画面を開いたときなどに呼ぶ
@@ -144,7 +145,17 @@ export function createUsageOutbox(deps: OutboxDeps) {
   async function flushOnce(): Promise<FlushResult> {
     const result: FlushResult = { sent: 0, retrying: 0, quarantined: 0, skipped: 0 };
     const t = now();
-    for (const item of await read()) {
+    // 一覧を読んだときの、子どもごとの世代（消した回数）。読むのも順番を待つ（消している途中の一覧を読まない）
+    const { items, readGen } = await exclusive(async () => {
+      const list = await read();
+      const gens = new Map<string, number>();
+      for (const item of list) gens.set(item.childId, generation(item.childId));
+      return { items: list, readGen: gens };
+    });
+    for (const item of items) {
+      // 読んだあとに、その子どもの送信待ちが消された（removeChild: 連携が外れた・ログアウト）なら、読んだ一覧の残りは送らない
+      // （外された子どもの記録を、そのあとで送らない。送っている途中の1件は止められない）
+      if (generation(item.childId) !== readGen.get(item.childId)) continue;
       if (item.state === "quarantined") {
         result.quarantined++;
         continue;
