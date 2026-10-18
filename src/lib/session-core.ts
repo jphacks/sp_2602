@@ -9,6 +9,8 @@
 //   なぜ外れたときだけか: 期限切れなどほかの 401 で制限を止めると、子どもが合言葉の期限切れを待つ（端末を 30 日使わない等）だけで
 //   制限から逃げられてしまう。送信待ちも、同じ人がログインし直せば送れるので残す（sign-out.ts）。
 //   外れたときは、送信待ちを残すと次に紐づけた保護者へ前の家庭の時期の記録が送られる（セキュリティ検査 F-2 の残り）
+// ただし、family_unlink を信じるのは API の送り先が https か、開発中（__DEV__）のときだけ（canTrustUnlink）。
+//   信じられないときは理由のない 401 と同じにする（片付けない＝制限を止めない・Device Owner もやめない）
 // 今の Session はメモリ（kept）にも持つ。なぜ: 合言葉は封ができないと端末に置かない（session-store.ts。平文で置かないため）。
 //   前は確かめ直すときに端末の保存しか読まなかったので、Keystore が使えない端末では、ログイン→QR で紐づけ→「ホームへ」
 //   （refresh）や、403 のたびの refresh（child-data.tsx・parent-data.tsx）でログイン画面へ戻されていた。
@@ -36,6 +38,16 @@ export function isFamilyUnlinked(error: ApiError | null | undefined): boolean {
   return error?.code === "unauthorized" && error.reason === "family_unlink";
 }
 
+// 「保護者が連携を外した」401（family_unlink）を信じて片付けてよいか。片付けると端末の制限（Kotlin の監視）が止まり、
+// Device Owner（アンインストールの止め）もやめるので、偽の返事で起こされないようにする。
+//   API の送り先（baseUrl）が https なら信じる。http（dev client・手元の LAN のサーバ・api.ts の既定 http://10.0.2.2:3000）だと、
+//   子どもが Wi-Fi の HTTP プロキシを自分の PC に向けて、401 {"code":"unauthorized","reason":"family_unlink"} を作って返せるため。
+//   開発中（dev が true = __DEV__）なら http でも信じる（手元のサーバで「連携を外す」を試せるように）。
+// Kotlin の StatusReportRules.trustsUnlink（debuggable なら http でも信じる）と同じ考え方
+export function canTrustUnlink(baseUrl: string, dev: boolean): boolean {
+  return dev || /^https:\/\//i.test(baseUrl.trim());
+}
+
 // 自分でログアウトできるか（D-136。2026-10-18 ユーザーが決めた「子どものログアウトをなくす」）。
 // 子ども（役割 child）はできない。なぜ: ログアウトすると端末の制限（Kotlin の監視）が止まり、制限から逃げる道になるため。
 //   子どもの端末がログイン状態から抜けるのは、保護者が連携を外したとき（401 の family_unlink。D-133）だけ。
@@ -53,6 +65,8 @@ export type SessionCoreDeps = {
   isUnauthorized: (e: unknown) => boolean; // 合言葉が無効（401）か
   errorOf: (e: unknown) => ApiError | null; // 例外 → サーバの返事（api.ts の errorOf。401 の理由を読むため）
   clearUnlinked: (userId: string) => Promise<void>; // 連携が外れたときの片付け（端末の制限を止め、送信待ち・設定を消す）
+  // family_unlink を信じてよいか（canTrustUnlink。false なら理由のない 401 と同じにして、clearUnlinked を呼ばない）
+  trustUnlink: () => boolean;
   clearSaved: () => Promise<void>; // 端末に置いた Session を消す（storage.ts の clearSessionData）
   setState: (state: SessionState) => void;
 };
@@ -88,9 +102,10 @@ export function createSessionCore(d: SessionCoreDeps): SessionCore {
 
   // 合言葉が無効と言われた（401）。who はその合言葉の持ち主（分からなければ null）。
   // 連携が外れた 401 なら、先にログアウト状態にして（子どもの画面を閉じ、制限の値を書き直す処理を止める）から片付ける。
-  // 消している間にログインし直していたら（adopt。epoch が変わった）片付けない（ログインし直した人の制限を止めない）
+  // 消している間にログインし直していたら（adopt。epoch が変わった）片付けない（ログインし直した人の制限を止めない）。
+  // 送り先が信じられない（release 版で http）ときの family_unlink は、理由のない 401 と同じにする（片付けない・帯は notice）
   const lose = async (who: Session | null, error: ApiError | null, notice: ApiError | null) => {
-    const unlinked = isFamilyUnlinked(error);
+    const unlinked = isFamilyUnlinked(error) && d.trustUnlink();
     const still = await drop(unlinked ? error : notice);
     if (still && unlinked && who) await d.clearUnlinked(who.userId).catch(() => undefined);
   };

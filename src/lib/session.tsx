@@ -3,7 +3,8 @@
 //   - 起動時は保存した合言葉で authMe を呼び、サーバで確かめる（役割が変わっていれば新しい役割になる）
 //       401（合言葉が無効）→ 保存を消してログアウト状態
 //       401 で、保護者が連携を外した（reason: family_unlink）→ さらに端末の制限を止め、送信待ち・設定を消し、
-//         ログイン画面に「保護者との連携が外れました」を出す（session-core.ts の expire。D-133）
+//         ログイン画面に「保護者との連携が外れました」を出す（session-core.ts の expire。D-133）。
+//         ただし API の送り先が https か開発中（__DEV__）のときだけ。http の release 版では理由のない 401 と同じ（canTrustUnlink）
 //       通信できない → 保存してある Session で続ける（offline: true。子どもの端末が電波なしでも使えるように）
 //   - 確かめ直す（refresh）ときは、この起動の間に使っている Session（メモリ）を先に使う。封ができず端末に置けなかったときも
 //     ログイン画面へ戻されないように（session-core.ts）
@@ -18,7 +19,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
-import { canSignOut, createSessionCore, type SessionState } from "./session-core";
+import { canSignOut, canTrustUnlink, createSessionCore, type SessionState } from "./session-core";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
 import { applyStatusReporter, statusReporterAction } from "./status-reporter";
 import { appStorage, clearSessionData } from "./storage";
@@ -64,6 +65,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         native.releaseDeviceOwner();
         await clearLocalDataFor(userId);
       },
+      // family_unlink を信じるのは、API の送り先が https か、開発中（__DEV__）のときだけ（偽の 401 で制限と Device Owner を
+      // 止められないように。session-core.ts の canTrustUnlink）。信じられなければ理由のない 401 と同じにする
+      trustUnlink: () => canTrustUnlink(apiUrl("authMe"), typeof __DEV__ !== "undefined" && __DEV__),
       clearSaved: () => clearSessionData(),
       setState,
     }),

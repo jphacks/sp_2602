@@ -8,7 +8,13 @@ import type { ApiError } from "@contracts/errors";
 import { mockSessions } from "@contracts/fixtures";
 import type { Session } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
-import { createSessionCore, EXPIRED_NOTICE, isFamilyUnlinked, type SessionState } from "@/lib/session-core";
+import {
+  canTrustUnlink,
+  createSessionCore,
+  EXPIRED_NOTICE,
+  isFamilyUnlinked,
+  type SessionState,
+} from "@/lib/session-core";
 import { loadSession, type SecretBox, saveSession } from "@/lib/session-store";
 import { type KeyValueStorage, storageKeys } from "@/lib/storage";
 
@@ -48,7 +54,7 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 
 // authMe の返事は me で差し替える（関数なら呼ばれるまで待たせられる）。
 // hold に Promise を入れると、端末の読み出し（getItem）・書き込み（setItem）・消す（clearSaved）がそこで止まる
-function setup(secretBox: SecretBox) {
+function setup(secretBox: SecretBox, trustUnlink = true) {
   const data = new Map<string, string>();
   const hold: { get?: Promise<void>; set?: Promise<void>; clear?: Promise<void> } = {};
   const storage: KeyValueStorage = {
@@ -83,6 +89,7 @@ function setup(secretBox: SecretBox) {
     isUnauthorized: (e) => e instanceof Unauthorized,
     errorOf: (e) => (e instanceof Unauthorized ? e.error : null),
     clearUnlinked: async (userId) => void t.cleared.push(userId),
+    trustUnlink: () => trustUnlink,
     clearSaved: async () => {
       await hold.clear;
       data.delete(storageKeys.session);
@@ -300,7 +307,22 @@ describe("session-core: 401 の理由（D-133）", () => {
     expect(t.cleared).toEqual([child.userId]);
   });
 
-  it("起動時の確かめで理由のない 401 なら、片付けずに帯なしでログイン画面へ（今までどおり）", async () => {
+  it("起動時の確かめで理由のない 401 なら、片付けずに「期限が切れました」の帯でログイン画面へ（api.ts が先に expire を呼ぶ）", async () => {
+    const { t, core } = setup(box);
+    await saveSession(t.storage, box, child);
+    const reasonless: ApiError = { code: "unauthorized", message: "ログインが確認できませんでした", hint: "h" };
+    t.me = async () => {
+      // 実際の配線: api.ts の send は、例外を投げる前に登録した関数（session.tsx → expire）を呼ぶ
+      await core.expire(reasonless);
+      throw new Unauthorized(reasonless);
+    };
+    await core.verify();
+    expect(t.state).toEqual({ status: "signedOut", error: EXPIRED_NOTICE });
+    expect(t.cleared).toEqual([]);
+    expect(t.data.has(storageKeys.session)).toBe(false);
+  });
+
+  it("起動時の確かめで理由のない 401 を expire を通さずに受けたときは、帯なしでログイン画面へ（片付けない）", async () => {
     const { t, core } = setup(box);
     await saveSession(t.storage, box, child);
     t.me = async () => {
@@ -309,6 +331,34 @@ describe("session-core: 401 の理由（D-133）", () => {
     await core.verify();
     expect(t.state).toEqual({ status: "signedOut", error: null });
     expect(t.cleared).toEqual([]);
+  });
+
+  it("送り先が信じられない（release 版で http）ときの family_unlink は、理由のない 401 と同じ（片付けない・帯は「期限が切れました」）", async () => {
+    const { t, core } = setup(box, false);
+    await core.adopt(child);
+    await core.expire(unlinkedError);
+    expect(t.state).toEqual({ status: "signedOut", error: EXPIRED_NOTICE });
+    expect(t.cleared).toEqual([]);
+    expect(t.token).toBeNull();
+
+    // 起動時の確かめで受けたときも片付けない
+    const second = setup(box, false);
+    await saveSession(second.t.storage, box, child);
+    second.t.me = async () => {
+      throw new Unauthorized(unlinkedError);
+    };
+    await second.core.verify();
+    expect(second.t.state).toEqual({ status: "signedOut", error: null });
+    expect(second.t.cleared).toEqual([]);
+  });
+
+  it("canTrustUnlink: https か開発中（__DEV__）のときだけ family_unlink を信じる", () => {
+    expect(canTrustUnlink("https://slope.example.com", false)).toBe(true);
+    expect(canTrustUnlink("HTTPS://slope.example.com", false)).toBe(true);
+    expect(canTrustUnlink("http://10.0.2.2:3000", false)).toBe(false);
+    expect(canTrustUnlink("http://192.168.0.5:3000/api/auth/me", false)).toBe(false);
+    expect(canTrustUnlink("", false)).toBe(false);
+    expect(canTrustUnlink("http://10.0.2.2:3000", true)).toBe(true);
   });
 
   it("連携が外れた 401 で消している間にログインし直したら（adopt）、片付けない（ログインし直した人の制限を止めない）", async () => {
@@ -356,6 +406,7 @@ describe("session-core: 401 の理由（D-133）", () => {
       clearUnlinked: async () => {
         throw new Error("消せなかった");
       },
+      trustUnlink: () => true,
       clearSaved: async () => undefined,
       setState: (s) => {
         t.state = s;

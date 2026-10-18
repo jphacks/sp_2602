@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.SystemClock
 import dev.hackathon.kit.kitnative.LocalData
@@ -26,8 +27,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 //   送り先と合言葉: JS がログイン時・起動時に setStatusReporter で渡し、EngineStore に保存してある（子どもだけ）。
 //   失敗: 時間切れ・通信できない・サーバの不具合は黙って次の機会に回す（RETRY_MS あと）。
 //     401（合言葉が無効）なら保存した合言葉を消して、送るのをやめる（JS がもう一度ログインすれば渡し直す）。
-//     401 の理由が「保護者が連携を外した」（family_unlink。D-133）なら、さらに監視を止めて端末に残した値を消す（LocalData.clear）。
-//     アプリを開かなくても、外された端末の制限が止まるように。JS は次に開いたときに同じ 401 を受け、送信待ちを消して知らせる
+//     401 の理由が「保護者が連携を外した」（family_unlink。D-133）なら、さらに監視を止めて端末に残した値を消し、
+//     Device Owner もやめる（LocalData.clearUnlinked）。アプリを開かなくても、外された端末の制限が止まるように。
+//     JS は次に開いたときに同じ 401 を受け、送信待ちを消して知らせる。
+//     ただし送り先が http のときは、release 版では family_unlink を信じず、理由のない 401 と同じにする
+//     （偽の返事で監視を止められないように。StatusReportRules.guardUnlinked）
 //   送る中身: 許可ごとのオン/オフと測った時刻だけ（使用時間・アプリ名・URL は送らない）。
 // 新しい依存を足さないため HttpURLConnection で送る（1回の本文は 200 バイトほど）。
 object StatusReporter {
@@ -57,7 +61,8 @@ object StatusReporter {
     if (!StatusReportRules.shouldSend(flags, state.lastSent, state.lastSentAt, state.retryAt, now)) return false
     if (!busy.compareAndSet(false, true)) return false
     try {
-      when (val outcome = post(access, StatusReportRules.body(access.childId, flags, StatusReportRules.isoUtc(now)))) {
+      val raw = post(access, StatusReportRules.body(access.childId, flags, StatusReportRules.isoUtc(now)))
+      when (val outcome = StatusReportRules.guardUnlinked(raw, access.url, isDebuggable(context))) {
         ReportOutcome.Sent -> {
           EngineStore.saveReportSent(context, access.token, flags, now)
           SessionCheck.markValid(now) // 届いた = 合言葉はまだ使える。すぐあとの確かめ（D-134）は省く
@@ -110,6 +115,10 @@ object StatusReporter {
       conn?.disconnect()
     }
   }
+
+  // アプリが debuggable（開発用のビルド）か。http の送り先で family_unlink を信じてよいかに使う（SessionCheck も使う）
+  internal fun isDebuggable(context: Context): Boolean =
+    (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
   // 失敗の本文を MAX_ERROR_BODY_BYTES まで読む（SessionCheck も使う）
   internal fun readLimited(stream: InputStream?): String? {

@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 //   誰が: 送り先と合言葉（EngineStore の reporter。子どもとしてログインしているときだけ JS が渡す）がある端末だけ。
 //         監視を止めている（ログアウト）・合言葉がない（保護者・連携前）端末は呼ばない。
 //   結果: 401 + reason: family_unlink → LocalData.clearUnlinked（監視を止め、端末の値を消し、Device Owner もやめる）。
+//         ただし送り先が http のときは、release 版では理由のない 401 と同じにする（偽の返事で監視を止められないように。
+//         StatusReportRules.guardUnlinked。debuggable のビルドなら http でも信じる）。
 //         理由のない 401 → 保存した合言葉を消して確かめをやめる（監視は止めない。期限切れを待つだけで制限から逃げられないように）。
 //         通信できない・503 など → 何も止めず、間をあけてやり直す。
 // 決め方は純粋な関数（SessionCheckRules。JVM のテスト SessionCheckTest）、通信と状態はここ（SessionCheck）。
@@ -96,7 +98,7 @@ object SessionCheck {
       lastCheckedAt = now
       val access = EngineStore.loadReporter(context) ?: return false
       val url = SessionCheckRules.checkUrl(access.url) ?: return false
-      when (get(url, access.token)) {
+      when (StatusReportRules.guardUnlinked(get(url, access.token), access.url, StatusReporter.isDebuggable(context))) {
         ReportOutcome.Sent -> failures = 0
         ReportOutcome.Unlinked -> {
           failures = 0

@@ -105,6 +105,36 @@ class StatusReportTest {
   }
 
   @Test
+  fun 連携が外れたを信じるのはhttpsか開発用のビルドのときだけ() {
+    assertTrue(StatusReportRules.trustsUnlink("https://slope.example.com/api/device-status/report", debuggable = false))
+    assertTrue(StatusReportRules.trustsUnlink("HTTPS://slope.example.com/api/device-status/report", debuggable = false))
+    // release 版で http（手元の LAN のサーバ・既定の http://10.0.2.2:3000）なら信じない（偽のプロキシで作れるため）
+    assertFalse(StatusReportRules.trustsUnlink("http://10.0.2.2:3000/api/device-status/report", debuggable = false))
+    assertFalse(StatusReportRules.trustsUnlink("http://192.168.0.5:3000/api/auth/check", debuggable = false))
+    assertFalse(StatusReportRules.trustsUnlink("", debuggable = false))
+    // 開発用のビルド（debuggable）なら http でも信じる（手元で試せるように）
+    assertTrue(StatusReportRules.trustsUnlink("http://10.0.2.2:3000/api/device-status/report", debuggable = true))
+  }
+
+  @Test
+  fun releaseでhttpの送り先なら連携が外れたは理由のない401と同じにする() {
+    val http = "http://10.0.2.2:3000/api/device-status/report"
+    val https = "https://slope.example.com/api/device-status/report"
+    val unlinked = StatusReportRules.outcome(401, "{\"code\":\"unauthorized\",\"reason\":\"family_unlink\"}")
+    assertEquals(ReportOutcome.Unlinked, unlinked)
+    assertEquals(ReportOutcome.Unauthorized, StatusReportRules.guardUnlinked(unlinked, http, debuggable = false))
+    assertEquals(ReportOutcome.Unlinked, StatusReportRules.guardUnlinked(unlinked, http, debuggable = true))
+    assertEquals(ReportOutcome.Unlinked, StatusReportRules.guardUnlinked(unlinked, https, debuggable = false))
+    // ほかの結果は送り先によらずそのまま
+    for (o in listOf(ReportOutcome.Sent, ReportOutcome.Unauthorized, ReportOutcome.Failed(StatusReportRules.RETRY_MS))) {
+      assertEquals(o, StatusReportRules.guardUnlinked(o, http, debuggable = false))
+    }
+    // 合言葉の確かめ（SessionCheck）も同じ読み方を通る
+    val checked = SessionCheckRules.outcome(401, "{\"code\":\"unauthorized\",\"reason\":\"family_unlink\"}")
+    assertEquals(ReportOutcome.Unauthorized, StatusReportRules.guardUnlinked(checked, http, debuggable = false))
+  }
+
+  @Test
   fun 保存の形との行き来() {
     assertEquals("1110", a11yOff.encode())
     assertEquals(a11yOff, PermissionFlags.decode("1110"))

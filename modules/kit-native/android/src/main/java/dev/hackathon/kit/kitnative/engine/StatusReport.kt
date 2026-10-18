@@ -37,7 +37,8 @@ sealed class ReportOutcome {
   object Unauthorized : ReportOutcome()
 
   // 合言葉が無効で、その理由が「保護者が連携を外した」（401 の本文に reason: "family_unlink"。D-133）。
-  // 合言葉を消すのに加えて、ログアウトと同じく監視を止め、端末に残した値を消す（LocalData.clear）
+  // 合言葉を消すのに加えて、監視を止め、端末に残した値を消し、Device Owner もやめる（LocalData.clearUnlinked）。
+  // 送り先が http のときは、release 版では信じない（StatusReportRules.guardUnlinked で Unauthorized に読み替える）
   object Unlinked : ReportOutcome()
 
   // 届かなかった・断られた。retryAfterMs のあとにやり直す
@@ -112,6 +113,22 @@ object StatusReportRules {
       status in 400..499 && status != 408 && status != 429 -> ReportOutcome.Failed(HEARTBEAT_MS)
       else -> ReportOutcome.Failed(RETRY_MS)
     }
+
+  /**
+   * 「保護者が連携を外した」（Unlinked）を信じて片付けてよいか。片付けると監視が止まり、Device Owner（アンインストールの止め）も
+   * やめるので、偽の返事で起こされないようにする。送り先が https のときだけ信じる。
+   *   なぜ: http（dev client・手元の LAN のサーバ・src/lib/api.ts の既定 http://10.0.2.2:3000）だと、子どもが Wi-Fi の HTTP プロキシを
+   *   自分の PC に向けて、401 {"code":"unauthorized","reason":"family_unlink"} を作って返せるため。
+   * ただし、アプリが debuggable（開発用のビルド）なら http でも信じる（手元のサーバで「連携を外す」を試せるように）。
+   * JS の src/lib/session-core.ts の canTrustUnlink と同じ考え方
+   */
+  fun trustsUnlink(url: String, debuggable: Boolean): Boolean =
+    debuggable || url.trim().startsWith("https://", ignoreCase = true)
+
+  // 信じられない Unlinked（release 版で送り先が http）は、理由のない 401（Unauthorized）と同じ扱いにする
+  // （合言葉は消して送るのをやめるが、監視は止めない・Device Owner もやめない）。ほかの結果はそのまま
+  fun guardUnlinked(outcome: ReportOutcome, url: String, debuggable: Boolean): ReportOutcome =
+    if (outcome == ReportOutcome.Unlinked && !trustsUnlink(url, debuggable)) ReportOutcome.Unauthorized else outcome
 
   // 子どもの端末に「ユーザー補助をオンに戻してください」を出すか。ユーザー補助は制限する Web サイト（D-111）だけに使うので、
   // 保護者が1件も登録していなければ催促しない（要らない許可を求めない）
