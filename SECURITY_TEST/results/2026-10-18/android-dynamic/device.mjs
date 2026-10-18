@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-const adb = 'C:/Users/adach_oo8puoz/AppData/Local/Android/Sdk/platform-tools/adb.exe';
+const adb = 'C:/Users/<user>/AppData/Local/Android/Sdk/platform-tools/adb.exe';
 export function command(args) {
   const r = spawnSync(adb, ['-s', 'emulator-5556', ...args], { maxBuffer: 24 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(r.stderr.toString());

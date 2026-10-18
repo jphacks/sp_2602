@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-const adb='C:/Users/adach_oo8puoz/AppData/Local/Android/Sdk/platform-tools/adb.exe';
+const adb='C:/Users/<user>/AppData/Local/Android/Sdk/platform-tools/adb.exe';
 const pkg='com.quedotcom.androidslope';
 const run=args=>spawnSync(adb,['-s','emulator-5556','shell',...args],{maxBuffer:4*1024*1024,timeout:15000});
 const read=run(['test','-r',`/data/data/${pkg}/databases/RKStorage`]);

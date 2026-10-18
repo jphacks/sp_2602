@@ -4,7 +4,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-ADB = r'C:\Users\adach_oo8puoz\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+ADB = r'C:\Users\<user>\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 OUT = Path(__file__).resolve().parent
 
 pid_r = subprocess.run([ADB, '-s', 'emulator-5556', 'shell', 'pidof', 'com.quedotcom.androidslope'], capture_output=True, text=True, encoding='utf-8')

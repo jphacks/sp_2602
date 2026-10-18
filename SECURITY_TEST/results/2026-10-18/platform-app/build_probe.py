@@ -13,7 +13,7 @@ WORK = ROOT / 'tmp' / 'security-platform-probe'
 WORK.mkdir(parents=True, exist_ok=True)
 SDK = ROOT / 'tmp' / 'security-sdk'
 BUILD = SDK / 'build-tools' / '36.0.0'
-JAVA = Path(r'C:\Users\adach_oo8puoz\AppData\Local\Programs\Android\android-studio\jbr')
+JAVA = Path(r'C:\Users\<user>\AppData\Local\Programs\Android\android-studio\jbr')
 env = dict(os.environ, JAVA_HOME=str(JAVA), SLOPE_PROBE_KEYPASS=secrets.token_urlsafe(24))
 android_jar = SDK / 'platforms' / 'android-37.0' / 'android.jar'
 classes = WORK / 'classes'

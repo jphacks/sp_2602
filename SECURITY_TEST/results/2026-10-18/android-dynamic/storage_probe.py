@@ -4,7 +4,7 @@ import shlex
 import subprocess
 import sys
 from pathlib import Path
-ADB = r'C:\Users\adach_oo8puoz\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+ADB = r'C:\Users\<user>\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 PACKAGE = 'com.quedotcom.androidslope'
 def run(*args):
     return subprocess.run([ADB, '-s', 'emulator-5556', 'shell', 'run-as', PACKAGE, *args], capture_output=True)

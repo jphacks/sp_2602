@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 from datetime import datetime, timezone
 
-ADB = r'C:\Users\adach_oo8puoz\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+ADB = r'C:\Users\<user>\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 PACKAGE = 'com.quedotcom.androidslope'
 OUT = Path(__file__).resolve().parent
 

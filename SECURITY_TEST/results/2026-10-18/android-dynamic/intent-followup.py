@@ -7,7 +7,7 @@ from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[4]
 OUT = Path(__file__).resolve().parent
-ADB = r'C:\Users\adach_oo8puoz\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+ADB = r'C:\Users\<user>\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 COMPONENT = 'com.quedotcom.androidslope/.MainActivity'
 cases = [
     ('missing-uri-forged-role', ['--es', 'role', 'parent', '--ei', 'childId', '7']),
