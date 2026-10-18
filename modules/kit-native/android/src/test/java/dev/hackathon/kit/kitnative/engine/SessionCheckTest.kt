@@ -59,6 +59,19 @@ class SessionCheckTest {
   }
 
   @Test
+  fun 理由のない401のあとは_画面がついていても15分ごとに確かめ続ける() {
+    // 監視が動いている間は合言葉を消さず、いちばん長い間隔で確かめる（あとで外されたら family_unlink を受けて止まれるように）
+    val f = SessionCheckRules.REJECTED_FAILURES
+    assertEquals(SessionCheckRules.MAX_BACKOFF_MS, SessionCheckRules.backoffMs(f))
+    assertFalse(SessionCheckRules.shouldCheck(t0 + 14 * min, t0, f, interactive = true))
+    assertTrue(SessionCheckRules.shouldCheck(t0 + 15 * min, t0, f, interactive = true))
+    assertFalse(SessionCheckRules.shouldCheck(t0 + 14 * min, t0, f, interactive = false))
+    assertTrue(SessionCheckRules.shouldCheck(t0 + 15 * min, t0, f, interactive = false))
+    // 時計が戻ったら、すぐ確かめる（今までどおり）
+    assertTrue(SessionCheckRules.shouldCheck(t0 - min, t0, f, interactive = true))
+  }
+
+  @Test
   fun 返事の読み方() {
     assertEquals(ReportOutcome.Sent, SessionCheckRules.outcome(200, null))
     // 外された（family_unlink）ときだけ Unlinked = 監視を止める
@@ -66,7 +79,7 @@ class SessionCheckTest {
       ReportOutcome.Unlinked,
       SessionCheckRules.outcome(401, "{\"code\":\"unauthorized\",\"message\":\"x\",\"hint\":\"y\",\"reason\":\"family_unlink\"}"),
     )
-    // 理由のない 401 は合言葉を消すだけ（監視は止めない）
+    // 理由のない 401 は監視を止めない（合言葉を残すか消すかは、監視が動いているかで決める。StatusReportRules.replyAction）
     assertEquals(
       ReportOutcome.Unauthorized,
       SessionCheckRules.outcome(401, "{\"code\":\"unauthorized\",\"message\":\"x\",\"hint\":\"y\"}"),

@@ -14,6 +14,7 @@ import dev.hackathon.kit.kitnative.engine.LimitRules
 import dev.hackathon.kit.kitnative.engine.MonitorService
 import dev.hackathon.kit.kitnative.engine.PermissionNudge
 import dev.hackathon.kit.kitnative.engine.SecretBox
+import dev.hackathon.kit.kitnative.engine.SessionCheck
 import dev.hackathon.kit.kitnative.engine.StatusReporter
 import dev.hackathon.kit.kitnative.engine.UsageReader
 import dev.hackathon.kit.kitnative.widget.SlopeWidget
@@ -188,12 +189,14 @@ class KitNativeModule : Module() {
     Function("setStatusReporter") { url: String, token: String, childId: String ->
       val ctx = context
       if (EngineStore.saveReporter(ctx, url, token, childId)) {
+        SessionCheck.onReporterChanged() // 前の合言葉の 401 で延ばした確かめの間隔を戻す
         MonitorService.checkNow()
         StatusReporter.scheduleHeartbeat(ctx)
       }
     }
 
-    // 送り先と合言葉を消す（保護者・役割のない人・401 のとき。ログアウトは clearLocalData でも消える）
+    // 送り先と合言葉を消す（監視が動いていない端末で、保護者・役割のない人・ログアウト・401 のとき。ログアウトは clearLocalData でも消える。
+    // 監視が動いている端末では JS は呼ばない。Kotlin が自分の合言葉で確かめ続け、外されたら family_unlink で止まる。src/lib/status-reporter.ts）
     Function("clearStatusReporter") {
       val ctx = context
       EngineStore.clearReporter(ctx)

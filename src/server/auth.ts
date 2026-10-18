@@ -202,6 +202,7 @@ type RevokeReason = "sign_out" | "sign_out_others" | "family_unlink";
 
 // 保護者が連携を外したので使えなくなった合言葉か（無効にした合言葉のうち、理由が family_unlink のもの）。
 // 知らない合言葉・ログアウトした合言葉・外されずに期限が切れただけの合言葉は false（ふつうの 401 のまま）。
+// ただし、ログアウトした・期限が切れた合言葉でも、そのあとで保護者が外したら true（unlinkChild が理由を family_unlink にする）。
 // 外された合言葉は、そのあと 30 日たって期限が切れていても true（外された端末を止める側に倒す）。
 // 合言葉を知っている本人にしか返らないので、ほかの人に「この子どもは外された」が漏れることはない
 async function wasUnlinked(token: string): Promise<boolean> {
@@ -239,12 +240,29 @@ export async function signOut(caller: Caller, otherDevices: boolean): Promise<{ 
   return { revoked: rows.length };
 }
 
-async function revokeAllSessions(tx: Tx, userId: string, reason: RevokeReason): Promise<number> {
+// 連携を外した子どもの合言葉を、すべて理由 family_unlink にする。返すのは、まだ無効になっていなかった合言葉の数（revokedSessions）。
+// まだ無効でないもの（期限が切れただけのものも）は、今の時刻で無効にする。
+// すでに無効のもの（ログアウトした・ほかの端末からログアウトされた）も、理由を family_unlink に書き換える（無効にした時刻はそのまま）。
+// なぜ: 子どもの端末では、JS が先にログアウト状態になっても Kotlin の監視が自分の合言葉で確かめ続ける（D-133・D-136）。
+// その合言葉がほかの理由で先に無効になっていても、外されたことは「あとから起きた事実」なので上書きし、
+// 端末が family_unlink を受けて監視と Device Owner を止められるようにする（止まれないまま抜けられなくなるのを防ぐ）
+async function revokeAllSessionsForUnlink(tx: Tx, userId: string): Promise<number> {
+  const reason: RevokeReason = "family_unlink";
   const rows = await tx
     .update(userSessions)
     .set({ revokedAt: new Date(), revokedReason: reason })
     .where(and(eq(userSessions.userId, userId), isNull(userSessions.revokedAt)))
     .returning({ id: userSessions.id });
+  await tx
+    .update(userSessions)
+    .set({ revokedReason: reason })
+    .where(
+      and(
+        eq(userSessions.userId, userId),
+        isNotNull(userSessions.revokedAt),
+        or(isNull(userSessions.revokedReason), ne(userSessions.revokedReason, reason)),
+      ),
+    );
   return rows.length;
 }
 
@@ -553,7 +571,8 @@ export async function readFamily(caller: Caller): Promise<{ children: { id: stri
 // なぜ: 残すと、別の保護者と紐づけ直したときに、その保護者に前の家庭の時期のデータが見える（セキュリティ検査 F-2 / PII-10）。
 // 同じ保護者と紐づけ直しても、設定は最初から入れ直しになる。
 // 誰が・いつ・どの子どもを外したかは audit_events に残す（F-7 / IPA-15）
-// 子どもの合言葉は理由 family_unlink で無効にする。子どもの端末が次に呼ぶと、401 に理由が付いて返る（authorize。D-133）
+// 子どもの合言葉は理由 family_unlink で無効にする。子どもの端末が次に呼ぶと、401 に理由が付いて返る（authorize。D-133）。
+// すでに無効・期限切れの合言葉にも理由 family_unlink を付ける（revokeAllSessionsForUnlink。端末の監視が止まれるように）
 export async function unlinkChild(
   caller: Caller,
   childId: string,
@@ -576,6 +595,6 @@ export async function unlinkChild(
       .where(and(eq(pairTickets.childId, childId), inArray(pairTickets.state, ["waiting", "claimed"])));
     await clearChildFamilyData(tx, childId);
     await recordFamilyUnlink(tx, caller.userId, childId);
-    return { childId, revokedSessions: await revokeAllSessions(tx, childId, "family_unlink") };
+    return { childId, revokedSessions: await revokeAllSessionsForUnlink(tx, childId) };
   });
 }

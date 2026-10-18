@@ -85,9 +85,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => setUnauthorizedHandler(null);
   }, [verify, expire]);
 
-  // D-113: Kotlin の監視に、許可の状態の送り先と合言葉を渡す（子どもだけ）・消す（ログアウト・401・保護者）
+  // D-113: Kotlin の監視に、許可の状態の送り先と合言葉を渡す（子どもだけ）・消す（ログアウト・401・保護者）。
+  // 監視が動いている端末では消さない（Kotlin が自分の合言葉で確かめ続け、外されたら family_unlink で止まる。status-reporter.ts）
   useEffect(() => {
-    applyStatusReporter(statusReporterAction(state, apiUrl("deviceStatusReport")), native);
+    applyStatusReporter(statusReporterAction(state, apiUrl("deviceStatusReport"), native.isEngineEnabled()), native);
   }, [state]);
 
   const signIn = useCallback(

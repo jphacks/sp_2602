@@ -34,7 +34,7 @@ import org.json.JSONObject
 //   ── 許可の見張りと親への通告（D-113。StatusReporter.kt）──
 //   "report_url"     … String。許可の状態の送り先（サーバの deviceStatusReport の完全な URL）。JS の setStatusReporter が書く
 //   "report_token_sealed" … String。そのときの合言葉（子どもの session token）を SecretBox で封をしたもの（"sb1:…"）。
-//                     clearStatusReporter・401・clearLocalData（LocalData.clear）で消える。平文では置かない（セキュリティ検査 PII-05 / AND-05）
+//                     clearStatusReporter・監視が止まっているときの 401・clearLocalData（LocalData.clear）で消える。平文では置かない（セキュリティ検査 PII-05 / AND-05）
 //   "report_token"   … 古い版が平文で置いた合言葉。読んだときに封をし直して消す（新しくは書かない）
 //   "report_child_id"… String。送る本文の childId（子ども本人の userId）
 //   "report_sent"    … String。最後に届いた許可の状態（PermissionFlags.encode() の "1101" の形）
@@ -173,7 +173,7 @@ object EngineStore {
   // ── 許可の状態の送り先と合言葉（D-113）──
   // なぜ合言葉を native に置くか: 送るのは Kotlin の監視（アプリを閉じていても動く）で、JS の保存場所（AsyncStorage）は読めないため。
   // 置き場所はアプリ専用（MODE_PRIVATE）で、合言葉は Android Keystore の鍵で封をしてから置く（SecretBox。JS の保存も同じ鍵）。
-  // ログアウト（clear）・401 で消す
+  // ログアウト（clear）・監視が止まっているときの 401 で消す（監視が動いている間の理由のない 401 では消さない。StatusReportRules.replyAction）
 
   // 封を開けた合言葉を、プロセスのメモリにだけ持つ（電池: 監視の見張り（30 秒ごと。上限に達したあとは 5 秒ごと）と
   // 許可の状態の送信のたびに、Keystore で封を開け直さないように）。ディスクには平文で置かない（置くのは封をした値だけ）。
@@ -255,7 +255,7 @@ object EngineStore {
       .apply()
   }
 
-  // 401 が返ったとき: 送ったときの合言葉がまだ保存されていれば消して true（送っている間に JS が新しい合言葉を渡していたら消さずに false。
+  // 401 が返ったとき（監視が止まっている）: 送ったときの合言葉がまだ保存されていれば消して true（送っている間に JS が新しい合言葉を渡していたら消さずに false。
   // 呼ぶ側は false なら生存報告の目覚ましも止めない＝新しい合言葉の分を止めない）
   @Synchronized
   fun clearReporterIfToken(context: Context, token: String): Boolean {

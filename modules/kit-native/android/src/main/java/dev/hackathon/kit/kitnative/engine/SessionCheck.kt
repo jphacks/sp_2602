@@ -18,7 +18,11 @@ import java.util.concurrent.atomic.AtomicBoolean
 //   結果: 401 + reason: family_unlink → LocalData.clearUnlinked（監視を止め、端末の値を消し、Device Owner もやめる）。
 //         ただし送り先が http のときは、release 版では理由のない 401 と同じにする（偽の返事で監視を止められないように。
 //         StatusReportRules.guardUnlinked。debuggable のビルドなら http でも信じる）。
-//         理由のない 401 → 保存した合言葉を消して確かめをやめる（監視は止めない。期限切れを待つだけで制限から逃げられないように）。
+//         理由のない 401 → 監視は止めない（期限切れを待つだけで制限から逃げられないように）。
+//           監視が動いている間は、保存した合言葉を消さず、いちばん長い間隔（15 分）で確かめ続ける
+//           （JS が先にログアウト状態になっても、あとで保護者が外したときに family_unlink を受けて止まれるように）。
+//           監視が止まっていれば、今までどおり合言葉を消して確かめをやめる（StatusReportRules.replyAction）。
+//           JS が新しい合言葉を渡したら（setStatusReporter）、そちらに入れ替えて、すぐ確かめ直す（SessionCheck.onReporterChanged）。
 //         通信できない・503 など → 何も止めず、間をあけてやり直す。
 // 決め方は純粋な関数（SessionCheckRules。JVM のテスト SessionCheckTest）、通信と状態はここ（SessionCheck）。
 // 確かめた時刻・失敗の回数はメモリにだけ持つ（アプリが作り直されたら、最初の見張りですぐ確かめる）。
@@ -32,6 +36,9 @@ object SessionCheckRules {
 
   // 失敗が続いたときに延ばす上限
   const val MAX_BACKOFF_MS = 15 * 60_000L
+
+  // 理由のない 401 のあと（監視が動いている間）の失敗の回数。いちばん長い間隔（MAX_BACKOFF_MS）で確かめ続ける
+  const val REJECTED_FAILURES = 10
 
   // 契約（contracts/api.ts）の道筋。送り先（deviceStatusReport の完全な URL）から、同じサーバの authCheck の URL を作る
   const val REPORT_PATH = "/api/device-status/report"
@@ -83,6 +90,16 @@ object SessionCheck {
     failures = 0
   }
 
+  // 送り先と合言葉を入れ替えた回数。確かめている途中の結果（前の合言葉の分）で、新しい合言葉の確かめの間隔を延ばさないため
+  @Volatile private var reporterChanges = 0
+
+  // JS が送り先と合言葉を入れ替えた（setStatusReporter）。前の合言葉の 401 で延ばした間隔を戻し、次の見張りですぐ確かめる
+  fun onReporterChanged() {
+    reporterChanges++
+    lastCheckedAt = 0L
+    failures = 0
+  }
+
   /**
    * 確かめる時期なら確かめる。通信するので、呼ぶ側は監視の判定とは別のスレッドで呼ぶ（MonitorService は Dispatchers.IO）。
    * 確かめようとしたら true
@@ -96,21 +113,35 @@ object SessionCheck {
       // 送り先と合言葉がない（保護者・連携前・401 で消した）・URL の形が違うときも、この回は確かめたことにする
       // （次の時期まで封を開け直さない。JS が合言葉を渡し直したら、次の時期に確かめる）
       lastCheckedAt = now
+      val changes = reporterChanges
       val access = EngineStore.loadReporter(context) ?: return false
       val url = SessionCheckRules.checkUrl(access.url) ?: return false
-      when (StatusReportRules.guardUnlinked(get(url, access.token), access.url, StatusReporter.isDebuggable(context))) {
-        ReportOutcome.Sent -> failures = 0
-        ReportOutcome.Unlinked -> {
+      val raw = get(url, access.token)
+      val action =
+        StatusReportRules.replyAction(
+          raw,
+          access.url,
+          StatusReporter.isDebuggable(context),
+          EngineStore.isEngineEnabled(context),
+        )
+      when (action) {
+        ReplyAction.Valid -> failures = 0
+        ReplyAction.StopUnlinked -> {
           failures = 0
           LocalData.clearUnlinked(context, access.token)
         }
-        ReportOutcome.Unauthorized -> {
-          // 理由のない 401: この合言葉ではもう確かめられない。監視は止めない（JS がログインし直せば渡し直す）
+        ReplyAction.KeepAndSlowDown -> {
+          // 理由のない 401・監視が動いている: 合言葉は消さず、いちばん長い間隔で確かめ続ける（外されたら family_unlink で止まる）。
+          // 確かめている間に JS が新しい合言葉を渡していたら、新しい合言葉の確かめは延ばさない
+          if (changes == reporterChanges) failures = SessionCheckRules.REJECTED_FAILURES
+        }
+        ReplyAction.ClearToken -> {
+          // 理由のない 401・監視が止まっている: この合言葉ではもう確かめられない（JS がログインし直せば渡し直す）
           failures = 0
           // 確かめている間に JS が新しい合言葉を渡していたら、消さず、生存報告の目覚ましも止めない
           if (EngineStore.clearReporterIfToken(context, access.token)) StatusReporter.cancelHeartbeat(context)
         }
-        is ReportOutcome.Failed -> failures = minOf(failures + 1, 10)
+        is ReplyAction.Retry -> failures = minOf(failures + 1, SessionCheckRules.REJECTED_FAILURES)
       }
     } finally {
       busy.set(false)

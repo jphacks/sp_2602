@@ -28,12 +28,34 @@ data class PermissionFlags(
   }
 }
 
+// 返事を受けたあとにすること（StatusReporter と SessionCheck の両方が StatusReportRules.replyAction で決める）
+sealed class ReplyAction {
+  // 合言葉は使える（届いた）
+  object Valid : ReplyAction()
+
+  // 保護者が連携を外した（信じてよい family_unlink）。監視を止め、端末の値を消し、Device Owner もやめる（LocalData.clearUnlinked）
+  object StopUnlinked : ReplyAction()
+
+  // 理由のない 401 で、監視が動いている。合言葉は消さず、いちばん長い間隔（15 分）で確かめ続ける。
+  // なぜ: JS が先にログアウト状態になっても（封が開けられない・ほかの端末からログアウトされた・期限切れ）、
+  //   あとで保護者が連携を外したときに、この合言葉で family_unlink を受けて止まれるように（サーバは外したときに、
+  //   すでに無効の合言葉にも理由 family_unlink を付ける。src/server/auth.ts の unlinkChild）
+  object KeepAndSlowDown : ReplyAction()
+
+  // 理由のない 401 で、監視が止まっている。今までどおり保存した合言葉を消して、送る・確かめるのをやめる
+  object ClearToken : ReplyAction()
+
+  // 届かなかった・断られた。retryAfterMs のあとにやり直す
+  data class Retry(val retryAfterMs: Long) : ReplyAction()
+}
+
 // サーバへ送った結果
 sealed class ReportOutcome {
   // 届いた（2xx）
   object Sent : ReportOutcome()
 
-  // 合言葉が無効（401 で、本文がサーバの ApiError の unauthorized）。保存した合言葉を消して送るのをやめる
+  // 合言葉が無効（401 で、本文がサーバの ApiError の unauthorized）。監視が動いている間は合言葉を残して間をあけて確かめ続け、
+  // 止まっていれば保存した合言葉を消して送るのをやめる（StatusReportRules.replyAction）
   object Unauthorized : ReportOutcome()
 
   // 合言葉が無効で、その理由が「保護者が連携を外した」（401 の本文に reason: "family_unlink"。D-133）。
@@ -129,6 +151,20 @@ object StatusReportRules {
   // （合言葉は消して送るのをやめるが、監視は止めない・Device Owner もやめない）。ほかの結果はそのまま
   fun guardUnlinked(outcome: ReportOutcome, url: String, debuggable: Boolean): ReportOutcome =
     if (outcome == ReportOutcome.Unlinked && !trustsUnlink(url, debuggable)) ReportOutcome.Unauthorized else outcome
+
+  /**
+   * 返事を受けたあとにすること。StatusReporter（許可の状態の送信）と SessionCheck（合言葉の確かめ）は、どちらもこれだけで決める
+   * （必ず guardUnlinked を通す。偽の family_unlink で監視を止められないように）。
+   * engineEnabled は、返事を受けたときに監視が動いているか（EngineStore.isEngineEnabled）。
+   *   理由のない 401 → 監視が動いていれば KeepAndSlowDown（合言葉を残す）、止まっていれば ClearToken（今までどおり消す）
+   */
+  fun replyAction(outcome: ReportOutcome, url: String, debuggable: Boolean, engineEnabled: Boolean): ReplyAction =
+    when (val guarded = guardUnlinked(outcome, url, debuggable)) {
+      ReportOutcome.Sent -> ReplyAction.Valid
+      ReportOutcome.Unlinked -> ReplyAction.StopUnlinked
+      ReportOutcome.Unauthorized -> if (engineEnabled) ReplyAction.KeepAndSlowDown else ReplyAction.ClearToken
+      is ReportOutcome.Failed -> ReplyAction.Retry(guarded.retryAfterMs)
+    }
 
   // 子どもの端末に「ユーザー補助をオンに戻してください」を出すか。ユーザー補助は制限する Web サイト（D-111）だけに使うので、
   // 保護者が1件も登録していなければ催促しない（要らない許可を求めない）

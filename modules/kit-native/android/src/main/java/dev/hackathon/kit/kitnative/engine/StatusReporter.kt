@@ -26,7 +26,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 //     AlarmManager の目覚まし（StatusReportReceiver。15 分ごと・端末が休止中でも鳴る種類）が確かめる。
 //   送り先と合言葉: JS がログイン時・起動時に setStatusReporter で渡し、EngineStore に保存してある（子どもだけ）。
 //   失敗: 時間切れ・通信できない・サーバの不具合は黙って次の機会に回す（RETRY_MS あと）。
-//     401（合言葉が無効）なら保存した合言葉を消して、送るのをやめる（JS がもう一度ログインすれば渡し直す）。
+//     401（合言葉が無効）なら、監視が動いている間は合言葉を消さず、生存報告の間隔（15 分）で送り続ける
+//     （あとで保護者が連携を外したときに family_unlink を受けて止まれるように。JS がもう一度ログインすれば新しい合言葉に入れ替わる）。
+//     監視が止まっていれば、今までどおり保存した合言葉を消して、送るのをやめる（StatusReportRules.replyAction）。
 //     401 の理由が「保護者が連携を外した」（family_unlink。D-133）なら、さらに監視を止めて端末に残した値を消し、
 //     Device Owner もやめる（LocalData.clearUnlinked）。アプリを開かなくても、外された端末の制限が止まるように。
 //     JS は次に開いたときに同じ 401 を受け、送信待ちを消して知らせる。
@@ -62,23 +64,30 @@ object StatusReporter {
     if (!busy.compareAndSet(false, true)) return false
     try {
       val raw = post(access, StatusReportRules.body(access.childId, flags, StatusReportRules.isoUtc(now)))
-      when (val outcome = StatusReportRules.guardUnlinked(raw, access.url, isDebuggable(context))) {
-        ReportOutcome.Sent -> {
+      val action =
+        StatusReportRules.replyAction(raw, access.url, isDebuggable(context), EngineStore.isEngineEnabled(context))
+      when (action) {
+        ReplyAction.Valid -> {
           EngineStore.saveReportSent(context, access.token, flags, now)
           SessionCheck.markValid(now) // 届いた = 合言葉はまだ使える。すぐあとの確かめ（D-134）は省く
           scheduleHeartbeat(context) // 次の生存報告の目覚ましを、今から 15 分あとへ置き直す
         }
-        ReportOutcome.Unauthorized -> {
+        ReplyAction.KeepAndSlowDown -> {
+          // 理由のない 401・監視が動いている: 合言葉は残し、生存報告の間隔で送り直す（外されたら family_unlink を受けて止まる）
+          EngineStore.saveReportFailed(context, access.token, now + StatusReportRules.HEARTBEAT_MS)
+          scheduleHeartbeat(context)
+        }
+        ReplyAction.ClearToken -> {
           // 送っている間に JS が新しい合言葉を渡していたら、消さず、生存報告の目覚ましも止めない（新しい合言葉の分）
           if (EngineStore.clearReporterIfToken(context, access.token)) cancelHeartbeat(context)
         }
-        ReportOutcome.Unlinked -> {
+        ReplyAction.StopUnlinked -> {
           // 送っている間に JS が新しい合言葉を渡していたら（ログインし直して紐づけ直した）、消さず、目覚ましも止めない
           // （新しい合言葉の生存報告まで止めない）。消したときは clear の中で目覚ましも止まる
           LocalData.clearUnlinked(context, access.token)
         }
-        is ReportOutcome.Failed -> {
-          EngineStore.saveReportFailed(context, access.token, now + outcome.retryAfterMs)
+        is ReplyAction.Retry -> {
+          EngineStore.saveReportFailed(context, access.token, now + action.retryAfterMs)
           scheduleHeartbeat(context)
         }
       }
@@ -165,7 +174,7 @@ object StatusReporter {
 }
 
 // 生存報告の目覚まし（StatusReporter.scheduleHeartbeat）を受ける。自分のアプリからしか届かない（exported="false"）。
-// 送る時期なら送り、次の目覚ましを置く。監視を止めている・送り先がない（ログアウト・401）なら何もしない（目覚ましも置かない）
+// 送る時期なら送り、次の目覚ましを置く。監視を止めている・送り先がない（ログアウト・監視が止まっているときの 401）なら何もしない（目覚ましも置かない）
 class StatusReportReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action != StatusReporter.ACTION_HEARTBEAT) return

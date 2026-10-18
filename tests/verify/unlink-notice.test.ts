@@ -90,6 +90,62 @@ describe("V: 外された子どもの端末には、401 に理由（family_unlin
   });
 });
 
+describe("V: 先にほかの理由で使えなくなっていた合言葉も、外したあとは family_unlink が付く（再検査。監視が止まれなくなるのを防ぐ）", () => {
+  // 子どもの端末では、JS が先にログアウト状態になっても Kotlin の監視が自分の合言葉で確かめ続ける。
+  // その合言葉がほかの理由で無効・期限切れになっていても、外したあとは理由 family_unlink を返して、端末が止まれるようにする
+  it("ほかの端末からログアウトされた（sign_out_others）合言葉: 外す前は理由なし、外したあとは family_unlink", async () => {
+    const { child, parent } = await newFamily("r1");
+    const current = await newPerson("c-r1"); // 子どもの別の端末
+    await ok(post("/api/auth/sign-out", { otherDevices: true }, current.token));
+    await expectNoReason(await get("/api/auth/check", child.token));
+    const before = await reasonOf(child.token);
+    expect(before).toMatchObject({ reason: "sign_out_others" });
+
+    const res = await ok<{ revokedSessions: number }>(
+      post("/api/family/unlink", { childId: child.userId }, parent.token),
+    );
+    // 数えるのは、まだ使えた合言葉だけ（別の端末の1つ。先に無効になっていた分は数えない）
+    expect(res.revokedSessions).toBe(1);
+    expect((await unauthorizedBody(await get("/api/auth/check", child.token))).reason).toBe("family_unlink");
+    expect((await unauthorizedBody(await get("/api/auth/me", current.token))).reason).toBe("family_unlink");
+    // 無効にした時刻は前のまま（理由だけ書き換える）
+    expect(await reasonOf(child.token)).toEqual({ reason: "family_unlink", revokedAt: before?.revokedAt });
+  });
+
+  it("自分でログアウトした（sign_out）合言葉も、外したあとは family_unlink", async () => {
+    const { child, parent } = await newFamily("r2");
+    const other = await newPerson("c-r2");
+    await ok(post("/api/auth/sign-out", {}, other.token));
+    await ok(post("/api/family/unlink", { childId: child.userId }, parent.token));
+    expect((await unauthorizedBody(await get("/api/auth/check", other.token))).reason).toBe("family_unlink");
+  });
+
+  it("30 日使わずに期限が切れた（無効にはなっていない）合言葉: 外したあとは family_unlink。無効にした時刻も入る", async () => {
+    const { child } = await newFamily("r3");
+    clock.addMs(SESSION_IDLE_MS + 60_000);
+    await expectNoReason(await get("/api/auth/check", child.token));
+    // 保護者も期限が切れているので、ログインし直してから外す
+    const parent = await newPerson("p-r3");
+    const res = await ok<{ revokedSessions: number }>(
+      post("/api/family/unlink", { childId: child.userId }, parent.token),
+    );
+    // 期限切れでも、まだ無効にしていなかった合言葉は数える（今までの数え方のまま）
+    expect(res.revokedSessions).toBe(1);
+    expect((await unauthorizedBody(await get("/api/auth/check", child.token))).reason).toBe("family_unlink");
+    const row = await reasonOf(child.token);
+    expect(row?.reason).toBe("family_unlink");
+    expect(row?.revokedAt?.getTime()).toBe(clock.ms);
+  });
+
+  it("外したあとにログインし直した新しい合言葉は使えるまま（あとから作った合言葉には理由を付けない）", async () => {
+    const { child, parent } = await newFamily("r4");
+    await ok(post("/api/family/unlink", { childId: child.userId }, parent.token));
+    const again = await newPerson("c-r4");
+    expect((await get("/api/auth/check", again.token)).status).toBe(200);
+    expect(await reasonOf(again.token)).toEqual({ reason: null, revokedAt: null });
+  });
+});
+
 describe("V: ほかの 401 には理由が付かない（D-133）", () => {
   it("ログアウトした合言葉: 401 に reason なし。理由は sign_out で残る", async () => {
     const me = await newPerson("n4");
