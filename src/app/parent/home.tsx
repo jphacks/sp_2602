@@ -36,7 +36,7 @@ import { currentBlankPeriod, nextTest } from "@/lib/usage-calc";
 
 export default function ParentHome() {
   return (
-    <Screen title="Slope（親）" bottomInset={false}>
+    <Screen title="Slope" bottomInset={false}>
       <ChildGate>{(child) => <HomeBody childId={child.id} />}</ChildGate>
     </Screen>
   );
