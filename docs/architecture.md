@@ -46,7 +46,7 @@ flowchart LR
 | Hono のサーバ | 窓口（API）を受け、ログインと権限を確かめ、データを保存し、上限を計算する | `src/server/` |
 | サーバの処理 | ログイン・合言葉・QR の紐づけ・家族（`auth.ts`）、計画・日程・対象外アプリ・設定の組（`services/`）。保存は `backend/src/db/` の Drizzle の処理を呼ぶ | `src/server/auth.ts`・`src/server/services/`・`backend/src/db/` |
 | DB | サーバのデータの置き場（すべての API が DB だけを通る）。Vercel では Neon（`DATABASE_URL`）、手元とテストでは PGlite（Node の中で動く Postgres）。表の設計は `backend/src/db/schema/`、変更の記録は `backend/drizzle/` | `src/server/db/index.ts`・`backend/` |
-| 見本のデータ | `MOCK=1` のとき、DB を開いたときにデモの3人と見本を1回だけ入れる。本番の DB には `npm run db:seed-demo` で入れる | `src/server/seed/demo.ts`・`scripts/seed-demo.ts` |
+| 見本のデータ | `MOCK=1` のとき、手元の DB（PGlite）を開いたときにデモの3人と見本を1回だけ入れる（`DATABASE_URL` の DB には自動では入れない。D-126）。本番の DB には `npm run db:seed-demo` で入れる（固定の合言葉は作らない） | `src/server/seed/demo.ts`・`scripts/seed-demo.ts` |
 | Google | 本物のログインのときだけ。サーバは Google の公開鍵で ID トークンの署名を確かめる | `src/server/auth/google.ts`・`src/lib/google.ts` |
 
 ### 本番と手元
