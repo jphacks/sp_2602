@@ -1,6 +1,7 @@
 // ログイン画面（Figma 子08・子09）の分かれ道を決める純粋な関数（画面 src/app/login.tsx が使う）。
 //   - Google の結果: やめた（cancelled）はエラーにしない。失敗だけ子09 のダイアログを出す
-//   - ログインの期限が切れて戻ってきた（session の error が unauthorized）ときは、ボタンを押す前に帯で知らせる
+//   - ログインの期限が切れて戻ってきた（session の error が unauthorized）ときは、ボタンを押す前に帯で知らせる。
+//     保護者に連携を外されて戻ってきた（reason: family_unlink。D-133）ときも同じ帯で、サーバの文（「保護者との連携が外れました」）を出す
 //   - 回数の上限（429 rate_limited）のときは、通信のせいにせず、待つように知らせる（サーバの hint「1分ほど待ってから…」）
 import type { ApiError } from "@contracts/errors";
 import type { GoogleResult } from "@/lib/google";
@@ -28,7 +29,7 @@ export function serverFailure(error: ApiError): LoginFailure {
   return { body: LOGIN_FAILED_BODY, detail: error.message };
 }
 
-// 画面を開いたときの帯（ログインの期限切れで戻ってきたとき）。この画面でログインを試した後は、ダイアログで知らせるので出さない
+// 画面を開いたときの帯（ログインの期限切れ・連携が外れて戻ってきたとき）。この画面でログインを試した後は、ダイアログで知らせるので出さない
 export function loginNotice(sessionError: ApiError | null, attempted: boolean): ApiError | null {
   if (attempted || !sessionError) return null;
   return sessionError.code === "unauthorized" ? sessionError : null;

@@ -28,7 +28,7 @@ function Login() {
 
   if (state.status === "signedIn") return <Redirect href="/" />;
 
-  // ログインの期限が切れて戻ってきたとき（この画面でまだ何も押していない間だけ）
+  // ログインの期限が切れた・保護者に連携を外されて戻ってきたとき（この画面でまだ何も押していない間だけ。D-133）
   const notice = loginNotice(state.status === "signedOut" ? state.error : null, attempted);
 
   // ボタンを押してから、サーバの確認が終わるまでは押せない（二重に送らない）

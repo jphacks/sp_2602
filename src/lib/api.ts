@@ -10,6 +10,7 @@
 // 合言葉: ログイン（call("authGoogle", …)）で受け取った Session の token を setSessionToken() で覚えると、
 //   以降の call() / stream() が Authorization: Bearer <token> を付ける。端末への保存とログイン状態は src/lib/session.tsx が持つ。
 //   サーバが 401（合言葉が無効）を返したら setUnauthorizedHandler() で渡した関数を呼ぶ（session.tsx がログアウト扱いにする）。
+//   関数にはサーバの返事（ApiError）を渡す。保護者が連携を外したときは reason: "family_unlink" が付いている（D-133）。
 import {
   api,
   type Chunk,
@@ -46,15 +47,15 @@ export function timeoutSignal(ms: number): AbortSignal {
 }
 
 let sessionToken: string | null = null;
-let onUnauthorized: (() => void) | null = null;
+let onUnauthorized: ((error: ApiError) => void) | null = null;
 
 // ログインしたら合言葉を覚える（ログアウト・合言葉が無効になったら null）
 export function setSessionToken(token: string | null): void {
   sessionToken = token;
 }
 
-// 合言葉を付けて送ったのに 401 が返ったときに呼ぶ関数（session.tsx が登録する。null で外す）
-export function setUnauthorizedHandler(fn: (() => void) | null): void {
+// 合言葉を付けて送ったのに 401 が返ったときに呼ぶ関数（session.tsx が登録する。null で外す）。サーバの返事（ApiError）を渡す
+export function setUnauthorizedHandler(fn: ((error: ApiError) => void) | null): void {
   onUnauthorized = fn;
 }
 
@@ -117,7 +118,7 @@ async function send(path: string, method: string, body: unknown, signal?: AbortS
     //   - 送った合言葉がまだ今の合言葉（ログインし直したあとに、前の合言葉で送っていた呼び出しの 401 が遅れて届いても、
     //     新しくログインした人までログアウトさせない）。本文を読み終えたあとで比べる（読んでいる間にログインし直すこともあるため）
     const unauthorized = res.status === 401 && parsed.success && parsed.data.code === "unauthorized";
-    if (unauthorized && sentToken && sentToken === sessionToken) onUnauthorized?.();
+    if (unauthorized && sentToken && sentToken === sessionToken) onUnauthorized?.(parsed.data);
     throw new ApiCallError(parsed.success ? parsed.data : { code: "internal", ...errorText.internal }, res.status);
   }
   return res;

@@ -1,10 +1,13 @@
 // ログイン状態の分かれ道（src/lib/session-core.ts。session.tsx の adopt・forget・verify = refresh）。
 // 封ができない端末（Keystore が使えない・古い dev client）でも、確かめ直し（refresh）でログイン画面へ戻されないこと、
-// ログアウト・401 の後にメモリの値でログイン状態に戻らないことを確かめる
+// ログアウト・401 の後にメモリの値でログイン状態に戻らないことを確かめる。
+// 401 のうち、保護者が連携を外した（reason: family_unlink。D-133）ときだけ片付け（制限を止める・送信待ちを消す）を呼び、
+// ログイン画面に「連携が外れました」を出すことも確かめる
+import type { ApiError } from "@contracts/errors";
 import { mockSessions } from "@contracts/fixtures";
 import type { Session } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
-import { createSessionCore, type SessionState } from "@/lib/session-core";
+import { createSessionCore, EXPIRED_NOTICE, isFamilyUnlinked, type SessionState } from "@/lib/session-core";
 import { loadSession, type SecretBox, saveSession } from "@/lib/session-store";
 import { type KeyValueStorage, storageKeys } from "@/lib/storage";
 
@@ -17,8 +20,20 @@ const box: SecretBox = {
 };
 const noBox: SecretBox = { sealSecret: () => null, openSecret: () => null };
 
-class Unauthorized extends Error {}
+// 401（error はサーバの返事。理由付きの 401 を作れる）
+class Unauthorized extends Error {
+  constructor(readonly error: ApiError = { code: "unauthorized", message: "m", hint: "h" }) {
+    super(error.message);
+  }
+}
 class Offline extends Error {}
+
+const unlinkedError: ApiError = {
+  code: "unauthorized",
+  message: "保護者との連携が外れました",
+  hint: "また使うときは、ログインしてから保護者と QR でつなぎ直してください",
+  reason: "family_unlink",
+};
 
 // authMe の返事は me で差し替える（関数なら呼ばれるまで待たせられる）
 function setup(secretBox: SecretBox) {
@@ -34,6 +49,7 @@ function setup(secretBox: SecretBox) {
     token: null as string | null,
     state: { status: "checking" } as SessionState,
     me: (async () => child) as () => Promise<Session>,
+    cleared: [] as string[], // 連携が外れたときの片付け（clearUnlinked）を呼んだ子ども
   };
   const core = createSessionCore({
     storage,
@@ -43,6 +59,8 @@ function setup(secretBox: SecretBox) {
     },
     authMe: () => t.me(),
     isUnauthorized: (e) => e instanceof Unauthorized,
+    errorOf: (e) => (e instanceof Unauthorized ? e.error : null),
+    clearUnlinked: async (userId) => void t.cleared.push(userId),
     clearSaved: async () => void data.delete(storageKeys.session),
     setState: (s) => {
       t.state = s;
@@ -145,5 +163,90 @@ describe("session-core", () => {
     await core.verify();
     expect(t.state).toEqual({ status: "signedIn", session: child, offline: false });
     expect(t.token).toBe(child.token);
+  });
+});
+
+describe("session-core: 401 の理由（D-133）", () => {
+  it("isFamilyUnlinked: unauthorized で reason が family_unlink のときだけ", () => {
+    expect(isFamilyUnlinked(unlinkedError)).toBe(true);
+    expect(isFamilyUnlinked({ code: "unauthorized", message: "m", hint: "h" })).toBe(false);
+    expect(isFamilyUnlinked({ ...unlinkedError, code: "forbidden" })).toBe(false);
+    expect(isFamilyUnlinked(null)).toBe(false);
+  });
+
+  it("使っている途中の 401 で連携が外れていたら、ログアウト状態にして片付け、ログイン画面に理由を出す", async () => {
+    const { t, core } = setup(box);
+    await core.adopt(child);
+    await core.expire(unlinkedError);
+    expect(t.state).toEqual({ status: "signedOut", error: unlinkedError });
+    expect(t.cleared).toEqual([child.userId]);
+    expect(t.data.has(storageKeys.session)).toBe(false);
+    expect(t.token).toBeNull();
+  });
+
+  it("理由のない 401（期限切れ・ログアウトされた）では片付けない（制限を止めない・送信待ちを残す）。帯は「期限が切れました」", async () => {
+    const { t, core } = setup(box);
+    await core.adopt(child);
+    await core.expire({ code: "unauthorized", message: "ログインが確認できませんでした", hint: "h" });
+    expect(t.state).toEqual({ status: "signedOut", error: EXPIRED_NOTICE });
+    expect(t.cleared).toEqual([]);
+  });
+
+  it("起動時の確かめ（端末に置いた Session）で連携が外れた 401 なら、その子どもの分を片付けて理由を出す", async () => {
+    const { t, core } = setup(box);
+    await saveSession(t.storage, box, child);
+    t.me = async () => {
+      throw new Unauthorized(unlinkedError);
+    };
+    await core.verify();
+    expect(t.state).toEqual({ status: "signedOut", error: unlinkedError });
+    expect(t.cleared).toEqual([child.userId]);
+  });
+
+  it("起動時の確かめで api.ts が先に expire を呼んだときも、持ち主（端末に置いた Session）の分を片付ける", async () => {
+    const { t, core } = setup(box);
+    await saveSession(t.storage, box, child);
+    t.me = async () => {
+      // api.ts の send は、例外を投げる前に登録した関数（session.tsx → expire）を呼ぶ
+      await core.expire(unlinkedError);
+      throw new Unauthorized(unlinkedError);
+    };
+    await core.verify();
+    expect(t.state).toEqual({ status: "signedOut", error: unlinkedError });
+    expect(t.cleared).toEqual([child.userId]);
+  });
+
+  it("起動時の確かめで理由のない 401 なら、片付けずに帯なしでログイン画面へ（今までどおり）", async () => {
+    const { t, core } = setup(box);
+    await saveSession(t.storage, box, child);
+    t.me = async () => {
+      throw new Unauthorized();
+    };
+    await core.verify();
+    expect(t.state).toEqual({ status: "signedOut", error: null });
+    expect(t.cleared).toEqual([]);
+  });
+
+  it("片付けが失敗しても、ログアウト状態と理由の帯はそのまま", async () => {
+    const { t, core } = setup(box);
+    await core.adopt(child);
+    const failing = createSessionCore({
+      storage: t.storage,
+      box,
+      setToken: () => undefined,
+      authMe: async () => child,
+      isUnauthorized: () => true,
+      errorOf: () => null,
+      clearUnlinked: async () => {
+        throw new Error("消せなかった");
+      },
+      clearSaved: async () => undefined,
+      setState: (s) => {
+        t.state = s;
+      },
+    });
+    await failing.adopt(child);
+    await expect(failing.expire(unlinkedError)).resolves.toBeUndefined();
+    expect(t.state).toEqual({ status: "signedOut", error: unlinkedError });
   });
 });

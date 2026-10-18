@@ -2,6 +2,8 @@
 //   - ログインしたら、合言葉と本人（Session）を端末に保存し（Keystore の鍵で封をして。session-store.ts）、api.ts に合言葉を覚えさせる
 //   - 起動時は保存した合言葉で authMe を呼び、サーバで確かめる（役割が変わっていれば新しい役割になる）
 //       401（合言葉が無効）→ 保存を消してログアウト状態
+//       401 で、保護者が連携を外した（reason: family_unlink）→ さらに端末の制限を止め、送信待ち・設定を消し、
+//         ログイン画面に「保護者との連携が外れました」を出す（session-core.ts の expire。D-133）
 //       通信できない → 保存してある Session で続ける（offline: true。子どもの端末が電波なしでも使えるように）
 //   - 確かめ直す（refresh）ときは、この起動の間に使っている Session（メモリ）を先に使う。封ができず端末に置けなかったときも
 //     ログイン画面へ戻されないように（session-core.ts）
@@ -52,25 +54,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setToken: setSessionToken,
       authMe: () => call("authMe"),
       isUnauthorized,
+      errorOf,
+      // 連携が外れた（D-133）: ログアウトと同じく、Kotlin の監視を止めて Kotlin が端末に残した値を消し、
+      // その子どもの送信待ち・設定のキャッシュ・送ったアプリの一覧を消す（Google のログインは外さない。サーバにも頼まない）
+      clearUnlinked: async (userId) => {
+        native.clearLocalData();
+        await clearLocalDataFor(userId);
+      },
       clearSaved: () => clearSessionData(),
       setState,
     }),
   );
-  const { adopt, forget, verify } = core;
+  const { adopt, forget, verify, expire } = core;
 
   useEffect(() => {
-    // 使っている途中で合言葉が無効になったら（401）、ログアウト状態にする
-    setUnauthorizedHandler(() => {
+    // 使っている途中で合言葉が無効になったら（401）、ログアウト状態にする（連携が外れたときは片付けもする）
+    setUnauthorizedHandler((error) => {
       if (signingOut.current) return;
-      void forget({
-        code: "unauthorized",
-        message: "ログインの期限が切れました",
-        hint: "もう一度ログインしてください",
-      });
+      void expire(error);
     });
     void verify();
     return () => setUnauthorizedHandler(null);
-  }, [verify, forget]);
+  }, [verify, expire]);
 
   // D-113: Kotlin の監視に、許可の状態の送り先と合言葉を渡す（子どもだけ）・消す（ログアウト・401・保護者）
   useEffect(() => {

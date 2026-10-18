@@ -97,4 +97,15 @@ describe("ログイン（子08・子09）", () => {
     expect(loginNotice(null, false)).toBeNull();
     expect(loginNotice({ ...expired, code: "network" }, false)).toBeNull();
   });
+
+  it("保護者に連携を外されて戻ってきたときも、押す前に帯で知らせる（サーバの文をそのまま。D-133）", () => {
+    const unlinked: ApiError = {
+      code: "unauthorized",
+      message: "保護者との連携が外れました",
+      hint: "また使うときは、ログインしてから保護者と QR でつなぎ直してください",
+      reason: "family_unlink",
+    };
+    expect(loginNotice(unlinked, false)).toBe(unlinked);
+    expect(loginNotice(unlinked, true)).toBeNull();
+  });
 });
