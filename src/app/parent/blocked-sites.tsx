@@ -20,7 +20,20 @@ import { tokens } from "@contracts/tokens";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { AppText, Banner, Button, Chip, ErrorBanner, Icon, Screen, StateView, TextField } from "@/components";
+import {
+  AppText,
+  Banner,
+  Button,
+  Chip,
+  ErrorBanner,
+  Icon,
+  PopIn,
+  Reveal,
+  RevealGroup,
+  Screen,
+  StateView,
+  TextField,
+} from "@/components";
 import {
   addSite,
   hasUnsavedSites,
@@ -175,7 +188,10 @@ function BlockedSitesBody({ childId }: { childId: string }) {
     <>
       <ErrorBanner error={saveError} />
       {savedOk && (
-        <Banner tone="success" message="保存しました" hint="子どものスマホには、次につながったときに届きます" />
+        // 保存できたことを、小さく弾ませて知らせる（ほかの保護者の画面と同じ控えめな動き）
+        <PopIn>
+          <Banner tone="success" message="保存しました" hint="子どものスマホには、次につながったときに届きます" />
+        </PopIn>
       )}
       <Button
         label="変更を保存する"
@@ -192,71 +208,91 @@ function BlockedSitesBody({ childId }: { childId: string }) {
       {!ready ? (
         <StateView state={loadError ? "unknown" : "loading"} error={loadError} onRetry={() => void load()} />
       ) : (
-        <>
-          {loadError && (
+        // 開いたときは上から順にふわっと出す。後から出る帯・足した行は高さを広げて入れる（下がガタッと動かない）
+        <RevealGroup>
+          <Reveal index={0} show={loadError != null}>
             <Banner
               tone="warning"
               icon="cloud_off"
               message="最新でない可能性があります"
               hint="反映の状態は、通信できると自動で更新します"
             />
-          )}
-          <Banner
-            icon="info"
-            message="ブラウザ（Chrome・Samsung Internet・Firefox・Edge）で開いたときだけ止まります。YouTube などのアプリは、アプリの上限で止まります"
-            hint="設定の「制限対象外アプリ」でアプリをオン（制限しない）にしていると、そのアプリでは時間が終わっても見られます"
-          />
-          <Banner
-            icon="edit"
-            message="その日の時間が終わったあと、子どものスマホのブラウザでここに入れたサイトを開くと、前の画面に戻して「時間は終わりです」を出します。変更できるのは保護者だけです"
-          />
-          <TextField
-            label="サイトのアドレス"
-            value={input}
-            onChangeText={(t) => {
-              setInput(t);
-              setInputError(null);
-            }}
-            placeholder="例: youtube.com/shorts"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            returnKeyType="done"
-            onSubmitEditing={add}
-            error={inputError}
-          />
-          <Button
-            label="一覧に入れる"
-            icon="add"
-            variant="outline"
-            onPress={add}
-            disabled={saving || input.trim() === ""}
-          />
-          <AppText variant="caption" tone="muted">
-            「youtube.com」と入れると、m.youtube.com
-            などもふくめてサイト全体を止めます。「youtube.com/shorts」と入れると、ショート動画のページだけを止めます。
-          </AppText>
-          <View style={styles.listHead}>
-            <AppText variant="label">登録したサイト</AppText>
-            {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
-            {!loadError && <ListStatus status={sitesListStatus(view)} />}
-          </View>
-          {rows.map((r) => (
-            <SiteRowView
-              key={r.pattern}
-              row={r}
-              warning={r.status === "removing" || !excluded ? null : excludedAppWarning(r.pattern, excluded)}
-              onRemove={() => remove(r.pattern)}
-              onRestore={() => restore(r.pattern)}
-              disabled={saving}
+          </Reveal>
+          <Reveal index={1}>
+            <Banner
+              icon="info"
+              message="ブラウザ（Chrome・Samsung Internet・Firefox・Edge）で開いたときだけ止まります。YouTube などのアプリは、アプリの上限で止まります"
+              hint="設定の「制限対象外アプリ」でアプリをオン（制限しない）にしていると、そのアプリでは時間が終わっても見られます"
             />
+          </Reveal>
+          <Reveal index={2}>
+            <Banner
+              icon="edit"
+              message="その日の時間が終わったあと、子どものスマホのブラウザでここに入れたサイトを開くと、前の画面に戻して「時間は終わりです」を出します。変更できるのは保護者だけです"
+            />
+          </Reveal>
+          <Reveal index={3}>
+            <TextField
+              label="サイトのアドレス"
+              value={input}
+              onChangeText={(t) => {
+                setInput(t);
+                setInputError(null);
+              }}
+              placeholder="例: youtube.com/shorts"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="done"
+              onSubmitEditing={add}
+              error={inputError}
+            />
+          </Reveal>
+          <Reveal index={4}>
+            <Button
+              label="一覧に入れる"
+              icon="add"
+              variant="outline"
+              onPress={add}
+              disabled={saving || input.trim() === ""}
+            />
+          </Reveal>
+          <Reveal index={5}>
+            <AppText variant="caption" tone="muted">
+              「youtube.com」と入れると、m.youtube.com
+              などもふくめてサイト全体を止めます。「youtube.com/shorts」と入れると、ショート動画のページだけを止めます。
+            </AppText>
+          </Reveal>
+          <Reveal index={6}>
+            <View style={styles.listHead}>
+              <AppText variant="label">登録したサイト</AppText>
+              {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
+              {!loadError && <ListStatus status={sitesListStatus(view)} />}
+            </View>
+          </Reveal>
+          {rows.map((r, i) => (
+            // 行は順に出す（多くても 8 番目で打ち止め）。あとから足した行は高さを広げて入れる
+            <Reveal key={r.pattern} index={Math.min(7 + i, 14)}>
+              <SiteRowView
+                key={r.pattern}
+                row={r}
+                warning={r.status === "removing" || !excluded ? null : excludedAppWarning(r.pattern, excluded)}
+                onRemove={() => remove(r.pattern)}
+                onRestore={() => restore(r.pattern)}
+                disabled={saving}
+              />
+            </Reveal>
           ))}
-          {rows.length === 0 && <AppText tone="muted">まだ登録していません</AppText>}
-          <AppText variant="caption" tone="muted">
-            止められるのは、子どものスマホの Chrome・Samsung Internet・Firefox・Edge
-            で開いたときです（ほかのブラウザや、アプリの中で開いたページは止められません）。子どものスマホで「ユーザー補助」の許可が要ります（子どものホームに案内が出ます）。
-          </AppText>
-        </>
+          <Reveal index={7} show={rows.length === 0}>
+            <AppText tone="muted">まだ登録していません</AppText>
+          </Reveal>
+          <Reveal index={Math.min(8 + rows.length, 15)}>
+            <AppText variant="caption" tone="muted">
+              止められるのは、子どものスマホの Chrome・Samsung Internet・Firefox・Edge
+              で開いたときです（ほかのブラウザや、アプリの中で開いたページは止められません）。子どものスマホで「ユーザー補助」の許可が要ります（子どものホームに案内が出ます）。
+            </AppText>
+          </Reveal>
+        </RevealGroup>
       )}
     </Screen>
   );
@@ -270,10 +306,15 @@ const statusText = {
 } as const;
 
 function ListStatus({ status }: { status: "applied" | "pending" }) {
-  return status === "applied" ? (
-    <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
-  ) : (
-    <Chip tone="warning" icon="sync" label="子どものスマホに反映待ち" />
+  // 反映待ち → 反映済み に変わったら、札を小さく弾ませて知らせる
+  return (
+    <PopIn replayKey={status}>
+      {status === "applied" ? (
+        <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
+      ) : (
+        <Chip tone="warning" icon="sync" label="子どものスマホに反映待ち" />
+      )}
+    </PopIn>
   );
 }
 
@@ -305,7 +346,9 @@ function SiteRowView({
         </AppText>
         {row.status === "pending" ? (
           <View style={styles.chipRow}>
-            <Chip label={statusText.pending} small />
+            <PopIn replayKey={row.status}>
+              <Chip label={statusText.pending} small />
+            </PopIn>
           </View>
         ) : (
           <AppText variant="caption" tone={row.status === "applied" ? "muted" : "warning"}>
