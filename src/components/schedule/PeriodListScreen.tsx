@@ -2,10 +2,11 @@
 // 並びは Figma 子10: 「←」＋題名 → 一覧（カレンダーのアイコン・名前・日付・›）→ 下に「＋ テストを追加する」（主ボタン）。
 // 並べ方は近い順（期間中・これからを開始日の早い順 → 「終わったテスト」を新しい順。logic.ts の sortPeriodsForList）。
 // 状態: 読み込み中 / 取得不可（もう一度ためす。0件とは出さない）/ 古い（帯つきで前の一覧）/ 0件（「予定のテストはありません」）。
-// 保護者の一覧には、お子さんの端末に反映済みか（Q6）と、だれが登録したか（Q11）も出す。
+// 保護者の一覧には、子どものスマホに反映済みか（Q6）と、だれが登録したか（Q11）も出す。
+// 動き: 開いたときは上から順にふわっと出す（Reveal）。反映待ち → 反映済み に変わったら札を小さく弾ませる（PopIn）。
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
-import { AppText, Banner, Button, Chip, Screen, StateView } from "@/components";
+import { AppText, Banner, Button, Chip, PopIn, Reveal, RevealGroup, Screen, StateView } from "@/components";
 import {
   appliedStatus,
   type Period,
@@ -37,19 +38,27 @@ export function PeriodListScreen({ kind, viewer, today, periods, reload, onBack,
     const { current, past } = sortPeriodsForList(periods.data.periods, today);
     const list =
       current.length + past.length === 0 ? (
-        <StateView state="empty" message={t.emptyMessage} hint={t.emptyHint} />
+        <Reveal index={2}>
+          <StateView state="empty" message={t.emptyMessage} hint={t.emptyHint} />
+        </Reveal>
       ) : (
         <View style={styles.list}>
-          {current.map((p) => (
-            <PeriodRow key={p.id} period={p} today={today} showCreator={isParent} onPress={onOpen} />
+          {current.map((p, i) => (
+            <Reveal key={p.id} index={row(2 + i)} gap={tokens.layout.listGap}>
+              <PeriodRow period={p} today={today} showCreator={isParent} onPress={onOpen} />
+            </Reveal>
           ))}
           {past.length > 0 && (
-            <AppText variant="label" tone="muted" accessibilityRole="header">
-              {t.pastHeader}
-            </AppText>
+            <Reveal index={row(2 + current.length)} gap={tokens.layout.listGap}>
+              <AppText variant="label" tone="muted" accessibilityRole="header">
+                {t.pastHeader}
+              </AppText>
+            </Reveal>
           )}
-          {past.map((p) => (
-            <PeriodRow key={p.id} period={p} today={today} showCreator={isParent} onPress={onOpen} />
+          {past.map((p, i) => (
+            <Reveal key={p.id} index={row(3 + current.length + i)} gap={tokens.layout.listGap}>
+              <PeriodRow period={p} today={today} showCreator={isParent} onPress={onOpen} />
+            </Reveal>
           ))}
         </View>
       );
@@ -61,19 +70,25 @@ export function PeriodListScreen({ kind, viewer, today, periods, reload, onBack,
         : null;
     return (
       <StateView state={periods.status === "stale" ? "stale" : "success"}>
-        {applied && (
-          <View style={styles.applied}>
-            <Chip
-              align="start"
-              tone={applied.tone}
-              icon={applied.tone === "success" ? "check_circle" : "sync"}
-              label={applied.label}
-            />
-            <AppText variant="caption" tone="muted">
-              {applied.hint}
-            </AppText>
-          </View>
-        )}
+        <Reveal index={1} show={applied != null}>
+          {applied && (
+            <View style={styles.applied}>
+              <PopIn replayKey={applied.label}>
+                <Chip
+                  align="start"
+                  tone={applied.tone}
+                  icon={applied.tone === "success" ? "check_circle" : "sync"}
+                  label={applied.label}
+                />
+              </PopIn>
+              {applied.hint ? (
+                <AppText variant="caption" tone="muted">
+                  {applied.hint}
+                </AppText>
+              ) : null}
+            </View>
+          )}
+        </Reveal>
         {list}
       </StateView>
     );
@@ -86,11 +101,20 @@ export function PeriodListScreen({ kind, viewer, today, periods, reload, onBack,
       bottomInset={false}
       footer={<Button label={t.addLabel} icon="add" onPress={onAdd} />}
     >
-      {t.listBanner ? <Banner icon="info" message={t.listBanner} /> : null}
-      {body()}
+      <RevealGroup>
+        {t.listBanner ? (
+          <Reveal index={0}>
+            <Banner icon="info" message={t.listBanner} />
+          </Reveal>
+        ) : null}
+        {body()}
+      </RevealGroup>
     </Screen>
   );
 }
+
+// 行の順番の打ち止め（たくさん並んでも待たせすぎない。これより下は同じ時に出る）
+const row = (i: number) => Math.min(i, 10);
 
 const styles = StyleSheet.create({
   list: { gap: tokens.layout.listGap },

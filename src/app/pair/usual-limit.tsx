@@ -51,7 +51,7 @@ export default function PairUsualLimit() {
           error: {
             code: "not_found",
             message: "つながっている子どもが見つかりません",
-            hint: "QRコードの紐づけからやり直してください",
+            hint: "QRコードの読み取りからやり直してください",
           },
         });
         return;
@@ -143,7 +143,7 @@ export default function PairUsualLimit() {
         </>
       }
     >
-      <Banner icon="edit" message="テストがない日の、1日の使用時間の上限を入れてください" />
+      <Banner icon="edit" message="1日に使える時間の上限を入れてください" />
       <ErrorBanner error={saveError} />
       <AppText variant="label">通常上限（テストがない日の上限）</AppText>
       <View style={styles.row}>

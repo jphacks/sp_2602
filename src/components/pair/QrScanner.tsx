@@ -32,7 +32,7 @@ export function QrScanner({ scanning, verifying, onScanned }: Props) {
       {!verifying && (
         <View style={styles.hint}>
           <AppText variant="label" tone="onPrimary" center>
-            子どものスマホに出ているQRコードを枠に入れてね
+            子どものスマホに出ているQRコードを枠に入れてください
           </AppText>
         </View>
       )}

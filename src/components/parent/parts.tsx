@@ -5,12 +5,21 @@
 //   Strip      : 薄いグレーの全丸の帯（期間の表示。親03）
 //   Badge      : 白い小さい札（「上限が 13% 減」。親03）
 //   Toggle     : スイッチ（Figma 親16 の 52×32 の丸いスイッチ。ON は青地に白い大きいつまみ（ダークは明るい青地に紺）、OFF は枠とグレーの小さいつまみ）。
-//                Android の標準の Switch は小さく形も違うため、Figma の形で描く
+//                Android の標準の Switch は小さく形も違うため、Figma の形で描く。
+//                切り替えたときは、つまみが前の場所・大きさから新しい場所へすべる（最後の形は今までと同じ。動きを減らす設定なら動かさない）
 import { tokens } from "@contracts/tokens";
-import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { type ReactNode, useLayoutEffect, useMemo, useRef } from "react";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { AppText, Icon, type IconName } from "@/components";
+import { motion, useReducedMotion } from "@/lib/motion";
 import { makeStyles, useColors } from "@/lib/theme";
+
+// つまみの中心の位置（スイッチの左端から）。下の styles の track・thumbOn・thumbOff と同じ寸法から決める
+const THUMB_OFF_CENTER = tokens.size.switchBorder + tokens.space[1] + tokens.space[1] + tokens.size.switchThumbOff / 2;
+const THUMB_ON_CENTER = tokens.size.switchWidth - tokens.space[1] - tokens.size.switchThumbOn / 2;
+// OFF → ON のとき、新しい場所（ON）から見た前の場所（OFF）のずれと大きさの比（ON → OFF はこの逆）
+const THUMB_SHIFT = THUMB_OFF_CENTER - THUMB_ON_CENTER;
+const THUMB_RATIO = tokens.size.switchThumbOff / tokens.size.switchThumbOn;
 
 export function AppInitial({ initial }: { initial: string }) {
   const styles = useStyles();
@@ -79,6 +88,37 @@ export function Toggle(props: {
 }) {
   const styles = useStyles();
   const { value, onValueChange, disabled, accessibilityLabel } = props;
+  const reduced = useReducedMotion();
+  // 0 = 新しい場所にいる、1 = 前の場所にいる。切り替わったら 1 から 0 へ動かす（並びは新しい形のまま、ずれだけを動かす）
+  const from = useRef(new Animated.Value(0)).current;
+  const prev = useRef(value);
+  // 描く前（useLayoutEffect）に前の場所へ置く（新しい場所が一瞬見えてから戻る、のちらつきを出さない）
+  useLayoutEffect(() => {
+    if (prev.current === value) return;
+    prev.current = value;
+    if (reduced) {
+      from.setValue(0);
+      return;
+    }
+    from.setValue(1);
+    const anim = Animated.timing(from, {
+      toValue: 0,
+      duration: motion.duration.short,
+      easing: motion.easing.standard,
+      useNativeDriver: true,
+    });
+    anim.start();
+    return () => anim.stop();
+  }, [value, reduced, from]);
+  const slide = useMemo(
+    () => ({
+      transform: [
+        { translateX: from.interpolate({ inputRange: [0, 1], outputRange: [0, value ? THUMB_SHIFT : -THUMB_SHIFT] }) },
+        { scale: from.interpolate({ inputRange: [0, 1], outputRange: [1, value ? THUMB_RATIO : 1 / THUMB_RATIO] }) },
+      ],
+    }),
+    [from, value],
+  );
   return (
     <Pressable
       onPress={() => onValueChange(!value)}
@@ -89,7 +129,7 @@ export function Toggle(props: {
       hitSlop={tokens.space[2]}
       style={[styles.track, value ? styles.trackOn : styles.trackOff, disabled && styles.disabled]}
     >
-      <View style={value ? styles.thumbOn : styles.thumbOff} />
+      <Animated.View style={[value ? styles.thumbOn : styles.thumbOff, slide]} />
     </Pressable>
   );
 }

@@ -19,7 +19,7 @@ export function ParentChildGate({ title, onBack, children }: Props) {
         <StateView
           state="empty"
           message="連携しているお子さんがいません"
-          hint="お子さんの端末と連携すると、日程を登録できます"
+          hint="子どものスマホとつながると、日程を登録できます"
           action={{ label: scanQrAction.label, onPress: () => router.navigate(scanQrAction.href) }}
         />
       ) : (

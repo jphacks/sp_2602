@@ -12,7 +12,18 @@ import { tokens } from "@contracts/tokens";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { AppText, Banner, Button, Chip, ErrorBanner, Screen, StateView } from "@/components";
+import {
+  AppText,
+  Banner,
+  Button,
+  Chip,
+  ErrorBanner,
+  PopIn,
+  Reveal,
+  RevealGroup,
+  Screen,
+  StateView,
+} from "@/components";
 import { ChildGate } from "@/components/parent/data";
 import {
   appsToSave,
@@ -135,11 +146,12 @@ function ExcludedBody({ childId }: { childId: string }) {
 
   const ready = view && draft;
   const footer = ready ? (
-    <>
+    // 「保存しました」は、保存が確定したときに高さを広げて入れる（ボタンがガタッと上がらない）
+    <RevealGroup>
       <ErrorBanner error={saveError} />
-      {savedOk && (
+      <Reveal show={savedOk}>
         <Banner tone="success" message="保存しました" hint="子どものスマホには、次につながったときに届きます" />
-      )}
+      </Reveal>
       <Button
         label="変更を保存する"
         icon="check_circle"
@@ -147,7 +159,7 @@ function ExcludedBody({ childId }: { childId: string }) {
         loading={saving}
         disabled={!hasUnsaved(view.apps, draft)}
       />
-    </>
+    </RevealGroup>
   ) : undefined;
 
   return (
@@ -155,46 +167,64 @@ function ExcludedBody({ childId }: { childId: string }) {
       {!ready ? (
         <StateView state={loadError ? "unknown" : "loading"} error={loadError} onRetry={() => void load()} />
       ) : (
-        <>
-          {loadError && (
+        // 読み込めたら上から順にふわっと出す（ホームと同じ）。後から出る帯は高さを広げて入れる
+        <RevealGroup>
+          <Reveal index={0} show={loadError != null}>
             <Banner
               tone="warning"
               icon="cloud_off"
               message="最新でない可能性があります"
               hint="反映の状態は、通信できると自動で更新します"
             />
-          )}
-          <Banner icon="edit" message="選んだアプリは、使用時間にふくまれなくなります。変更できるのは保護者だけです" />
-          <View style={styles.listHead}>
-            <AppText variant="label">子どものアプリ</AppText>
-            {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
-            {!loadError && <ListStatus status={excludedListStatus(view)} />}
-          </View>
+          </Reveal>
+          <Reveal index={1}>
+            {/* 見ているのは保護者なので「変更できるのは保護者だけです」は言わない */}
+            <Banner icon="edit" message="選んだアプリは、使用時間にふくまれなくなります" />
+          </Reveal>
+          <Reveal index={2}>
+            <View style={styles.listHead}>
+              <AppText variant="label">子どものアプリ</AppText>
+              {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
+              {!loadError && <ListStatus status={excludedListStatus(view)} />}
+            </View>
+          </Reveal>
           {excludedRows({
             candidates: mockExcludedAppCandidates,
             saved: view.apps,
             draft,
             childAppliedVersion: view.childAppliedVersion,
             removedAt: removedVersions(view.removedApps),
-          }).map((r) => (
-            <AppRow key={r.packageName} row={r} onToggle={(on) => toggle(r.packageName, on)} disabled={saving} />
+          }).map((r, i) => (
+            <Reveal key={r.packageName} index={Math.min(3 + i, ROW_ORDER_MAX)}>
+              <AppRow row={r} onToggle={(on) => toggle(r.packageName, on)} disabled={saving} />
+            </Reveal>
           ))}
-          <AppText variant="caption" tone="muted">
-            電話・緊急通報などは、いつも制限されません（ここでは変えられません）。
-          </AppText>
-        </>
+          <Reveal index={ROW_ORDER_MAX}>
+            <AppText variant="caption" tone="muted">
+              電話・緊急通報などは、いつも制限されません（ここでは変えられません）。
+            </AppText>
+          </Reveal>
+        </RevealGroup>
       )}
     </Screen>
   );
 }
 
+// 行の順番の打ち止め（たくさん並んでも待たせすぎない。これより下は同じ時に出る）
+const ROW_ORDER_MAX = 10;
+
 const statusText = { applied: "反映済み", pending: "反映待ち", unsaved: "まだ保存していません" } as const;
 
+// 反映待ち → 反映済み に変わったら、札を小さく弾ませて知らせる
 function ListStatus({ status }: { status: "applied" | "pending" }) {
-  return status === "applied" ? (
-    <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
-  ) : (
-    <Chip tone="warning" icon="sync" label="子どものスマホに反映待ち" />
+  return (
+    <PopIn replayKey={status}>
+      {status === "applied" ? (
+        <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
+      ) : (
+        <Chip tone="warning" icon="sync" label="子どものスマホへの反映待ち" />
+      )}
+    </PopIn>
   );
 }
 
@@ -207,15 +237,18 @@ function AppRow({ row, onToggle, disabled }: { row: ExcludedRow; onToggle: (on: 
         <AppText variant="body" strong>
           {row.label}
         </AppText>
+        {/* 反映済みの行は何も出さない（見出しの札が「反映済み」と言っている）。読み上げには残す */}
         {row.status === "pending" ? (
           <View style={styles.chipRow}>
-            <Chip label={statusText.pending} small />
+            <PopIn replayKey={row.status}>
+              <Chip label={statusText.pending} small />
+            </PopIn>
           </View>
-        ) : (
-          <AppText variant="caption" tone={row.status === "unsaved" ? "warning" : "muted"}>
-            {statusText[row.status]}
+        ) : row.status === "unsaved" ? (
+          <AppText variant="caption" tone="warning">
+            {statusText.unsaved}
           </AppText>
-        )}
+        ) : null}
       </View>
       <Toggle
         value={row.on}
