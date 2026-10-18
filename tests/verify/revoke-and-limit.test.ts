@@ -162,6 +162,21 @@ describe("V: QR を出す回数の上限（F-5）", () => {
     await ok(post("/api/pair/start", {}, other.token));
   });
 
+  it(`同時に30本送っても、通るのは ${PAIR_START_LIMIT.max} 本まで。断った分は数えず、あとから上限まで出せる`, async () => {
+    // 前は「数える→足す」を別々に行っていたので、同時に送ると30本とも 200 になった
+    const child = await newPerson("c-s4");
+    const burst = await Promise.all(Array.from({ length: 30 }, () => post("/api/pair/start", {}, child.token)));
+    const statuses = burst.map((r) => r.status);
+    expect(
+      statuses.every((s) => s === 200 || s === 429),
+      statuses.join(","),
+    ).toBe(true);
+    const passed = statuses.filter((s) => s === 200).length;
+    expect(passed).toBeLessThanOrEqual(PAIR_START_LIMIT.max);
+    for (let i = passed; i < PAIR_START_LIMIT.max; i++) await ok(post("/api/pair/start", {}, child.token));
+    expect((await post("/api/pair/start", {}, child.token)).status).toBe(429);
+  });
+
   it("時間がたてば、また出せる", async () => {
     const child = await newPerson("c-s3");
     for (let i = 0; i < PAIR_START_LIMIT.max; i++) await ok(post("/api/pair/start", {}, child.token));
@@ -192,6 +207,22 @@ describe("V: ログインの回数の上限（F-5）", () => {
     await ok(loginFrom("mock-new-ip-y", "198.51.100.7"));
     clock.addMs(AUTH_IP_LIMIT.windowMs);
     await ok(loginFrom("mock-new-ip-x", "203.0.113.5"));
+  });
+
+  it(`同じ IP・同じ人から同時に送っても、通るのは上限まで（IP ${AUTH_IP_LIMIT.max} 回・人 ${AUTH_SUBJECT_LIMIT.max} 回）`, async () => {
+    const byIp = await Promise.all(
+      Array.from({ length: AUTH_IP_LIMIT.max * 2 }, (_, i) => loginFrom(`mock-new-burst-ip${i}`, "203.0.113.20")),
+    );
+    expect(byIp.filter((r) => r.status === 200).length).toBeLessThanOrEqual(AUTH_IP_LIMIT.max);
+    // 人ごと: IP は毎回変えて、人の上限だけにかける。先に1回ログインして、同時に作られた人が重ならないようにする
+    await ok(post("/api/auth/google", { idToken: "mock-new-burst-subject" }, null));
+    const bySubject = await Promise.all(
+      Array.from({ length: AUTH_SUBJECT_LIMIT.max * 3 }, (_, i) =>
+        loginFrom("mock-new-burst-subject", `198.51.100.${i + 1}`),
+      ),
+    );
+    for (const res of [...byIp, ...bySubject]) expect([200, 429]).toContain(res.status);
+    expect(bySubject.filter((r) => r.status === 200).length).toBeLessThanOrEqual(AUTH_SUBJECT_LIMIT.max - 1);
   });
 
   it("IP の上限は Google の確認より先に数える（通らない idToken でも数え、上限をこえたら 429）", async () => {

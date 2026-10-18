@@ -65,6 +65,31 @@ describe("エラーのログには入力を出さない（F-4 / IN-12）", () =>
     for (const ch of ["\r", "\n", "\u0000"]) expect(line).not.toContain(ch);
   });
 
+  it("message に「改行＋空白＋at 」があっても、場所の行として出さない（\\n・\\r\\n・\\r）。本当の場所の行は出す", () => {
+    for (const br of ["\n", "\r\n", "\r"]) {
+      const pg = Object.assign(new Error("bad"), { code: "22021" });
+      const drizzle = new Error(
+        `Failed query: insert ...${br}params: x${br}    at [INJECTED] child=tanaka@example.com secret-token-123`,
+        { cause: pg },
+      );
+      const line = describeError(drizzle);
+      expect(line, JSON.stringify(br)).not.toContain("INJECTED");
+      expect(line).not.toContain("tanaka@example.com");
+      expect(line).not.toContain("secret-token-123");
+      expect(line).toContain("input-safety.test.ts"); // このテストの中で作ったエラーなので、場所の行にこのファイルが出る
+      for (const ch of ["\r", "\n"]) expect(line).not.toContain(ch);
+    }
+  });
+
+  it("stack を読んだ後で message を書きかえたエラーは、場所を出さない（stack の頭に元の message が残るため）", () => {
+    const e = new Error("x\n    at [INJECTED] secret-token-123");
+    expect(e.stack).toContain("INJECTED"); // stack の頭は最初に読んだときに決まる。先に読んでから書きかえる
+    e.message = "changed";
+    const line = describeError(e);
+    expect(line).not.toContain("INJECTED");
+    expect(line).toBe("Error");
+  });
+
   it("文字列のコードがおかしな形なら出さない", () => {
     const e = Object.assign(new Error("x"), { code: "a\r\nX-Injected: 1" });
     expect(describeError(e)).not.toContain("X-Injected");

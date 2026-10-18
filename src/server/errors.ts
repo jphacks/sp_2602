@@ -51,23 +51,35 @@ export function toApiError(e: unknown): { status: number; body: ApiError } {
 
 // ログに出してよい、エラーの要約。種類（name）・コード（SQLSTATE・errno）・どこで起きたか（stack の場所の行）だけ。
 // message は出さない（なぜ: Drizzle の失敗は message に SQL と params = 利用者の入力・利用者 ID をそのまま含み、
-// 入力の改行でログの行を偽装できた。セキュリティ検査 F-4 / IN-12）
+// 入力の改行でログの行を偽装できた。セキュリティ検査 F-4 / IN-12）。
+// 包まれた元のエラー（cause）の場所も出す（DB を開けなかったときなど、包んだ側の場所だけでは原因が分からないため）
 export function describeError(e: unknown): string {
   const parts: string[] = [];
+  const at: string[] = [];
   for (let cur: unknown = e, depth = 0; cur && depth < 4; cur = (cur as { cause?: unknown }).cause, depth++) {
     const name = cur instanceof Error ? cur.name : typeof cur;
     const code = (cur as { code?: unknown }).code;
     parts.push(typeof code === "string" && /^[0-9A-Z_]{1,20}$/.test(code) ? `${name}(${code})` : name);
+    const frames = stackFrames(cur).slice(0, depth === 0 ? 3 : 2);
+    at.push(...(depth === 0 ? frames : frames.map((line) => `cause ${line}`)));
   }
-  const at =
-    e instanceof Error
-      ? (e.stack ?? "")
-          .split("\n")
-          .filter((line) => /^\s+at /.test(line))
-          .slice(0, 3)
-          .map((line) => line.trim())
-      : [];
   return [parts.join(" <- "), ...at].join(" | ");
+}
+
+// stack の場所の行（"at ..."）。stack の頭は「種類: message」なので、message の中の行は場所として拾わない
+//   なぜ: 前は stack の頭から /^\s+at / に合う行を拾ったので、message に「改行＋空白＋at 」があると
+//   （Drizzle の失敗の params = 利用者の入力）、その入力が場所の行としてログに出た。
+//   message が stack の中に見つからない（stack を読んだ後で message を書きかえた）ときは、場所を出さない（入力を出すよりよい）
+function stackFrames(e: unknown): string[] {
+  if (!(e instanceof Error) || typeof e.stack !== "string") return [];
+  const message = String(e.message);
+  const start = e.stack.indexOf(message);
+  if (start < 0) return [];
+  return e.stack
+    .slice(start + message.length)
+    .split(/\r\n|\r|\n/)
+    .filter((line) => /^\s+at /.test(line))
+    .map((line) => line.trim().replace(/\p{Cc}/gu, ""));
 }
 
 // Postgres のエラーの種類（SQLSTATE）。Drizzle は元のエラーを cause に包むので、両方を見る
@@ -79,7 +91,8 @@ function pgCode(e: unknown): string | null {
   return null;
 }
 
-// DB を開けなかった（src/server/db/index.ts が、開くときの失敗をこれで包む）
+// DB につながらず開けなかった（src/server/db/index.ts が、開くときの失敗のうち接続の失敗だけをこれで包む。
+// 設定の欠落・マイグレーションの誤りは包まず 500 internal にする）
 export class DatabaseUnavailableError extends Error {
   override name = "DatabaseUnavailableError";
 }

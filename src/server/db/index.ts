@@ -15,7 +15,7 @@ import { PgTable } from "drizzle-orm/pg-core";
 import type { Database } from "../../../backend/src/db/index.js";
 import * as schema from "../../../backend/src/db/schema/index.js";
 import { isMock } from "../env.js";
-import { DatabaseUnavailableError } from "../errors.js";
+import { DatabaseUnavailableError, isDatabaseUnavailable } from "../errors.js";
 import { seedMockAccounts } from "../seed/demo.js";
 
 export { isDatabaseHealthy } from "../../../backend/src/db/health.js";
@@ -42,20 +42,41 @@ export async function closeDatabaseClientForTests(): Promise<void> {
   await (await runtime()).close?.();
 }
 
+// DB を開けなかった（接続の失敗ではないもの: 設定の欠落・マイグレーションの誤りなど）。API は 500 internal を返し、
+// ログ（errors.ts の describeError）には元のエラー（cause）の種類と場所が出る
+class DatabaseOpenError extends Error {
+  override name = "DatabaseOpenError";
+}
+
 function runtime(): Promise<RuntimeDb> {
   g.__slopeRuntimeDb ??= open().catch((error) => {
     g.__slopeRuntimeDb = undefined; // 失敗したら次の呼び出しでやり直す
-    // API は 500 ではなく 503 unavailable を返す（errors.ts の isDatabaseUnavailable）
-    throw new DatabaseUnavailableError("DB を開けませんでした", { cause: error });
+    // 接続の失敗（通信・接続を断られた・時間切れ・閉じた PGlite など。errors.ts の isDatabaseUnavailable）だけを
+    // 一時的に使えない 503 unavailable にする。前はすべての失敗を 503 で包んだので、本番で DATABASE_URL がない・
+    // マイグレーションの SQL の誤りといった設定の誤り・不具合まで「一時的に使えない」になり、原因の場所もログに出なかった
+    if (isDatabaseUnavailable(error)) throw new DatabaseUnavailableError("DB につながりませんでした", { cause: error });
+    throw new DatabaseOpenError("DB を開けませんでした", { cause: error });
   });
   return g.__slopeRuntimeDb;
 }
 
 async function open(): Promise<RuntimeDb> {
   const opened = await connect();
-  if (seedsMockOnOpen(opened.kind)) await seedMockAccounts(opened.db);
-  else if (isMock()) console.warn("MOCK=1 ですが、DATABASE_URL の DB にはデモの3人と見本を自動では入れません（D-126）");
+  try {
+    if (seedsMockOnOpen(opened.kind)) await seedMockAccounts(opened.db);
+    else if (isMock())
+      console.warn("MOCK=1 ですが、DATABASE_URL の DB にはデモの3人と見本を自動では入れません（D-126）");
+  } catch (error) {
+    await closeQuietly(opened.close);
+    throw error;
+  }
   return opened;
+}
+
+// 開きかけで失敗した DB を閉じてから捨てる（呼び出しのたびに開いたままの PGlite・Pool が溜まらないように）。
+// 閉じるときの失敗は、元の失敗を隠さないよう無視する
+async function closeQuietly(close: (() => Promise<void>) | undefined): Promise<void> {
+  await close?.().catch(() => undefined);
 }
 
 // DB を開いたときにデモの3人と見本を入れるか: MOCK=1 で、手元の DB（PGlite）のときだけ
@@ -88,8 +109,14 @@ async function connect(): Promise<RuntimeDb> {
   // なぜ: 前は drizzle-kit の pushSchema で表の形を合わせていたが、データの入った DB では確認の質問を出そうとして、
   //   何も表示せずにプロセスを終わらせた（立て直したサーバが起動しない）。マイグレーションなら質問は出ず、
   //   テストのたびに「マイグレーションと表の定義（backend/src/db/schema）が合っているか」も確かめられる
-  const { migrate } = await import("drizzle-orm/pglite/migrator");
-  await migrate(local, { migrationsFolder: fileURLToPath(new URL("../../../backend/drizzle", import.meta.url)) });
+  // 失敗したら（PGlite が起動できない・マイグレーションの SQL の誤りなど）、作った PGlite を閉じてから捨てる
+  try {
+    const { migrate } = await import("drizzle-orm/pglite/migrator");
+    await migrate(local, { migrationsFolder: fileURLToPath(new URL("../../../backend/drizzle", import.meta.url)) });
+  } catch (error) {
+    await closeQuietly(() => client.close());
+    throw error;
+  }
   // 問い合わせの書き方は同じなので、型は本番にそろえる
   return { db: local as unknown as Db, kind: "pglite", close: () => client.close(), isClosed: () => client.closed };
 }
