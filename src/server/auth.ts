@@ -6,8 +6,9 @@
 //   - 保護者1人↔子ども1人（Q2）。読み取りのときと確定のときの両方で確かめる（D-7）
 //   - QR の番号を10分に10回まちがえた人は、しばらく断る（総当たりを防ぐ。PR #47）
 //   - id は uuid。uuid の形でない id は、DB に聞かずに「見つからない／扱えない」と答える（DB のエラーで 500 にしない）
+//   - MOCK=1 でないサーバでは、MOCK のログインの人（デモの3人・はじめての人）の合言葉は 401（findSession。D-126）
 import { randomBytes } from "node:crypto";
-import { and, count, eq, gt, inArray, isNull, lte, ne, or } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull, lte, ne, notExists, or } from "drizzle-orm";
 import {
   authIdentities,
   childConfigVersions,
@@ -23,6 +24,7 @@ import { mockSessions } from "../../contracts/fixtures.js";
 import type { LinkStatus, PairStatus, PairTicket, Session } from "../../contracts/schemas.js";
 import { digest } from "./auth/digest.js";
 import { type Db, db } from "./db/index.js";
+import { isMock } from "./env.js";
 import { AppError } from "./errors.js";
 
 export type Caller = Session;
@@ -142,10 +144,18 @@ export async function authorize(rule: AuthRule, request: Request): Promise<Calle
   return caller;
 }
 
-// 合言葉から呼んだ人を探す。取り消した・30日使われていない合言葉は無効。使うたびに期限を延ばす
+// 合言葉から呼んだ人を探す。取り消した・30日使われていない合言葉は無効。使うたびに期限を延ばす。
+// MOCK=1 でないサーバでは、MOCK のログイン（authIdentities の provider が "mock"）の人の合言葉は無効（401）。
+// なぜ: デモの人の合言葉は固定で、公開リポジトリ（contracts/fixtures.ts）に平文で書いてある。前はハッシュの一致だけで
+//   通していたので、MOCK=1 のサーバが一度でも DB に見本を入れると、MOCK を外した後もだれでもデモの人として入れた
+//   （セキュリティ自己点検 🔴1）。MOCK=1 に戻せば、また使える（手元の開発・テスト）
 async function findSession(token: string): Promise<Session | null> {
   const database = await db();
   const now = new Date();
+  const mockLogin = database
+    .select({ id: authIdentities.id })
+    .from(authIdentities)
+    .where(and(eq(authIdentities.userId, users.id), eq(authIdentities.provider, "mock")));
   const [row] = await database
     .select({
       sessionId: userSessions.id,
@@ -161,6 +171,7 @@ async function findSession(token: string): Promise<Session | null> {
         eq(userSessions.tokenHash, digest(token)),
         isNull(userSessions.revokedAt),
         or(isNull(userSessions.expiresAt), gt(userSessions.expiresAt, now)),
+        isMock() ? undefined : notExists(mockLogin),
       ),
     )
     .limit(1);

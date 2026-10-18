@@ -24,6 +24,7 @@
 
 - [MVP_SPEC.md](MVP_SPEC.md) … いちばん上の仕様書（C1〜C10・D1〜D8・受け入れ条件 AC-01〜17）。説明書はこれを書き換えない。
 - [google-login-setup.md](google-login-setup.md) … 本物の Google ログインを使うための Google Cloud の登録手順。
+- [release-signing.md](release-signing.md) … release 版を自分たちの鍵で署名する手順（鍵の作り方・`gradle.properties`・Google ログイン用の SHA-1 の登録し直し）。
 - [device-owner.md](device-owner.md) … デモの間 Slope を消せないようにする手順（Device Owner。スマホの初期化が要る・デモ専用）と解除のしかた。
 
 ## まず読む順番
@@ -53,7 +54,7 @@
 | 版（configVersion） | 子ども1人の設定が変わるたびに 1 増える番号。古い設定と新しい設定を取り違えないために使う |
 | スナップショット | ある時点の設定を丸ごと写した1組（C7 で端末が受け取る） |
 | ポーリング | 端末が一定の間隔（ふつう30秒）でサーバに「変わった？」と聞きに行くこと。Push 通知は使っていない |
-| MOCK | 本物の代わりの仮の動き。`MOCK=1` のサーバは `mock-` のログインを受け付け、DB にデモの人と見本のデータを入れる（処理は本物と同じ DB の処理。Vercel の本番では無視する） |
+| MOCK | 本物の代わりの仮の動き。`MOCK=1` のサーバは `mock-` のログインを受け付け、手元の DB にデモの人と見本のデータを入れる（処理は本物と同じ DB の処理。Vercel の本番では無視する。`MOCK=1` でないサーバではデモの人の合言葉は使えない） |
 | 冪等（べきとう） | 同じものを何回送っても1回と同じ結果になること（利用記録の送り直しで二重にならない） |
 | Context | React の「画面全体でデータを共有する仕組み」。`src/lib/` の session・flow・child-data・parent-data |
 | Kotlin の窓口 | Android だけでできること（使用時間の取得・制限画面）を呼ぶための入口。中身はまだない |

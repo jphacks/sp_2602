@@ -21,7 +21,7 @@ cp .env.example .env   # 手元用の環境変数（.env は Git に入れない
 
 | 項目 | 使う側 | 意味 | 手元の値 |
 |---|---|---|---|
-| `MOCK` | サーバ | `1` にすると、(1) `mock-` で始まるログイン（保護者・子ども・はじめての人）を受け付け、(2) DB を開いたときにデモの3人と見本のデータを DB に1回だけ入れる（`src/server/seed/demo.ts`）。処理（API）は `MOCK` があってもなくても同じ DB の処理を通る。Vercel の本番（`VERCEL_ENV=production`）では入れても無視する（デモの人の合言葉は固定で、だれでも知っているため）。**本番では入れない** | `1` |
+| `MOCK` | サーバ | `1` にすると、(1) `mock-` で始まるログイン（保護者・子ども・はじめての人）とその合言葉を受け付け、(2) 手元の DB（PGlite。`DATABASE_URL` が空のとき）を開いたときにデモの3人と見本のデータを DB に1回だけ入れる（`src/server/seed/demo.ts`。`DATABASE_URL` の DB には自動では入れない）。`MOCK=1` でないサーバでは、DB に残った MOCK のログインの人の合言葉も 401（D-126）。処理（API）は `MOCK` があってもなくても同じ DB の処理を通る。Vercel の本番（`VERCEL_ENV=production`）では入れても無視する（デモの人の合言葉は固定で、だれでも知っているため）。**本番では入れない** | `1` |
 | `DATABASE_URL` | サーバ | Hono APIがNeonのpooled PostgreSQLへ接続する。本番では必須。空なら手元の PGlite（Node の中で動く Postgres。`npm run dev:server` は `state/pglite` に残す。テストはメモリの上だけ） | 空 |
 | `EXPO_PUBLIC_API_URL` | アプリ | アプリがつなぐサーバ。空なら `http://10.0.2.2:3000`（Android エミュレータから見た手元の PC）。実機なら PC の LAN の IP（例 `http://192.168.0.5:3000`） | 空（エミュレータ）／PC の IP（実機） |
 | `GOOGLE_WEB_CLIENT_ID` | サーバ | 本物の Google ログインで、ID トークンの宛先（aud）として確かめる Web のクライアント ID | 空（MOCK のログイン） |
@@ -127,7 +127,7 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 
 `DATABASE_URL` がないときの `npm run dev:server` は、サーバのデータ（ログイン・紐づけ・計画・日程・利用記録）を手元の DB（PGlite）に入れ、フォルダ `state/pglite`（Git に入らない）に残します（`src/server/dev.ts`・`src/server/db/index.ts`）。止めた・ファイルを書き換えて立ち直ったときも、**合言葉と紐づけはそのまま**です。表の形は立ち上げのときに今のコードに合わせます。
 
-- `MOCK=1` なら、DB を開いたときにデモの3人と見本を入れます。もう入っていれば何もしません（`src/server/seed/demo.ts` の `seedMockAccounts`）。
+- `MOCK=1` なら、手元の DB を開いたときにデモの3人と見本を入れます。もう入っていれば何もしません（`src/server/seed/demo.ts` の `seedMockAccounts`）。`DATABASE_URL` の DB（Neon）には、`MOCK=1` でも自動では入れません（D-126）。
 - **見本だけに戻したいとき**: サーバを止めてから `state/pglite` のフォルダを消す。残したくないときは `MOCK_PERSIST=0`、置き場所を変えるときは `LOCAL_DB_DIR`。
 - 合言葉と QR の番号は、DB にはハッシュ（SHA-256）でだけ残します（`src/server/auth/digest.ts`）。それでもフォルダは人に渡さないでください。
 - ログアウトすると、その合言葉はサーバでも無効になります（`authSignOut`。D-90）。同じ人がもう一度ログインすれば、同じ人として新しい合言葉が出ます（紐づけはそのまま）。
@@ -141,7 +141,7 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 
 ### 見せ方のこつ
 
-- サーバは PC で立てても、Vercel（Neon の DB）に置いてもよい。どちらも同じ DB の処理を通る。Vercel の本番では `MOCK` のログインが使えないので、Google でログインして QR で紐づけた親子に `npm run db:seed-demo` で見本を入れる（8章）。
+- サーバは PC で立てても、Vercel（Neon の DB）に置いてもよい。どちらも同じ DB の処理を通る。Vercel の本番では `MOCK` のログインが使えないので、Google でログインして QR で紐づけた親子に `npm run db:seed-demo` で見本を入れる（8章）。`DATABASE_URL` の DB には、`MOCK=1` でもデモの3人と見本は自動では入らない（D-126）。
 - 子どもの端末は `EXPO_PUBLIC_FAKE_USAGE=1` で仮の使用時間を出す。
 - 設定の変更は、子どもの画面が出ている間なら **30秒以内**に届きます（アプリを開き直す・前面に戻すとすぐ取りに行く）。画面が出ていないときの取得はまだない。
 - QR は **10分**で切れます。
@@ -157,7 +157,8 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 | 「通信できませんでした」 | `EXPO_PUBLIC_API_URL` が PC の IP か・同じ Wi-Fi か・サーバが立っているか・Metro を立て直したか |
 | ログイン画面に戻された（「ログインの期限が切れました」） | `state/pglite` を消した・`MOCK_PERSIST=0` で立て直していないか（上の「手元のサーバを立て直すと」）。30日使わなかった合言葉も無効になる（D-1） |
 | 「開発用のログインはこのサーバでは使えません」 | サーバの `.env` に `MOCK=1` があるか |
-| Google ログインで DEVELOPER_ERROR | [google-login-setup.md](google-login-setup.md) の「気をつけること」（パッケージ名・SHA-1・Web のクライアント ID） |
+| Google ログインで DEVELOPER_ERROR | [google-login-setup.md](google-login-setup.md) の「気をつけること」（パッケージ名・SHA-1・Web のクライアント ID）。release 版なら自分たちの鍵の SHA-1 を登録したか（[release-signing.md](release-signing.md)） |
+| release 版を作ると「release 版を署名する鍵の設定が足りないので止めました」 | [release-signing.md](release-signing.md) の 1〜2（鍵と `~/.gradle/gradle.properties` の4つの値）。debug 版・dev client には要らない |
 | 子どもの画面が「使った時間を取得できませんでした」 | `EXPO_PUBLIC_FAKE_USAGE=1` にして Metro を立て直したか |
 
 ## 8. Vercel の DB（Neon）を扱う

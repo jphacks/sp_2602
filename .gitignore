@@ -14,6 +14,9 @@ dist/
 expo-env.d.ts
 *.jks
 *.keystore
+*.p12
+# EAS のローカルの鍵の設定（鍵のパスワードが入る）
+/credentials.json
 *.apk
 *.aab
 local.properties

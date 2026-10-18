@@ -3,7 +3,11 @@
 //     行うので、HTTP ではなく WebSocket の接続（pooled の URL）を使う
 //   DATABASE_URL なし（手元・テスト）→ PGlite（Node の中で動く Postgres）。表は backend/src/db/schema から作る。
 //     LOCAL_DB_DIR があればそのフォルダに残し（手元のサーバ。src/server/dev.ts が state/pglite を渡す）、なければメモリの上だけ
-// MOCK=1 なら、開いたときにデモの3人と見本を入れる（もう入っていれば何もしない。src/server/seed/demo.ts）。
+// MOCK=1 で手元の DB（PGlite）なら、開いたときにデモの3人と見本を入れる（もう入っていれば何もしない。src/server/seed/demo.ts）。
+//   DATABASE_URL の DB（Neon など外の DB）には、MOCK=1 でも自動では入れない（seedsMockOnOpen。D-126）。
+//   なぜ: デモの人の合言葉は固定で公開されている。vercel env pull で取った本番の DATABASE_URL を手元の .env.local に入れ、
+//   MOCK=1 のまま手元のサーバを立てるだけで、本番の DB に固定の合言葉が入っていた（セキュリティ自己点検 🔴1）。
+//   外の DB に見本が要るときは npm run db:seed-demo（固定の合言葉は作らない。scripts/seed-demo.ts）
 // Vercel では関数のメモリにデータを置いても残らない（呼ぶたびに別のインスタンスになりうる）。保存したいものは必ずここを通す。
 import { fileURLToPath } from "node:url";
 import { getTableName, is, sql } from "drizzle-orm";
@@ -34,9 +38,13 @@ function runtime(): Promise<RuntimeDb> {
 
 async function open(): Promise<RuntimeDb> {
   const opened = await connect();
-  if (isMock()) await seedMockAccounts(opened.db);
+  if (seedsMockOnOpen(opened.kind)) await seedMockAccounts(opened.db);
+  else if (isMock()) console.warn("MOCK=1 ですが、DATABASE_URL の DB にはデモの3人と見本を自動では入れません（D-126）");
   return opened;
 }
+
+// DB を開いたときにデモの3人と見本を入れるか: MOCK=1 で、手元の DB（PGlite）のときだけ
+export const seedsMockOnOpen = (kind: RuntimeDb["kind"]): boolean => isMock() && kind === "pglite";
 
 async function connect(): Promise<RuntimeDb> {
   const url = process.env.DATABASE_URL;

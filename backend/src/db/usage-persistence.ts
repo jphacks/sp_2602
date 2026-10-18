@@ -42,7 +42,16 @@ const canonicalPayload = (days: readonly UsageDayReport[]) => JSON.stringify(
 const hashPayload = (days: readonly UsageDayReport[]) =>
   createHash("sha256").update(canonicalPayload(days)).digest("hex");
 
-/** Store an immutable C8 submission and determine which date snapshots it supersedes. */
+/**
+ * Store a C8 submission and determine which date snapshots it supersedes.
+ * Only the newest measurement per child and date is kept (C8 / Q8: "the newer measurement wins"): an applied date
+ * replaces the older day report and app rows of that date, and a date that is not applied (older or equal measuredAt)
+ * is not stored at all. The submission row itself (usage_sync_batches) is kept so that a retry with the same
+ * submission ID is still answered as duplicate / conflict.
+ * Why: previously every submission inserted all of its rows, including dates that were not applied, and nothing was
+ * ever deleted. Changing the submission ID let one child write up to 7 days x 1000 apps per request without limit
+ * (security self-check 🟠4). The accepted date range is checked by the API handler (src/server/handlers/usageUpload.ts).
+ */
 export async function persistUsageSubmission(
   db: Database,
   input: { submissionId: string; childId: string; days: readonly UsageDayReport[] },
@@ -113,8 +122,18 @@ export async function persistUsageSubmission(
       return { status: "duplicate", submissionId: input.submissionId, appliedDates: raced.appliedDates };
     }
 
-    if (days.length > 0) {
-      await tx.insert(usageDayReports).values(days.map((day) => ({
+    if (appliedDays.length > 0) {
+      // Replace the older snapshot of each applied date (app rows first: they reference the day report).
+      await tx.delete(usageRecords).where(and(
+        eq(usageRecords.childId, input.childId),
+        inArray(usageRecords.usageDate, appliedDates),
+      ));
+      await tx.delete(usageDayReports).where(and(
+        eq(usageDayReports.childId, input.childId),
+        inArray(usageDayReports.usageDate, appliedDates),
+      ));
+
+      await tx.insert(usageDayReports).values(appliedDays.map((day) => ({
         submissionId: input.submissionId,
         childId: input.childId,
         usageDate: day.date,
@@ -122,7 +141,7 @@ export async function persistUsageSubmission(
         restrictedMinutes: day.restrictedMinutes,
       })));
 
-      const appRows = days.flatMap((day) => day.apps.map((app) => ({
+      const appRows = appliedDays.flatMap((day) => day.apps.map((app) => ({
         submissionId: input.submissionId,
         childId: input.childId,
         usageDate: day.date,

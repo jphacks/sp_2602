@@ -29,7 +29,7 @@ export const usageSyncBatches = pgTable("usage_sync_batches", {
   index("usage_sync_batches_child_received_idx").on(table.childId, table.receivedAt),
 ]);
 
-/** Per-date C8 snapshot, preserving the device measurement time and restricted total. */
+/** Per-date C8 snapshot, preserving the device measurement time and restricted total. Only the newest per child and date is kept (usage-persistence.ts). */
 export const usageDayReports = pgTable("usage_day_reports", {
   submissionId: uuid("submission_id").notNull(),
   childId: uuid("child_id").notNull(),
@@ -47,7 +47,7 @@ export const usageDayReports = pgTable("usage_day_reports", {
   check("usage_day_reports_restricted_minutes_nonnegative", sql`${table.restrictedMinutes} >= 0`),
 ]);
 
-/** Immutable app-level snapshot rows; each record is scoped to an app and date. */
+/** App-level snapshot rows of the kept day report; each record is scoped to an app and date (replaced with the day report). */
 export const usageRecords = pgTable("usage_records", {
   recordId: uuid("record_id").defaultRandom().primaryKey(),
   submissionId: uuid("submission_id").notNull(),
