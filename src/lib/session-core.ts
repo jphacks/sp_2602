@@ -70,21 +70,29 @@ export function createSessionCore(d: SessionCoreDeps): SessionCore {
   // Session が入れ替わった・消えた回数。待っている間に変わったら、その結果は捨てる
   let epoch = 0;
 
-  const forget = async (error: ApiError | null) => {
+  // ログアウト状態にする。消している間に入れ替わらなかったら（epoch がそのまま）true
+  const drop = async (error: ApiError | null): Promise<boolean> => {
     const at = ++epoch;
     kept = null;
     d.setToken(null);
     await d.clearSaved().catch(() => undefined);
     // 消している間に、ログインし直していたら（adopt）そちらを残す
-    if (epoch === at) d.setState({ status: "signedOut", error });
+    if (epoch !== at) return false;
+    d.setState({ status: "signedOut", error });
+    return true;
+  };
+
+  const forget = async (error: ApiError | null) => {
+    await drop(error);
   };
 
   // 合言葉が無効と言われた（401）。who はその合言葉の持ち主（分からなければ null）。
-  // 連携が外れた 401 なら、先にログアウト状態にして（子どもの画面を閉じ、制限の値を書き直す処理を止める）から片付ける
+  // 連携が外れた 401 なら、先にログアウト状態にして（子どもの画面を閉じ、制限の値を書き直す処理を止める）から片付ける。
+  // 消している間にログインし直していたら（adopt。epoch が変わった）片付けない（ログインし直した人の制限を止めない）
   const lose = async (who: Session | null, error: ApiError | null, notice: ApiError | null) => {
     const unlinked = isFamilyUnlinked(error);
-    await forget(unlinked ? error : notice);
-    if (unlinked && who) await d.clearUnlinked(who.userId).catch(() => undefined);
+    const still = await drop(unlinked ? error : notice);
+    if (still && unlinked && who) await d.clearUnlinked(who.userId).catch(() => undefined);
   };
 
   const expire = (error: ApiError) => lose(kept, error, EXPIRED_NOTICE);

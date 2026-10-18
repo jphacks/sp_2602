@@ -311,6 +311,38 @@ describe("session-core: 401 の理由（D-133）", () => {
     expect(t.cleared).toEqual([]);
   });
 
+  it("連携が外れた 401 で消している間にログインし直したら（adopt）、片付けない（ログインし直した人の制限を止めない）", async () => {
+    const { t, core } = setup(box);
+    await core.adopt(child);
+    const clearing = pause();
+    t.hold.clear = clearing.until;
+    const pending = core.expire(unlinkedError);
+    await tick();
+    await core.adopt(child);
+    clearing.release();
+    await pending;
+    expect(t.cleared).toEqual([]);
+    expect(t.state).toEqual({ status: "signedIn", session: child, offline: false });
+    expect(t.token).toBe(child.token);
+  });
+
+  it("起動時の確かめで連携が外れた 401 のとき、消している間に別の人でログインしたら片付けない", async () => {
+    const { t, core } = setup(box);
+    await saveSession(t.storage, box, child);
+    t.me = async () => {
+      throw new Unauthorized(unlinkedError);
+    };
+    const clearing = pause();
+    t.hold.clear = clearing.until;
+    const pending = core.verify();
+    await tick();
+    await core.adopt(parent);
+    clearing.release();
+    await pending;
+    expect(t.cleared).toEqual([]);
+    expect(t.state).toEqual({ status: "signedIn", session: parent, offline: false });
+  });
+
   it("片付けが失敗しても、ログアウト状態と理由の帯はそのまま", async () => {
     const { t, core } = setup(box);
     await core.adopt(child);
