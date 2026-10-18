@@ -151,3 +151,29 @@ describe("V: 利用記録の日付は、保存期間（今日から190日前）�
     }
   });
 });
+
+describe("V: 親が見る利用記録（usageGet）の極端な日付は、すぐに 400 で断る（セキュリティ検査 IN-04 / IPA-12）", () => {
+  // 前は from・to をともに 9999-12-31 にすると、日付の一覧づくり（contracts/dates.ts の datesInRange）が終わらず、応答が返らなかった
+  const query = (from: string, to: string) => post("/api/usage/get", { childId: CHILD_ID, from, to }, PARENT);
+
+  it("9999-12-31・0001-01-01・2100-01-01・1999-12-31 は bad_request（応答が返る）", async () => {
+    for (const [from, to] of [
+      ["9999-12-31", "9999-12-31"],
+      ["0001-01-01", "0001-01-01"],
+      ["2100-01-01", "2100-01-01"],
+      ["1999-12-31", "2000-01-01"],
+      ["2099-12-31", "9999-12-31"],
+    ] as const) {
+      const res = await query(from, to);
+      expect(res.status, `${from}〜${to}`).toBe(400);
+      expect(await codeOf(res)).toBe("bad_request");
+    }
+  });
+
+  it("受け付ける年の端（2000-01-01・2099-12-31）は、その日の1件を返す", async () => {
+    for (const date of ["2000-01-01", "2099-12-31"]) {
+      const r = await ok<{ days: { date: string; recorded: boolean }[] }>(query(date, date));
+      expect(r.days, date).toEqual([expect.objectContaining({ date, recorded: false })]);
+    }
+  });
+});

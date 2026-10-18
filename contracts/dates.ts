@@ -30,11 +30,17 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((toMs(b) - toMs(a)) / DAY_MS);
 }
 
-// from〜to（両端を含む）の日付の一覧
+// datesInRange が一度に作る日数の上限（契約の IsoDate が受け付ける 2000〜2099 年がちょうど入る）
+export const MAX_RANGE_DAYS = 36_600;
+
+// from〜to（両端を含む）の日付の一覧。to が from より前・読めない日付なら空。MAX_RANGE_DAYS を超えたら RangeError。
+// なぜ文字列の比較で回さないか: 9999-12-31 の翌日は "+010000-01" になり、"9999-12-31" より小さいと比べられるうえ、
+// その翌日もまた "+010000-01" に戻るので、終わらない繰り返しになった（セキュリティ検査 IN-04: 利用記録の取得が応答しなかった）
 export function datesInRange(from: string, to: string): string[] {
-  const out: string[] = [];
-  for (let d = from; d <= to; d = addDays(d, 1)) out.push(d);
-  return out;
+  const n = daysBetween(from, to);
+  if (!Number.isFinite(n) || n < 0) return [];
+  if (n >= MAX_RANGE_DAYS) throw new RangeError(`日付の範囲が長すぎます（${from}〜${to}）`);
+  return Array.from({ length: n + 1 }, (_, i) => addDays(from, i));
 }
 
 // その日を含む週の月曜日（週の表示は月〜日。Figma 子02・親01 の並び）
