@@ -3,12 +3,13 @@
 //   右「テストまで」: 「あと 13 日」。テストの日程を渡し、次のテストは Kotlin が描くたびに選ぶ（子どものウィジェットと同じ）
 // ウィジェットは Slope が動いていないときにも描かれるので、今日から先の日ごとの値をまとめて渡す
 // （保護者が何日か Slope を開かなくても、その日の値が出る。一覧にない日は Kotlin が「Slope を開くと出ます」と出す）。
-// 渡し方: ParentDataProvider（src/lib/parent-data.tsx）が設定を取るたびに native.saveParentWidget(parentWidgetData(...))。
+// 渡し方: ParentWidgetSync（ParentDataProvider の中）が設定を取るたびに parentWidgetUpdate で決めて native.saveParentWidget(...)。
 // 子どもとつながっていない（連携を外した・家族が空）ときは unlinkedParentWidgetData（前の子どもの数字を残さない。D-133）。
 // 取れない値は 0 と出さず、文で知らせる（docs/architecture.md 4章）。
 import { addDays } from "@contracts/dates";
 import type { NativeParentReduction, NativeParentWidget } from "@contracts/native";
-import type { ConfigSnapshot } from "@contracts/schemas";
+import type { Child, ConfigSnapshot } from "@contracts/schemas";
+import type { ConfigState } from "@/lib/config-cache";
 import { md } from "./format";
 import { limitReduction, type Reduction } from "./review";
 
@@ -58,4 +59,21 @@ export function parentWidgetData(
     }),
     testPeriods: snapshot.testPeriods.map(({ name, startDate, endDate }) => ({ name, startDate, endDate })),
   };
+}
+
+// 設定（C7）と家族の一覧から、ウィジェットに保存する値を決める（ParentWidgetSync.tsx が使う。null = 保存しない＝前の値を残す）。
+//   家族の一覧が空 → 「つながっていません」（D-133）
+//   設定がない・取れない（unavailable）→ 保存しない（0 分減と出さない）
+//   設定の子どもが家族の一覧にいない → 保存しない。なぜ: 連携を外す前に始まった読み直しが外したあとに届くと、
+//     前の子どもの値でウィジェットを上書きしてしまうため（D-133 の再検査）。一覧がまだ読めていない（null）ときは保存する
+export function parentWidgetUpdate(
+  config: ConfigState | null,
+  family: readonly Pick<Child, "id">[] | null,
+  today: string,
+): NativeParentWidget | null {
+  if (family != null && family.length === 0) return unlinkedParentWidgetData(today);
+  if (!config || config.status === "unavailable") return null;
+  const childId = config.snapshot.childId;
+  if (family != null && !family.some((c) => c.id === childId)) return null;
+  return parentWidgetData(config.snapshot, today);
 }

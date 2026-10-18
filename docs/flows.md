@@ -228,7 +228,7 @@ sequenceDiagram
 | 子どもの端末（アプリ） | `src/lib/session-core.ts` の `expire`・`verify`（上の 1章「連携が外れた 401」） |
 | 子どもの端末（Kotlin） | 監視（`MonitorService`）の見張りに相乗りして、画面がついている間は約1分ごと・消えている間は 15 分ごとに `authCheck` を呼ぶ（`engine/SessionCheck.kt`。D-134）。許可の状態の送信（`StatusReporter`）も同じ。401 + `family_unlink` を受けたら、アプリを開いていなくても `LocalData.clearUnlinked`（ログアウトと同じく監視を止めて端末の値を消し、Device Owner もやめる）。送っている間に JS が新しい合言葉を渡していたら何もしない |
 | 保護者の行き先 | 「連携を外しました」の OK（戻るも同じ）で `router.replace("/pair/parent")`。読み取りの画面から戻っても、外す前の設定の画面には戻らない。読み取りの「やめる」は今までどおり役割選び（`/pair`） |
-| 保護者のウィジェット（親08） | 外した直後に `unlinkedParentWidgetData`（毎日「つながっていません ／ 子どもと QR でつなぐと出ます」・テストなし）を保存。その後も家族の一覧が空なら `ParentWidgetSync` が同じものを保存する（前の子どもの数字を残さない） |
+| 保護者のウィジェット（親08） | 外した直後に `unlinkedParentWidgetData`（毎日「つながっていません ／ 子どもと QR でつなぐと出ます」・テストなし）を保存。その後も家族の一覧が空なら `ParentWidgetSync` が同じものを保存する（前の子どもの数字を残さない）。外す前に始まった読み直しが外したあとに届いても、前の子どもの値で上書きしない: 設定のキャッシュは取りに行っている間に `clear` された子どもの結果を書かずに捨て（`config-cache.ts`）、ウィジェットは設定の子どもが家族の一覧にいるときだけ保存する（`widget.ts` の `parentWidgetUpdate`） |
 
 ## 4. 通常上限を決める
 

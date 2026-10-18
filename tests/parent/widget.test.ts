@@ -2,11 +2,13 @@
 // 「初日から 40 分 減」「上限 300→260分」が親03 振り返りと同じ数字になること、数字を出せない日は 0 ではなく文になること、
 // 先の日の分まで渡す（保護者が Slope を開かない日もウィジェットがその日の値を出せる）ことを確かめる。
 import type { ConfigSnapshot, DailyLimit, PlanSettings, TestPeriod } from "@contracts/schemas";
+import type { ConfigState } from "@/lib/config-cache";
 import { describe, expect, it } from "vitest";
 import { limitReduction } from "@/components/parent/review";
 import {
   PARENT_WIDGET_DAYS,
   parentWidgetData,
+  parentWidgetUpdate,
   reductionForWidget,
   unlinkedParentWidgetData,
 } from "@/components/parent/widget";
@@ -129,5 +131,41 @@ describe("子どもとつながっていない保護者のウィジェット（D
         title: "つながっていません",
         body: "子どもと QR でつなぐと出ます",
       });
+  });
+});
+
+describe("parentWidgetUpdate（保存するかと、その値。ParentWidgetSync が使う）", () => {
+  const full = (childId: string): ConfigSnapshot => ({
+    ...snap(),
+    childId,
+    configVersion: 3,
+    calculationVersion: 3,
+    usualLimitMinutes: 300,
+    blankPeriods: [],
+    excludedApps: [],
+    blockedSites: [],
+    generatedAt: "2026-10-15T00:00:00.000Z",
+  });
+  const fresh = (childId: string): ConfigState => ({ status: "fresh", snapshot: full(childId), savedAt: "x" });
+  const a = { id: "child-a" };
+  const b = { id: "child-b" };
+
+  it("家族の一覧にいる子どもの設定なら、その値を保存する（一覧がまだ読めていない null のときも）", () => {
+    expect(parentWidgetUpdate(fresh("child-a"), [a, b], today)).toEqual(parentWidgetData(full("child-a"), today));
+    expect(parentWidgetUpdate(fresh("child-a"), null, today)).toEqual(parentWidgetData(full("child-a"), today));
+  });
+
+  it("家族の一覧が空なら「つながっていません」（設定が残っていても）", () => {
+    expect(parentWidgetUpdate(fresh("child-a"), [], today)).toEqual(unlinkedParentWidgetData(today));
+    expect(parentWidgetUpdate(null, [], today)).toEqual(unlinkedParentWidgetData(today));
+  });
+
+  it("外したあとに届いた前の子どもの設定（一覧にいない子ども）では保存しない（前の子どもの値で上書きしない）", () => {
+    expect(parentWidgetUpdate(fresh("child-a"), [b], today)).toBeNull();
+  });
+
+  it("設定がない・取れない（unavailable）なら保存しない（0 分減と出さない）", () => {
+    expect(parentWidgetUpdate(null, [a], today)).toBeNull();
+    expect(parentWidgetUpdate({ status: "unavailable", error: null }, [a], today)).toBeNull();
   });
 });

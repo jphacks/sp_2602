@@ -223,6 +223,89 @@ describe("createConfigCache", () => {
     expect(r.snapshot.configVersion).toBe(5);
   });
 
+  it("取りに行っている間にその子どもの組を消したら（連携を外した）、届いた組を書かずに捨てる（unavailable）", async () => {
+    const storage = memoryStorage();
+    let release: (r: ConfigResult) => void = () => {};
+    const cache = createConfigCache({
+      storage,
+      fetchConfig: () =>
+        new Promise<ConfigResult>((r) => {
+          release = r;
+        }),
+    });
+    const pending = cache.refresh("c1");
+    await new Promise((r) => setTimeout(r, 0));
+    await cache.clear("c1");
+    release(changed(snap(3)));
+    expect(await pending).toEqual({ status: "unavailable", error: null });
+    expect(storage.data.has(storageKeys.config("c1"))).toBe(false);
+    expect(storage.data.get(storageKeys.configIndex) ?? "[]").not.toContain("c1");
+    expect(await cache.load("c1")).toEqual({ status: "unavailable", error: null });
+  });
+
+  it("取りに行っている間に消したら、通信の失敗でも前の組を stale で返さない（前の子どもの値を出さない）", async () => {
+    const storage = memoryStorage();
+    let calls = 0;
+    let fail: (e: unknown) => void = () => {};
+    const cache = createConfigCache({
+      storage,
+      fetchConfig: async () => {
+        if (++calls === 1) return changed(snap(2));
+        return new Promise<ConfigResult>((_, reject) => {
+          fail = reject;
+        });
+      },
+    });
+    await cache.refresh("c1"); // 版 2 を保存
+    const pending = cache.refresh("c1");
+    await new Promise((r) => setTimeout(r, 0));
+    await cache.clear("c1");
+    fail(networkError());
+    expect(await pending).toEqual({ status: "unavailable", error: null });
+  });
+
+  it("書いている途中に消されても、書いた組を残さない", async () => {
+    const storage = memoryStorage();
+    let cache: ReturnType<typeof createConfigCache> | null = null;
+    const setItem = storage.setItem;
+    let cleared = false;
+    storage.setItem = async (k, v) => {
+      await setItem(k, v);
+      // 組を書いた直後に、外した画面が clear を呼んだ形
+      if (k === storageKeys.config("c1") && !cleared) {
+        cleared = true;
+        await cache?.clear("c1");
+        await setItem(k, v); // 遅れて届いた書き込み（消したあとに戻ってしまう）
+      }
+    };
+    cache = createConfigCache({ storage, fetchConfig: async () => changed(snap(3)) });
+    expect(await cache.refresh("c1")).toEqual({ status: "unavailable", error: null });
+    expect(storage.data.has(storageKeys.config("c1"))).toBe(false);
+  });
+
+  it("ほかの子どもの組を消しても、取りに行っている子どもの結果は捨てない。ログアウト（clearAll）なら捨てる", async () => {
+    const storage = memoryStorage();
+    let release: (r: ConfigResult) => void = () => {};
+    const cache = createConfigCache({
+      storage,
+      fetchConfig: () =>
+        new Promise<ConfigResult>((r) => {
+          release = r;
+        }),
+    });
+    const first = cache.refresh("c1");
+    await new Promise((r) => setTimeout(r, 0));
+    await cache.clear("c2");
+    release(changed(snap(3)));
+    expect((await first).status).toBe("fresh");
+    const second = cache.refresh("c1");
+    await new Promise((r) => setTimeout(r, 0));
+    await cache.clearAll();
+    release(changed(snap(4)));
+    expect(await second).toEqual({ status: "unavailable", error: null });
+    expect(storage.data.has(storageKeys.config("c1"))).toBe(false);
+  });
+
   it("load は通信せずに端末の組だけを返す（not_checked の stale）", async () => {
     const storage = memoryStorage();
     const cache = createConfigCache({ storage, fetchConfig: async () => changed(snap(1)) });
