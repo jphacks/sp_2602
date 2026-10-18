@@ -433,7 +433,8 @@ C7 の決まり（`src/lib/config-cache.ts`）:
   → 子01 の「見守りのための許可」に「ユーザー補助（Slope）」が並ぶ（登録が1つ以上あり、まだオンでないときだけ）
      → 押すと Android の「ユーザー補助」の設定が開く（EnginePermissions の ACCESSIBILITY）→ 子どもの端末の人が Slope をオンにする
 Kotlin（engine/WebGuardService.kt。ユーザー補助のサービス。Chrome・Samsung Internet・Firefox・Edge の出来事だけが届く）
-  → 出来事のたびに: 見守りが動いている・today_usage が今日の分で reached・登録がある、でなければ何もしない（画面の中も読まない）
+  → 出来事のたび・EngineStore の値が変わったとき・15 秒ごと（開いたままのページも止めるため）に、今前にある画面を確かめる:
+     見守りが動いている・today_usage が今日の分で reached・登録がある、でなければ何もしない（画面の中も読まない）
   → アドレス欄（view id。ブラウザごと）を探し、入力中（focused）なら判定しない
   → アドレス欄の文字が登録に当たれば（WebSites.matches）:
        ブラウザを1つ前に戻す（GLOBAL_ACTION_BACK。同じ登録には 2 秒あける）

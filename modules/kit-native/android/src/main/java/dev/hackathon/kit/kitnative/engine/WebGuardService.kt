@@ -43,7 +43,21 @@ class WebGuardService : AccessibilityService() {
 
     // 戻してから案内を出すまでの間（戻る動きの途中で画面を重ねると、戻るが効かないことがあるため）
     const val PROMPT_DELAY_MS = 300L
+
+    // 開いたままのページを確かめ直す間隔（監視の Service が上限に達している間に確かめる間隔 INTERVAL_REACHED_MS と同じ）
+    const val RECHECK_MS = 15_000L
   }
+
+  // 一定の間隔で今の画面を確かめ直す。
+  // なぜ: today_usage は中身が変わったときだけ書かれる（ブラウザを対象外アプリにすると、上限に達したあとも変わらない）ので、
+  //   値の変化だけを頼りにすると、開いたままのページが止まらないことがある。上限に達していなければ画面を読まずに終わるので軽い
+  private val recheck =
+    object : Runnable {
+      override fun run() {
+        checkActiveWindow()
+        main.postDelayed(this, RECHECK_MS)
+      }
+    }
 
   // 判定に使う値の写し（EngineStore の値が変わったら捨てて、次の出来事で読み直す）
   private data class State(val rule: Restriction?, val today: TodaySummary?, val enabled: Boolean)
@@ -54,17 +68,35 @@ class WebGuardService : AccessibilityService() {
   private val gate = WebBlockGate()
   private var gateDate: String? = null
 
-  // SharedPreferences は受け手を弱い参照で持つので、フィールドに持ち続ける
-  private val storeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> state = null }
+  // SharedPreferences は受け手を弱い参照で持つので、フィールドに持ち続ける。
+  // 値が変わったら写しを捨て、今前にある画面も確かめ直す。
+  // なぜ: 出来事（アドレス欄・画面の変化）のときだけ確かめていたので、上限に達する前から開いていたページを、達したあとも
+  //   そのまま見続けられた（実機 SC-53C）。監視の Service は上限に達している間 15 秒ごとに today_usage を書くので、
+  //   ここで確かめ直せば、開いたままのページも 15 秒ほどで止まる（同じ登録に出しすぎないのは WebBlockGate のまま）
+  private val storeListener =
+    SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+      state = null
+      main.post { checkActiveWindow() }
+    }
 
   override fun onServiceConnected() {
     super.onServiceConnected()
     EngineStore.registerListener(this, storeListener)
     state = null
+    main.removeCallbacks(recheck)
+    main.postDelayed(recheck, RECHECK_MS)
   }
 
   override fun onAccessibilityEvent(event: AccessibilityEvent?) {
     val pkg = event?.packageName?.toString() ?: return
+    if (pkg !in URL_BAR_IDS) return
+    checkActiveWindow()
+  }
+
+  // 今前にある画面がブラウザなら、アドレス欄を読んで判定する（出来事のときと、判定の値が変わったときに呼ぶ）
+  private fun checkActiveWindow() {
+    val front = rootInActiveWindow ?: return
+    val pkg = front.packageName?.toString() ?: return
     val ids = URL_BAR_IDS[pkg] ?: return
     val now = System.currentTimeMillis()
     val today = DayWindow.dateOf(now)
@@ -75,9 +107,7 @@ class WebGuardService : AccessibilityService() {
     val s = currentState()
     // 上限に達していない・登録がない・ログアウト後なら、画面の中を読まずに終わる（ふだんはここで終わる）
     if (!WebBlockRules.isActive(s.rule, s.today, today, s.enabled)) return
-    val root = rootInActiveWindow ?: return
-    if (root.packageName?.toString() != pkg) return // 前にあるのが別の窓（キーボードなど）
-    val bar = findUrlBar(root, ids) ?: return
+    val bar = findUrlBar(front, ids) ?: return
     val pattern =
       WebBlockRules.blockedPattern(bar.text?.toString(), bar.isFocused, s.rule, s.today, today, s.enabled) ?: return
     val action = gate.decide(pattern, now)
