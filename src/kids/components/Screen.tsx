@@ -3,10 +3,10 @@
 // （上のバー 64・左右 24 の本文・下に固定する footer・キーボードを避ける決まり）。
 // 形（Figma 34:2138）:
 //   - 地はほうろうの白板（bg）
-//   - 題名は見出しの書体 Yusei Magic 22（x=16）。戻るボタンは手描きの arrow_back
+//   - 題名は BIZ UDPゴシック Bold 22（x=16。書体は D-135）。戻るボタンは手描きの arrow_back
 //   - 題名が「Slope」のときはアプリ名の形: Londrina Solid 30 の「Slope」（Figma 子01・子08・子13〜子19）。
 //     Figma ではアプリ名の横に「（子）」「（親）」を添えていたが、どの画面でも出さない（ログイン画面のように親子どちらにも出る画面で、
-//     片方の名前が出てしまうため。2026-10-18 に決めた。D-132）。この部分は写した元（tmp/animations）より先に、ここで直した
+//     片方の名前が出てしまうため。2026-10-18 に決めた。D-132）
 import { tokens } from "@contracts/tokens";
 import { type ReactNode, useEffect, useState } from "react";
 import { AppState, Keyboard, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { nextKeyboardAvoid } from "@/components/keyboard-avoid";
 import { Text, TextInput } from "@/kids/lib/text";
 import { makeStyles, useColors } from "@/lib/theme";
+import { fonts } from "../theme/tool";
 import { makeToolStyles, useTool } from "../tools";
 import { AppText } from "./AppText";
 import { ButtonContext } from "./Button";
@@ -157,10 +158,9 @@ const useColorStyles = makeStyles((c) =>
   }),
 );
 
-// アプリ名「Slope」（大きな数字の書体）と「（子）」（見出しの書体）。書体は今の道具のもの
-const useBrandStyles = makeToolStyles(({ fonts }) =>
+// アプリ名のロゴ「Slope」（アプリのアイコンと同じ字形。字ではなく図として扱うので、ここだけロゴの書体 Londrina Solid。D-135）
+const useBrandStyles = makeToolStyles(() =>
   StyleSheet.create({
-    brand: { fontFamily: fonts.number, fontWeight: "900", fontSize: 30, lineHeight: 35, letterSpacing: 0.3 },
-    who: { fontFamily: fonts.heading, fontWeight: fonts.headingWeight ?? "400", fontSize: 16, lineHeight: 23 },
+    brand: { ...fonts.logo, fontSize: 30, lineHeight: 35, letterSpacing: 0.3 },
   }),
 );

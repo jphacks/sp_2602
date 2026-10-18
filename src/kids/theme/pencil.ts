@@ -11,7 +11,7 @@
 //   - 使った時間＝緑の仲間（鉛筆の軸 #525735・数字 #246D47・蛍光ペンの緑）。テスト＝ピンクの蛍光ペンと赤ペン
 //   - カード・帯・入力欄は地を塗らない（紙に直接書く）。だから「〜Soft」の地は紙と同じ色
 import type { ColorPalette } from "@contracts/tokens";
-import { fonts as baseFonts, type ToolValues } from "./tool";
+import type { ToolValues } from "./tool";
 
 const lead = "#3C3C3C"; // トンボ 8900 HB の芯（文字・枠）。黒ではなく黒鉛の灰色
 const paper = "#ECE2CD"; // MD ノートのクリームの紙
@@ -108,15 +108,7 @@ export const pencilTiming = {
   select: 200, // テーマの選択
 } as const;
 
-// 書体: 見出し＝Klee One SemiBold（Figma）。本文・大きな数字はホワイトボードと同じ。
-// 確認ページは Google Fonts の Klee One 600 だけを読み込んでいるので、AppText の fontWeight "400" でも 600 の字で描かれる。
-// アプリでは expo-font の名前（例 "KleeOne_600SemiBold"）にここで替える（Android は太さを名前で分けるため）
-export const pencilFonts = {
-  heading: "Klee One",
-  headingWeight: "600",
-  body: baseFonts.body,
-  number: baseFonts.number,
-} as const; // 見出しは Klee One SemiBold
+// 書体はほかのモードと同じ（theme/tool.ts の fonts。前は見出しだけ Klee One SemiBold だった。D-135）
 
 // ノートの道具の値の組
 export const pencilTool: ToolValues = {
@@ -138,7 +130,6 @@ export const pencilTool: ToolValues = {
   frame: { radius: 4, wobble: 0.8 },
   // 点線の箱をカードの中の幅いっぱいに（Figma 子01: 箱は左右の余白 20 の内側いっぱい）。芯の先（8px）だけは見せる
   usedBar: { insetLeft: 0, insetRight: 0, minLength: 8 },
-  fonts: pencilFonts,
   timing: pencilTiming,
   chart: { heightSmall: 118 }, // 週の棒の場所（Figma ノートの子02 は鉛筆を立てるので約 118。土台の担当が足した）
 };

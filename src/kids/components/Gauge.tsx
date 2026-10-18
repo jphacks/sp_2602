@@ -1,7 +1,7 @@
 // tmp/animations/rnweb/whiteboard/components/Gauge.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
 // 円形ゲージ（ホワイトボード・子02 の「今日の使用量」）。props と動きはアプリの Gauge（src/components/Gauge.tsx）と同じ。
 // 形（Figma 子02・子02-B・子02-C）: 緑マーカーで円を引く（太さ 13・弧の長さ＝割合・上から時計回り）。下に道筋のうすい円（3px）。
-//   中央の数字は Londrina Solid の濃い緑（使った時間の色）、「％」と「使いました」は ink の本文の書体。
+//   中央の数字は太字（Bold）の濃い緑（使った時間の色）、「％」と「使いました」は ink の本文の太さ。
 //   100% は一周して書き始めと少し重なる（marker/MarkerRing）。tone="danger" でも赤にしない（赤はテストの色。到達は 100 の数字と弾みで伝える）
 // 動き（src/lib/motion.ts の決まりどおり。アプリと同じ）:
 //   - 値が最初に分かったとき、円が 0 から値まで伸び、中央の数字も同じ時間（900ms）で数え上がる（delay で始まりを遅らせられる）
@@ -15,7 +15,8 @@ import { Animated, StyleSheet, View } from "react-native";
 import { Text } from "@/kids/lib/text";
 import { motion, useAnimatedNumber } from "@/lib/motion";
 import { useColors } from "@/lib/theme";
-import { makeToolStyles, useTool } from "../tools";
+import { fonts } from "../theme/tool";
+import { useTool } from "../tools";
 import { AppText } from "./AppText";
 
 const PULSE_SCALE = 1.03;
@@ -35,7 +36,7 @@ const RING_DROP = 6;
 export function Gauge({ percent, caption, tone: _tone, valueTone: _valueTone, delay = 0 }: Props) {
   const c = useColors();
   const { Ring, values } = useTool();
-  const text = useNumberStyles();
+  const text = numberStyles;
   const p = percent == null ? null : Math.min(100, Math.max(0, percent));
   const { value, display, reduced } = useAnimatedNumber(p, { delay });
   const lastShown = useRef(0);
@@ -123,16 +124,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "baseline", gap: tokens.space[1], paddingLeft: 14 },
 });
 
-// 中央の数字（今の道具の大きな数字の書体）と「％」（本文の書体）
-const useNumberStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    number: {
-      fontFamily: fonts.number,
-      fontWeight: "900",
-      fontSize: tokens.font.ring,
-      lineHeight: tokens.lineHeight.ring,
-      marginBottom: -10,
-    },
-    unit: { fontFamily: fonts.body, fontSize: tokens.font.xl, lineHeight: tokens.lineHeight.xl },
-  }),
-);
+// 中央の数字（太字）と「％」（本文の太さ）
+const numberStyles = StyleSheet.create({
+  number: { ...fonts.bold, fontSize: tokens.font.ring, lineHeight: tokens.lineHeight.ring, marginBottom: -10 },
+  unit: { ...fonts.body, fontSize: tokens.font.xl, lineHeight: tokens.lineHeight.xl },
+});

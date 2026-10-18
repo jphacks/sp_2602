@@ -1,7 +1,7 @@
 // tmp/animations/rnweb/whiteboard/components/Button.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
 // ボタン（ホワイトボード）。props はアプリの Button（src/components/Button.tsx）と同じ。押せる高さは必ず 44 以上。
 // 形（Figma 34:2138・kids-design-rules.md 3 章）。丸いボタンは手描きの枠にしない（まっすぐな線のまま）:
-//   primary（主ボタン）＝ 黒（ink）の地にボードの白の文字の丸いボタン。高さ 56・全幅・BIZ UDPGothic Bold 16
+//   primary（主ボタン）＝ 黒（ink）の地にボードの白の文字の丸いボタン。高さ 56・全幅・BIZ UDPゴシック Bold 16
 //   outline（副ボタン）＝ 地なし、ink の 1px の線の丸いボタン。高さ 56・全幅
 //   soft（「詳しく見る ›」）＝ 地なし、ink の線の小さい丸いボタン（見た目の高さ 40。押せる高さは 44）。文字 14 の太字
 //   text（ダイアログの OK・「ログアウト」）＝ 文字だけ。ink の太字 16（帯の中では 14）。下に線は引かない
@@ -15,7 +15,8 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { keepTailTogether } from "@/components/text-wrap";
 import { Text } from "@/kids/lib/text";
 import { makeStyles, useColors } from "@/lib/theme";
-import { makeToolStyles, useTool } from "../tools";
+import { fonts } from "../theme/tool";
+import { useTool } from "../tools";
 import { Icon, type IconName } from "./Icon";
 
 type Variant = "primary" | "outline" | "soft" | "text" | "pill";
@@ -51,7 +52,7 @@ export function Button({
   danger: _danger,
 }: Props) {
   const styles = useStyles();
-  const text = useLabelStyles();
+  const text = labelStyles;
   const c = useColors();
   const { Spinner, ButtonLine, ButtonFill, values } = useTool();
   const [face, setFace] = useState({ w: 0, h: 0 });
@@ -171,16 +172,8 @@ const useStyles = makeStyles((c) =>
   }),
 );
 
-// ボタンの文字（今の道具の本文の書体の太字 16。小さいボタンは 14）
-const useLabelStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    label: {
-      fontFamily: fonts.body,
-      fontWeight: "700",
-      fontSize: tokens.font.base,
-      lineHeight: 20,
-      textAlign: "center",
-    },
-    labelSmall: { fontSize: tokens.font.sm, lineHeight: tokens.lineHeight.sm },
-  }),
-);
+// ボタンの文字（太字 16。小さいボタンは 14）
+const labelStyles = StyleSheet.create({
+  label: { ...fonts.bold, fontSize: tokens.font.base, lineHeight: 20, textAlign: "center" },
+  labelSmall: { fontSize: tokens.font.sm, lineHeight: tokens.lineHeight.sm },
+});

@@ -1,7 +1,7 @@
 // tmp/animations/rnweb/whiteboard/components/MessageView.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
 // 大きいアイコン＋題名＋本文＋下のボタン（ホワイトボード・QR・連携の画面 子13〜子19・共01〜共03・入01・子18-B）。
 // props はアプリの MessageView と同じ。待っている間は icon の代わりに今の道具のくるくる（useTool().Spinner。ホワイトボードは黒マーカー）。
-// 題名は見出しの書体（Yusei Magic）、本文は 14 の muted（中央）。tone・iconTone で色を変えない（IconBadge）。
+// 題名は太字 20、本文は 14 の muted（中央）。tone・iconTone で色を変えない（IconBadge）。
 //   <MessageView icon="check" tone="success" title="連携が完了しました" body="…" actions={<Button label="はじめる" onPress={…} />} />
 import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";

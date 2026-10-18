@@ -15,7 +15,7 @@ import { keepTailTogether } from "@/components/text-wrap";
 import { Card, Icon } from "@/kids/components";
 import { Text } from "@/kids/lib/text";
 import { makeStyles, useColors } from "@/lib/theme";
-import { makeToolStyles } from "../../tools";
+import { fonts } from "../../theme/tool";
 import { PhraseText } from "./PhraseText";
 
 type Props = { items: readonly PermissionGuideItem[]; onOpen: (permission: NativePermission) => void };
@@ -23,7 +23,7 @@ type Props = { items: readonly PermissionGuideItem[]; onOpen: (permission: Nativ
 export function PermissionGuideCard({ items, onOpen }: Props) {
   const c = useColors();
   const styles = useStyles();
-  const text = useTextStyles();
+  const text = textStyles;
   if (items.length === 0) return null;
   return (
     <Card>
@@ -81,12 +81,10 @@ const useStyles = makeStyles((c) =>
   }),
 );
 
-// 見出し（見出しの書体 17。「今日の使用量」と同じ）・説明（12）・行の題名（太字 14）・行の説明（12）。Figma 子01-B の大きさ
-const useTextStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    title: { fontFamily: fonts.heading, fontWeight: "400", fontSize: 17, lineHeight: 22 },
-    body: { fontFamily: fonts.body, fontWeight: "400", fontSize: tokens.font.xs, lineHeight: 18 },
-    itemTitle: { fontFamily: fonts.body, fontWeight: "700", fontSize: tokens.font.sm, lineHeight: 20 },
-    itemBody: { fontFamily: fonts.body, fontWeight: "400", fontSize: tokens.font.xs, lineHeight: 16 },
-  }),
-);
+// 見出し（太字 17。「今日の使用量」と同じ）・説明（12）・行の題名（太字 14）・行の説明（12）。Figma 子01-B の大きさ
+const textStyles = StyleSheet.create({
+  title: { ...fonts.bold, fontSize: 17, lineHeight: 22 },
+  body: { ...fonts.body, fontSize: tokens.font.xs, lineHeight: 18 },
+  itemTitle: { ...fonts.bold, fontSize: tokens.font.sm, lineHeight: 20 },
+  itemBody: { ...fonts.body, fontSize: tokens.font.xs, lineHeight: 16 },
+});

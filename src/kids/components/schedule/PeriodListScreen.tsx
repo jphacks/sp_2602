@@ -13,6 +13,7 @@ import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Chip, Reveal, RevealGroup, Screen, StateView } from "@/kids/components";
 import { Text } from "@/kids/lib/text";
+import { fonts } from "../../theme/tool";
 import { makeToolStyles } from "../../tools";
 import {
   appliedStatus,
@@ -118,12 +119,11 @@ const styles = StyleSheet.create({
   applied: { gap: tokens.space[1], alignItems: "flex-start" },
 });
 
-// 「終わったテスト」（Figma 子10-C: 見出しの書体 14・ink・枠の左から 4。前の行との間を少し広く空けて区切る）
-const useTextStyles = makeToolStyles(({ fonts, colors }) =>
+// 「終わったテスト」（Figma 子10-C: 太字 14・ink・枠の左から 4。前の行との間を少し広く空けて区切る）
+const useTextStyles = makeToolStyles(({ colors }) =>
   StyleSheet.create({
     pastHeader: {
-      fontFamily: fonts.heading,
-      fontWeight: "400",
+      ...fonts.bold,
       fontSize: tokens.font.sm,
       lineHeight: tokens.lineHeight.sm,
       color: colors.ink,

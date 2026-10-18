@@ -9,7 +9,7 @@
 //   - 使った時間＝黄チョーク、テスト＝ピンクのチョーク、上限＝点線の枠。今の名前にない色は下の chalk にまとめる（あとで tokens.ts に足す）
 //   - カード・帯・ダイアログ・行は一段明るい黒板（surface）。入力欄・札は地を塗らない
 import type { ColorPalette } from "@contracts/tokens";
-import { fonts as markerFonts, type ToolValues } from "./tool";
+import type { ToolValues } from "./tool";
 
 const board = "#172420"; // 学校の黒板（JIS の黒板の緑をさらに暗くした色）
 const surface = "#1F2D28"; // 一段明るい黒板（消したあとに粉が残った所）
@@ -112,13 +112,7 @@ export const chalkTiming = {
   highlight: 260, // タブの下線
 } as const;
 
-// 書体: 見出し＝Klee One SemiBold（Figma の黒板の見出し）。本文・数字はほかのモードと同じ
-export const chalkFonts = {
-  heading: "Klee One",
-  headingWeight: "600", // Klee One SemiBold（AppText・Screen が読む）
-  body: markerFonts.body,
-  number: markerFonts.number,
-} as const;
+// 書体はほかのモードと同じ（theme/tool.ts の fonts。前は見出しだけ Klee One SemiBold だった。D-135）
 
 export const chalkTool: ToolValues = {
   name: "chalk",
@@ -137,6 +131,5 @@ export const chalkTool: ToolValues = {
   frame: { radius: 6, wobble: 0 }, // 定規で引いた線なので揺れない
   // 点線の枠はカードの中の幅いっぱい。チョークは枠の内側 4 から（ChalkStick が枠を左右 4 外へ広げて描く）
   usedBar: { insetLeft: 4, insetRight: 4, minLength: 13 },
-  fonts: chalkFonts,
   timing: { ...chalkTiming },
 };

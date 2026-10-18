@@ -1,7 +1,7 @@
 // 子ども用の文字が Android で切れないことのテスト（決まりは src/kids/fonts.ts の「Android で字が切れないための決まり」）。
 //   - letterSpacing は Android では外す（上のバーの「Slope」が「Slop」になったため）
 //   - 写した部品のスタイル（書体・大きさ・行の高さ）を src/kids のソースから集め、字の形が行の箱の上下からはみ出さないこと
-//     （ログインしないと出ない画面の文字も、ここで確かめる。黒板・ノートの見出しは Klee One、ホワイトボードは Yusei Magic なので両方）
+//     （ログインしないと出ない画面の文字も、ここで確かめる。文字はどのテーマでも BIZ UDPGothic、上のバーのロゴ「Slope」だけ Londrina Solid。D-135）
 //   - 書体の高さの表（KIDS_FONT_METRICS）が、assets/fonts の TTF の値と合っていること
 import fs from "node:fs";
 import path from "node:path";
@@ -34,27 +34,31 @@ describe("letterSpacing（Android）", () => {
 describe("行の高さと字の形のはみ出し", () => {
   it("行の高さが書体の高さより十分あれば、はみ出さない", () => {
     expect(inkOverflow("LondrinaSolid-Black", 30, 40)).toEqual({ top: 0, bottom: 0 });
-    expect(inkOverflow("YuseiMagic-Regular", 22, undefined)).toEqual({ top: 0, bottom: 0 });
+    expect(inkOverflow("BIZUDPGothic-Bold", 22, undefined)).toEqual({ top: 0, bottom: 0 });
+    // BIZ UDPGothic は書体の高さがちょうど 1em なので、行の高さが字の大きさと同じならはみ出さない
+    expect(inkOverflow("BIZUDPGothic-Bold", 56, 56)).toEqual({ top: 0, bottom: 0 });
   });
   it("Londrina Solid は、数字だけなら下に出ない（「p」は下に出る）", () => {
     expect(inkOverflow("LondrinaSolid-Black", 56, 58, "46").bottom).toBe(0);
     expect(inkOverflow("LondrinaSolid-Black", 56, 58, "Slope").bottom).toBeGreaterThan(INK_OVERFLOW_TOLERANCE);
     expect(inkOverflow("LondrinaSolid-Black", 30, 35, "Slope")).toEqual({ top: 0, bottom: 0 });
   });
-  it("行の高さを字の大きさと同じにすると、Yusei Magic の上下（濁点・「y」）がはみ出す", () => {
-    const o = inkOverflow("YuseiMagic-Regular", 22, 22);
+  it("行の高さを字の大きさより小さくすると、BIZ UDPGothic の上下（濁点・「g」）がはみ出す", () => {
+    const o = inkOverflow("BIZUDPGothic-Bold", 22, 18);
     expect(o.bottom).toBeGreaterThan(INK_OVERFLOW_TOLERANCE);
     expect(o.top).toBeGreaterThan(INK_OVERFLOW_TOLERANCE);
   });
 });
 
 // ── 写した部品のスタイルを集める ──
-// fontFamily が「fonts.number・fonts.heading・fonts.body」（か、AppText の ...number・...heading・...body）のオブジェクトで、
+// 書体を「...fonts.body・...fonts.bold・...fonts.logo」（src/kids/theme/tool.ts の fonts を広げたもの）か、
+// 「fontFamily: fonts.body.fontFamily」（太さはほかのスタイルが決める）で指定したオブジェクトで、
 // fontSize と lineHeight が数か tokens.font.X・tokens.lineHeight.X のもの
 const FACES_OF: Record<string, KidsFontFace[]> = {
-  number: ["LondrinaSolid-Black"],
-  heading: ["YuseiMagic-Regular", "KleeOne-SemiBold"],
-  body: ["BIZUDPGothic-Regular", "BIZUDPGothic-Bold"],
+  body: ["BIZUDPGothic-Regular"],
+  bold: ["BIZUDPGothic-Bold"],
+  family: ["BIZUDPGothic-Regular", "BIZUDPGothic-Bold"],
+  logo: ["LondrinaSolid-Black"],
 };
 
 function numberOf(expr: ts.Expression | undefined): number | undefined {
@@ -68,11 +72,10 @@ function numberOf(expr: ts.Expression | undefined): number | undefined {
 function roleOf(obj: ts.ObjectLiteralExpression): string | undefined {
   for (const p of obj.properties) {
     if (ts.isPropertyAssignment(p) && p.name.getText() === "fontFamily") {
-      const m = /fonts\.(number|heading|body)\b/.exec(p.initializer.getText());
-      if (m) return m[1];
+      if (/^fonts\.(body|bold)\.fontFamily$/.test(p.initializer.getText())) return "family";
     }
     if (ts.isSpreadAssignment(p)) {
-      const m = /^(number|heading|body)$/.exec(p.expression.getText());
+      const m = /^fonts\.(body|bold|logo)$/.exec(p.expression.getText());
       if (m) return m[1];
     }
   }
@@ -110,27 +113,30 @@ function collectStyles(): Found[] {
   return out;
 }
 
-// 大きな数字の書体（Londrina Solid）は、上のバーの「Slope」のほかは数字（「46」「100」「13」「3」）にしか使わない。
-// 数字は下に出ないので数字の上下で見る。「Slope」（Screen.tsx）は「p」が下に出るので字の上下で見る。
-// 数字の所に字を足したら、ここを直す（直さないと、下に出る字が切れても気づけない）
+// ロゴの書体（Londrina Solid）は上のバーの「Slope」にしか使わない（下の「ロゴの書体は…」で確かめる）。「p」が下に出るので「Slope」の字の上下で見る。
+// BIZ UDPGothic の文字は、何が入るか分からないので全部の字の上下で見る
 function sampleText(s: Found): string | undefined {
-  if (s.role !== "number") return undefined;
-  return s.file.endsWith("/Screen.tsx") ? "Slope" : "0123456789";
+  return s.role === "logo" ? "Slope" : undefined;
 }
 
 describe("写した部品の文字（src/kids）", () => {
   const styles = collectStyles();
 
-  it("書体・大きさ・行の高さを集められている（大きな数字・見出し・本文）", () => {
+  it("書体・大きさ・行の高さを集められている（ロゴ・大きな数字・見出し・本文）", () => {
     // 集め方が壊れて0件になったら気づくように、今ある代表を確かめる
     const has = (role: string, fontSize: number, lineHeight: number) =>
       styles.some((s) => s.role === role && s.fontSize === fontSize && s.lineHeight === lineHeight);
-    expect(has("number", 30, 35)).toBe(true); // 上のバーの「Slope」
-    expect(has("number", 56, 58)).toBe(true); // ホームの「46」
-    expect(has("number", tokens.font.ring, tokens.lineHeight.ring)).toBe(true); // 円の中の「100」
-    expect(has("heading", 16, 23)).toBe(true); // 「（子）」
-    expect(has("heading", tokens.font.xl, tokens.lineHeight.xl)).toBe(true); // 題名
+    expect(has("logo", 30, 35)).toBe(true); // 上のバーの「Slope」
+    expect(has("bold", 56, 58)).toBe(true); // ホームの「46」
+    expect(has("bold", tokens.font.ring, tokens.lineHeight.ring)).toBe(true); // 円の中の「100」
+    expect(has("bold", tokens.font.xl, tokens.lineHeight.xl)).toBe(true); // 題名
+    expect(has("body", tokens.font.base, tokens.lineHeight.base)).toBe(true); // 本文
     expect(styles.length).toBeGreaterThan(20);
+  });
+
+  it("ロゴの書体（Londrina Solid）は、上のバーのアプリ名「Slope」（Screen.tsx）だけに使う", () => {
+    const logos = styles.filter((s) => s.role === "logo").map((s) => s.file);
+    expect(logos).toEqual(["src/kids/components/Screen.tsx"]);
   });
 
   it("どの道具の書体でも、字の形が行の箱の上下からはみ出さない（Android は切れる）", () => {
