@@ -9,6 +9,7 @@
     "icon": "./assets/icon.png",
     "android": {
       "package": "com.quedotcom.androidslope",
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F9828A"
@@ -16,6 +17,7 @@
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
+      "./plugins/with-android-no-backup.ts",
       "expo-router",
       "expo-status-bar",
       [
