@@ -37,7 +37,9 @@ class MonitorService : Service() {
   companion object {
     const val NOTIFICATION_ID = 2600
     const val INTERVAL_MS = 30_000L
-    const val INTERVAL_REACHED_MS = 15_000L
+    // 上限に達している間は短い間隔で確かめる（開いてすぐ閉じるアプリも見逃さないため。前は 15 秒で、数秒だけ開くと素通りした。
+    // 実機 SC-53C の Gaming Hub）。数えるのはその日の分の出来事だけなので、5 秒ごとでも重くない
+    const val INTERVAL_REACHED_MS = 5_000L
 
     @Volatile
     var running = false

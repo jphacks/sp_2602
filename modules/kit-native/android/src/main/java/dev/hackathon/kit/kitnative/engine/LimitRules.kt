@@ -108,12 +108,12 @@ object LimitRules {
 }
 
 // 同じアプリに何度も案内を出し続けて、端末が使えなくならないようにする間隔の管理（C4）。
-//   - 同じアプリには samePackageGapMs（既定 60 秒）あける: 「閉じる」を押したあと、少しのあいだは触れる
-//   - どのアプリでも、前の案内から anyGapMs（既定 10 秒）はあける: アプリを次々に切り替えたときに連続で出さない
-// TODO(未決): 間隔の長さ（実機で子どもに試してもらって決める）。短いほど「止める」に近く、長いほど端末を使える
+//   - 同じアプリには samePackageGapMs（既定 10 秒）あける: 案内を出し続けて端末そのものが使えなくならないように
+//   - どのアプリでも、前の案内から anyGapMs（既定 3 秒）はあける: アプリを次々に切り替えたときに連続で出さない
+// 前は 60 秒・10 秒で、「閉じる」のあと同じアプリを 1 分近く使えた。ユーザーの指示で「開けなくする」に近づけた（2026-10-18、D-112）
 class PromptThrottle(
-  private val samePackageGapMs: Long = 60_000L,
-  private val anyGapMs: Long = 10_000L,
+  private val samePackageGapMs: Long = 10_000L,
+  private val anyGapMs: Long = 3_000L,
 ) {
   private val lastByPackage = HashMap<String, Long>()
   private var lastAny: Long? = null

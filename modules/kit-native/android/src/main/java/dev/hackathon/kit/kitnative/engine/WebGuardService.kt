@@ -45,7 +45,7 @@ class WebGuardService : AccessibilityService() {
     const val PROMPT_DELAY_MS = 300L
 
     // 開いたままのページを確かめ直す間隔（監視の Service が上限に達している間に確かめる間隔 INTERVAL_REACHED_MS と同じ）
-    const val RECHECK_MS = 15_000L
+    const val RECHECK_MS = 5_000L
   }
 
   // 一定の間隔で今の画面を確かめ直す。
@@ -71,8 +71,8 @@ class WebGuardService : AccessibilityService() {
   // SharedPreferences は受け手を弱い参照で持つので、フィールドに持ち続ける。
   // 値が変わったら写しを捨て、今前にある画面も確かめ直す。
   // なぜ: 出来事（アドレス欄・画面の変化）のときだけ確かめていたので、上限に達する前から開いていたページを、達したあとも
-  //   そのまま見続けられた（実機 SC-53C）。監視の Service は上限に達している間 15 秒ごとに today_usage を書くので、
-  //   ここで確かめ直せば、開いたままのページも 15 秒ほどで止まる（同じ登録に出しすぎないのは WebBlockGate のまま）
+  //   そのまま見続けられた（実機 SC-53C）。監視の Service は上限に達している間 5 秒ごとに today_usage を確かめるので、
+  //   ここで確かめ直せば（と下の 5 秒ごとの確かめ直しで）、開いたままのページも数秒で止まる（同じ登録に出しすぎないのは WebBlockGate のまま）
   private val storeListener =
     SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
       state = null
