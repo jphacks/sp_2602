@@ -52,9 +52,31 @@ export function canTrustUnlink(baseUrl: string, dev: boolean): boolean {
 // 子ども（役割 child）はできない。なぜ: ログアウトすると端末の制限（Kotlin の監視）が止まり、制限から逃げる道になるため。
 //   子どもの端末がログイン状態から抜けるのは、保護者が連携を外したとき（401 の family_unlink。D-133）だけ。
 // 保護者・役割が決まる前（/pair の役割選び。まだ制限がかかっていない）・ログインしていないときはできる。
-// session.tsx の signOut（子どもなら何もしない）と、入口 /pair の「ログアウト」（子どもには出さない）が使う
-export function canSignOut(session: Pick<Session, "role"> | null): boolean {
-  return session?.role !== "child";
+// ただし、この端末で監視（Kotlin の engine）が動いているとき（monitoring が true）は、役割によらず出さない。
+//   なぜ: 子どもの端末で、JS が family_unlink 以外の理由でログアウト状態になり（理由のない 401・封を開けられない・
+//   封ができない端末で開き直した）、役割のない別のアカウントでログインし直すと、/pair に「ログアウト」が出ていたため。
+// session.tsx の signOut（子どもなら何もしない）と、入口 /pair の「ログアウト」（子ども・監視が動いている端末には出さない）が使う
+export function canSignOut(session: Pick<Session, "role"> | null, monitoring = false): boolean {
+  return session?.role !== "child" && !monitoring;
+}
+
+// ログアウトのときの端末（Kotlin）の片付け（session.tsx の signOut が呼ぶ）。
+//   監視が動いている端末（子どもの端末）: 監視は止めない。保護者のウィジェットの値だけを消す（clearParentLocalData）。
+//     監視が止まるのは、保護者が連携を外したとき（family_unlink。D-133）だけ、とそろえる（D-136 の抜け道をふさぐ）
+//   動いていない端末（保護者の端末・まだ紐づけていない端末）: 端末に残した値を全部消す（clearLocalData）
+// 監視を残したら true
+export type SignOutDevice = {
+  isEngineEnabled: () => boolean;
+  clearLocalData: () => void;
+  clearParentLocalData: () => void;
+};
+export function clearDeviceOnSignOut(device: SignOutDevice): boolean {
+  if (device.isEngineEnabled()) {
+    device.clearParentLocalData();
+    return true;
+  }
+  device.clearLocalData();
+  return false;
 }
 
 export type SessionCoreDeps = {

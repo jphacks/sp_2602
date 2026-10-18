@@ -36,6 +36,7 @@ import java.util.TimeZone
 //   C2: getPermissions・openPermissionSettings・getDailyUsage
 //   Q15: getLauncherApps（ホーム画面に出るアプリの一覧。親16 の候補として JS がサーバへ送る）
 //   C4: saveRestriction・startEngine・stopEngine・getEngineStatus・showLimitReached・openApp・clearLocalData
+//   D-136: isEngineEnabled・clearParentLocalData（監視が動いている端末のログアウトで、監視を止めない）
 //   C5: saveParentWidget（保護者のウィジェット。子どものウィジェットの値は saveRestriction と監視が保存する）
 //   D-113: setStatusReporter・clearStatusReporter（許可の状態をサーバへ直接送る送り先と合言葉。engine/StatusReporter.kt）
 class KitNativeModule : Module() {
@@ -159,6 +160,19 @@ class KitNativeModule : Module() {
     // ウィジェットに残らないようにするため。中身は LocalData.kt（許可の状態を送った返事で外されたと分かったときも同じものを呼ぶ）
     Function("clearLocalData") {
       LocalData.clear(context)
+    }
+
+    // この端末で監視が動いているか（監視を続ける印が立っている・監視の Service が動いている）。
+    // 動いている端末（子どもの端末）では、JS はログアウトで clearLocalData を呼ばず（監視を止めない）、入口 /pair に
+    // 「ログアウト」も出さない（D-136 の抜け道をふさぐ。src/lib/session-core.ts の clearDeviceOnSignOut・canSignOut）
+    Function("isEngineEnabled") {
+      EngineStore.isEngineEnabled(context) || MonitorService.running
+    }
+
+    // 監視が動いている端末でログアウトしたときの片付け（LocalData.clearParent）。監視・判定の値・許可の状態の送り先は残し、
+    // 保護者のウィジェットの値だけを消して描き直す
+    Function("clearParentLocalData") {
+      LocalData.clearParent(context)
     }
 
     // デモ用の Device Owner（アンインストールの止め）をやめる。保護者に連携を外されたときだけ JS が呼ぶ（src/lib/session.tsx。D-133）。

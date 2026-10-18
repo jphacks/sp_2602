@@ -25,6 +25,8 @@ declare class KitNativeModule extends NativeModule {
   startEngine(): boolean;
   stopEngine(): void;
   getEngineStatus(): EngineStatus;
+  isEngineEnabled(): boolean;
+  clearParentLocalData(): void;
   showLimitReached(): boolean;
   openApp(packageName: string): boolean;
   clearLocalData(): void;

@@ -140,6 +140,13 @@ export const native: NativeEngine & {
   openApp: (packageName) => callSafe("openApp", false, packageName),
   clearLocalData: () => callSafe("clearLocalData", undefined),
   releaseDeviceOwner: () => callSafe("releaseDeviceOwner", false),
+  // 監視が動いているか（D-136）。isEngineEnabled のない古い Kotlin では、監視の Service が動いているか（getEngineStatus）で見る。
+  // Kotlin が例外を出したときは「動いている」とみなす（分からないときに、ログアウトで監視を止めないように）
+  isEngineEnabled: () => {
+    if (!pick("isEngineEnabled")) return callSafe("getEngineStatus", stopped).running;
+    return callSafe("isEngineEnabled", true);
+  },
+  clearParentLocalData: () => callSafe("clearParentLocalData", undefined),
 
   // ── D-113（許可の見張りと親への通告）──
   setStatusReporter: (url, token, childId) => callSafe("setStatusReporter", undefined, url, token, childId),

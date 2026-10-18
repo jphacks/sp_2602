@@ -10,7 +10,8 @@
 //     ログイン画面へ戻されないように（session-core.ts）
 //   - ログアウトは（保護者と役割が決まる前の人だけ。子どもはできない。D-136）、まず合言葉をサーバでも無効にし（authSignOut。通信できなくても進める）、保存を消し、Google のログインも外す。
 //     設定のキャッシュとその人の送信待ちも消す（sign-out.ts。別の人で入り直したときに、前の人の設定やデータが混ざらないように）。
-//     401 で自動でログアウトした（合言葉がもう無効）ときは、サーバには頼まない
+//     401 で自動でログアウトした（合言葉がもう無効）ときは、サーバには頼まない。
+//     この端末で監視が動いている（子どもの端末）ときは、ログアウトしても監視を止めない（clearDeviceOnSignOut。D-136）
 // 画面では: const { state, signIn, signOut, refresh } = useSession();
 //   state.status: "checking"（確かめ中）/ "signedOut"（ログインしていない）/ "signedIn"（session あり）
 import type { ApiError } from "@contracts/errors";
@@ -19,7 +20,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
-import { canSignOut, canTrustUnlink, createSessionCore, type SessionState } from "./session-core";
+import { canSignOut, canTrustUnlink, clearDeviceOnSignOut, createSessionCore, type SessionState } from "./session-core";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
 import { applyStatusReporter, statusReporterAction } from "./status-reporter";
 import { appStorage, clearSessionData } from "./storage";
@@ -114,10 +115,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       if (who) await revokeServerSession();
       await signOutGoogle();
       if (who) await clearLocalDataFor(who.userId).catch(() => undefined);
-      // C4・C5: 子どもの端末の監視（Kotlin の Foreground Service）を止め、Kotlin が端末に残した値（判定の値・今日の使用量・
-      // ウィジェットのテストの日程）を消してウィジェットを描き直す。再起動しても始めない（保護者の端末では消すものがないだけ）。
+      // C4・C5: Kotlin が端末に残した値を消してウィジェットを描き直す。
+      // 監視が動いている端末（子どもの端末で、役割のない人・保護者としてログインし直した）では、監視を止めず、
+      // 保護者のウィジェットの値だけを消す（監視が止まるのは連携が外れたときだけ。D-136。session-core.ts の clearDeviceOnSignOut）。
       // sign-out.ts の clearLocalDataFor から呼ばないのは、あちらを Node のテストで expo を読まずに動かすため
-      native.clearLocalData();
+      clearDeviceOnSignOut(native);
       await forget(null);
     } finally {
       signingOut.current = false;

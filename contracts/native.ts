@@ -124,8 +124,16 @@ export interface NativeEngine {
   // アプリを開く（学習用アプリへの誘導）。開けなければ false
   openApp(packageName: string): boolean;
   // ログアウトのときに、端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットの値を消して描き直す）。
-  // 許可の状態の送り先と合言葉（setStatusReporter）も消える
+  // 許可の状態の送り先と合言葉（setStatusReporter）も消える。
+  // 監視が動いている端末（isEngineEnabled が true）のログアウトでは呼ばない（clearParentLocalData を呼ぶ。D-136）
   clearLocalData(): void;
+  // この端末で監視（Kotlin の engine）が動いているか（startEngine で印が立ち、stopEngine・clearLocalData で消える）。
+  // 動いている端末は子どもの端末なので、ログアウトで監視を止めない・入口 /pair に「ログアウト」を出さない（D-136 の抜け道をふさぐ）。
+  // 監視を止めるのは、保護者が連携を外したとき（family_unlink。D-133）だけ
+  isEngineEnabled(): boolean;
+  // 監視が動いている端末でログアウトしたときの片付け。監視・判定の値・許可の状態の送り先は残し、
+  // 保護者として使ったときの値（保護者のウィジェットの値）だけを消してウィジェットを描き直す
+  clearParentLocalData(): void;
   // デモ用の Device Owner（Slope のアンインストールを止めている。docs/device-owner.md）をやめる。
   // 保護者に連携を外されたときだけ呼ぶ（ログアウト・期限切れでは呼ばない。D-133）。やめたら true（もともと違えば false）。
   // 一度やめると、端末を初期化して設定し直すまで Device Owner に戻れない

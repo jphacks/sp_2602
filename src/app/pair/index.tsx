@@ -3,7 +3,8 @@
 // データ: 開いたら call("linkStatus") で D2 の連携状態を確かめる（FigJam: ログイン後に D2 を取得してから QR へ）。
 //   照会できない → 共01（QR の画面へは進まない。もう一度確かめる）。連携済み → 役割を取り直して入口へ。未連携 → 選択肢を出す
 // 行き先: 「保護者として使う」→ /pair/parent（親10〜親15）、「子どもとして使う」→ /pair/child（子13〜子19）、ログアウト → 入口
-//   「ログアウト」は役割が決まる前の人（まだ制限がかかっていない）と保護者にだけ出す。子ども（役割 child）には出さない（D-136。
+//   「ログアウト」は役割が決まる前の人（まだ制限がかかっていない）と保護者にだけ出す。子ども（役割 child）と、監視（Kotlin の engine）が
+//   動いている端末には出さない（子どもの端末で JS だけログアウト状態になり、役割のない別のアカウントで入り直した、を含む）（D-136。
 //   ふつうは連携済みの子どもは入口で /child/home へ振り分けられ、ここへ来ても照会で linked になり戻されるが、deep link などで
 //   ここへ来て照会が unlinked と返っても、ログアウトで制限を止められないように。canSignOut）
 import { tokens } from "@contracts/tokens";
@@ -14,12 +15,13 @@ import { AppText, Banner, Button, Screen, StateView } from "@/components";
 import { type LinkQuery, LinkUnknown, linkCheckView, RoleChoice } from "@/components/pair";
 import { withKidsUI } from "@/kids/KidsUI";
 import { call, errorOf, timeoutSignal } from "@/lib/api";
+import { native } from "@/lib/native";
 import { useSession } from "@/lib/session";
 import { canSignOut } from "@/lib/session-core";
 
 function PairStart() {
   const { state, signOut, refresh } = useSession();
-  const showLogout = canSignOut(state.status === "signedIn" ? state.session : null);
+  const showLogout = canSignOut(state.status === "signedIn" ? state.session : null, native.isEngineEnabled());
   const [query, setQuery] = useState<LinkQuery>({ kind: "idle" });
 
   const check = useCallback(async () => {

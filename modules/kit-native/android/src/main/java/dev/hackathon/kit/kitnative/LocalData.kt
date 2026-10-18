@@ -14,9 +14,21 @@ import dev.hackathon.kit.kitnative.widget.WidgetStore
 // ウィジェットのテストの日程を消して、ウィジェットを描き直す）。再起動しても監視を始めない。
 // 呼ぶところ:
 //   - JS の clearLocalData（ログアウト・保護者に連携を外されたと分かったとき。KitNativeModule）
-//   - 許可の状態を送ったら「保護者が連携を外した」401 が返ったとき（engine/StatusReporter.kt。D-133）。
-//     アプリを開かなくても、外された端末の制限がそこで止まるように
+//   - 許可の状態を送った・合言葉を確かめたら「保護者が連携を外した」401 が返ったとき（engine/StatusReporter.kt・
+//     engine/SessionCheck.kt。D-133・D-134）。アプリを開かなくても、外された端末の制限がそこで止まるように
+// 監視が動いている端末（子どもの端末）のログアウトでは clear を呼ばず、clearParent を呼ぶ（監視を止めない。D-136）
 object LocalData {
+  /**
+   * 監視が動いている端末で、役割のない人・保護者としてログアウトしたときの片付け（JS の clearParentLocalData）。
+   * 監視・判定の値・今日の使用量・許可の状態の送り先と合言葉は残し（監視が止まるのは連携が外れたときだけ。D-133・D-136）、
+   * 保護者のウィジェットの値だけを消して描き直す（WidgetStore.clearParent）
+   */
+  fun clearParent(context: Context) {
+    val ctx = context.applicationContext
+    WidgetStore.clearParent(ctx)
+    SlopeWidget.requestUpdate(ctx)
+  }
+
   fun clear(context: Context) {
     val ctx = context.applicationContext
     EngineStore.setEngineEnabled(ctx, false) // 先に印を消す（動いている監視が、消した値を書き戻さないように）
