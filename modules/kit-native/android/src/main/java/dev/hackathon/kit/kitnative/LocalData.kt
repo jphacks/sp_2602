@@ -1,6 +1,7 @@
 package dev.hackathon.kit.kitnative
 
 import android.content.Context
+import dev.hackathon.kit.kitnative.admin.DeviceOwnerPolicy
 import dev.hackathon.kit.kitnative.engine.EngineStore
 import dev.hackathon.kit.kitnative.engine.LimitPrompt
 import dev.hackathon.kit.kitnative.engine.MonitorService
@@ -26,5 +27,24 @@ object LocalData {
     LimitPrompt.cancelLimitNotification(ctx)
     WidgetStore.clear(ctx)
     SlopeWidget.requestUpdate(ctx)
+  }
+
+  /**
+   * Kotlin がサーバから「保護者が連携を外した」401（reason: family_unlink）を受けたときの片付け（D-133・D-134）。
+   * 呼ぶところ: 許可の状態の送信（StatusReporter）と、合言葉の確かめ（SessionCheck）。
+   * 送ったときの合言葉がまだ保存してある合言葉のときだけ（送っている間に JS が新しい合言葉を渡していたら＝ログインし直して
+   * 紐づけ直していたら、何もしない）、clear と同じく監視を止めて値を消し、デモ用の Device Owner（アンインストールの止め）もやめる。
+   * Device Owner をやめられなくても、ほかの片付けは済ませる。消したら true
+   */
+  fun clearUnlinked(context: Context, sentToken: String): Boolean {
+    val ctx = context.applicationContext
+    if (!EngineStore.isReporterToken(ctx, sentToken)) return false
+    clear(ctx)
+    try {
+      DeviceOwnerPolicy.release(ctx)
+    } catch (e: Exception) {
+      // Device Owner でない・やめられない。監視は止めたので、そのまま進める
+    }
+    return true
   }
 }

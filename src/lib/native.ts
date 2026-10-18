@@ -139,6 +139,7 @@ export const native: NativeEngine & {
   showLimitReached: () => callSafe("showLimitReached", false),
   openApp: (packageName) => callSafe("openApp", false, packageName),
   clearLocalData: () => callSafe("clearLocalData", undefined),
+  releaseDeviceOwner: () => callSafe("releaseDeviceOwner", false),
 
   // ── D-113（許可の見張りと親への通告）──
   setStatusReporter: (url, token, childId) => callSafe("setStatusReporter", undefined, url, token, childId),

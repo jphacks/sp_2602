@@ -2,6 +2,7 @@ package dev.hackathon.kit.kitnative
 
 import android.content.Context
 import android.os.Build
+import dev.hackathon.kit.kitnative.admin.DeviceOwnerPolicy
 import dev.hackathon.kit.kitnative.engine.AppVisibility
 import dev.hackathon.kit.kitnative.engine.DailyUsage
 import dev.hackathon.kit.kitnative.engine.DayWindow
@@ -158,6 +159,12 @@ class KitNativeModule : Module() {
     // ウィジェットに残らないようにするため。中身は LocalData.kt（許可の状態を送った返事で外されたと分かったときも同じものを呼ぶ）
     Function("clearLocalData") {
       LocalData.clear(context)
+    }
+
+    // デモ用の Device Owner（アンインストールの止め）をやめる。保護者に連携を外されたときだけ JS が呼ぶ（src/lib/session.tsx。D-133）。
+    // ログアウト・期限切れでは呼ばない。やめたら true（もともと Device Owner でなければ false）
+    Function("releaseDeviceOwner") {
+      DeviceOwnerPolicy.release(context)
     }
 
     // ── D-113（許可の見張りと親への通告）──────────────────────────

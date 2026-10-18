@@ -126,6 +126,10 @@ export interface NativeEngine {
   // ログアウトのときに、端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットの値を消して描き直す）。
   // 許可の状態の送り先と合言葉（setStatusReporter）も消える
   clearLocalData(): void;
+  // デモ用の Device Owner（Slope のアンインストールを止めている。docs/device-owner.md）をやめる。
+  // 保護者に連携を外されたときだけ呼ぶ（ログアウト・期限切れでは呼ばない。D-133）。やめたら true（もともと違えば false）。
+  // 一度やめると、端末を初期化して設定し直すまで Device Owner に戻れない
+  releaseDeviceOwner(): boolean;
 
   // ── 許可の見張りと親への通告（docs/decisions.md D-113）──
   // 監視（MonitorService）が許可の状態をサーバへ直接送るための、送り先の URL（deviceStatusReport の完全な URL）・合言葉・

@@ -28,6 +28,7 @@ declare class KitNativeModule extends NativeModule {
   showLimitReached(): boolean;
   openApp(packageName: string): boolean;
   clearLocalData(): void;
+  releaseDeviceOwner(): boolean;
   // ── D-113（許可の見張りと親への通告）──
   setStatusReporter(url: string, token: string, childId: string): void;
   clearStatusReporter(): void;

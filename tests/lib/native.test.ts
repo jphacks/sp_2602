@@ -26,6 +26,7 @@ describe("native（モジュールなし）", () => {
     expect(native.getEngineStatus()).toEqual({ running: false, restrictionDate: null });
     expect(native.showLimitReached()).toBe(false);
     expect(native.openApp("com.example.studynote")).toBe(false);
+    expect(native.releaseDeviceOwner()).toBe(false); // Kotlin がない（古い dev client）ときは何もしない
     expect(() => {
       native.startEngine();
       native.stopEngine();

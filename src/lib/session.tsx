@@ -56,9 +56,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       isUnauthorized,
       errorOf,
       // 連携が外れた（D-133）: ログアウトと同じく、Kotlin の監視を止めて Kotlin が端末に残した値を消し、
-      // その子どもの送信待ち・設定のキャッシュ・送ったアプリの一覧を消す（Google のログインは外さない。サーバにも頼まない）
+      // その子どもの送信待ち・設定のキャッシュ・送ったアプリの一覧を消す（Google のログインは外さない。サーバにも頼まない）。
+      // デモ用の Device Owner（アンインストールの止め）もやめる。外されたときだけ（ログアウト・期限切れではやめない）。
+      // やめられなくても（Device Owner でない・Kotlin が古い）ほかの片付けは続ける（native.ts が例外を false にする）
       clearUnlinked: async (userId) => {
         native.clearLocalData();
+        native.releaseDeviceOwner();
         await clearLocalDataFor(userId);
       },
       clearSaved: () => clearSessionData(),
