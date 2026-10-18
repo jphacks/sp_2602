@@ -127,6 +127,10 @@ export const native: NativeEngine & {
   openApp: (packageName) => callSafe("openApp", false, packageName),
   clearLocalData: () => callSafe("clearLocalData", undefined),
 
+  // ── D-113（許可の見張りと親への通告）──
+  setStatusReporter: (url, token, childId) => callSafe("setStatusReporter", undefined, url, token, childId),
+  clearStatusReporter: () => callSafe("clearStatusReporter", undefined),
+
   // ── C5（保護者のウィジェット）──
   saveParentWidget: (data) => callSafe("saveParentWidget", undefined, data),
 };

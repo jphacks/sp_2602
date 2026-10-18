@@ -8,25 +8,16 @@
 //   もの（消されたアプリなど）を後ろに足す（excluded.ts の candidateApps）。一覧は開いたときに1回読む（まだ届いていない・読めない
 //   ときは、届くまで 30 秒ごとの取り直しのたびに読み直す）。届いていなければ見本で埋めず「まだ届いていません」と出す。
 //   アプリが多いので名前で絞り込める（filterRows）。アイコンは子どもの端末から届いた本物（useAppIcons。なければ頭文字）。
+// 「ON = 制限しない」が分かるように（2026-10-18 実機: YouTube を制限したつもりで ON にした人がいた）、一覧の上に意味の説明、
+//   見出しに「オン＝制限しない」、スイッチの横に「制限しない／制限する」（switchText）を出す。行の反映の状態は rowNote
+//   （対象外にしていない落ち着いた行には出さない）。
 import type { ApiError } from "@contracts/errors";
 import type { ChildAppsView, ExcludedAppsView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import {
-  AppText,
-  Banner,
-  Button,
-  Chip,
-  ErrorBanner,
-  PopIn,
-  Reveal,
-  RevealGroup,
-  Screen,
-  StateView,
-  TextField,
-} from "@/components";
+import { AppText, Banner, Button, Chip, ErrorBanner, Screen, StateView, TextField } from "@/components";
 import { ChildGate } from "@/components/parent/data";
 import {
   appsToSave,
@@ -36,6 +27,8 @@ import {
   filterRows,
   hasUnsaved,
   removedVersions,
+  rowNote,
+  switchText,
   syncExcludedDraft,
 } from "@/components/parent/excluded";
 import { AppIcon, Toggle } from "@/components/parent/parts";
@@ -191,12 +184,11 @@ function ExcludedBody({ childId }: { childId: string }) {
 
   const ready = view && draft;
   const footer = ready ? (
-    // 「保存しました」は、保存が確定したときに高さを広げて入れる（ボタンがガタッと上がらない）
-    <RevealGroup>
+    <>
       <ErrorBanner error={saveError} />
-      <Reveal show={savedOk}>
+      {savedOk && (
         <Banner tone="success" message="保存しました" hint="子どものスマホには、次につながったときに届きます" />
-      </Reveal>
+      )}
       <Button
         label="変更を保存する"
         icon="check_circle"
@@ -204,7 +196,7 @@ function ExcludedBody({ childId }: { childId: string }) {
         loading={saving}
         disabled={!hasUnsaved(view.apps, draft)}
       />
-    </RevealGroup>
+    </>
   ) : undefined;
 
   return (
@@ -212,44 +204,41 @@ function ExcludedBody({ childId }: { childId: string }) {
       {!ready ? (
         <StateView state={loadError ? "unknown" : "loading"} error={loadError} onRetry={() => void load()} />
       ) : (
-        // 読み込めたら上から順にふわっと出す（ホームと同じ）。後から出る帯は高さを広げて入れる
-        <RevealGroup>
-          <Reveal index={0} show={loadError != null}>
+        <>
+          {loadError && (
             <Banner
               tone="warning"
               icon="cloud_off"
               message="最新でない可能性があります"
               hint="反映の状態は、通信できると自動で更新します"
             />
-          </Reveal>
-          <Reveal index={1}>
-            {/* 見ているのは保護者なので「変更できるのは保護者だけです」は言わない */}
-            <Banner icon="edit" message="選んだアプリは、使用時間にふくまれなくなります" />
-          </Reveal>
-          <Reveal index={2}>
-            <View style={styles.listHead}>
-              <AppText variant="label">子どものアプリ</AppText>
-              {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
-              {!loadError && <ListStatus status={excludedListStatus(view)} />}
-            </View>
-          </Reveal>
-          {/* 子どもの端末の一覧が届いていない・読めないときの帯は、後から分かったら高さを広げて入れる */}
-          <Reveal index={3} show={childApps != null && !childApps.receivedAt}>
+          )}
+          <Banner
+            icon="info"
+            message="オンにしたアプリは、上限に数えず、時間が終わってもいつでも使えます（勉強用のアプリなど）"
+            hint="オフのアプリは、ふだんどおり使用時間に数え、時間が終わると止まります。制限したいアプリはオフのままにしてください。変更できるのは保護者だけです"
+          />
+          <View style={styles.listHead}>
+            <AppText variant="label">子どものアプリ（オン＝制限しない）</AppText>
+            {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
+            {!loadError && <ListStatus status={excludedListStatus(view)} />}
+          </View>
+          {childApps && !childApps.receivedAt && (
             <Banner
               icon="info"
-              message="子どものスマホからアプリの一覧がまだ届いていません"
-              hint="子どものスマホで Slope を開くと届きます。届くまでは、対象外にしたアプリだけを出しています"
+              message="子どもの端末からアプリの一覧がまだ届いていません"
+              hint="子どもの端末で Slope を開くと届きます。届くまでは、制限しない（対象外にした）アプリだけを出しています"
             />
-          </Reveal>
-          <Reveal index={3} show={!childApps && childAppsError != null}>
+          )}
+          {!childApps && childAppsError && (
             <Banner
               tone="warning"
               icon="cloud_off"
-              message="子どものスマホのアプリの一覧を読み込めませんでした"
-              hint="通信できると自動で読み込み直します。それまでは、対象外にしたアプリだけを出しています"
+              message="子どもの端末のアプリの一覧を読み込めませんでした"
+              hint="通信できると自動で読み込み直します。それまでは、制限しない（対象外にした）アプリだけを出しています"
             />
-          </Reveal>
-          <Reveal index={3} show={listed != null && rows.length > 0}>
+          )}
+          {listed && rows.length > 0 && (
             <TextField
               label="アプリの名前でしぼりこむ"
               value={query}
@@ -258,50 +247,34 @@ function ExcludedBody({ childId }: { childId: string }) {
               autoCorrect={false}
               returnKeyType="search"
             />
-          </Reveal>
-          {/* 一覧はひとまとまりで出す（アプリが数百あり、絞り込むたびに1行ずつ動かすと重いため） */}
-          <Reveal index={4}>
-            <View style={styles.list}>
-              {shown.map((r) => (
-                <AppRow
-                  key={r.packageName}
-                  row={r}
-                  icon={icons.get(r.packageName)}
-                  onToggle={(on) => toggle(r.packageName, on)}
-                  disabled={saving}
-                />
-              ))}
-              {rows.length > 0 && shown.length === 0 && (
-                <AppText tone="muted">「{query.trim()}」に合うアプリはありません</AppText>
-              )}
-              {listed && rows.length === 0 && (
-                <AppText tone="muted">子どものスマホにアプリが見つかりませんでした</AppText>
-              )}
-            </View>
-          </Reveal>
-          <Reveal index={5}>
-            <AppText variant="caption" tone="muted">
-              電話・緊急通報などは、いつも制限されません（ここでは変えられません）。
-            </AppText>
-          </Reveal>
-        </RevealGroup>
+          )}
+          {shown.map((r) => (
+            <AppRow
+              key={r.packageName}
+              row={r}
+              icon={icons.get(r.packageName)}
+              onToggle={(on) => toggle(r.packageName, on)}
+              disabled={saving}
+            />
+          ))}
+          {rows.length > 0 && shown.length === 0 && (
+            <AppText tone="muted">「{query.trim()}」に合うアプリはありません</AppText>
+          )}
+          {listed && rows.length === 0 && <AppText tone="muted">子どもの端末にアプリが見つかりませんでした</AppText>}
+          <AppText variant="caption" tone="muted">
+            電話・緊急通報などは、いつも制限されません（ここでは変えられません）。
+          </AppText>
+        </>
       )}
     </Screen>
   );
 }
 
-const statusText = { applied: "反映済み", pending: "反映待ち", unsaved: "まだ保存していません" } as const;
-
-// 反映待ち → 反映済み に変わったら、札を小さく弾ませて知らせる
 function ListStatus({ status }: { status: "applied" | "pending" }) {
-  return (
-    <PopIn replayKey={status}>
-      {status === "applied" ? (
-        <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
-      ) : (
-        <Chip tone="warning" icon="sync" label="子どものスマホへの反映待ち" />
-      )}
-    </PopIn>
+  return status === "applied" ? (
+    <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
+  ) : (
+    <Chip tone="warning" icon="sync" label="子どものスマホに反映待ち" />
   );
 }
 
@@ -317,6 +290,7 @@ function AppRow({
   disabled: boolean;
 }) {
   const styles = useStyles();
+  const note = rowNote(row);
   return (
     <View style={styles.row}>
       <AppIcon initial={row.initial} uri={icon} />
@@ -324,31 +298,35 @@ function AppRow({
         <AppText variant="body" strong>
           {row.label}
         </AppText>
-        {/* 反映済みの行は何も出さない（見出しの札が「反映済み」と言っている）。読み上げには残す */}
         {/* 対象外にしたが、子どもの端末の一覧にない（消されたかもしれない）。OFF にできるように残して出す */}
         {row.missing && (
           <AppText variant="caption" tone="muted">
             子どものスマホに見つかりません（消されたかもしれません）
           </AppText>
         )}
-        {row.status === "pending" ? (
-          <View style={styles.chipRow}>
-            <PopIn replayKey={row.status}>
-              <Chip label={statusText.pending} small />
-            </PopIn>
-          </View>
-        ) : row.status === "unsaved" ? (
-          <AppText variant="caption" tone="warning">
-            {statusText.unsaved}
-          </AppText>
-        ) : null}
+        {note &&
+          (note.kind === "chip" ? (
+            <View style={styles.chipRow}>
+              <Chip label={note.label} small />
+            </View>
+          ) : (
+            <AppText variant="caption" tone={note.kind}>
+              {note.label}
+            </AppText>
+          ))}
       </View>
-      <Toggle
-        value={row.on}
-        onValueChange={onToggle}
-        disabled={disabled}
-        accessibilityLabel={`${row.label}を制限の対象外にする（${statusText[row.status]}）`}
-      />
+      {/* スイッチの横に ON/OFF の意味（ON = 制限しない）を文字で出す */}
+      <View style={styles.switchBox}>
+        <Toggle
+          value={row.on}
+          onValueChange={onToggle}
+          disabled={disabled}
+          accessibilityLabel={`${row.label}を制限しない（制限の対象外にする）${note ? `。${note.label}` : ""}`}
+        />
+        <AppText variant="caption" tone={row.on ? "primary" : "muted"} strong={row.on}>
+          {switchText(row.on)}
+        </AppText>
+      </View>
     </View>
   );
 }
@@ -376,7 +354,6 @@ const useStyles = makeStyles((c) =>
       gap: tokens.space[2],
     },
     chipRow: { flexDirection: "row" },
-    // 一覧の行の間隔（Screen の本文の間隔と同じ）
-    list: { gap: tokens.layout.cardGap },
+    switchBox: { alignItems: "center", gap: tokens.space[1] },
   }),
 );

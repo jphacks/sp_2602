@@ -12,22 +12,35 @@ if (!process.env.DATABASE_URL && process.env.MOCK_PERSIST !== "0")
   process.env.LOCAL_DB_DIR = process.env.LOCAL_DB_DIR?.trim() || DEFAULT_LOCAL_DB_DIR;
 
 const port = Number(process.env.PORT ?? 3000);
-// 最初の呼び出しを待たせないよう、立ち上げのときに DB を開いておく（MOCK=1 なら見本もここで入る）
-db().then(
-  () =>
-    serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
+// 先にポートを取ってから DB を開く（順番が大事）。
+// なぜ: 前は DB を開いてからポートを取っていた。すでにサーバが動いている所でもう1つ立てると、ポートが使用中で
+//   止まる前に同じ state/pglite を2つのプロセスが開き、表 server_meta の記録が途中で切れて壊れた（2026-10-18。
+//   configGet がいつも internal になった）。PGlite のフォルダは1つのプロセスからしか開いてはいけない。
+// DB を開き終わる前に届いた呼び出しは、db() が開き終わるのを待つ（db() は同じ Promise を使い回す）。
+const server = serve({ fetch: app.fetch, port, hostname: "0.0.0.0" }, (info) => {
+  // 最初の呼び出しを待たせないよう、ポートが取れたらすぐ DB を開いておく（MOCK=1 なら見本もここで入る）
+  db().then(
+    () => {
       console.log(`サーバが立ちました: http://localhost:${info.port}（MOCK=${isMock() ? "1" : "なし"}）`);
       if (process.env.DATABASE_URL) console.log("データの置き場所: DATABASE_URL の DB");
       else if (process.env.LOCAL_DB_DIR)
         console.log(`データの置き場所: ${process.env.LOCAL_DB_DIR}（消すと見本だけに戻ります）`);
       else console.log("データの置き場所: メモリの上だけ（止めると消えます）");
-    }),
-  (error) => {
-    console.error("DB を開けませんでした。サーバは立てません:", error);
-    if (process.env.LOCAL_DB_DIR)
-      console.error(
-        `手元の DB が壊れているかもしれません。止めてから ${process.env.LOCAL_DB_DIR} を消すと見本から始まります`,
-      );
-    process.exit(1);
-  },
-);
+    },
+    (error) => {
+      console.error("DB を開けませんでした。サーバは立てません:", error);
+      if (process.env.LOCAL_DB_DIR)
+        console.error(
+          `手元の DB が壊れているかもしれません。止めてから ${process.env.LOCAL_DB_DIR} を消すと見本から始まります`,
+        );
+      process.exit(1);
+    },
+  );
+});
+server.on("error", (error: NodeJS.ErrnoException) => {
+  // ポートが使用中 = 別のサーバがもう動いている。DB は開かずに止まる（同じ DB を2つのプロセスで開かないため）
+  if (error.code === "EADDRINUSE")
+    console.error(`ポート ${port} はもう使われています（別のサーバが動いています）。DB は開かずに止まります`);
+  else console.error("サーバを立てられませんでした:", error);
+  process.exit(1);
+});

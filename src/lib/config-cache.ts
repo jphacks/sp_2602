@@ -75,6 +75,10 @@ export function reconcileConfig(
 export type ConfigCacheDeps = {
   storage: KeyValueStorage;
   fetchConfig: (childId: string, knownVersion: number | undefined) => Promise<ConfigResult>;
+  // 新しい版を採用して保存したあと、すぐに「この版を使っています」とサーバへ知らせる（待たない・失敗は無視）。
+  // なぜ: サーバは子どもが knownVersion を送ってきたときにだけ「反映済み」を記録する。知らせないと次の取得（30〜60 秒後）まで
+  //   記録されず、保護者の画面（親16 など）が保存のあと最大 2 分半「反映待ち」のままだった（実機 SC-53C/SCG13）
+  ackAdopted?: (childId: string, version: number) => Promise<unknown>;
   now?: () => Date;
 };
 
@@ -147,6 +151,9 @@ export function createConfigCache(deps: ConfigCacheDeps) {
           } catch {
             return staleOr(cached, "save_failed", null);
           }
+          // 版が変わったときだけ知らせる（同じ版の入れ直しでは知らせない）
+          if (deps.ackAdopted && cached?.snapshot.configVersion !== entry.snapshot.configVersion)
+            void deps.ackAdopted(childId, entry.snapshot.configVersion).catch(() => undefined);
           return { status: "fresh", snapshot: entry.snapshot, savedAt: entry.savedAt };
         }
       }
@@ -183,4 +190,6 @@ export type ConfigCache = ReturnType<typeof createConfigCache>;
 export const configCache: ConfigCache = createConfigCache({
   storage: appStorage,
   fetchConfig: (childId, knownVersion) => call("configGet", { childId, knownVersion }),
+  // 子どもの端末から送ったときだけサーバが「反映済み」を記録する（保護者から送っても何も起きない）
+  ackAdopted: (childId, version) => call("configGet", { childId, knownVersion: version }),
 });

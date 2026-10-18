@@ -96,6 +96,16 @@
 | `ChildAppEntry` | `packageName`・`label`・`iconHash`（なければ `null`） | 保護者が読む一覧の1つ |
 | `ChildAppsView` | `childId`・`apps`（表示名の順）・`receivedAt`（まだ届いていなければ `null`） | 保護者が読む一覧 |
 
+### 許可の見張りと親への通告（D-113）
+
+| 型 | 中身 | 説明 |
+|---|---|---|
+| `DevicePermissionKey` | `"usageAccess" \| "overlay" \| "notifications" \| "accessibility"` | 見張る4つの許可の名前（`NativePermission` と同じ。電池の最適化は見張らない） |
+| `DevicePermissions` | 4つの許可それぞれの真偽 | 許可ごとのオン/オフ |
+| `DeviceStatusReport` | `childId`・`permissions`・`measuredAt` | 子どもの端末の Kotlin が送る形。使用時間・アプリ名・URL は入れない |
+| `ChildDeviceStatus` | `permissions`・`offSince`（許可ごとのオフになった時刻。オンなら `null`）・`measuredAt`・`lastSeenAt` | 保護者が読む形。`lastSeenAt` はサーバに最後に届いた時刻（サーバの時計） |
+| `DeviceStatusView` | `status`（`ChildDeviceStatus`。まだ届いていなければ `null`） | `deviceStatusGet` の出力 |
+
 ### 端末の中だけの型（サーバとは受け渡さない）
 
 | 型 | 場所 | 説明 |
@@ -275,6 +285,8 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 | `slope_engine` / `restriction` | JSON。`saveRestriction` で受け取った判定の値（`date`・`limit`・`upcoming`・`excludedPackages`・`essentialPackages`・`learningPackages`・`blockedSites`・`configVersion`・`savedAt`）。`blockedSites` は Kotlin がもう一度そろえ、そろわないものは捨てる | `saveRestriction` | 監視・`getEngineStatus`・再起動後・Web サイトの制限（`WebGuardService`。D-111） |
 | `slope_engine` / `today_usage` | JSON。今日のまとめ `{date, status, restrictedMinutes, limit, usedPercent, reached, measuredAt}`。`usedPercent` は C3 と同じ規則、出せない状態は `null` | 監視（30 秒ごと）・`getDailyUsage`（今日の分） | ウィジェット（`EngineStore.loadToday`）・Web サイトの制限（`reached` が今日の分で true のときだけ止める。D-111） |
 | `slope_engine` / `engine_enabled` | Boolean。監視を続けるか | `startEngine`・`stopEngine`・`clearLocalData` | 再起動後・監視 |
+| `slope_engine` / `report_url`・`report_token`・`report_child_id` | 許可の状態の送り先（`deviceStatusReport` の完全な URL）・合言葉（子どもの session token）・送る本文の `childId`（D-113） | `setStatusReporter`（子どもとしてログイン・起動したとき） | 監視の許可の見張り（`StatusReporter`）。`clearStatusReporter`・401・`clearLocalData` で消す |
+| `slope_engine` / `report_sent`・`report_sent_at`・`report_retry_at` | 最後に届いた許可の状態（`"1101"` の形）と時刻・失敗したあと次に送ってよい時刻 | `StatusReporter` | `StatusReporter`（送るかどうか。`StatusReportRules.shouldSend`） |
 | `slope.widget`（K-B） | テストの日程 | `saveRestriction` の `testPeriods` → `WidgetStore.saveTests` | ウィジェット |
 
 `today_usage` が変わったら、自分のアプリにだけ放送 `dev.hackathon.kit.kitnative.TODAY_UPDATED` を送る（ウィジェットが描き直す）。ログアウト（`clearLocalData`）で全部消す。
@@ -294,6 +306,7 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 | D7 | `excluded_apps`, `excluded_app_states`, `removed_excluded_apps` | label・追加版・削除版・最終変更版を保持 |
 | 制限する Web サイト（D-111） | `blocked_sites`, `blocked_site_states` | `blocked_sites` は子どもと登録（`pattern`。そろえた形・200 文字まで）の組に1行、`since_version`（足した版）。外した登録は行を消す。`blocked_site_states` は子ども1人に1行で `sites_changed_version`（一覧が最後に変わった版。行がない = 0）。保存は版の確かめ・版を 1 上げる・入れ替えを1回のトランザクションで（`backend/src/db/blocked-sites.ts`。migration `0014_blocked_sites.sql`）。C7 の組を読むトランザクションでも一緒に読む |
 | Q15（子どもの端末のアプリ一覧とアイコン） | `child_app_lists`, `child_app_list_items`, `child_app_icons` | `child_app_lists` は子ども1人に1行の「届いた」印（`received_at`。行がない = まだ届いていない）。`child_app_list_items` は packageName・表示名（全件の置き換え）。`child_app_icons` はアイコンの PNG（base64・20KB まで）と `icon_hash`（中身の SHA-256。サーバが計算し直して確かめた値）。一覧から消えたアプリのアイコンは一覧の置き換えのときに消す。下の2つは `child_app_lists` を消すと一緒に消える。設定の版とは別（migration `0013_child_app_lists.sql`。D-110） |
+| 許可の見張り（D-113） | `device_statuses` | 子ども1人に1行（行がない = まだ一度も届いていない）。許可ごとのオン/オフ（`usage_access`・`overlay`・`notifications`・`accessibility`）と、オフになった時刻（`*_off_since`。最初にオフと届いた報告の測った時刻）・`measured_at`（今の状態を測った時刻。これより古い報告では状態を変えない）・`last_seen_at`（最後に届いた時刻・サーバの時計）。連携を外すと消す（`unlinkChild`）。設定の版とは別（`backend/src/db/device-status.ts`。migration `0015_device_statuses.sql`） |
 | C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない。サーバの時計より先の測定時刻はサーバの時計で保存する（送り直しを見分ける指紋は送られたままの中身で作る。`backend/src/db/usage-persistence.ts`） |
 
 日別上限が複数計算版に残る場合、C6は現行 `c10_input_version` に一致する最新計算版だけを参照します。一致する計算版がなければ上限は未計算として扱います。

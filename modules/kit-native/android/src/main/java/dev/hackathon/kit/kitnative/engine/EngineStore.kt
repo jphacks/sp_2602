@@ -31,6 +31,13 @@ import org.json.JSONObject
 //         "reached":false,                  // 上限に届いたか
 //         "measuredAt":1760659200000}       // 測った時刻（ミリ秒）
 //   "engine_enabled" … Boolean。startEngine で true、stopEngine・clearLocalData（ログアウト）で false。再起動後に監視を始めるかの印
+//   ── 許可の見張りと親への通告（D-113。StatusReporter.kt）──
+//   "report_url"     … String。許可の状態の送り先（サーバの deviceStatusReport の完全な URL）。JS の setStatusReporter が書く
+//   "report_token"   … String。そのときの合言葉（子どもの session token）。clearStatusReporter・401・clearLocalData で消える
+//   "report_child_id"… String。送る本文の childId（子ども本人の userId）
+//   "report_sent"    … String。最後に届いた許可の状態（PermissionFlags.encode() の "1101" の形）
+//   "report_sent_at" … Long。最後に届いた時刻（ミリ秒）
+//   "report_retry_at"… Long。失敗したあと、次に送ってよい時刻（ミリ秒）
 // テストの日程はここには置かない: JS の saveRestriction が渡す testPeriods を、KitNativeModule が K-B の WidgetStore.saveTests へ渡す。
 // ログアウトのとき（JS の clearLocalData）は、このファイルの値を全部消し（clear）、WidgetStore.clear も呼ぶ。
 // 変わったとき: "today_usage" を書いたら、ブロードキャスト ACTION_TODAY_UPDATED を自分のアプリにだけ送る
@@ -52,12 +59,24 @@ data class TodaySummary(
     other != null && copy(measuredAt = 0) == other.copy(measuredAt = 0)
 }
 
+// 許可の状態の送り先と合言葉と子どもの id（D-113）
+data class ReporterAccess(val url: String, val token: String, val childId: String)
+
+// 許可の状態を最後に送った記録（D-113）。lastSent が null = この送り先・合言葉ではまだ届いていない
+data class ReportState(val lastSent: PermissionFlags?, val lastSentAt: Long, val retryAt: Long)
+
 object EngineStore {
   const val PREFS_NAME = "slope_engine"
   const val KEY_RESTRICTION = "restriction"
   const val KEY_TODAY = "today_usage"
   const val KEY_ENGINE_ENABLED = "engine_enabled"
   const val ACTION_TODAY_UPDATED = "dev.hackathon.kit.kitnative.TODAY_UPDATED"
+  const val KEY_REPORT_URL = "report_url"
+  const val KEY_REPORT_TOKEN = "report_token"
+  const val KEY_REPORT_CHILD_ID = "report_child_id"
+  const val KEY_REPORT_SENT = "report_sent"
+  const val KEY_REPORT_SENT_AT = "report_sent_at"
+  const val KEY_REPORT_RETRY_AT = "report_retry_at"
 
   private fun prefs(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -123,7 +142,88 @@ object EngineStore {
 
   fun isEngineEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_ENGINE_ENABLED, false)
 
-  // ログアウトのときに全部消す（判定の値・今日の使用量・監視の印）。前の人の値を次の人の判定やウィジェットに使わないため。
+  // ── 許可の状態の送り先と合言葉（D-113）──
+  // なぜ合言葉を native に置くか: 送るのは Kotlin の監視（アプリを閉じていても動く）で、JS の保存場所（AsyncStorage）は読めないため。
+  // 置き場所はアプリ専用（MODE_PRIVATE）で、JS の合言葉の保存と同じ守り方。ログアウト（clear）・401 で消す
+
+  // 送り先と合言葉を保存する。前と違えば送った記録も消して true（次の見張りですぐ送る）。同じなら何もしないで false
+  @Synchronized
+  fun saveReporter(context: Context, url: String, token: String, childId: String): Boolean {
+    val p = prefs(context)
+    if (
+      p.getString(KEY_REPORT_URL, null) == url &&
+      p.getString(KEY_REPORT_TOKEN, null) == token &&
+      p.getString(KEY_REPORT_CHILD_ID, null) == childId
+    ) {
+      return false
+    }
+    p
+      .edit()
+      .putString(KEY_REPORT_URL, url)
+      .putString(KEY_REPORT_TOKEN, token)
+      .putString(KEY_REPORT_CHILD_ID, childId)
+      .remove(KEY_REPORT_SENT)
+      .remove(KEY_REPORT_SENT_AT)
+      .remove(KEY_REPORT_RETRY_AT)
+      .apply()
+    return true
+  }
+
+  fun loadReporter(context: Context): ReporterAccess? {
+    val p = prefs(context)
+    val url = p.getString(KEY_REPORT_URL, null)
+    val token = p.getString(KEY_REPORT_TOKEN, null)
+    val childId = p.getString(KEY_REPORT_CHILD_ID, null)
+    if (url.isNullOrEmpty() || token.isNullOrEmpty() || childId.isNullOrEmpty()) return null
+    return ReporterAccess(url, token, childId)
+  }
+
+  // 送り先・合言葉・送った記録を消す（保護者・役割のない人になった・ログアウト）
+  @Synchronized
+  fun clearReporter(context: Context) {
+    prefs(context)
+      .edit()
+      .remove(KEY_REPORT_URL)
+      .remove(KEY_REPORT_TOKEN)
+      .remove(KEY_REPORT_CHILD_ID)
+      .remove(KEY_REPORT_SENT)
+      .remove(KEY_REPORT_SENT_AT)
+      .remove(KEY_REPORT_RETRY_AT)
+      .apply()
+  }
+
+  // 401 が返ったとき: 送ったときの合言葉がまだ保存されていれば消す（送っている間に JS が新しい合言葉を渡していたら消さない）
+  @Synchronized
+  fun clearReporterIfToken(context: Context, token: String) {
+    if (prefs(context).getString(KEY_REPORT_TOKEN, null) == token) clearReporter(context)
+  }
+
+  fun loadReportState(context: Context): ReportState {
+    val p = prefs(context)
+    return ReportState(
+      lastSent = PermissionFlags.decode(p.getString(KEY_REPORT_SENT, null)),
+      lastSentAt = p.getLong(KEY_REPORT_SENT_AT, 0L),
+      retryAt = p.getLong(KEY_REPORT_RETRY_AT, 0L),
+    )
+  }
+
+  // 届いた（送った合言葉がまだ今の合言葉のときだけ記録する）
+  @Synchronized
+  fun saveReportSent(context: Context, token: String, flags: PermissionFlags, at: Long) {
+    val p = prefs(context)
+    if (p.getString(KEY_REPORT_TOKEN, null) != token) return
+    p.edit().putString(KEY_REPORT_SENT, flags.encode()).putLong(KEY_REPORT_SENT_AT, at).remove(KEY_REPORT_RETRY_AT).apply()
+  }
+
+  // 届かなかった（retryAt まで送り直さない）
+  @Synchronized
+  fun saveReportFailed(context: Context, token: String, retryAt: Long) {
+    val p = prefs(context)
+    if (p.getString(KEY_REPORT_TOKEN, null) != token) return
+    p.edit().putLong(KEY_REPORT_RETRY_AT, retryAt).apply()
+  }
+
+  // ログアウトのときに全部消す（判定の値・今日の使用量・監視の印・許可の状態の送り先と合言葉）。前の人の値を次の人の判定やウィジェットに使わないため。
   // 同期で書く（commit）: このあとすぐウィジェットを描き直すので、消えたあとの値を読ませる
   @Synchronized
   fun clear(context: Context) {

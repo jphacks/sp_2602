@@ -23,7 +23,8 @@ import {
   useRevealDelay,
 } from "@/components";
 import { homeWeekBars } from "@/components/parent/charts";
-import { ChildGate, type UsageState, useUsage } from "@/components/parent/data";
+import { DeviceAlertBanner } from "@/components/parent/DeviceAlertBanner";
+import { ChildGate, type UsageState, useDeviceStatus, useUsage } from "@/components/parent/data";
 import { timeJst } from "@/components/parent/format";
 import { limitText, todaySummary } from "@/components/parent/today";
 import { WeekBars } from "@/components/parent/WeekBars";
@@ -48,9 +49,16 @@ function HomeBody({ childId }: { childId: string }) {
   const { config } = useParentData();
   const snapshot = config && config.status !== "unavailable" ? config.snapshot : null;
   const stale = state.status === "stale" || config?.status === "stale";
+  const device = useDeviceStatus(childId);
   return (
     // 子どもの画面（child/home.tsx）と同じく、開いたときは上から順にふわっと出す。後から出る帯は高さを広げて入れる（下のカードがガタッと動かない）
     <RevealGroup>
+      {/* D-113: 子どものスマホの許可がオフ・連絡の途絶（いちばん大事なので一番上。動きを待たせずにすぐ出す） */}
+      <DeviceAlertBanner
+        status={device.status}
+        checkedAt={device.checkedAt}
+        hasBlockedSites={(snapshot?.blockedSites.length ?? 0) > 0}
+      />
       {/* Q7: 通常上限がまだない = 計画やテストがない日は「上限未設定」になる。決める画面へ案内する */}
       <Reveal index={0} show={snapshot != null && snapshot.usualLimitMinutes == null}>
         <Banner

@@ -9,26 +9,18 @@
 // 入力は contracts/web-sites.ts の normalizeSitePattern でそろえてから下書きに入れる（https://・www.・大文字・末尾の / を外す。
 //   ドメインらしくないものは、入れる前に入力欄の下に理由を出す）。並べ方・状態の決め方は src/components/parent/blocked-sites.ts。
 // 行き先: 「←」→ 親04 設定。
+// ブラウザでしか止まらないこと（2026-10-18 実機: YouTube のアプリは止まらないことが画面から分からなかった）:
+//   一番上に「ブラウザで開いたときだけ止まる・アプリはアプリの上限で止まる」の帯を出す。登録したサイトのアプリが
+//   親16 で制限対象外になっているときは、その行に注意を出す（アプリでは見放題なのに気づけないため）。
+//   対象外の一覧は call("excludedAppsGet") で読み（30 秒ごとの取り直しで一緒に）、読めなければ注意を出さないだけ。
+//   サイトとアプリの対応は src/components/parent/site-apps.ts の小さな表。
 import type { ApiError } from "@contracts/errors";
 import type { BlockedSitesView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import {
-  AppText,
-  Banner,
-  Button,
-  Chip,
-  ErrorBanner,
-  Icon,
-  PopIn,
-  Reveal,
-  RevealGroup,
-  Screen,
-  StateView,
-  TextField,
-} from "@/components";
+import { AppText, Banner, Button, Chip, ErrorBanner, Icon, Screen, StateView, TextField } from "@/components";
 import {
   addSite,
   hasUnsavedSites,
@@ -40,6 +32,7 @@ import {
   syncSitesDraft,
 } from "@/components/parent/blocked-sites";
 import { ChildGate } from "@/components/parent/data";
+import { excludedAppWarning } from "@/components/parent/site-apps";
 import { call, errorOf } from "@/lib/api";
 import { useParentData } from "@/lib/parent-data";
 import { usePolling } from "@/lib/polling";
@@ -71,13 +64,26 @@ function BlockedSitesBody({ childId }: { childId: string }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [savedOk, setSavedOk] = useState(false);
+  // 親16 で制限対象外にしているアプリ（packageName）。null = まだ読めていない（注意を出さない）
+  const [excluded, setExcluded] = useState<ReadonlySet<string> | null>(null);
   // 取り直しの関数から、今の保存済みの一覧・下書き・版を読むため（関数を作り直さずに済むように）
   const latest = useRef({ saved: view?.sites ?? null, draft, baseVersion });
   useEffect(() => {
     latest.current = { saved: view?.sites ?? null, draft, baseVersion };
   }, [view, draft, baseVersion]);
 
+  // 対象外アプリの一覧（行の注意に使うだけ。読めなくても登録の画面は出す）
+  const loadExcluded = useCallback(async () => {
+    try {
+      const v = await call("excludedAppsGet", { childId });
+      setExcluded(new Set(v.apps.map((a) => a.packageName)));
+    } catch {
+      // 読めなければ前の値のまま（まだなければ注意を出さない）
+    }
+  }, [childId]);
+
   const load = useCallback(async () => {
+    void loadExcluded();
     try {
       const v = await call("blockedSitesGet", { childId });
       // 触りかけの下書きは戻さない。保存していない変更がなければ、サーバの今の一覧と版に合わせる
@@ -90,7 +96,7 @@ function BlockedSitesBody({ childId }: { childId: string }) {
       const error = errorOf(e);
       if (error) setLoadError(error);
     }
-  }, [childId]);
+  }, [childId, loadExcluded]);
   usePolling(load);
   // 画面を離れたら「保存しました」の帯を消す（親16 と同じ。開き直したときに古い結果が出たままにならないように）
   useFocusEffect(useCallback(() => () => setSavedOk(false), []));
@@ -166,12 +172,11 @@ function BlockedSitesBody({ childId }: { childId: string }) {
   const ready = view && draft;
   const rows = ready ? siteRows({ saved: view.sites, draft, childAppliedVersion: view.childAppliedVersion }) : [];
   const footer = ready ? (
-    // 「保存しました」は、保存が確定したときに高さを広げて入れる（ボタンがガタッと上がらない。親16 と同じ）
-    <RevealGroup>
+    <>
       <ErrorBanner error={saveError} />
-      <Reveal show={savedOk}>
+      {savedOk && (
         <Banner tone="success" message="保存しました" hint="子どものスマホには、次につながったときに届きます" />
-      </Reveal>
+      )}
       <Button
         label="変更を保存する"
         icon="check_circle"
@@ -179,7 +184,7 @@ function BlockedSitesBody({ childId }: { childId: string }) {
         loading={saving}
         disabled={!hasUnsavedSites(view.sites, draft)}
       />
-    </RevealGroup>
+    </>
   ) : undefined;
 
   return (
@@ -187,89 +192,75 @@ function BlockedSitesBody({ childId }: { childId: string }) {
       {!ready ? (
         <StateView state={loadError ? "unknown" : "loading"} error={loadError} onRetry={() => void load()} />
       ) : (
-        // 読み込めたら上から順にふわっと出す（親16 と同じ）。後から出る帯・あとで入れた行は高さを広げて入れる
-        <RevealGroup>
-          <Reveal index={0} show={loadError != null}>
+        <>
+          {loadError && (
             <Banner
               tone="warning"
               icon="cloud_off"
               message="最新でない可能性があります"
               hint="反映の状態は、通信できると自動で更新します"
             />
-          </Reveal>
-          <Reveal index={1}>
-            {/* 見ているのは保護者なので「変更できるのは保護者だけです」は言わない（親16 と同じ） */}
-            <Banner
-              icon="edit"
-              message="その日の時間が終わったあと、子どものスマホのブラウザでここに入れたサイトを開くと、前の画面に戻して「時間は終わりです」を出します"
+          )}
+          <Banner
+            icon="info"
+            message="ブラウザ（Chrome・Samsung Internet・Firefox・Edge）で開いたときだけ止まります。YouTube などのアプリは、アプリの上限で止まります"
+            hint="設定の「制限対象外アプリ」でアプリをオン（制限しない）にしていると、そのアプリでは時間が終わっても見られます"
+          />
+          <Banner
+            icon="edit"
+            message="その日の時間が終わったあと、子どものスマホのブラウザでここに入れたサイトを開くと、前の画面に戻して「時間は終わりです」を出します。変更できるのは保護者だけです"
+          />
+          <TextField
+            label="サイトのアドレス"
+            value={input}
+            onChangeText={(t) => {
+              setInput(t);
+              setInputError(null);
+            }}
+            placeholder="例: youtube.com/shorts"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            returnKeyType="done"
+            onSubmitEditing={add}
+            error={inputError}
+          />
+          <Button
+            label="一覧に入れる"
+            icon="add"
+            variant="outline"
+            onPress={add}
+            disabled={saving || input.trim() === ""}
+          />
+          <AppText variant="caption" tone="muted">
+            「youtube.com」と入れると、m.youtube.com
+            などもふくめてサイト全体を止めます。「youtube.com/shorts」と入れると、ショート動画のページだけを止めます。
+          </AppText>
+          <View style={styles.listHead}>
+            <AppText variant="label">登録したサイト</AppText>
+            {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
+            {!loadError && <ListStatus status={sitesListStatus(view)} />}
+          </View>
+          {rows.map((r) => (
+            <SiteRowView
+              key={r.pattern}
+              row={r}
+              warning={r.status === "removing" || !excluded ? null : excludedAppWarning(r.pattern, excluded)}
+              onRemove={() => remove(r.pattern)}
+              onRestore={() => restore(r.pattern)}
+              disabled={saving}
             />
-          </Reveal>
-          <Reveal index={2}>
-            <TextField
-              label="サイトのアドレス"
-              value={input}
-              onChangeText={(t) => {
-                setInput(t);
-                setInputError(null);
-              }}
-              placeholder="例: youtube.com/shorts"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              returnKeyType="done"
-              onSubmitEditing={add}
-              error={inputError}
-            />
-          </Reveal>
-          <Reveal index={3}>
-            <Button
-              label="一覧に入れる"
-              icon="add"
-              variant="outline"
-              onPress={add}
-              disabled={saving || input.trim() === ""}
-            />
-          </Reveal>
-          <Reveal index={4}>
-            <AppText variant="caption" tone="muted">
-              「youtube.com」と入れると、m.youtube.com
-              などもふくめてサイト全体を止めます。「youtube.com/shorts」と入れると、ショート動画のページだけを止めます。
-            </AppText>
-          </Reveal>
-          <Reveal index={5}>
-            <View style={styles.listHead}>
-              <AppText variant="label">登録したサイト</AppText>
-              {/* 一覧の全体が子どもの端末に届いたか（取り直せていないときは古い値なので出さない） */}
-              {!loadError && <ListStatus status={sitesListStatus(view)} />}
-            </View>
-          </Reveal>
-          {rows.map((r, i) => (
-            <Reveal key={r.pattern} index={Math.min(6 + i, ROW_ORDER_MAX)}>
-              <SiteRowView
-                row={r}
-                onRemove={() => remove(r.pattern)}
-                onRestore={() => restore(r.pattern)}
-                disabled={saving}
-              />
-            </Reveal>
           ))}
-          <Reveal index={6} show={rows.length === 0}>
-            <AppText tone="muted">まだ登録していません</AppText>
-          </Reveal>
-          <Reveal index={ROW_ORDER_MAX}>
-            <AppText variant="caption" tone="muted">
-              止められるのは、子どものスマホの Chrome・Samsung Internet・Firefox・Edge
-              で開いたときです（ほかのブラウザや、アプリの中で開いたページは止められません）。子どものスマホで「ユーザー補助」の許可が要ります（子どものホームに案内が出ます）。
-            </AppText>
-          </Reveal>
-        </RevealGroup>
+          {rows.length === 0 && <AppText tone="muted">まだ登録していません</AppText>}
+          <AppText variant="caption" tone="muted">
+            止められるのは、子どものスマホの Chrome・Samsung Internet・Firefox・Edge
+            で開いたときです（ほかのブラウザや、アプリの中で開いたページは止められません）。子どものスマホで「ユーザー補助」の許可が要ります（子どものホームに案内が出ます）。
+          </AppText>
+        </>
       )}
     </Screen>
   );
 }
-
-// 行の順番の打ち止め（たくさん並んでも待たせすぎない。これより下は同じ時に出る。親16 と同じ）
-const ROW_ORDER_MAX = 10;
 
 const statusText = {
   applied: "反映済み",
@@ -278,26 +269,23 @@ const statusText = {
   removing: "外します（まだ保存していません）",
 } as const;
 
-// 反映待ち → 反映済み に変わったら、札を小さく弾ませて知らせる（親16 と同じ）
 function ListStatus({ status }: { status: "applied" | "pending" }) {
-  return (
-    <PopIn replayKey={status}>
-      {status === "applied" ? (
-        <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
-      ) : (
-        <Chip tone="warning" icon="sync" label="子どものスマホへの反映待ち" />
-      )}
-    </PopIn>
+  return status === "applied" ? (
+    <Chip tone="success" icon="check_circle" label="子どものスマホに反映済み" />
+  ) : (
+    <Chip tone="warning" icon="sync" label="子どものスマホに反映待ち" />
   );
 }
 
 function SiteRowView({
   row,
+  warning,
   onRemove,
   onRestore,
   disabled,
 }: {
   row: SiteRow;
+  warning: string | null; // 同じサービスのアプリが制限対象外のときの注意（site-apps.ts）
   onRemove: () => void;
   onRestore: () => void;
   disabled: boolean;
@@ -315,17 +303,24 @@ function SiteRowView({
         <AppText variant="caption" tone="muted">
           {row.scope}
         </AppText>
-        {/* 反映済みの行は何も出さない（見出しの札が「反映済み」と言っている。親16 と同じ） */}
         {row.status === "pending" ? (
           <View style={styles.chipRow}>
-            <PopIn replayKey={row.status}>
-              <Chip label={statusText.pending} small />
-            </PopIn>
+            <Chip label={statusText.pending} small />
           </View>
-        ) : row.status === "applied" ? null : (
-          <AppText variant="caption" tone="warning">
+        ) : (
+          <AppText variant="caption" tone={row.status === "applied" ? "muted" : "warning"}>
             {statusText[row.status]}
           </AppText>
+        )}
+        {warning && (
+          <View style={styles.warnRow}>
+            <Icon name="warning" size={tokens.size.iconSmall} color={c.warning} />
+            <View style={styles.warnText}>
+              <AppText variant="caption" tone="warning" strong>
+                {warning}
+              </AppText>
+            </View>
+          </View>
         )}
       </View>
       {removing ? (
@@ -362,5 +357,7 @@ const useStyles = makeStyles((c) =>
       gap: tokens.space[2],
     },
     chipRow: { flexDirection: "row" },
+    warnRow: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
+    warnText: { flexShrink: 1 },
   }),
 );

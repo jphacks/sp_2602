@@ -9,3 +9,4 @@ export * from "./settings-state.js";
 export * from "./server-meta.js";
 export * from "./child-apps.js";
 export * from "./blocked-sites.js";
+export * from "./device-status.js";

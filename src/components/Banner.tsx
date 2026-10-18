@@ -1,30 +1,17 @@
 // 帯の案内（Figma の Banner。アイコン＋文）。tone で色を変える: info（説明）/ warning（古いキャッシュなど）/ danger（エラー）/ success。
 //   <Banner icon="edit" message="テストの名前と期間を入れてください" />
 //   <Banner tone="warning" icon="cloud_off" message="最新でない可能性があります" />
-import { type ColorName, tokens } from "@contracts/tokens";
+import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { makeStyles, useColors } from "@/lib/theme";
 import { AppText, type TextTone } from "./AppText";
+import { bannerBg as bg, bannerFg as fg, type BannerTone as Tone } from "./banner-tones";
 import { Icon, type IconName } from "./Icon";
-
-type Tone = "info" | "warning" | "danger" | "success";
 
 type Props = { message: string; hint?: string; icon?: IconName; tone?: Tone; action?: ReactNode };
 
-// 地と文字・アイコンの色（色の名前。値は今のテーマから引く）
-const bg: Record<Tone, ColorName> = {
-  info: "primarySoft",
-  warning: "warningSoft",
-  danger: "dangerSoft",
-  success: "successSoft",
-};
-const fg: Record<Tone, ColorName> = {
-  info: "onPrimarySoft",
-  warning: "warning",
-  danger: "danger",
-  success: "success",
-};
+// 地と文字・アイコンの色（色の名前）は banner-tones.ts の表を使う（白色・黒色で読めるかをテストで確かめるため、表は1か所に置く）
 const textTone: Record<Tone, TextTone> = {
   info: "onPrimarySoft",
   warning: "warning",

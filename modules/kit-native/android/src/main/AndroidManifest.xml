@@ -36,6 +36,10 @@
   <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
   <!-- 「電池の最適化から外しますか」の確認を直接出す -->
   <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+  <!-- ── D-113: 許可の見張りと親への通告。engine/StatusReporter.kt ──
+       監視（Kotlin）が許可の状態をサーバへ直接送る（アプリを閉じていても）。React Native のアプリは元々この権限を持つが、
+       Kotlin から直接通信するのはこの部品なので、ここでも宣言しておく（同じ宣言は1つにまとめられる） -->
+  <uses-permission android:name="android.permission.INTERNET" />
 
   <application>
 
@@ -116,6 +120,12 @@
         android:name="android.accessibilityservice"
         android:resource="@xml/slope_web_guard" />
     </service>
+
+    <!-- ── D-113: 画面が消えている間の、許可の状態の生存報告（15 分ごとの目覚まし）。engine/StatusReporter.kt ──
+         自分のアプリの AlarmManager からだけ届く（exported="false"） -->
+    <receiver
+      android:name="dev.hackathon.kit.kitnative.engine.StatusReportReceiver"
+      android:exported="false" />
 
     <!-- 端末の再起動・Slope の更新のあとに監視を再開する（どちらも OS しか送れない放送）。engine/BootReceiver.kt -->
     <receiver

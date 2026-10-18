@@ -79,7 +79,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | `src/server/plan/daily-limits.ts` の `DailyLimitOptions`・`selectPeriods`・`buildRawLimit`・`computeDailyLimits` | C10 の細かい決まり | → Q16 | → Q16 |
 | `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS` | 日別上限を何日先まで作るか | 保存した日から 120 日（残り 60 日で作り足す） | → Q16-7 |
 | `src/server/services/plan-settings.ts` の `savePlanForCaller`・`src/components/parent/plan-form.ts` の `planFormFromView` | 始まった計画の S・G だけを変えたいとき | 開始日は今日以降でないと保存できないので、親02 は開始日の初期値を今日にする（＝今日から計画を作り直すことになる） | `savePlanForCaller` の開始日の確認と `planFormFromView` |
-| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | 残す（同じ保護者と紐づけ直したときに続きから使えるように）。別の保護者と紐づけ直すと、その保護者に前の利用記録・端末のアプリ一覧とアイコン（Q15）が見える | 消すなら `unlinkChild` のトランザクションで、設定・期間・日別上限・対象外アプリ・利用記録・アプリ一覧（`child_app_lists`。中身とアイコンは一緒に消える）の表からもその子どもの行を消す |
+| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | 残す（同じ保護者と紐づけ直したときに続きから使えるように）。別の保護者と紐づけ直すと、その保護者に前の利用記録・端末のアプリ一覧とアイコン（Q15）が見える。端末の許可の状態（`device_statuses`。D-113）だけは消す | 消すなら `unlinkChild` のトランザクションで、設定・期間・日別上限・対象外アプリ・利用記録・アプリ一覧（`child_app_lists`。中身とアイコンは一緒に消える）の表からもその子どもの行を消す |
 | `contracts/schemas.ts` の `periodFields` | 期間の終了日を含むか | 含む | → Q16-11 |
 
 ### 端末の仕組み（`src/lib/`）
@@ -94,6 +94,7 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | `src/lib/usage-calc.ts` の `LEARNING_PACKAGES` | C4 で誘導する学習用アプリ（Kotlin に渡す一覧と、子11 の「お勧めアプリ」で上から順に開く一覧は同じもの） | Google Classroom・Duolingo | `LEARNING_PACKAGES` |
 | `modules/kit-native/.../engine/WebSites.kt` の `WebBlockGate`（D-111） | 制限する Web サイトを開いたときの間隔（戻す・案内を出す） | 戻すのは同じ登録に 2 秒あける。案内（子11）は同じ登録に 60 秒・どの登録にも 10 秒あける（間の回は戻すだけ） | `WebBlockGate` の `backGapMs`・`promptGapMs`・`anyPromptGapMs`（実機で子どもに試してもらって決める。`PromptThrottle` と同じ） |
 | `modules/kit-native/.../engine/WebGuardService.kt` の `URL_BAR_IDS`（D-111） | 対応するブラウザとアドレス欄の id（ブラウザの版で変わることがある） | Chrome・Samsung Internet・Firefox・Edge（SelfLock の id を出発点にした。実機ではまだ確かめていない） | `URL_BAR_IDS` と `res/xml/slope_web_guard.xml` の `packageNames`（両方そろえる） |
+| `modules/kit-native/.../engine/StatusReport.kt` の `StatusReportRules.HEARTBEAT_MS`・親01 の帯の部品（`DeviceAlertBanner`）の「30 分」（D-113） | 許可の状態の生存報告の間隔と、親01 に「連絡が取れていません」を出すまでの時間。電池の最適化から外していない端末で、休止中（夜など）に生存報告が届かず誤って出ないか | 15 分ごとに送り（画面が消えている間は `setAndAllowWhileIdle` の目覚まし）、最後に届いてから 30 分で出す（実機ではまだ確かめていない） | 2つの値（30 分は `HEARTBEAT_MS` の2倍以上にする）。誤報が多ければ、電池の最適化から外すよう子01 で強く案内するか、時間を延ばす |
 | `src/lib/child-data.tsx` の `refresh` | 対象外アプリの設定がまだ取れていない（組がない）ときの利用記録 | すべてのアプリを制限の対象として送る（必須例外は除く） | `refresh` の `excluded` の作り方 |
 
 ### 画面
