@@ -6,13 +6,16 @@
 //   <PermissionGuideCard items={permissionGuide(permissions, native.available, config)} onOpen={(p) => native.openPermissionSettings(p)} />
 import type { NativePermission } from "@contracts/native";
 import { tokens } from "@contracts/tokens";
+import type { ComponentProps } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Card, ListItem } from "@/components";
+import { PermissionGuideCard as KidsPermissionGuideCard } from "@/kids/components/child/PermissionGuideCard";
+import { useKidsUI } from "@/kids/KidsUI";
 import type { PermissionGuideItem } from "./child-view";
 
 type Props = { items: readonly PermissionGuideItem[]; onOpen: (permission: NativePermission) => void };
 
-export function PermissionGuideCard({ items, onOpen }: Props) {
+function ClassicPermissionGuideCard({ items, onOpen }: Props) {
   if (items.length === 0) return null;
   return (
     <Card>
@@ -37,3 +40,9 @@ export function PermissionGuideCard({ items, onOpen }: Props) {
 const styles = StyleSheet.create({
   head: { gap: tokens.space[1] },
 });
+
+// ── 子ども用の見た目への振り分け（決まりは ../kids-switch.tsx。この部品は画面がファイルを直接読むので、ここで振り分ける） ──
+
+export function PermissionGuideCard(p: ComponentProps<typeof ClassicPermissionGuideCard>) {
+  return useKidsUI() ? <KidsPermissionGuideCard {...p} /> : <ClassicPermissionGuideCard {...p} />;
+}

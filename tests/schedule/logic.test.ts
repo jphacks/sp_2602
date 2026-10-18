@@ -6,12 +6,14 @@ import { formatDateLongJa as formatDateLong, formatDateJa as formatDateShort } f
 import { errorText } from "@contracts/errors";
 import { describe, expect, it } from "vitest";
 import {
+  APPLIED_LABEL,
   appliedStatus,
   asTestPeriod,
   deleteConfirmText,
   doneDialog,
   emptyDraft,
   formatPeriodRange,
+  PENDING_LABEL,
   type Period,
   type PeriodSource,
   periodPhase,
@@ -253,26 +255,26 @@ describe("保存の失敗の出し分け", () => {
 
 describe("反映済み／反映待ち（Q6）", () => {
   it("子どもの端末の版が最新と同じか新しければ反映済み", () => {
-    expect(appliedStatus(5, 5).label).toBe("反映済み");
+    expect(appliedStatus(5, 5).label).toBe(APPLIED_LABEL);
     expect(appliedStatus(5, 5).tone).toBe("success");
   });
 
   it("古い版・まだ一度も取りに来ていないなら反映待ち", () => {
-    expect(appliedStatus(5, 4).label).toBe("反映待ち");
+    expect(appliedStatus(5, 4).label).toBe(PENDING_LABEL);
     expect(appliedStatus(5, null)).toMatchObject({
-      label: "反映待ち",
-      hint: "お子さんの端末がまだ設定を受け取っていません",
+      label: PENDING_LABEL,
+      hint: "まだ設定を受け取っていません",
     });
   });
 
   it("一度も変えていない一覧（最後に変わった版が 0）は、子どもがまだ取りに来ていなくても反映済み", () => {
-    expect(appliedStatus(0, null)).toMatchObject({ label: "反映済み", tone: "success" });
+    expect(appliedStatus(0, null)).toMatchObject({ label: APPLIED_LABEL, tone: "success" });
   });
 
   it("決めるのは一覧が最後に変わった版。そのあと計画などで設定の版だけが上がっても反映済みのまま（10/17 デバッグ第2回）", () => {
     // テストを足した版 2 は子どもに届いている（childAppliedVersion 2）。そのあと計画を保存して設定の版は 3 になった
     const s: PeriodSource = { periods: [math], configVersion: 3, changedVersion: 2, childAppliedVersion: 2 };
-    expect(appliedStatus(s.changedVersion, s.childAppliedVersion).label).toBe("反映済み");
+    expect(appliedStatus(s.changedVersion, s.childAppliedVersion).label).toBe(APPLIED_LABEL);
   });
 });
 

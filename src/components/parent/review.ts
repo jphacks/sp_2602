@@ -1,7 +1,7 @@
 // 親03 振り返り の中身を作る（純粋な関数。tests/parent/review.test.ts）。
 //   - limitReduction: 「初日（10/12）から今日（10/15）までに 40 分 減りました」「上限が 13% 減」
-//   - reviewPeriod  : 期間の帯「前の試験 9/24 〜 今の試験 10/28」
-//   - afterTestNote : 注意書き「テスト（10/28）が終わると、上限は一度少し戻ります。」
+//   - reviewPeriod  : 期間の帯「前のテスト 9/24 〜 今のテスト 10/28」
+//   - afterTestNote : 注意書き「10/28 のテストが終わると、上限は一度少し戻ります。」
 // 数字はすべてサーバの日別上限（C10 の結果）から拾う。ここで C10 を計算し直さない。
 import type { ConfigSnapshot, TestPeriod } from "@contracts/schemas";
 import { nextTest } from "@/lib/usage-calc";
@@ -51,21 +51,21 @@ export function limitReduction(snapshot: Pick<ConfigSnapshot, "plan" | "dailyLim
 
 // ── 期間の帯 ──
 
-// 前の試験 = 今日より前に終わったテストのうち、一番新しいもの
+// 前のテスト = 今日より前に終わったテストのうち、一番新しいもの
 export function previousTest(testPeriods: readonly TestPeriod[], today: string): TestPeriod | null {
   return testPeriods.filter((t) => t.endDate < today).sort((a, b) => (a.startDate < b.startDate ? 1 : -1))[0] ?? null;
 }
 
-// 「前の試験 9/24 〜 今の試験 10/28」。前の試験がなければ計画の開始日、計画もなければ出さない。今の試験がなければ「今日」
+// 「前のテスト 9/24 〜 今のテスト 10/28」。前のテストがなければ計画の開始日、計画もなければ出さない。今のテストがなければ「今日」
 export function reviewPeriod(snapshot: Pick<ConfigSnapshot, "plan" | "testPeriods">, today: string): string {
   const prev = previousTest(snapshot.testPeriods, today);
   const next = nextTest({ testPeriods: snapshot.testPeriods } as ConfigSnapshot, today);
   const left = prev
-    ? `前の試験 ${md(prev.startDate)}`
+    ? `前のテスト ${md(prev.startDate)}`
     : snapshot.plan
       ? `計画の開始 ${md(snapshot.plan.planStartDate)}`
       : null;
-  const right = next ? `今の試験 ${md(next.startDate)}` : `今日 ${md(today)}`;
+  const right = next ? `今のテスト ${md(next.startDate)}` : `今日 ${md(today)}`;
   return left ? `${left} 〜 ${right}` : right;
 }
 
@@ -80,7 +80,7 @@ export function afterTestNote(
   const next = nextTest({ testPeriods: snapshot.testPeriods } as ConfigSnapshot, today);
   if (!next) return null;
   const hasLater = snapshot.testPeriods.some((t) => t.startDate > next.endDate);
-  if (hasLater) return `テスト（${md(next.startDate)}）が終わると、上限は一度少し戻ります。`;
+  if (hasLater) return `${md(next.startDate)} のテストが終わると、上限は一度少し戻ります。`;
   const usual = snapshot.usualLimitMinutes === null ? "" : `の ${snapshot.usualLimitMinutes}分`;
-  return `テスト（${md(next.startDate)}）が最後のテストです。終わった次の日から、上限は通常上限${usual}に戻ります。`;
+  return `${md(next.startDate)} のテストが最後です。終わった次の日から、上限は通常上限${usual}に戻ります。`;
 }

@@ -85,9 +85,7 @@ export function periodTexts(kind: PeriodKind, viewer: Role) {
     emptyHint: "「空白期間を追加する」から登録できます",
     pastHeader: "終わった空白期間",
     missing: "この空白期間は見つかりません",
-    listBanner: "空白期間のあいだは、1日の上限がなくなります（制限なし）。終わると元の上限に戻ります。" as
-      | string
-      | null,
+    listBanner: "この期間は上限なし（制限なし）になり、終わると元の上限に戻ります。" as string | null,
   };
 }
 
@@ -290,23 +288,18 @@ export function saveFailure(error: ApiError, kind: PeriodKind): SaveFailure {
 // changedVersion は、その一覧（テスト期間・空白期間）が最後に変わった設定の版（サーバの periodsChangedVersion・blankChangedVersion）。
 // 設定全体の版（configVersion）では決めない。なぜ: 計画や対象外アプリを保存しただけでも設定の版は上がるので、テストの日程は
 // 何も変わっていないのにテストの一覧が「反映待ち」になったため（10/17 デバッグ第2回。親16 の excludedListStatus と同じ考え方）。
-// 0（一度も変えていない）なら、子どもの端末に届けるものがないので反映済み
+// 0（一度も変えていない）なら、子どもの端末に届けるものがないので反映済み。
+// 反映済みは札だけ（札と補足で同じことを2回言わない）。反映待ちは、いつ届くかを補足で言う
+export const APPLIED_LABEL = "子どものスマホに反映済み";
+export const PENDING_LABEL = "子どものスマホへの反映待ち";
 export function appliedStatus(changedVersion: number, childAppliedVersion: number | null) {
-  if (changedVersion === 0)
-    return { tone: "success" as const, label: "反映済み", hint: "お子さんの端末に反映されています" };
+  const applied = { tone: "success" as const, label: APPLIED_LABEL, hint: null as string | null };
+  if (changedVersion === 0) return applied;
   if (childAppliedVersion == null)
-    return {
-      tone: "warning" as const,
-      label: "反映待ち",
-      hint: "お子さんの端末がまだ設定を受け取っていません",
-    };
+    return { tone: "warning" as const, label: PENDING_LABEL, hint: "まだ設定を受け取っていません" as string | null };
   if (childAppliedVersion < changedVersion)
-    return {
-      tone: "warning" as const,
-      label: "反映待ち",
-      hint: "お子さんの端末が次に通信したときに反映されます",
-    };
-  return { tone: "success" as const, label: "反映済み", hint: "お子さんの端末に反映されています" };
+    return { tone: "warning" as const, label: PENDING_LABEL, hint: "次に通信したときに届きます" as string | null };
+  return applied;
 }
 
 // ── 一覧の取得結果の状態 ────────────────────────────────────────

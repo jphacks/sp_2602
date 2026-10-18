@@ -1,7 +1,7 @@
 // 子07 設定（Figma 108:6944）＋ 子06 テーマカラー変更ポップアップ（108:6906）。
 // 項目は Figma どおりの3つだけ（Q13。「保護者の設定を見る」は足さない）:
 //   「テスト日程の一覧・変更」（件数）→ /child/schedule-list（子10）
-//   「テーマカラーの変更」「白色」「黒色」（今のテーマ）→ 子06 のダイアログ（選ぶとすぐ全画面の色が変わる。src/lib/theme.tsx）
+//   「テーマカラーの変更」「白色」「黒色」「ベージュ」（今のテーマ。子ども用の見た目の3つ。src/kids/lib/theme-store.ts）→ 子06 のダイアログ（選ぶとすぐ全画面の色が変わる。src/lib/theme.tsx）
 //   「ログアウト」→ 確認のダイアログ（LogoutListItem）→ 入口へ
 // データ: 件数は useChildData().config（C7 のスナップショットのテスト期間）。取れないときは件数を出さない（0件と言わない）。
 // 「←」は Figma にあるので出す（タブの画面なので、押すとホームへ）。
@@ -9,9 +9,9 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { ListItem, LogoutListItem, Screen, ThemeDialog } from "@/components";
 import { testCountLabel } from "@/components/child/child-view";
+import { themeLabel } from "@/kids/lib/theme-store";
 import { useChildData } from "@/lib/child-data";
 import { useTheme } from "@/lib/theme";
-import { themeLabel } from "@/lib/theme-store";
 
 export default function ChildSettings() {
   const { config } = useChildData();

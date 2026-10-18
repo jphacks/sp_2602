@@ -11,10 +11,11 @@ import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Dialog, Screen } from "@/components";
 import { googleOutcome, type LoginFailure, loginNotice, serverFailure } from "@/components/pair";
+import { withKidsUI } from "@/kids/KidsUI";
 import { googleSignInEnabled, type MockLoginChoice, mockLoginChoices, signInWithGoogle } from "@/lib/google";
 import { useSession } from "@/lib/session";
 
-export default function Login() {
+function Login() {
   const { state, signIn } = useSession();
   const [busy, setBusy] = useState(false);
   const [attempted, setAttempted] = useState(false);
@@ -104,3 +105,6 @@ export default function Login() {
 const styles = StyleSheet.create({
   mock: { gap: tokens.layout.listGap },
 });
+
+// 親子どちらにも出る入口の画面。Figma の子ども用のデザイン（入01・入02・子08・子09・共01〜共03 など）があるので、今は子ども用の見た目（src/kids）で描く。
+export default withKidsUI(Login);

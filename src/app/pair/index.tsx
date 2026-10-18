@@ -9,10 +9,11 @@ import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Screen, StateView } from "@/components";
 import { type LinkQuery, LinkUnknown, linkCheckView, RoleChoice } from "@/components/pair";
+import { withKidsUI } from "@/kids/KidsUI";
 import { call, errorOf, timeoutSignal } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
-export default function PairStart() {
+function PairStart() {
   const { signOut, refresh } = useSession();
   const [query, setQuery] = useState<LinkQuery>({ kind: "idle" });
 
@@ -86,3 +87,6 @@ export default function PairStart() {
 const styles = StyleSheet.create({
   choices: { gap: tokens.layout.listGap },
 });
+
+// 親子どちらにも出る入口の画面。Figma の子ども用のデザイン（入01・入02・子08・子09・共01〜共03 など）があるので、今は子ども用の見た目（src/kids）で描く。
+export default withKidsUI(PairStart);

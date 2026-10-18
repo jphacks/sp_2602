@@ -1,20 +1,34 @@
 // 親03 振り返り（Figma 108:7413）。計画を始めてから上限がどれだけ下がったか（成果）と、週ごとの1日の使用時間を出す。
 // データ: 上限の減り・期間・テストのお知らせは useParentData().config（C7。サーバの日別上限 = C10 の結果をそのまま使う）、
 //         週ごとの平均は call("usageGet", 6週ぶん)（C6。30 秒ごとに取り直す）。
-// 行き先: 「各アプリごとの利用時間を見る ›」→ /parent/app-usage（親09）、計画がなければ「計画を作る」→ /parent/plan（親02）。
+// 行き先: 「アプリごとの利用時間を見る ›」→ /parent/app-usage（親09）、計画がなければ「計画を作る」→ /parent/plan（親02）。
 // 「減った」の基準は未決（Q19）。仮の基準は src/components/parent/review.ts の limitReduction（TODO(未決)）。
 import { todayString } from "@contracts/dates";
 import type { ConfigSnapshot } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { AppText, Banner, Button, Card, configViewState, Legend, Screen, StateView } from "@/components";
+import {
+  AppText,
+  Banner,
+  Button,
+  Card,
+  configViewState,
+  Legend,
+  PopIn,
+  Reveal,
+  RevealGroup,
+  Screen,
+  StateView,
+  useRevealDelay,
+} from "@/components";
 import { reviewRange, reviewWeekBars } from "@/components/parent/charts";
 import { ChildGate, type UsageState, useUsage } from "@/components/parent/data";
 import { md } from "@/components/parent/format";
 import { Badge, LinkCard, Note, Strip } from "@/components/parent/parts";
 import { afterTestNote, limitReduction, previousTest, reviewPeriod } from "@/components/parent/review";
 import { WeekBars } from "@/components/parent/WeekBars";
+import { motion, useAnimatedNumber } from "@/lib/motion";
 import { useParentData } from "@/lib/parent-data";
 import { nextTest } from "@/lib/usage-calc";
 
@@ -44,27 +58,47 @@ function ReviewBody({ childId }: { childId: string }) {
   const snapshot = config.snapshot;
   const note = afterTestNote(snapshot, today);
   return (
-    <>
-      {(view === "stale" || state.status === "stale") && (
+    // ホームと同じく、開いたときは上から順にふわっと出す。後から出る帯は高さを広げて入れる
+    <RevealGroup>
+      <Reveal index={0} show={view === "stale" || state.status === "stale"}>
         <Banner
           tone="warning"
           icon="cloud_off"
           message="最新でない可能性があります"
           hint="通信できるようになると自動で更新します"
         />
-      )}
-      <Strip>{reviewPeriod(snapshot, today)}</Strip>
-      <ReductionCard snapshot={snapshot} today={today} />
-      <WeeklyCard state={state} snapshot={snapshot} today={today} onRetry={() => void reload()} />
-      {note ? <Note>{note}</Note> : null}
-      <LinkCard label="各アプリごとの利用時間を見る" icon="apps" onPress={() => router.push("/parent/app-usage")} />
-    </>
+      </Reveal>
+      <Reveal index={1}>
+        <Strip>{reviewPeriod(snapshot, today)}</Strip>
+      </Reveal>
+      <Reveal index={2}>
+        <ReductionCard snapshot={snapshot} today={today} />
+      </Reveal>
+      <Reveal index={3}>
+        <WeeklyCard state={state} snapshot={snapshot} today={today} onRetry={() => void reload()} />
+      </Reveal>
+      <Reveal index={4} show={note != null}>
+        {note ? <Note>{note}</Note> : null}
+      </Reveal>
+      <Reveal index={5}>
+        <LinkCard label="アプリごとの利用時間を見る" icon="apps" onPress={() => router.push("/parent/app-usage")} />
+      </Reveal>
+    </RevealGroup>
   );
 }
 
 // 「初日（10/12）から今日（10/15）までに 40 分 減りました」「上限が 13% 減」
+// カードが見え始めてから数え上げを始めるまで（ミリ秒。ホームと同じ）
+const COUNT_LEAD = 200;
+
 function ReductionCard({ snapshot, today }: { snapshot: ConfigSnapshot; today: string }) {
   const r = limitReduction(snapshot, today);
+  // 減った分の数字は、カードが見えてから 0 から数え上げる（値がないときは動かさない・動きを減らす設定ならすぐ最後の値）
+  const target = r.kind === "ok" && r.startDate !== today ? Math.abs(r.reducedMinutes) : null;
+  const delay = useRevealDelay(target != null, COUNT_LEAD);
+  const { display, reduced } = useAnimatedNumber(target, { duration: motion.duration.fill, delay });
+  // 数え上げが始まるまでは 0（最後の値が一瞬見えてから 0 に戻る、を出さない）
+  const shown = display ?? (reduced ? target : 0);
   if (r.kind === "no_plan")
     return (
       <Card tone="soft">
@@ -117,7 +151,7 @@ function ReductionCard({ snapshot, today }: { snapshot: ConfigSnapshot; today: s
         accessibilityLabel={`${lead}、上限が${Math.abs(r.reducedMinutes)}分${up ? "増えました" : "減りました"}`}
       >
         <AppText variant="display" tone="onPrimarySoft">
-          {Math.abs(r.reducedMinutes)}
+          {shown ?? Math.abs(r.reducedMinutes)}
         </AppText>
         <AppText variant="title" tone="onPrimarySoft">
           {up ? "分 増えました" : "分 減りました"}
@@ -126,7 +160,12 @@ function ReductionCard({ snapshot, today }: { snapshot: ConfigSnapshot; today: s
       <AppText variant="caption" tone="onPrimarySoft">
         上限 {r.startLimit}分 → {r.todayLimit}分
       </AppText>
-      {r.percent != null && !up ? <Badge label={`上限が ${r.percent}% 減`} /> : null}
+      {/* 数え上げが終わるころに、札を「ぽん」と出す */}
+      {r.percent != null && !up ? (
+        <PopIn delay={delay + motion.duration.fill} style={styles.badge}>
+          <Badge label={`上限が ${r.percent}% 減`} />
+        </PopIn>
+      ) : null}
     </Card>
   );
 }
@@ -171,5 +210,6 @@ function WeeklyCard(props: { state: UsageState; snapshot: ConfigSnapshot; today:
 }
 
 const styles = StyleSheet.create({
+  badge: { alignSelf: "flex-start" },
   amount: { flexDirection: "row", alignItems: "baseline", gap: tokens.space[2], flexWrap: "wrap" },
 });

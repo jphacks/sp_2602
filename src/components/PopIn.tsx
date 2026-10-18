@@ -5,7 +5,7 @@
 // 決まり（src/lib/motion.ts と同じ）: 「動きを減らす」がオンなら動かさずに最後の形を出す。
 // 出る前も場所は取っておく（透明なだけ）ので、出たときに下のグラフやボタンの位置がずれない。押せる部品の邪魔もしない。
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
-import { Animated } from "react-native";
+import { Animated, type StyleProp, type ViewStyle } from "react-native";
 import { motion, useReducedMotion } from "@/lib/motion";
 
 // 最初は少し小さい所から（0 からだと「飛び出す」感じが強すぎる）
@@ -15,9 +15,10 @@ const AGAIN_SCALE = 0.92;
 // 「ぽん」のばね。少しだけ行き過ぎて戻る（行き過ぎは 2% ほど。0.45 秒ほどで止まる）
 const POP_SPRING = { stiffness: 300, damping: 18, mass: 1 } as const;
 
-type Props = { delay?: number; replayKey?: string; children: ReactNode };
+// style: 入れ物の置き場所（左に寄せた札を、その場で弾ませるときの alignSelf など）。なければ今までどおり
+type Props = { delay?: number; replayKey?: string; style?: StyleProp<ViewStyle>; children: ReactNode };
 
-export function PopIn({ delay = 0, replayKey, children }: Props) {
+export function PopIn({ delay = 0, replayKey, style: place, children }: Props) {
   const reduced = useReducedMotion();
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(FROM_SCALE)).current;
@@ -57,5 +58,5 @@ export function PopIn({ delay = 0, replayKey, children }: Props) {
   }, [replayKey, reduced, delay, opacity, scale]);
 
   const style = useMemo(() => ({ opacity, transform: [{ scale }] }), [opacity, scale]);
-  return <Animated.View style={style}>{children}</Animated.View>;
+  return <Animated.View style={[place, style]}>{children}</Animated.View>;
 }

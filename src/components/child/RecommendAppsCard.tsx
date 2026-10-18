@@ -2,11 +2,14 @@
 // 押したときに何を開くかは画面（limit-reached.tsx）が決める。
 //   <RecommendAppsCard onPress={openRecommended} />
 import { tokens } from "@contracts/tokens";
+import type { ComponentProps } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { AppText, Icon } from "@/components";
+import { RecommendAppsCard as KidsRecommendAppsCard } from "@/kids/components/child/RecommendAppsCard";
+import { useKidsUI } from "@/kids/KidsUI";
 import { makeStyles, useColors } from "@/lib/theme";
 
-export function RecommendAppsCard({ onPress }: { onPress: () => void }) {
+function ClassicRecommendAppsCard({ onPress }: { onPress: () => void }) {
   const styles = useStyles();
   const c = useColors();
   return (
@@ -45,3 +48,9 @@ const useStyles = makeStyles((c) =>
     pressed: { backgroundColor: c.surfaceDim },
   }),
 );
+
+// ── 子ども用の見た目への振り分け（決まりは ../kids-switch.tsx。この部品は画面がファイルを直接読むので、ここで振り分ける） ──
+
+export function RecommendAppsCard(p: ComponentProps<typeof ClassicRecommendAppsCard>) {
+  return useKidsUI() ? <KidsRecommendAppsCard {...p} /> : <ClassicRecommendAppsCard {...p} />;
+}

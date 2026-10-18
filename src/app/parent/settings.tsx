@@ -9,7 +9,7 @@
 // 空白期間（Q7）の入口は、上限に関わる 親02 計画を作る の画面に置いた（設定は Figma の4項目のままにするため）。
 import { router } from "expo-router";
 import { useState } from "react";
-import { ListItem, LogoutListItem, Screen, ThemeDialog } from "@/components";
+import { ListItem, LogoutListItem, Reveal, RevealGroup, Screen, ThemeDialog } from "@/components";
 import { countText } from "@/components/parent/format";
 import { useParentData } from "@/lib/parent-data";
 import { useTheme } from "@/lib/theme";
@@ -22,37 +22,49 @@ export default function ParentSettings() {
   const [themeOpen, setThemeOpen] = useState(false);
   return (
     <Screen title="設定" bottomInset={false}>
-      {/* Figma 親04: アイコンは青、項目名は太字（子07 と同じ） */}
-      <ListItem
-        icon="event"
-        title="テスト日程の一覧・変更"
-        strong
-        value={countText(snapshot?.testPeriods.length)}
-        onPress={() => router.push("/parent/schedules")}
-      />
-      <ListItem
-        icon="apps"
-        title="制限対象外アプリ"
-        strong
-        value={countText(snapshot?.excludedApps.length)}
-        onPress={() => router.push("/parent/excluded-apps")}
-      />
-      {/* Figma にない行（D-111）。「制限対象外アプリ」と同じ並びに置く（どちらも子どもの端末の制限の決まり） */}
-      <ListItem
-        icon="language"
-        title="制限する Web サイト"
-        strong
-        value={countText(snapshot?.blockedSites.length)}
-        onPress={() => router.push("/parent/blocked-sites")}
-      />
-      <ListItem
-        icon="palette"
-        title="テーマカラーの変更"
-        strong
-        value={themeLabel(theme)}
-        onPress={() => setThemeOpen(true)}
-      />
-      <LogoutListItem />
+      {/* Figma 親04: アイコンは青、項目名は太字（子07 と同じ）。開いたときは上から順にふわっと出す */}
+      <RevealGroup>
+        <Reveal index={0}>
+          <ListItem
+            icon="event"
+            title="テスト日程の一覧・変更"
+            strong
+            value={countText(snapshot?.testPeriods.length)}
+            onPress={() => router.push("/parent/schedules")}
+          />
+        </Reveal>
+        <Reveal index={1}>
+          <ListItem
+            icon="apps"
+            title="制限対象外アプリ"
+            strong
+            value={countText(snapshot?.excludedApps.length)}
+            onPress={() => router.push("/parent/excluded-apps")}
+          />
+        </Reveal>
+        {/* Figma にない行（D-111）。「制限対象外アプリ」と同じ並びに置く（どちらも子どもの端末の制限の決まり） */}
+        <Reveal index={2}>
+          <ListItem
+            icon="language"
+            title="制限する Web サイト"
+            strong
+            value={countText(snapshot?.blockedSites.length)}
+            onPress={() => router.push("/parent/blocked-sites")}
+          />
+        </Reveal>
+        <Reveal index={3}>
+          <ListItem
+            icon="palette"
+            title="テーマカラーの変更"
+            strong
+            value={themeLabel(theme)}
+            onPress={() => setThemeOpen(true)}
+          />
+        </Reveal>
+        <Reveal index={4}>
+          <LogoutListItem />
+        </Reveal>
+      </RevealGroup>
       <ThemeDialog visible={themeOpen} onClose={() => setThemeOpen(false)} />
     </Screen>
   );

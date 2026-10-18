@@ -22,7 +22,7 @@ export type ChartBar = {
   fill: "muted" | "strong"; // 中身の色（淡い青 / 青）
   emphasis: boolean; // 今日・今週（文字を青・太字に）
   missing: boolean; // 記録が届いていない（「？」の印を出す）
-  tags: BarTag[]; // 一番下の札（「今週」「前の試験」など）
+  tags: BarTag[]; // 一番下の札（「今週」「前のテスト」など）
   a11y: string; // 読み上げの文
 };
 
@@ -91,8 +91,8 @@ export function weekAverages(
 
 export type ReviewMarks = {
   planStartDate: string | null; // 計画の開始日（この日を含む週から「計画の中」）
-  prevTestStart: string | null; // 前の試験の開始日（その週に「前の試験」の札）
-  nextTestStart: string | null; // 今の試験の開始日（その週に「今の試験」の札）
+  prevTestStart: string | null; // 前のテストの開始日（その週に「前のテスト」の札）
+  nextTestStart: string | null; // 今のテストの開始日（その週に「今のテスト」の札）
 };
 
 // TODO(未決): 棒の上の数字の意味（screens-text 6章 20）。Figma どおり「計画の前の週は使った時間の平均、計画の中の週は上限の平均」にした
@@ -111,9 +111,9 @@ export function reviewWeekBars(days: readonly UsageDay[], today: string, marks: 
     // 計画の前: 計画がない、またはその週が計画の開始日より前に終わっている
     const pre = !marks.planStartDate || sunday < marks.planStartDate;
     const tags: BarTag[] = [];
-    if (inWeek(marks.prevTestStart, monday)) tags.push({ label: "前の試験", tone: "soft" });
+    if (inWeek(marks.prevTestStart, monday)) tags.push({ label: "前のテスト", tone: "soft" });
     if (current) tags.push({ label: "今週", tone: "strong" });
-    if (inWeek(marks.nextTestStart, monday)) tags.push({ label: "今の試験", tone: "soft" });
+    if (inWeek(marks.nextTestStart, monday)) tags.push({ label: "今のテスト", tone: "soft" });
     const limitText = a.limit != null ? `上限の平均 ${a.limit}分` : a.unlimited ? "制限なし" : "上限未設定";
     const usedText = future ? "これから" : a.used != null ? `使った時間の平均 ${a.used}分` : "記録なし";
     const topLabel = pre

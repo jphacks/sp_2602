@@ -8,7 +8,20 @@ import type { ConfigSnapshot } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
 import { StyleSheet, View } from "react-native";
-import { AppText, Banner, Button, Card, Icon, Legend, ProgressBar, Screen, StateView } from "@/components";
+import {
+  AppText,
+  Banner,
+  Button,
+  Card,
+  Icon,
+  Legend,
+  ProgressBar,
+  Reveal,
+  RevealGroup,
+  Screen,
+  StateView,
+  useRevealDelay,
+} from "@/components";
 import { homeWeekBars } from "@/components/parent/charts";
 import { DeviceAlertBanner } from "@/components/parent/DeviceAlertBanner";
 import { ChildGate, type UsageState, useDeviceStatus, useUsage } from "@/components/parent/data";
@@ -16,6 +29,7 @@ import { timeJst } from "@/components/parent/format";
 import { limitText, todaySummary } from "@/components/parent/today";
 import { WeekBars } from "@/components/parent/WeekBars";
 import type { ConfigState } from "@/lib/config-cache";
+import { motion, useAnimatedNumber } from "@/lib/motion";
 import { useParentData } from "@/lib/parent-data";
 import { useColors } from "@/lib/theme";
 import { currentBlankPeriod, nextTest } from "@/lib/usage-calc";
@@ -37,19 +51,20 @@ function HomeBody({ childId }: { childId: string }) {
   const stale = state.status === "stale" || config?.status === "stale";
   const device = useDeviceStatus(childId);
   return (
-    <>
-      {/* D-113: 子どものスマホの許可がオフ・連絡の途絶（いちばん大事なので一番上） */}
+    // 子どもの画面（child/home.tsx）と同じく、開いたときは上から順にふわっと出す。後から出る帯は高さを広げて入れる（下のカードがガタッと動かない）
+    <RevealGroup>
+      {/* D-113: 子どものスマホの許可がオフ・連絡の途絶（いちばん大事なので一番上。動きを待たせずにすぐ出す） */}
       <DeviceAlertBanner
         status={device.status}
         checkedAt={device.checkedAt}
         hasBlockedSites={(snapshot?.blockedSites.length ?? 0) > 0}
       />
-      {snapshot && snapshot.usualLimitMinutes == null && (
-        // Q7: 通常上限がまだない = 計画やテストがない日は「上限未設定」になる。決める画面へ案内する
+      {/* Q7: 通常上限がまだない = 計画やテストがない日は「上限未設定」になる。決める画面へ案内する */}
+      <Reveal index={0} show={snapshot != null && snapshot.usualLimitMinutes == null}>
         <Banner
           icon="info"
           message="1日の上限がまだ決まっていません"
-          hint="テストや計画がない日の上限です。決めるまで、その日は「上限未設定」になります。"
+          hint="テストや計画がない日の上限です。決めるまでは「上限未設定」になります。"
           action={
             <Button
               variant="soft"
@@ -59,26 +74,45 @@ function HomeBody({ childId }: { childId: string }) {
             />
           }
         />
-      )}
-      {stale && (
+      </Reveal>
+      <Reveal index={1} show={stale}>
         <Banner
           tone="warning"
           icon="cloud_off"
           message="最新でない可能性があります"
           hint="通信できるようになると自動で更新します"
         />
-      )}
-      <TodayCard state={state} today={today} snapshot={snapshot} onRetry={() => void reload()} />
-      <WeekCard state={state} today={today} onRetry={() => void reload()} />
-      <NextTestCard config={config} snapshot={snapshot} today={today} />
-    </>
+      </Reveal>
+      <Reveal index={2}>
+        <TodayCard state={state} today={today} snapshot={snapshot} onRetry={() => void reload()} />
+      </Reveal>
+      <Reveal index={3}>
+        <WeekCard state={state} today={today} onRetry={() => void reload()} />
+      </Reveal>
+      <Reveal index={4}>
+        <NextTestCard config={config} snapshot={snapshot} today={today} />
+      </Reveal>
+    </RevealGroup>
   );
 }
+
+// カードが見え始めてから数え上げを始めるまで（ミリ秒。子01 の FILL_LEAD と同じ考え方）
+const COUNT_LEAD = 200;
 
 // 「今日の使用量」: 120 分 ／ 上限 260分・進捗バー・詳しく見る
 function TodayCard(props: { state: UsageState; today: string; snapshot: ConfigSnapshot | null; onRetry: () => void }) {
   const c = useColors();
   const { state, today, snapshot, onRetry } = props;
+  // 使った分の数字は、カードが見えてから 0 から数え上げる（子01 と同じ決まり。値が分からないときは動かさない・動きを減らす設定ならすぐ最後の値）
+  const loaded = state.status !== "loading" && state.status !== "error";
+  const early = loaded ? todaySummary(state.view.days.find((d) => d.date === today)) : null;
+  const target = early && early.kind !== "missing" && early.kind !== "no_record" ? early.usedMinutes : null;
+  const delay = useRevealDelay(target != null, COUNT_LEAD);
+  const { display, reduced } = useAnimatedNumber(target, { duration: motion.duration.fill, delay });
+  // 進捗バーも数字と同じ時に伸ばす（バーだけ先に伸び終わらないように）
+  const percent = early && early.kind !== "missing" && early.kind !== "no_record" ? early.percent : null;
+  const { value: progress } = useAnimatedNumber(percent, { duration: motion.duration.fill, delay });
+  const shownMinutes = display ?? (reduced ? target : 0);
   const header = (
     <View style={styles.header}>
       <Icon name="insights" color={c.primary} />
@@ -129,13 +163,14 @@ function TodayCard(props: { state: UsageState; today: string; snapshot: ConfigSn
         <View style={styles.gapSmall}>
           <View style={styles.amount}>
             <AppText variant="display" tone="primary">
-              {summary.usedMinutes}
+              {shownMinutes ?? summary.usedMinutes}
             </AppText>
             <AppText variant="body">分 ／ {limitLine}</AppText>
           </View>
           {summary.percent != null && (
             <ProgressBar
               percent={summary.percent}
+              progress={progress}
               accessibilityLabel={`今日の使用量 ${summary.usedMinutes}分、${limitLine}`}
             />
           )}

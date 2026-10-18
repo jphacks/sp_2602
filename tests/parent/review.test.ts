@@ -81,15 +81,15 @@ describe("reviewPeriod（期間の帯）", () => {
   const prev = test("2026-09-24", "2026-09-26", "中間");
   const next = test("2026-10-28", "2026-10-30");
 
-  it("Figma 親03: 前の試験 9/24 〜 今の試験 10/28", () => {
-    expect(reviewPeriod(snap({ testPeriods: [prev, next] }), today)).toBe("前の試験 9/24 〜 今の試験 10/28");
+  it("Figma 親03: 前のテスト 9/24 〜 今のテスト 10/28", () => {
+    expect(reviewPeriod(snap({ testPeriods: [prev, next] }), today)).toBe("前のテスト 9/24 〜 今のテスト 10/28");
   });
-  it("前の試験がなければ計画の開始日、今の試験がなければ今日", () => {
-    expect(reviewPeriod(snap({ testPeriods: [next] }), today)).toBe("計画の開始 10/12 〜 今の試験 10/28");
-    expect(reviewPeriod(snap({ testPeriods: [prev] }), today)).toBe("前の試験 9/24 〜 今日 10/15");
-    expect(reviewPeriod(snap({ plan: null, testPeriods: [next] }), today)).toBe("今の試験 10/28");
+  it("前のテストがなければ計画の開始日、今のテストがなければ今日", () => {
+    expect(reviewPeriod(snap({ testPeriods: [next] }), today)).toBe("計画の開始 10/12 〜 今のテスト 10/28");
+    expect(reviewPeriod(snap({ testPeriods: [prev] }), today)).toBe("前のテスト 9/24 〜 今日 10/15");
+    expect(reviewPeriod(snap({ plan: null, testPeriods: [next] }), today)).toBe("今のテスト 10/28");
   });
-  it("前の試験は、今日より前に終わったテストのうち一番新しいもの（期間中のテストは前の試験ではない）", () => {
+  it("前のテストは、今日より前に終わったテストのうち一番新しいもの（期間中のテストは前のテストではない）", () => {
     const older = test("2026-09-01", "2026-09-02");
     const ongoing = test("2026-10-14", "2026-10-16");
     expect(previousTest([older, ongoing, prev], today)?.startDate).toBe("2026-09-24");
@@ -99,16 +99,16 @@ describe("reviewPeriod（期間の帯）", () => {
 describe("afterTestNote（テストのあとの上限のお知らせ）", () => {
   it("あとにテストが残っていれば「一度少し戻ります」（C10 の回復）", () => {
     const s = snap({ testPeriods: [test("2026-10-28", "2026-10-30"), test("2026-12-01", "2026-12-03")] });
-    expect(afterTestNote(s, today)).toBe("テスト（10/28）が終わると、上限は一度少し戻ります。");
+    expect(afterTestNote(s, today)).toBe("10/28 のテストが終わると、上限は一度少し戻ります。");
   });
   it("最後のテストなら、終わった次の日から通常上限に戻る（C10・D-92）", () => {
     const s = snap({ testPeriods: [test("2026-10-28", "2026-10-30")], usualLimitMinutes: 180 });
     expect(afterTestNote(s, today)).toBe(
-      "テスト（10/28）が最後のテストです。終わった次の日から、上限は通常上限の 180分に戻ります。",
+      "10/28 のテストが最後です。終わった次の日から、上限は通常上限の 180分に戻ります。",
     );
     // 通常上限が決まっていなければ、分は出さない
     expect(afterTestNote({ ...s, usualLimitMinutes: null }, today)).toBe(
-      "テスト（10/28）が最後のテストです。終わった次の日から、上限は通常上限に戻ります。",
+      "10/28 のテストが最後です。終わった次の日から、上限は通常上限に戻ります。",
     );
   });
   it("計画がない・次のテストがないときは出さない", () => {

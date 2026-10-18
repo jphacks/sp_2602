@@ -17,12 +17,13 @@ import {
   linkCheckView,
   restartHref,
 } from "@/components/pair";
+import { withKidsUI } from "@/kids/KidsUI";
 import { call, errorOf, timeoutSignal } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-export default function PairStatus() {
+function PairStatus() {
   const params = useLocalSearchParams<{ reason?: string; role?: string }>();
   const reason = linkCheckReasonOf(params.reason);
   const { refresh } = useSession();
@@ -85,3 +86,6 @@ export default function PairStatus() {
       );
   }
 }
+
+// 親子どちらにも出る入口の画面。Figma の子ども用のデザイン（入01・入02・子08・子09・共01〜共03 など）があるので、今は子ども用の見た目（src/kids）で描く。
+export default withKidsUI(PairStatus);

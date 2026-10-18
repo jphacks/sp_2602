@@ -3,7 +3,8 @@
 // 親のタブ（設定が選択中）のまま出したいため。入力中は Android の戻るボタンで一覧に戻る（画面からは出ない）。
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { BackHandler } from "react-native";
+import { BackHandler, StyleSheet } from "react-native";
+import { FadeIn } from "@/components";
 import type { Period, PeriodKind, PeriodSource } from "./logic";
 import { PeriodEditor } from "./PeriodEditor";
 import { PeriodListScreen } from "./PeriodListScreen";
@@ -37,35 +38,44 @@ export function PeriodManager({ kind, childId, today, fallback, afterChange, onE
     }, [mode.type, toList]),
   );
 
+  // 一覧 ⇔ 入力 の切り替えは、ぱっと変えずに短く透明から出す（key が変わると FadeIn が作り直される）
   if (mode.type === "list")
     return (
-      <PeriodListScreen
-        kind={kind}
-        viewer="parent"
-        today={today}
-        periods={state}
-        reload={() => void reload()}
-        onBack={onExit}
-        onAdd={() => setMode({ type: "create" })}
-        onOpen={(period) => setMode({ type: "edit", period })}
-      />
+      <FadeIn key="list" style={styles.fill}>
+        <PeriodListScreen
+          kind={kind}
+          viewer="parent"
+          today={today}
+          periods={state}
+          reload={() => void reload()}
+          onBack={onExit}
+          onAdd={() => setMode({ type: "create" })}
+          onOpen={(period) => setMode({ type: "edit", period })}
+        />
+      </FadeIn>
     );
 
   return (
-    <PeriodEditor
-      // 別の1件を開いたら入力を作り直す
-      key={mode.type === "edit" ? mode.period.id : "create"}
-      kind={kind}
-      viewer="parent"
-      childId={childId}
-      mode={mode.type === "edit" ? { type: "edit", id: mode.period.id, known: mode.period } : { type: "create" }}
-      periods={state}
-      reload={reload}
-      onBack={toList}
-      onCancel={toList}
-      onDone={toList}
-      onMissing={toList}
-      afterChange={afterChange}
-    />
+    <FadeIn key={mode.type === "edit" ? `edit:${mode.period.id}` : "create"} style={styles.fill}>
+      <PeriodEditor
+        // 別の1件を開いたら入力を作り直す
+        key={mode.type === "edit" ? mode.period.id : "create"}
+        kind={kind}
+        viewer="parent"
+        childId={childId}
+        mode={mode.type === "edit" ? { type: "edit", id: mode.period.id, known: mode.period } : { type: "create" }}
+        periods={state}
+        reload={reload}
+        onBack={toList}
+        onCancel={toList}
+        onDone={toList}
+        onMissing={toList}
+        afterChange={afterChange}
+      />
+    </FadeIn>
   );
 }
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+});

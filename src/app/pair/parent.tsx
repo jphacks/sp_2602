@@ -166,7 +166,7 @@ export default function PairParent() {
             iconTone="danger"
             title="読み取れませんでした"
             body={
-              "QRコードが正しくないか、期限が切れているか、すでに使われています。\n子どものスマホで新しいQRコードを出してもらってね。"
+              "QRコードが正しくないか、期限が切れているか、すでに使われています。\n子どものスマホで新しいQRコードを出してもらってください。"
             }
             actionsDirection="column"
             onClose={rescan}
@@ -223,7 +223,7 @@ export default function PairParent() {
           <MessageView
             spinner
             title={`${view.status.child.name}さんの返事を待っています`}
-            body={"子どものスマホで「はい、入る」を押してもらってね。\nまだ家族にはなっていません。"}
+            body={"子どものスマホで「はい、入る」を押してもらってください。\nまだ家族にはなっていません。"}
             actions={<Button variant="outline" label="やめる" onPress={quit} />}
           />
         </Screen>
@@ -237,7 +237,7 @@ export default function PairParent() {
             detail={
               view.reason === "rejected"
                 ? "子どものスマホで「いいえ」が押されました"
-                : "QRコードの期限が切れました。子どものスマホで新しいQRコードを出してもらってね。"
+                : "QRコードの期限が切れました。子どものスマホで新しいQRコードを出してもらってください。"
             }
           />
         </Screen>

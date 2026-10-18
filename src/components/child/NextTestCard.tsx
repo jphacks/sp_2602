@@ -5,9 +5,12 @@
 //   何度もくり返さない（子どもが毎日見る画面なので、うるさくしない）。「動きを減らす」がオンなら、薄い光だけを最初から出す。
 //   光はカードの後ろに置いた2枚の輪（内側が濃く外側が薄い）で、ぼかしの代わりにする（Android の影は色を選べないため）。
 import { tokens } from "@contracts/tokens";
+import type { ComponentProps } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { ActivityIndicator, Animated, Easing, StyleSheet, View } from "react-native";
 import { AppText, Card, Icon, useRevealDelay } from "@/components";
+import { NextTestCard as KidsNextTestCard } from "@/kids/components/child/NextTestCard";
+import { useKidsUI } from "@/kids/KidsUI";
 import { motion, useReducedMotion } from "@/lib/motion";
 import { makeStyles, useColors } from "@/lib/theme";
 import type { NextTestView } from "./child-view";
@@ -28,7 +31,7 @@ const breathe = Easing.inOut(Easing.sin);
 
 type Props = { view: NextTestView; emphasis?: boolean };
 
-export function NextTestCard({ view, emphasis = false }: Props) {
+function ClassicNextTestCard({ view, emphasis = false }: Props) {
   const c = useColors();
   const styles = useStyles();
   const glow = useGlow(emphasis);
@@ -123,3 +126,9 @@ const useStyles = makeStyles((c) =>
     },
   }),
 );
+
+// ── 子ども用の見た目への振り分け（決まりは ../kids-switch.tsx。この部品は画面がファイルを直接読むので、ここで振り分ける） ──
+
+export function NextTestCard(p: ComponentProps<typeof ClassicNextTestCard>) {
+  return useKidsUI() ? <KidsNextTestCard {...p} /> : <ClassicNextTestCard {...p} />;
+}

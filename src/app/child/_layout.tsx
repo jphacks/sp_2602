@@ -5,10 +5,11 @@
 
 import { Redirect, Tabs } from "expo-router";
 import { hiddenTabOptions, TabIcon, useTabBarOptions } from "@/components/TabIcon";
+import { withKidsUI } from "@/kids/KidsUI";
 import { ChildDataProvider } from "@/lib/child-data";
 import { useSession } from "@/lib/session";
 
-export default function ChildLayout() {
+function ChildLayout() {
   const tabBarOptions = useTabBarOptions();
   const { state } = useSession();
   if (state.status !== "signedIn" || state.session.role !== "child") return <Redirect href="/" />;
@@ -43,3 +44,6 @@ export default function ChildLayout() {
     </ChildDataProvider>
   );
 }
+
+// 子ども用の画面はすべて子ども用の見た目（src/kids。Figma「UI子供用」）。タブの見た目（useTabBarOptions）も中で決まるので、外側から包む。
+export default withKidsUI(ChildLayout);

@@ -20,6 +20,9 @@ import {
   Dialog,
   ErrorBanner,
   ListItem,
+  PopIn,
+  Reveal,
+  RevealGroup,
   Screen,
   StateView,
 } from "@/components";
@@ -106,7 +109,8 @@ function PlanBody({ childId }: { childId: string }) {
     const checked = validatePlanForm(form, today);
     if (!checked.ok) {
       setErrors(checked.errors);
-      setSaveError({ code: "bad_request", message: "入力を見直してください", hint: "赤い欄を直してください" });
+      // 帯は1行だけ（何をすればよいかは欄の赤い字が言う）
+      setSaveError({ code: "bad_request", message: "赤い字の欄を直してください", hint: "" });
       return;
     }
     setSaving(true);
@@ -163,67 +167,89 @@ function PlanBody({ childId }: { childId: string }) {
       {!form ? (
         <StateView state={loadError ? "unknown" : "loading"} error={loadError} onRetry={() => void load()} />
       ) : (
-        <>
-          {loadError ? (
-            // 開いた後の取り直しに失敗している（反映済み／反映待ちが古いかもしれない。入力はそのまま使える）
+        // 読み込めたら上から順にふわっと出す（ホームと同じ）。後から出る帯は高さを広げて入れる
+        <RevealGroup>
+          {/* 開いた後の取り直しに失敗している（反映済み／反映待ちが古いかもしれない。入力はそのまま使える） */}
+          <Reveal index={0} show={loadError != null}>
             <Banner
               tone="warning"
               icon="cloud_off"
               message="最新でない可能性があります"
               hint="通信できるようになると自動で更新します"
             />
-          ) : null}
-          <Banner icon="edit" message="計画をはじめる日と、1日の使用時間の上限を入れてください" />
-          {view?.plan ? <ReflectChip view={view} /> : null}
-          <DateField
-            label="計画の開始日"
-            value={form.startDate}
-            onChange={(d) => update("startDate", d)}
-            minimumDate={today}
-            error={errors.startDate}
-            disabled={saving}
-          />
+          </Reveal>
+          <Reveal index={1}>
+            <Banner icon="edit" message="計画をはじめる日と、1日の使用時間の上限を入れてください" />
+          </Reveal>
+          <Reveal index={2} show={view?.plan != null}>
+            {view?.plan ? <ReflectChip view={view} /> : null}
+          </Reveal>
+          <Reveal index={3}>
+            <DateField
+              label="計画の開始日"
+              value={form.startDate}
+              onChange={(d) => update("startDate", d)}
+              minimumDate={today}
+              error={errors.startDate}
+              disabled={saving}
+            />
+          </Reveal>
           {planAlreadyStarted(view, today) && view?.plan ? (
-            <AppText variant="caption" tone="muted">
-              今の計画は {md(view.plan.planStartDate)}{" "}
-              から始まっています。作り直すと、新しい開始日から上限が下がり始めます。
-            </AppText>
+            <Reveal index={4}>
+              <AppText variant="caption" tone="muted">
+                今の計画は {md(view.plan.planStartDate)} からです。作り直すと、新しい開始日から上限が下がり始めます。
+              </AppText>
+            </Reveal>
           ) : null}
-          <DurationField
-            label="開始上限（今の1日の使用時間）"
-            value={form.start}
-            onChange={(v) => update("start", v)}
-            error={errors.start}
-            editable={!saving}
-          />
-          <DurationField
-            label="最終目標（めざす1日の使用時間）"
-            value={form.goal}
-            onChange={(v) => update("goal", v)}
-            error={errors.goal}
-            editable={!saving}
-          />
-          <DurationField
-            label="通常上限（テストがない日の上限）"
-            value={form.usual}
-            onChange={(v) => update("usual", v)}
-            error={errors.usual}
-            editable={!saving}
-            hint={
-              view?.usualLimitMinutes == null
-                ? "決めていないと、テストも計画もない日は「上限未設定」になります"
-                : "空のままにすると、今の通常上限のままです"
-            }
-          />
-          <AppText tone="muted">テストが近づくほど上限が少しずつ小さくなり、テストが終わると一度少し戻ります。</AppText>
-          <ListItem
-            icon="event"
-            title="空白期間（夏休みなど）"
-            subtitle="この期間は、上限なしで使えるようにします"
-            onPress={() => router.push("/parent/blank-periods")}
-          />
-          <TrendCard snapshot={snapshot} today={today} />
-        </>
+          <Reveal index={5}>
+            <DurationField
+              label="開始上限（今の1日の使用時間）"
+              value={form.start}
+              onChange={(v) => update("start", v)}
+              error={errors.start}
+              editable={!saving}
+            />
+          </Reveal>
+          <Reveal index={6}>
+            <DurationField
+              label="最終目標（めざす1日の使用時間）"
+              value={form.goal}
+              onChange={(v) => update("goal", v)}
+              error={errors.goal}
+              editable={!saving}
+            />
+          </Reveal>
+          <Reveal index={7}>
+            <DurationField
+              label="通常上限（テストがない日の上限）"
+              value={form.usual}
+              onChange={(v) => update("usual", v)}
+              error={errors.usual}
+              editable={!saving}
+              hint={
+                view?.usualLimitMinutes == null
+                  ? "決めていないと、テストも計画もない日は「上限未設定」になります"
+                  : "空のままにすると、今の通常上限のままです"
+              }
+            />
+          </Reveal>
+          <Reveal index={8}>
+            <AppText tone="muted">
+              テストが近づくほど上限が少しずつ小さくなり、テストが終わると一度少し戻ります。
+            </AppText>
+          </Reveal>
+          <Reveal index={9}>
+            <ListItem
+              icon="event"
+              title="空白期間（夏休みなど）"
+              subtitle="この期間は、上限なしで使えるようにします"
+              onPress={() => router.push("/parent/blank-periods")}
+            />
+          </Reveal>
+          <Reveal index={10}>
+            <TrendCard snapshot={snapshot} today={today} />
+          </Reveal>
+        </RevealGroup>
       )}
       <Dialog
         visible={confirmation != null}
@@ -233,7 +259,7 @@ function PlanBody({ childId }: { childId: string }) {
         title="計画を作りました"
         body={
           confirmation === "confirmed"
-            ? "上限を計算し直しました。下のグラフが新しい上限です。子どものスマホには、次につながったときに届きます。"
+            ? "新しい上限を下のグラフに出しました。子どものスマホには、次につながったときに届きます。"
             : "保存して、上限を計算し直しました。新しい上限のグラフは、通信できると自動で表示されます。"
         }
         onClose={() => setSavedVersion(null)}
@@ -248,10 +274,15 @@ function PlanBody({ childId }: { childId: string }) {
 function ReflectChip({ view }: { view: PlanView }) {
   if (!view.plan) return null;
   const s = reflectState(view.childAppliedVersion, view.plan.version);
-  return s === "applied" ? (
-    <Chip tone="success" icon="check_circle" label="今の計画は子どものスマホに反映済み" />
-  ) : (
-    <Chip icon="sync" label="今の計画は子どものスマホへの反映待ち" />
+  // 反映待ち → 反映済み に変わったら、札を小さく弾ませて知らせる
+  return (
+    <PopIn replayKey={s}>
+      {s === "applied" ? (
+        <Chip tone="success" icon="check_circle" label="今の計画は子どものスマホに反映済み" />
+      ) : (
+        <Chip icon="sync" label="今の計画は子どものスマホへの反映待ち" />
+      )}
+    </PopIn>
   );
 }
 
@@ -277,7 +308,7 @@ function TrendCard(props: { snapshot: ConfigSnapshot | null; today: string }) {
       <AppText variant="label">今の計画での上限の下がり方（分）</AppText>
       <WeekBars bars={planTrendBars(snapshot, today)} accessibilityLabel="今の計画での上限の下がり方" />
       <AppText variant="caption" tone="muted">
-        保存されている計画から計算した上限です。入力を変えて「計画を作る」を押すと、計算し直します。
+        入力を変えて「計画を作る」を押すと、このグラフも計算し直します。
       </AppText>
     </Card>
   );
