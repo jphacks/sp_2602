@@ -46,13 +46,6 @@ class UsageReader(context: Context) {
     // 0:00 の時点で何が前面だったかを知るため、その日の始まりより少し前からイベントを読む
     const val LOOKBACK_MS = 3L * 60 * 60 * 1000
 
-    // UsageEvents.Event の種類（数値で書く: 名前の定数は API 29 からのものがあるため。minSdk 24 でもコンパイルできるように）
-    private const val ACTIVITY_RESUMED = 1 // = MOVE_TO_FOREGROUND
-    private const val ACTIVITY_PAUSED = 2 // = MOVE_TO_BACKGROUND
-    private const val SCREEN_NON_INTERACTIVE = 16
-    private const val ACTIVITY_STOPPED = 23
-    private const val DEVICE_SHUTDOWN = 26
-
     private const val SYSTEM_UI = "com.android.systemui"
 
     private val labelCache = HashMap<String, String>()
@@ -137,18 +130,11 @@ class UsageReader(context: Context) {
     val events = ArrayList<FgEvent>()
     try {
       val it = usm.queryEvents(start - LOOKBACK_MS, end)
+        ?: return DailyUsage.Unavailable("使用状況イベントを取得できません（端末がロック中の可能性があります）")
       val e = UsageEvents.Event()
       while (it.hasNextEvent()) {
         it.getNextEvent(e)
-        val kind =
-          when (e.eventType) {
-            ACTIVITY_RESUMED -> FgKind.RESUMED
-            ACTIVITY_PAUSED -> FgKind.PAUSED
-            ACTIVITY_STOPPED -> FgKind.STOPPED
-            SCREEN_NON_INTERACTIVE -> FgKind.SCREEN_OFF
-            DEVICE_SHUTDOWN -> FgKind.SHUTDOWN
-            else -> null
-          } ?: continue
+        val kind = FgKind.fromUsageEventType(e.eventType) ?: continue
         events.add(FgEvent(e.packageName ?: "", e.className ?: "", kind, e.timeStamp))
       }
     } catch (ex: Exception) {

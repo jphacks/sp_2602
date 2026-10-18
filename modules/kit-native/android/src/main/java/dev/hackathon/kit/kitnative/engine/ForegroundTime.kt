@@ -18,7 +18,26 @@ package dev.hackathon.kit.kitnative.engine
 // 画面分割で2つのアプリを同時に出したときは、後から前に来た方だけを数える（子どもの端末では少ないので、取りこぼしへの強さを優先した）。
 
 // 前面の時間の数え方に関係するイベントの種類
-enum class FgKind { RESUMED, PAUSED, STOPPED, SCREEN_OFF, SHUTDOWN }
+enum class FgKind {
+  RESUMED,
+  PAUSED,
+  STOPPED,
+  SCREEN_OFF,
+  SHUTDOWN;
+
+  companion object {
+    // Stable UsageEvents.Event values. DEVICE_SHUTDOWN is 17 (not 26).
+    fun fromUsageEventType(type: Int): FgKind? =
+      when (type) {
+        1 -> RESUMED // ACTIVITY_RESUMED / MOVE_TO_FOREGROUND
+        2 -> PAUSED // ACTIVITY_PAUSED / MOVE_TO_BACKGROUND
+        16 -> SCREEN_OFF // SCREEN_NON_INTERACTIVE
+        23 -> STOPPED // ACTIVITY_STOPPED
+        17 -> SHUTDOWN // DEVICE_SHUTDOWN
+        else -> null
+      }
+  }
+}
 
 data class FgEvent(
   val packageName: String,
@@ -27,15 +46,20 @@ data class FgEvent(
   val timeMs: Long,
 )
 
+// [startMs, endMs) の前面利用区間。ForegroundTime.compute が日付窓へ切り詰めた値を返す。
+data class ForegroundInterval(val startMs: Long, val endMs: Long)
+
 data class ForegroundResult(
   val msByPackage: Map<String, Long>, // アプリごとの前面の時間（ミリ秒。区間に入る分だけ）
   val foregroundAtEnd: String?, // 区間の終わりの時点で前面にいるアプリ（いなければ null）
+  val intervalsByPackage: Map<String, List<ForegroundInterval>>, // 日別窓に切り詰めた区間。D9検証用
 )
 
 object ForegroundTime {
   // events は時刻の順（queryEvents が返す順）。windowStart より前のイベントは「その時点で何が前面か」を知るためだけに使う
   fun compute(events: List<FgEvent>, windowStart: Long, windowEnd: Long): ForegroundResult {
     val total = HashMap<String, Long>()
+    val intervals = HashMap<String, MutableList<ForegroundInterval>>()
     var current: String? = null
     var since = 0L
     val screens = HashSet<String>() // 前面のアプリの、今出ている画面
@@ -43,7 +67,10 @@ object ForegroundTime {
     fun add(pkg: String, from: Long, to: Long) {
       val s = maxOf(from, windowStart)
       val e = minOf(to, windowEnd)
-      if (e > s) total[pkg] = (total[pkg] ?: 0L) + (e - s)
+      if (e > s) {
+        total[pkg] = (total[pkg] ?: 0L) + (e - s)
+        intervals.getOrPut(pkg) { ArrayList() }.add(ForegroundInterval(s, e))
+      }
     }
 
     fun close(at: Long) {
@@ -75,7 +102,7 @@ object ForegroundTime {
     }
     val atEnd = current
     close(windowEnd)
-    return ForegroundResult(total, atEnd)
+    return ForegroundResult(total, atEnd, intervals.mapValues { (_, value) -> value.toList() })
   }
 
   // ミリ秒 → 分（0.1 分の単位に丸める）。JS（C3）と Kotlin（C4）が同じ値で到達を判定できるよう、丸めはここだけで行う
