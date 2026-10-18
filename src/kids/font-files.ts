@@ -8,8 +8,6 @@ import type { KidsFontFace } from "./fonts";
 import { setKidsFontsReady } from "./lib/text";
 
 const files: Record<KidsFontFace, number> = {
-  "YuseiMagic-Regular": require("../../assets/fonts/YuseiMagic-Regular.ttf"),
-  "KleeOne-SemiBold": require("../../assets/fonts/KleeOne-SemiBold.ttf"),
   "BIZUDPGothic-Regular": require("../../assets/fonts/BIZUDPGothic-Regular.ttf"),
   "BIZUDPGothic-Bold": require("../../assets/fonts/BIZUDPGothic-Bold.ttf"),
   "LondrinaSolid-Black": require("../../assets/fonts/LondrinaSolid-Black.ttf"),

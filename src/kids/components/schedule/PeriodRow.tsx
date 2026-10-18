@@ -14,7 +14,8 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { Icon, useRevealDelay } from "@/kids/components";
 import { Text } from "@/kids/lib/text";
 import { makeStyles, useColors } from "@/lib/theme";
-import { Measured, makeToolStyles, seedOf, useTool } from "../../tools";
+import { fonts } from "../../theme/tool";
+import { Measured, seedOf, useTool } from "../../tools";
 import { type Period, periodPhase, periodRowText } from "./logic";
 
 type Props = { period: Period; today: string; showCreator?: boolean; onPress: (p: Period) => void };
@@ -30,7 +31,7 @@ function splitRange(range: string): [string, string] {
 
 export function PeriodRow({ period, today, showCreator, onPress }: Props) {
   const styles = useStyles();
-  const text = useTextStyles();
+  const text = textStyles;
   const c = useColors();
   const { Frame, TestMark, values } = useTool();
   const t = periodRowText(period, today, { showCreator });
@@ -99,23 +100,9 @@ const useStyles = makeStyles((c) =>
   }),
 );
 
-// 書体は今の道具の本文の書体（名前・日付は太字 16、期間中／終了は 12）。Figma 子10-C の文字の大きさ
-const useTextStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    name: {
-      fontFamily: fonts.body,
-      fontWeight: "700",
-      fontSize: tokens.font.base,
-      lineHeight: tokens.lineHeight.base,
-      flexShrink: 1,
-    },
-    date: {
-      fontFamily: fonts.body,
-      fontWeight: "700",
-      fontSize: tokens.font.base,
-      lineHeight: tokens.lineHeight.base,
-      flexShrink: 1,
-    },
-    value: { fontFamily: fonts.body, fontWeight: "400", fontSize: tokens.font.xs, lineHeight: tokens.lineHeight.xs },
-  }),
-);
+// 名前・日付は太字 16、期間中／終了は 12。Figma 子10-C の文字の大きさ
+const textStyles = StyleSheet.create({
+  name: { ...fonts.bold, fontSize: tokens.font.base, lineHeight: tokens.lineHeight.base, flexShrink: 1 },
+  date: { ...fonts.bold, fontSize: tokens.font.base, lineHeight: tokens.lineHeight.base, flexShrink: 1 },
+  value: { ...fonts.body, fontSize: tokens.font.xs, lineHeight: tokens.lineHeight.xs },
+});

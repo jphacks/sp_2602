@@ -16,6 +16,7 @@ import { nextKeyboardAvoid } from "@/components/keyboard-avoid";
 import { Text, TextInput } from "@/kids/lib/text";
 import { useSession } from "@/lib/session";
 import { makeStyles, useColors } from "@/lib/theme";
+import { fonts } from "../theme/tool";
 import { makeToolStyles, useTool } from "../tools";
 import { AppText } from "./AppText";
 import { ButtonContext } from "./Button";
@@ -180,10 +181,10 @@ const useColorStyles = makeStyles((c) =>
   }),
 );
 
-// アプリ名「Slope」（大きな数字の書体）と「（子）」（見出しの書体）。書体は今の道具のもの
-const useBrandStyles = makeToolStyles(({ fonts }) =>
+// アプリ名のロゴ「Slope」（アプリのアイコンと同じ字形。字ではなく図として扱うので、ここだけロゴの書体 Londrina Solid。D-134）と「（子）」
+const useBrandStyles = makeToolStyles(() =>
   StyleSheet.create({
-    brand: { fontFamily: fonts.number, fontWeight: "900", fontSize: 30, lineHeight: 35, letterSpacing: 0.3 },
-    who: { fontFamily: fonts.heading, fontWeight: fonts.headingWeight ?? "400", fontSize: 16, lineHeight: 23 },
+    brand: { ...fonts.logo, fontSize: 30, lineHeight: 35, letterSpacing: 0.3 },
+    who: { ...fonts.body, fontSize: 16, lineHeight: 23 },
   }),
 );

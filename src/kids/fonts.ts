@@ -1,21 +1,18 @@
-// 子ども用の見た目の書体（Figma「UI子供用」・kids-design-rules.md 3 章）。React を使わない部分だけをここに置く（tests/kids/ から確かめる）。
-//   見出し＝Yusei Magic（ホワイトボード）・Klee One SemiBold（黒板・ノート）
-//   本文・日付・ボタン・タブ＝BIZ UDPGothic（400 / 700）
-//   大きな数字・Slope＝Londrina Solid（900）
+// 子ども用の見た目の書体。React を使わない部分だけをここに置く（tests/kids/ から確かめる）。
+//   子どもの画面の文字は、どのテーマでも全部 BIZ UDPGothic（見出し・数字＝Bold 700、本文＝Regular 400。D-134）
+//   上のバーのアプリ名のロゴ「Slope」だけ Londrina Solid（900。アイコンと同じ字形の図として扱う）
+//   スタイルに書く名前と太さは src/kids/theme/tool.ts の fonts（写した元 tmp/animations と同じ）
 // 書体のファイル（Google Fonts の OFL の TTF）は assets/fonts/。ライセンスの文は同じフォルダの OFL-*.txt。
 //
 // なぜ名前を直すのか: 写した部品（src/kids/components など）は、ブラウザの確認ページと同じく
 //   { fontFamily: "BIZ UDPGothic", fontWeight: "700" } のように「書体の名前＋太さ」で書いている。
 //   Android は、読み込んだ書体に太さを付けると、太字のファイルを選ばずに字を機械で太らせる（字がつぶれる）。
 //   だから、描く直前（src/kids/lib/text.tsx の Text・TextInput）に、名前と太さの組を「読み込んだファイルの名前＋太さなし」に直す。
-//   太さの違うファイルがない書体（Klee One は 600 だけ・Londrina Solid は 900 だけ）は、いちばん近い太さのファイルにする
-//   （例: 見出しは fontWeight "400" で書いてあるが、黒板・ノートの見出しは Klee One 600 のファイルで描く）。
+//   太さの違うファイルがない書体（Londrina Solid は 900 だけ）は、いちばん近い太さのファイルにする。
 import type { TextStyle } from "react-native";
 
 // 読み込む名前（expo-font の useFonts の鍵）→ 書体の名前と太さ
 export const KIDS_FONT_FACES = {
-  "YuseiMagic-Regular": { family: "Yusei Magic", weight: 400 },
-  "KleeOne-SemiBold": { family: "Klee One", weight: 600 },
   "BIZUDPGothic-Regular": { family: "BIZ UDPGothic", weight: 400 },
   "BIZUDPGothic-Bold": { family: "BIZ UDPGothic", weight: 700 },
   "LondrinaSolid-Black": { family: "Londrina Solid", weight: 900 },
@@ -81,13 +78,11 @@ export function fontOverride(flat: TextStyle | undefined): { fontFamily: KidsFon
 
 // 書体ごとの高さ（1em あたり）。ascent・descent は書体のファイルの hhea（Android が行の高さに使う値）、
 // inkTop・inkBottom は字の形のいちばん上・下（ASCII・かな・漢字・全角の記号の中で。fontTools で assets/fonts の TTF を測った値）
-//   digits … 数字（0〜9・％）だけを描くときの字の形の上下（大きな数字の書体は数字にしか使わない所が多い。数字は下に出ない）
+//   digits … 数字（0〜9・％）だけを描くときの字の形の上下（数字は下に出ない）
 export const KIDS_FONT_METRICS: Record<
   KidsFontFace,
   { ascent: number; descent: number; inkTop: number; inkBottom: number; digits?: { inkTop: number; inkBottom: number } }
 > = {
-  "YuseiMagic-Regular": { ascent: 1.16, descent: 0.288, inkTop: 0.983, inkBottom: 0.224 },
-  "KleeOne-SemiBold": { ascent: 1.16, descent: 0.288, inkTop: 0.894, inkBottom: 0.176 },
   "BIZUDPGothic-Regular": { ascent: 1802 / 2048, descent: 246 / 2048, inkTop: 1788 / 2048, inkBottom: 244 / 2048 },
   "BIZUDPGothic-Bold": { ascent: 1802 / 2048, descent: 246 / 2048, inkTop: 1798 / 2048, inkBottom: 244 / 2048 },
   "LondrinaSolid-Black": {

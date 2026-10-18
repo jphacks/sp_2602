@@ -21,7 +21,8 @@ import { AppText, Button, Card, FadeIn, Icon, ProgressBar, useRevealDelay } from
 import { Text } from "@/kids/lib/text";
 import { motion, useAnimatedNumber } from "@/lib/motion";
 import { useColors } from "@/lib/theme";
-import { Measured, makeToolStyles, useTool } from "../../tools";
+import { fonts } from "../../theme/tool";
+import { Measured, useTool } from "../../tools";
 import { UsageMessage } from "./UsageMessage";
 
 type Props = {
@@ -33,7 +34,7 @@ type Props = {
 export function UsageSummaryCard({ view, onDetail, onAction }: Props) {
   const c = useColors();
   const { values, NumberMark, Spinner } = useTool();
-  const text = useNumberStyles();
+  const text = numberStyles;
   const target = view.kind === "percent" ? view.percent : null;
   // カードが見えてから、道具の「引き始め」の時間だけ待って伸ばす（透けているうちに伸び終わらないように）
   const delay = useRevealDelay(target != null, values.timing.barDelay ?? motion.duration.short);
@@ -101,25 +102,18 @@ const styles = StyleSheet.create({
   loading: { flexDirection: "row", alignItems: "center", gap: tokens.space[3], minHeight: 58 + 6 + 24 },
   // 数字と線の間（Figma 子01: 数字の下から線まで 25）
   block: { gap: 11 },
-  // 数字と「％ 使いました」は字の下の線をそろえる（書体の違う2つの文字。行の箱の下から、それぞれの字の下までの差を下の余白で埋める）
+  // 数字と「％ 使いました」は字の下の線をそろえる（大きさの違う2つの文字。行の箱の下から、それぞれの字の下の線までの差を下の余白で埋める。
+  //   Android の書体の高さ（hhea）で: 数字 56/58 は箱の下から 7.7、本文 16/24 は 5.9 の所に下の線がある → 本文を 2 上げる）
   number: { flexDirection: "row", alignItems: "flex-end", gap: tokens.space[2] },
   numberBox: { alignSelf: "flex-end" },
-  unit: { marginBottom: 4 },
+  unit: { marginBottom: 2 },
   // Figma 子01: ボタンの見た目の下端からカードの枠まで 17（押せる高さ 44 の下の空きの分だけ詰める）
   detail: { marginBottom: -6 },
 });
 
-// 大きい数字（今の道具の大きな数字の書体。Figma 子01 は Londrina Solid 56）。数え上げの間に幅が変わって「％ 使いました」が揺れないよう、数字の幅をそろえる
-const useNumberStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    // 見出し（今の道具の見出しの書体。Figma 子01 は 17。AppText の title 18/26 より小さく詰める）
-    title: { fontFamily: fonts.heading, fontWeight: "400", fontSize: 17, lineHeight: 22 },
-    percent: {
-      fontFamily: fonts.number,
-      fontWeight: "900",
-      fontSize: 56,
-      lineHeight: 58,
-      fontVariant: ["tabular-nums"],
-    },
-  }),
-);
+// 大きい数字（太字 56。Figma 子01 の「46」の大きさ）。数え上げの間に幅が変わって「％ 使いました」が揺れないよう、数字の幅をそろえる
+const numberStyles = StyleSheet.create({
+  // 見出し（太字。Figma 子01 は 17。AppText の title 18/26 より小さく詰める）
+  title: { ...fonts.bold, fontSize: 17, lineHeight: 22 },
+  percent: { ...fonts.bold, fontSize: 56, lineHeight: 58, fontVariant: ["tabular-nums"] },
+});

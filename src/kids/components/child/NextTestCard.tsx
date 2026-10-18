@@ -18,7 +18,8 @@ import { keepTailTogether } from "@/components/text-wrap";
 import { AppText, Card, Icon, useRevealDelay } from "@/kids/components";
 import { Text } from "@/kids/lib/text";
 import { useColors } from "@/lib/theme";
-import { Measured, makeToolStyles, useTool } from "../../tools";
+import { fonts } from "../../theme/tool";
+import { Measured, useTool } from "../../tools";
 
 type Props = { view: NextTestView; emphasis?: boolean };
 
@@ -32,7 +33,7 @@ function splitHeadline(headline: string): { date: string; rest: string } {
 export function NextTestCard({ view, emphasis = false }: Props) {
   const c = useColors();
   const { TestMark, Spinner, values } = useTool();
-  const text = useTextStyles();
+  const text = textStyles;
   const start = useMarkStart(view.kind === "test");
   const dateColor = values.colors.testText ?? c.text;
   const countColor = values.colors.testCount ?? c.text;
@@ -82,7 +83,7 @@ export function NextTestCard({ view, emphasis = false }: Props) {
 // 「テスト中（10月29日（木）まで）」は「テスト中」と「（…まで）」の2つに分けて並べ、入らなければ「（…まで）」ごと次の行へ
 // （Figma 子01-H。かっこの途中の「まで）」だけが次の行に落ちないように）。それ以外はそのまま
 function Detail({ detail, color, countColor }: { detail: string; color: string; countColor: string }) {
-  const text = useTextStyles();
+  const text = textStyles;
   const m = detail.match(/^あと(\d+)日$/);
   const during = detail.match(/^(テスト中)(（.+）)$/);
   if (during)
@@ -142,14 +143,12 @@ const styles = StyleSheet.create({
   remainRow: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: -2 },
 });
 
-// 「次のテスト」＝見出しの書体 15。日付＝本文の書体の太字 21。テスト名 18。「あと 13 日」＝18 と大きな数字の書体 30（Figma 子01）
-const useTextStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    label: { fontFamily: fonts.heading, fontWeight: "400", fontSize: 15, lineHeight: 20 },
-    date: { fontFamily: fonts.body, fontWeight: "700", fontSize: 21, lineHeight: 28 },
-    rest: { fontFamily: fonts.body, fontWeight: "400", fontSize: 18, lineHeight: 24 },
-    none: { fontFamily: fonts.body, fontWeight: "700", fontSize: 21, lineHeight: 28 },
-    remain: { fontFamily: fonts.body, fontWeight: "400", fontSize: 18, lineHeight: 28 },
-    remainNum: { fontFamily: fonts.number, fontWeight: "900", fontSize: 30, lineHeight: 32 },
-  }),
-);
+// 「次のテスト」＝太字 15。日付＝太字 21。テスト名 18。「あと 13 日」＝18 と太字の数字 30（Figma 子01）
+const textStyles = StyleSheet.create({
+  label: { ...fonts.bold, fontSize: 15, lineHeight: 20 },
+  date: { ...fonts.bold, fontSize: 21, lineHeight: 28 },
+  rest: { ...fonts.body, fontSize: 18, lineHeight: 24 },
+  none: { ...fonts.bold, fontSize: 21, lineHeight: 28 },
+  remain: { ...fonts.body, fontSize: 18, lineHeight: 28 },
+  remainNum: { ...fonts.bold, fontSize: 30, lineHeight: 32 },
+});

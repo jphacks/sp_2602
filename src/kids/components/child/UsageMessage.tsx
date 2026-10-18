@@ -13,7 +13,7 @@ import { keepTailTogether } from "@/components/text-wrap";
 import { AppText, Button, Icon } from "@/kids/components";
 import { Text } from "@/kids/lib/text";
 import { useColors } from "@/lib/theme";
-import { makeToolStyles } from "../../tools";
+import { fonts } from "../../theme/tool";
 import { PhraseText } from "./PhraseText";
 
 type Props = {
@@ -24,7 +24,7 @@ type Props = {
 
 export function UsageMessage({ message, onAction, center = false }: Props) {
   const c = useColors();
-  const text = useTextStyles();
+  const text = textStyles;
   const action = message.action && (
     <Button
       variant={center ? "outline" : "pill"}
@@ -81,9 +81,7 @@ const styles = StyleSheet.create({
 });
 
 // 題（太字 14）と本文（12）。本文は Figma 子01-A の行の間 19（AppText の caption 16 より広い）
-const useTextStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    title: { fontFamily: fonts.body, fontWeight: "700", fontSize: tokens.font.sm, lineHeight: 20 },
-    body: { fontFamily: fonts.body, fontWeight: "400", fontSize: tokens.font.xs, lineHeight: 19 },
-  }),
-);
+const textStyles = StyleSheet.create({
+  title: { ...fonts.bold, fontSize: tokens.font.sm, lineHeight: 20 },
+  body: { ...fonts.body, fontSize: tokens.font.xs, lineHeight: 19 },
+});

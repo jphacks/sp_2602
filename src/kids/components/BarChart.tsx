@@ -16,7 +16,8 @@ import { barDelays, remainingDelay } from "@/components/chart-motion";
 import { Text } from "@/kids/lib/text";
 import { motion, useAnimatedNumber } from "@/lib/motion";
 import { makeStyles, useColors } from "@/lib/theme";
-import { makeToolStyles, useTool } from "../tools";
+import { fonts } from "../theme/tool";
+import { useTool } from "../tools";
 import { AppText } from "./AppText";
 
 export type Bar = {
@@ -39,7 +40,7 @@ export function BarChart({ bars, scaleMax, accessibilityLabel, compact = false, 
   const max =
     scaleMax ?? Math.max(1, ...bars.flatMap((b) => [b.capacity ?? 0, b.value ?? 0]).filter((n) => Number.isFinite(n)));
   const { values } = useTool();
-  const lbl = useLabelStyles();
+  const lbl = labelStyles;
   const c = useColors();
   // 棒の場所の高さは道具ごと（ノートは鉛筆を立てるので高い。values.chart）。なければ tokens
   const height = compact
@@ -156,12 +157,10 @@ const useStyles = makeStyles((_c) =>
   }),
 );
 
-// 曜日と日付の文字（今の道具の本文の書体）
-const useLabelStyles = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    day: { fontFamily: fonts.body, fontSize: tokens.font.sm, lineHeight: tokens.lineHeight.sm },
-    // 日付は 12（Figma 子02 の「10/12」の幅 33 に合う大きさ。14 だと7本並べたときに隣とくっつく）
-    date: { fontFamily: fonts.body, fontSize: tokens.font.xs, lineHeight: tokens.lineHeight.xs },
-    strong: { fontWeight: tokens.weight.bold },
-  }),
-);
+// 曜日と日付の文字（本文の書体。今日は太字）
+const labelStyles = StyleSheet.create({
+  day: { ...fonts.body, fontSize: tokens.font.sm, lineHeight: tokens.lineHeight.sm },
+  // 日付は 12（Figma 子02 の「10/12」の幅 33 に合う大きさ。14 だと7本並べたときに隣とくっつく）
+  date: { ...fonts.body, fontSize: tokens.font.xs, lineHeight: tokens.lineHeight.xs },
+  strong: { fontWeight: fonts.bold.fontWeight },
+});

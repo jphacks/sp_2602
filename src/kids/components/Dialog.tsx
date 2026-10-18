@@ -2,7 +2,7 @@
 // ダイアログ（ホワイトボード）。props と動きはアプリの Dialog（src/components/Dialog.tsx）と同じ（暗幕＋fade。速さを変えない）。
 // 形（Figma 子04・子06・子09・子20・子07-B・kids-design-rules.md 3 章）:
 //   - 本体＝ボードの白の板（dialog）に、黒のマーカーで手で4辺を引いた枠（角 8）。幅 312・内側の余白 24
-//   - 題名＝Yusei Magic 22（中央）。本文＝14 の muted
+//   - 題名＝太字 22（中央）。本文＝14 の muted
 //   - 上のアイコン＝ink の 32。成功（check・check_circle）は、出てから 120ms 後に黒マーカーでチェックを 320ms で引く
 //   - ボタンが1つ（OK）のときは文字だけのボタン、2つのときは線だけの丸いボタンを同じ幅で横に並べる（Button の ButtonContext）
 //   - 赤・緑は使わない（iconTone の success・danger も ink）
