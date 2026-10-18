@@ -91,7 +91,14 @@ export const api = {
   // 軽くするため、DB は読むだけ（「最後に使った時刻」も書かない＝合言葉の期限を延ばさない）。中身は返さない。回数の上限には数えない。
   // auth は "none" にして、合言葉の確かめは処理の中で読むだけの形で行う（ふつうの確かめは使うたびに期限を延ばす書き込みをするため）。
   // 合言葉がない・無効なら 401（外された子どもの合言葉なら reason: "family_unlink"。D-133）
-  authCheck: { kind: "json", method: "GET", path: "/api/auth/check", auth: "none", req: z.void(), res: AuthCheckResult },
+  authCheck: {
+    kind: "json",
+    method: "GET",
+    path: "/api/auth/check",
+    auth: "none",
+    req: z.void(),
+    res: AuthCheckResult,
+  },
   // ログアウト: 今の合言葉をサーバでも無効にする。以後その合言葉は 401。
   //   本文なし（ふつうのログアウト）: この端末の合言葉だけ。{ otherDevices: true }: この端末以外の、同じ人の合言葉をすべて（端末をなくしたとき）
   // 足した理由: 前はログアウトしても端末の合言葉を消すだけで、サーバでは最後に使ってから30日まで使えるまま残った

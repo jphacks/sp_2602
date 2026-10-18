@@ -118,7 +118,9 @@ describe("V: ほかの 401 には理由が付かない（D-133）", () => {
 describe("V: 合言葉がまだ使えるかの確かめ（authCheck。D-134）", () => {
   const lastUsedOf = async (token: string) =>
     (
-      await (await db())
+      await (
+        await db()
+      )
         .select({ lastUsedAt: userSessions.lastUsedAt })
         .from(userSessions)
         .where(eq(userSessions.tokenHash, digest(token)))
