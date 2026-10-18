@@ -2,6 +2,7 @@ package dev.hackathon.kit.kitnative.engine
 
 import android.content.Context
 import dev.hackathon.kit.kitnative.LocalData
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
@@ -65,6 +66,9 @@ object SessionCheck {
   private const val CONNECT_TIMEOUT_MS = 5_000
   private const val READ_TIMEOUT_MS = 4_000
 
+  // 200 の本文を読み切ってつなぎを使い回すときの上限（返事は {"ok":true} だけ。大きすぎたら読まずに閉じる）
+  private const val MAX_DRAIN_BYTES = 1_024
+
   @Volatile private var lastCheckedAt = 0L
 
   @Volatile private var failures = 0
@@ -83,12 +87,15 @@ object SessionCheck {
    */
   fun checkIfDue(context: Context, interactive: Boolean, now: Long = System.currentTimeMillis()): Boolean {
     if (!EngineStore.isEngineEnabled(context)) return false
-    val access = EngineStore.loadReporter(context) ?: return false
-    val url = SessionCheckRules.checkUrl(access.url) ?: return false
+    // 確かめる時期かを先に決める（合言葉の封を開ける loadReporter は Keystore を使うので、見張りのたびには開けない）
     if (!SessionCheckRules.shouldCheck(now, lastCheckedAt, failures, interactive)) return false
     if (!busy.compareAndSet(false, true)) return false
     try {
+      // 送り先と合言葉がない（保護者・連携前・401 で消した）・URL の形が違うときも、この回は確かめたことにする
+      // （次の時期まで封を開け直さない。JS が合言葉を渡し直したら、次の時期に確かめる）
       lastCheckedAt = now
+      val access = EngineStore.loadReporter(context) ?: return false
+      val url = SessionCheckRules.checkUrl(access.url) ?: return false
       when (get(url, access.token)) {
         ReportOutcome.Sent -> failures = 0
         ReportOutcome.Unlinked -> {
@@ -109,8 +116,11 @@ object SessionCheck {
     return true
   }
 
+  // 200 の本文（{"ok":true}）を読み切って閉じたら、つなぎ（keep-alive）を使い回す（disconnect しない）。
+  // それ以外（401・失敗・読み切れない）は disconnect で閉じる
   private fun get(url: String, token: String): ReportOutcome {
     var conn: HttpURLConnection? = null
+    var reusable = false
     return try {
       val u = URL(url)
       if (u.protocol != "https" && u.protocol != "http") return ReportOutcome.Failed(SessionCheckRules.INTERVAL_MS)
@@ -123,12 +133,34 @@ object SessionCheck {
       conn.setRequestProperty("Authorization", "Bearer $token")
       val status = conn.responseCode
       val errorBody = if (status == 401) StatusReporter.readLimited(conn.errorStream) else null
+      if (status in 200..299) reusable = drain(conn.inputStream)
       SessionCheckRules.outcome(status, errorBody)
     } catch (e: Exception) {
       // 時間切れ・通信できない。何も止めず、間をあけてやり直す
       ReportOutcome.Failed(SessionCheckRules.INTERVAL_MS)
     } finally {
-      conn?.disconnect()
+      if (!reusable) conn?.disconnect()
+    }
+  }
+
+  // 本文を MAX_DRAIN_BYTES まで読み切って閉じる。終わりまで読めたら true（つなぎを使い回せる）。
+  // 読めなかった（時間切れなど）・大きすぎたら false（disconnect で閉じる。200 なので結果は「使える」のまま）
+  private fun drain(stream: InputStream?): Boolean {
+    if (stream == null) return false
+    return try {
+      stream.use {
+        val buf = ByteArray(256)
+        var total = 0
+        var r = it.read(buf)
+        while (r >= 0) {
+          total += r
+          if (total > MAX_DRAIN_BYTES) return@use false
+          r = it.read(buf)
+        }
+        true
+      }
+    } catch (e: Exception) {
+      false
     }
   }
 }
