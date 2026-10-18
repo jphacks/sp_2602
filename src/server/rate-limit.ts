@@ -43,7 +43,8 @@ export const PAIR_START_LIMIT: RateLimit = {
 //   （同じ子どもの pairStart を30本同時に送ると、上限5に対して30本とも 200）。足してから数えれば、
 //   通る呼び出しは「自分より先に足された行」も必ず数に入れるので、同時に届いても通るのは上限までになる。
 //   トランザクションやロック（pg_advisory_xact_lock）は使わない（手元の PGlite と本番の Neon の Pool で同じに動き、1回の往復も少ない）。
-//   代わりに、ちょうど同時に上限を超える数が届くと、上限の手前の分まで断ることがある（多めに断る側に倒す）
+//   代わりに、ちょうど同時に上限を超える数が届くと、上限の手前の分まで、時には全部を断る（多めに断る側に倒す。
+//   断った行は消すので、締め出されるのは長くても1つの窓の間）
 export async function countCall(limit: RateLimit, key: string): Promise<void> {
   const database = await db();
   const now = new Date();

@@ -48,6 +48,10 @@ export function toApiError(e: unknown): { status: number; body: ApiError } {
     // 中身（SQL・接続先）は返さずに記録だけする（セキュリティ検査 AVL-04）
     console.error("[unavailable] DB につながりません", describeError(e));
     body = { code: "unavailable", ...errorText.unavailable };
+  } else if (e instanceof DatabaseOpenError) {
+    // DB を開けなかった（設定の欠落・マイグレーションの誤りなど）。中身の SQLSTATE（22P02 など）で 400 にしない
+    console.error("[internal]", describeError(e));
+    body = { code: "internal", ...errorText.internal };
   } else if (pgCode(e) === "22P02") {
     // DB が「id の形が違う」（uuid でない文字列など）と断った。送られた値の誤りなので、サーバの不具合（500）にしない。
     // ふつうは処理の中で先に not_found・forbidden にしている（auth.ts の isUuid）。これは見落としたときの守り
@@ -80,16 +84,22 @@ export function describeError(e: unknown): string {
 //   なぜ: 前は stack の頭から /^\s+at / に合う行を拾ったので、message に「改行＋空白＋at 」があると
 //   （Drizzle の失敗の params = 利用者の入力）、その入力が場所の行としてログに出た。
 //   message が stack の中に見つからない（stack を読んだ後で message を書きかえた）ときは、場所を出さない（入力を出すよりよい）
+//   stack の頭が「種類: message」（message が空なら「種類」だけ）で、そのすぐ後が改行のときだけ拾う。
+//   拾うのは頭のすぐ後に続く "at" の行だけ（途中に別の行があれば、そこで止める。stack を後から書き足した場合に備える）
 function stackFrames(e: unknown): string[] {
   if (!(e instanceof Error) || typeof e.stack !== "string") return [];
   const message = String(e.message);
-  const start = e.stack.indexOf(message);
+  const start = message === "" ? e.stack.search(/\r|\n|$/) : e.stack.indexOf(message);
   if (start < 0) return [];
-  return e.stack
-    .slice(start + message.length)
-    .split(/\r\n|\r|\n/)
-    .filter((line) => /^\s+at /.test(line))
-    .map((line) => line.trim().replace(/\p{Cc}/gu, ""));
+  if (!(message === "" ? /^[\w$.]+$/ : /^[\w$.]+: $/).test(e.stack.slice(0, start))) return [];
+  const rest = e.stack.slice(start + message.length);
+  if (rest !== "" && !/^[\r\n]/.test(rest)) return [];
+  const frames: string[] = [];
+  for (const line of rest.split(/\r\n|\r|\n/).slice(1)) {
+    if (!/^\s+at /.test(line)) break;
+    frames.push(line.trim().replace(/\p{Cc}/gu, ""));
+  }
+  return frames;
 }
 
 // Postgres のエラーの種類（SQLSTATE）。Drizzle は元のエラーを cause に包むので、両方を見る
@@ -107,18 +117,55 @@ export class DatabaseUnavailableError extends Error {
   override name = "DatabaseUnavailableError";
 }
 
+// DB を開けなかった（接続の失敗ではないもの: 設定の欠落・マイグレーションの誤りなど）。API は 500 internal を返し、
+// ログ（describeError）には元のエラー（cause）の種類と場所が出る（src/server/db/index.ts が包む）
+export class DatabaseOpenError extends Error {
+  override name = "DatabaseOpenError";
+}
+
 // DB につながらないときのエラーか。Postgres の SQLSTATE（08xxx 接続の失敗・57P01〜57P03 停止中・53300 接続が多すぎる）、
 // Node の通信のエラー（接続を断られた・切れた・時間切れ・名前が引けない）、手元の DB（PGlite）が閉じている、を見る。
 // Drizzle・ドライバは元のエラーを cause に包むので、少し奥まで見る
 const UNAVAILABLE_SQLSTATE = /^(08...|57P0[123]|53300)$/;
-const UNAVAILABLE_ERRNO = new Set(["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "EPIPE"]);
+const UNAVAILABLE_ERRNO = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EPIPE",
+  // Node の fetch（undici）の通信のエラー
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_SOCKET",
+  "UND_ERR_CLOSED",
+  "UND_ERR_HEADERS_TIMEOUT",
+]);
+// Neon（@neondatabase/serverless。pg と同じ作り）の接続が切れたときのエラーは code を持たないので、決まった文で見分ける。
+// 利用者の入力が入らない、ドライバが決めた文だけを、完全一致か先頭一致で見る
+const UNAVAILABLE_MESSAGE_EXACT = new Set([
+  "PGlite is closed",
+  "Connection terminated",
+  "Connection terminated unexpectedly",
+  "Connection terminated due to connection timeout",
+  "Client has encountered a connection error and is not queryable",
+  "timeout exceeded when trying to connect",
+  "fetch failed",
+]);
+const UNAVAILABLE_MESSAGE_PREFIX = ["All attempts to open a WebSocket to connect to the database failed"];
 
 export function isDatabaseUnavailable(e: unknown): boolean {
   for (let cur: unknown = e, depth = 0; cur && depth < 4; cur = (cur as { cause?: unknown }).cause, depth++) {
     const code = (cur as { code?: unknown }).code;
     if (cur instanceof DatabaseUnavailableError) return true;
     if (typeof code === "string" && (UNAVAILABLE_SQLSTATE.test(code) || UNAVAILABLE_ERRNO.has(code))) return true;
-    if (cur instanceof Error && cur.message === "PGlite is closed") return true;
+    if (cur instanceof Error) {
+      const message = cur.message;
+      if (UNAVAILABLE_MESSAGE_EXACT.has(message)) return true;
+      if (UNAVAILABLE_MESSAGE_PREFIX.some((p) => message.startsWith(p))) return true;
+    } else if (typeof cur === "object" && (cur as { type?: unknown }).type === "error" && "target" in cur) {
+      // WebSocket の ErrorEvent（Error ではないもの。Neon の接続を開けなかったとき、そのまま投げられることがある）
+      return true;
+    }
   }
   return false;
 }

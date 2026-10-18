@@ -1,6 +1,7 @@
 // ログイン状態の分かれ道（src/lib/session-core.ts。session.tsx の adopt・forget・verify = refresh）。
 // 封ができない端末（Keystore が使えない・古い dev client）でも、確かめ直し（refresh）でログイン画面へ戻されないこと、
-// ログアウト・401 の後にメモリの値でログイン状態に戻らないことを確かめる。
+// ログアウト・401 の後にメモリの値でログイン状態に戻らないこと、待っている間にログイン・ログアウトしたら
+// 遅れて終わった処理の結果を使わないこと（epoch の確かめ）を確かめる。
 // 401 のうち、保護者が連携を外した（reason: family_unlink。D-133）ときだけ片付け（制限を止める・送信待ちを消す）を呼び、
 // ログイン画面に「連携が外れました」を出すことも確かめる
 import type { ApiError } from "@contracts/errors";
@@ -35,17 +36,38 @@ const unlinkedError: ApiError = {
   reason: "family_unlink",
 };
 
-// authMe の返事は me で差し替える（関数なら呼ばれるまで待たせられる）
+// 外から「もういいよ」と言うまで待たせる道具（保存・読み出し・消すのを途中で止めて、その間にログイン・ログアウトする）
+function pause() {
+  let release: () => void = () => undefined;
+  const until = new Promise<void>((resolve) => (release = resolve));
+  return { until, release };
+}
+
+// 待っている処理が先へ進むのを待つ（then を何回かまわす）
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+// authMe の返事は me で差し替える（関数なら呼ばれるまで待たせられる）。
+// hold に Promise を入れると、端末の読み出し（getItem）・書き込み（setItem）・消す（clearSaved）がそこで止まる
 function setup(secretBox: SecretBox) {
   const data = new Map<string, string>();
+  const hold: { get?: Promise<void>; set?: Promise<void>; clear?: Promise<void> } = {};
   const storage: KeyValueStorage = {
-    getItem: async (k) => data.get(k) ?? null,
-    setItem: async (k, v) => void data.set(k, v),
+    // 読んだ値は止まる前に取っておく（読み終わった後、返事が届く前にログアウトした、の形にする）
+    getItem: async (k) => {
+      const v = data.get(k) ?? null;
+      await hold.get;
+      return v;
+    },
+    setItem: async (k, v) => {
+      await hold.set;
+      data.set(k, v);
+    },
     removeItem: async (k) => void data.delete(k),
   };
   const t = {
     data,
     storage,
+    hold,
     token: null as string | null,
     state: { status: "checking" } as SessionState,
     me: (async () => child) as () => Promise<Session>,
@@ -61,7 +83,10 @@ function setup(secretBox: SecretBox) {
     isUnauthorized: (e) => e instanceof Unauthorized,
     errorOf: (e) => (e instanceof Unauthorized ? e.error : null),
     clearUnlinked: async (userId) => void t.cleared.push(userId),
-    clearSaved: async () => void data.delete(storageKeys.session),
+    clearSaved: async () => {
+      await hold.clear;
+      data.delete(storageKeys.session);
+    },
     setState: (s) => {
       t.state = s;
     },
@@ -155,6 +180,65 @@ describe("session-core", () => {
     await pending;
     expect(t.state).toEqual({ status: "signedIn", session: parent, offline: false });
     expect(t.token).toBe(parent.token);
+  });
+
+  it("ログイン（adopt）で端末に置くのを待つ間にログアウトしたら、置き終わってもログイン状態に戻らない", async () => {
+    const { t, core } = setup(box);
+    const saving = pause();
+    t.hold.set = saving.until;
+    const pending = core.adopt(child);
+    await tick();
+    await core.forget(null);
+    saving.release();
+    await pending;
+    expect(t.state).toEqual({ status: "signedOut", error: null });
+    expect(t.token).toBeNull();
+  });
+
+  it("ログアウト（forget）で消すのを待つ間にログインし直したら、消し終わってもログインした人を残す", async () => {
+    const { t, core } = setup(box);
+    await core.adopt(child);
+    const clearing = pause();
+    t.hold.clear = clearing.until;
+    const pending = core.forget(null);
+    await tick();
+    await core.adopt(parent);
+    clearing.release();
+    await pending;
+    expect(t.state).toEqual({ status: "signedIn", session: parent, offline: false });
+    expect(t.token).toBe(parent.token);
+  });
+
+  it("起動時に端末の保存を読むのを待つ間にログアウトしたら、読んだ古い合言葉を api.ts に戻さない", async () => {
+    const { t, core } = setup(box);
+    await saveSession(t.storage, box, child);
+    const loading = pause();
+    t.hold.get = loading.until;
+    const pending = core.verify();
+    await tick();
+    await core.forget(null);
+    loading.release();
+    await pending;
+    expect(t.token).toBeNull();
+    expect(t.state).toEqual({ status: "signedOut", error: null });
+  });
+
+  it("確かめ直しの返事を待つ間にログアウトし、その後に通信エラーが届いても、offline のログイン状態に戻らない", async () => {
+    const { t, core } = setup(noBox);
+    await core.adopt(child);
+    let fail: (e: unknown) => void = () => undefined;
+    t.me = () => new Promise<Session>((_, reject) => (fail = reject));
+    const pending = core.verify();
+    await tick();
+    await core.forget(null);
+    fail(new Offline());
+    await pending;
+    expect(t.state).toEqual({ status: "signedOut", error: null });
+    expect(t.token).toBeNull();
+    // メモリにも戻していない（次の確かめ直しでもログアウトのまま）
+    t.me = async () => child;
+    await core.verify();
+    expect(t.state).toEqual({ status: "signedOut", error: null });
   });
 
   it("起動時（メモリが空）は端末に置いた Session で確かめる", async () => {
