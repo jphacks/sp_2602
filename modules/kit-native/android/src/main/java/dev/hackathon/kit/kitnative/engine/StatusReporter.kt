@@ -60,6 +60,7 @@ object StatusReporter {
       when (val outcome = post(access, StatusReportRules.body(access.childId, flags, StatusReportRules.isoUtc(now)))) {
         ReportOutcome.Sent -> {
           EngineStore.saveReportSent(context, access.token, flags, now)
+          SessionCheck.markValid(now) // 届いた = 合言葉はまだ使える。すぐあとの確かめ（D-134）は省く
           scheduleHeartbeat(context) // 次の生存報告の目覚ましを、今から 15 分あとへ置き直す
         }
         ReportOutcome.Unauthorized -> {
@@ -68,11 +69,7 @@ object StatusReporter {
         }
         ReportOutcome.Unlinked -> {
           // 送っている間に JS が新しい合言葉を渡していたら（ログインし直して紐づけ直した）、消さない
-          if (EngineStore.isReporterToken(context, access.token)) {
-            LocalData.clear(context)
-          } else {
-            cancelHeartbeat(context)
-          }
+          if (!LocalData.clearUnlinked(context, access.token)) cancelHeartbeat(context)
         }
         is ReportOutcome.Failed -> {
           EngineStore.saveReportFailed(context, access.token, now + outcome.retryAfterMs)
@@ -113,7 +110,8 @@ object StatusReporter {
     }
   }
 
-  private fun readLimited(stream: InputStream?): String? {
+  // 失敗の本文を MAX_ERROR_BODY_BYTES まで読む（SessionCheck も使う）
+  internal fun readLimited(stream: InputStream?): String? {
     if (stream == null) return null
     return stream.use {
       val buf = ByteArray(MAX_ERROR_BODY_BYTES)
