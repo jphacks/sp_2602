@@ -39,6 +39,15 @@ object EnginePermissions {
       ACCESSIBILITY to webGuardEnabled(context),
     )
 
+  // 許可の見張り（D-113。StatusReporter）が見る4つ（電池の最適化は見張らない）。status と同じ判定を使う
+  fun flags(context: Context): PermissionFlags =
+    PermissionFlags(
+      usageAccess = UsageReader(context).hasUsageAccess(),
+      overlay = canDrawOverlays(context),
+      notifications = canNotify(context),
+      accessibility = webGuardEnabled(context),
+    )
+
   fun canDrawOverlays(context: Context): Boolean = Settings.canDrawOverlays(context)
 
   fun canNotify(context: Context): Boolean {
@@ -71,41 +80,49 @@ object EnginePermissions {
 
   // その権限の設定画面を開く。開けたら true。activity があればそこから開く（なければ新しいタスクで開く）
   fun open(context: Context, activity: Activity?, permission: String): Boolean {
-    val pkg = context.packageName
-    val pkgUri = Uri.parse("package:$pkg")
-    // 上から順に試す（端末によってはアプリを指定した画面がないので、一覧の画面へ戻る）
-    val candidates: List<Intent> =
-      when (permission) {
-        USAGE_ACCESS ->
-          listOf(
-            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, pkgUri),
-            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
-          )
-        OVERLAY ->
-          listOf(
-            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkgUri),
-            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
-          )
-        NOTIFICATIONS ->
-          listOf(
-            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, pkg),
-            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkgUri),
-          )
-        BATTERY ->
-          listOf(
-            // 「電池の最適化から外しますか」の確認を直接出す（REQUEST_IGNORE_BATTERY_OPTIMIZATIONS の権限が要る）
-            Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkgUri),
-            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
-          )
-        // 「ユーザー補助」の一覧の画面。Slope の項目を直接開く画面（ACTION_ACCESSIBILITY_DETAILS_SETTINGS）は
-        // ほかのアプリからは開けない（OS の権限が要る）ので、一覧を開いて「Slope」を選んでもらう
-        ACCESSIBILITY -> listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        else -> emptyList()
-      }
-    for (intent in candidates) {
+    for (intent in candidates(context, permission)) {
       if (startSafely(context, activity, intent)) return true
     }
     return false
+  }
+
+  // 通知から設定画面を開くための Intent（D-113 の「ユーザー補助をオンに戻してください」の通知が PendingIntent にする）。
+  // 最初の候補（ユーザー補助は一覧の画面の1つだけ）。知らない名前なら null。
+  // resolveActivity で確かめない（Android 11 以降はパッケージの見え方の制限で、開ける画面でも null になることがあるため）
+  fun settingsIntent(context: Context, permission: String): Intent? =
+    candidates(context, permission).firstOrNull()?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+  private fun candidates(context: Context, permission: String): List<Intent> {
+    val pkg = context.packageName
+    val pkgUri = Uri.parse("package:$pkg")
+    // 上から順に試す（端末によってはアプリを指定した画面がないので、一覧の画面へ戻る）
+    return when (permission) {
+      USAGE_ACCESS ->
+        listOf(
+          Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, pkgUri),
+          Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS),
+        )
+      OVERLAY ->
+        listOf(
+          Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkgUri),
+          Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+        )
+      NOTIFICATIONS ->
+        listOf(
+          Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, pkg),
+          Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkgUri),
+        )
+      BATTERY ->
+        listOf(
+          // 「電池の最適化から外しますか」の確認を直接出す（REQUEST_IGNORE_BATTERY_OPTIMIZATIONS の権限が要る）
+          Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkgUri),
+          Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+        )
+      // 「ユーザー補助」の一覧の画面。Slope の項目を直接開く画面（ACTION_ACCESSIBILITY_DETAILS_SETTINGS）は
+      // ほかのアプリからは開けない（OS の権限が要る）ので、一覧を開いて「Slope」を選んでもらう
+      ACCESSIBILITY -> listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+      else -> emptyList()
+    }
   }
 
   private fun startSafely(context: Context, activity: Activity?, intent: Intent): Boolean =

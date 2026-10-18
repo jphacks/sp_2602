@@ -163,6 +163,20 @@ flowchart TD
 - 保護者の端末は、端末にない・ハッシュが変わったアイコンだけを 50 個ずつ `childAppIconsGet` で読みます（`src/lib/app-icons.ts`）。
 - `excludedAppsGet` に入れない理由: 親16 は `excludedAppsGet` を 30 秒ごとに取り直すので、数百件の一覧を毎回運ばないためです。
 
+### 許可の見張りと親への通告（D-113）
+
+子どもの端末の許可（使用状況へのアクセス・他のアプリの上に表示・通知・ユーザー補助）の状態。**送るのは JS ではなく Kotlin の監視（`engine/StatusReporter.kt`）** で、アプリを閉じていても、変わったときと 15 分ごとの生存報告で送ります（Kotlin がサーバへ直接送るのはこの API だけ）。送る中身は許可ごとのオン/オフと測った時刻だけです（使用時間・アプリ名・URL は送らない）。設定の版は上げません。
+
+| 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
+|---|---|---|---|---|---|
+| `deviceStatusReport` | POST `/api/device-status/report` | child | `{ childId, permissions: { usageAccess, overlay, notifications, accessibility（すべて真偽）}, measuredAt }`（`childId` は自分の分だけ。保存先も合言葉の本人） | `DeviceStatusReportResult`（`{ ok: true }`） | 400（許可が足りない・真偽でない・時刻でない・`childId` がない）、401（合言葉が無効。Kotlin は保存した合言葉を消して送るのをやめる）、403（保護者・紐づけ前の人・ほかの子どもの `childId`） |
+| `deviceStatusGet` | POST `/api/device-status/get` | parent | `{ childId }` | `DeviceStatusView`（`{ status: ChildDeviceStatus \| null }`。`null` = まだ一度も届いていない。`ChildDeviceStatus` は `permissions`（許可ごとの真偽）・`offSince`（許可ごとのオフになった時刻。オンなら `null`）・`measuredAt`・`lastSeenAt`（サーバに最後に届いた時刻）） | 403（子どもは自分の分でも 403・連携していない子ども） |
+
+- `offSince` は「最初にオフと届いた報告の測った時刻」です。オフのまま届き続けても変えず、オンに戻ると消えます。端末の時計がサーバより先に進んでいても、サーバの今より先にはしません。
+- 前に届いた報告より古い（遅れて届いた）報告は状態を変えず、`lastSeenAt` だけ進めます。
+- 保護者が子どもとの連携を外すと消します（`familyUnlink`。次に紐づけた保護者に前の様子を見せない）。
+- `familyGet` に入れない理由: `familyGet` は親の画面全体で共有する子どもの一覧（名前）の入口で、これは親01 だけが 30 秒ごとに読むためです。
+
 ## 4. エラーの形
 
 どの API も、失敗したら必ずこの形で返します（`contracts/errors.ts` の `ApiError`）。画面は `message` と `hint` をそのまま出せばよい作りです。

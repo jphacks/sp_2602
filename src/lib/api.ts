@@ -16,6 +16,7 @@ import {
   type JsonRoute,
   type Req,
   type Res,
+  type RouteName,
   type StreamDef,
   type StreamRoute,
   streamLine,
@@ -25,6 +26,11 @@ import { fetch } from "expo/fetch";
 
 // .env.example の `EXPO_PUBLIC_API_URL=`（空）は "" として埋め込まれるので、?? ではなく || で「空も未設定」とみなす
 const BASE_URL = (process.env.EXPO_PUBLIC_API_URL || "http://10.0.2.2:3000").replace(/\/$/, "");
+
+// API の完全な URL（JS の外から呼ぶもの用。Kotlin の監視が許可の状態を直接送る送り先。D-113・src/lib/session.tsx）
+export function apiUrl(name: RouteName): string {
+  return `${BASE_URL}${api[name].path}`;
+}
 
 // 時間切れで止めた signal を覚えておく（fetch が「時間切れ」か「自分で中断」かを区別できない実装でも見分けるため）
 const timedOut = new WeakSet<AbortSignal>();

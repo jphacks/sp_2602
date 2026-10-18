@@ -15,6 +15,8 @@ export { default as childAppIconsUpload } from "./childAppIconsUpload.js";
 export { default as childAppsGet } from "./childAppsGet.js";
 export { default as childAppsUpload } from "./childAppsUpload.js";
 export { default as configGet } from "./configGet.js";
+export { default as deviceStatusGet } from "./deviceStatusGet.js";
+export { default as deviceStatusReport } from "./deviceStatusReport.js";
 export { default as excludedAppsGet } from "./excludedAppsGet.js";
 export { default as excludedAppsSave } from "./excludedAppsSave.js";
 export { default as familyGet } from "./familyGet.js";

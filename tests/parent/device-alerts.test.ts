@@ -3,6 +3,7 @@ import { type ColorName, palettes, type ThemeName } from "@contracts/tokens";
 import { describe, expect, it } from "vitest";
 import { bannerBg, bannerFg } from "@/components/banner-tones";
 import {
+  alertClock,
   alertTime,
   type DevicePermission,
   type DeviceStatusInput,
@@ -188,5 +189,30 @@ describe("帯の tone と色（新しい色は足さず、palettes の danger・
     it.each(["danger", "warning", "info"] as const)("tone %s の帯の文字が地の上で読める", (tone) => {
       expect(contrast(c[bannerFg[tone]], c[bannerBg[tone]])).toBeGreaterThanOrEqual(4.5);
     });
+  });
+});
+
+describe("alertClock（保護者のスマホが通信できないときに途絶と言わない）", () => {
+  it("最後に読めた時刻より先には進めない。まだ読めていなければ今", () => {
+    const now = new Date("2026-10-18T03:00:00Z");
+    const checked = new Date("2026-10-18T02:10:00Z");
+    expect(alertClock(now, checked)).toBe(checked);
+    expect(alertClock(now, null)).toBe(now);
+    // 読めた時刻が今より後（時計のずれ）でも今を使う
+    expect(alertClock(checked, now)).toBe(checked);
+  });
+
+  it("50分前に読めたきりなら、その時点で lastSeenAt から30分たっていない限り途絶の帯は出さない", () => {
+    const lastSeen = "2026-10-18T02:00:00Z";
+    const checked = new Date("2026-10-18T02:10:00Z"); // ここで通信が切れた
+    const now = new Date("2026-10-18T03:00:00Z");
+    const status = {
+      permissions: { usageAccess: true, overlay: true, notifications: true, accessibility: true },
+      offSince: { usageAccess: null, overlay: null, notifications: null, accessibility: null },
+      measuredAt: lastSeen,
+      lastSeenAt: lastSeen,
+    };
+    expect(deviceAlerts(status, { hasBlockedSites: false, now: alertClock(now, checked) })).toEqual([]);
+    expect(deviceAlerts(status, { hasBlockedSites: false, now }).length).toBe(1);
   });
 });

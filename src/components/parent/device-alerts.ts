@@ -3,19 +3,16 @@
 // 画面の部品は DeviceAlertBanner.tsx。色は既存の帯（Banner）の tone で出し分ける（新しい色は足さない）:
 //   連絡の途絶・使用時間へのアクセス・ユーザー補助 = danger、ほかのアプリの上に表示 = warning、通知 = info。
 import { dateOf } from "@contracts/dates";
+import type { ChildDeviceStatus } from "@contracts/schemas";
 import type { BannerTone } from "../banner-tones";
 import type { IconName } from "../Icon";
 import { timeJst } from "./format";
 
 export type DevicePermission = "usageAccess" | "overlay" | "notifications" | "accessibility";
 
-// 子どもの端末の状態（contracts/schemas.ts の ChildDeviceStatus と同じ形。まとめ役が contracts の型に置き換える）
-export type DeviceStatusInput = {
-  permissions: Record<DevicePermission, boolean>;
-  offSince: Record<DevicePermission, string | null>; // オフになった時刻（ISO）。オンなら null
-  measuredAt: string; // 子どもの端末で測った時刻（ISO）
-  lastSeenAt: string; // サーバに最後に届いた時刻（ISO）
-};
+// 子どもの端末の状態（contracts/schemas.ts の ChildDeviceStatus。permissions・offSince（オフになった時刻。オンなら null）・
+// measuredAt（子どもの端末で測った時刻）・lastSeenAt（サーバに最後に届いた時刻））
+export type DeviceStatusInput = ChildDeviceStatus;
 
 export type DeviceAlert = {
   key: "unreachable" | DevicePermission;
@@ -127,4 +124,10 @@ export function deviceAlerts(
     });
   }
   return alerts;
+}
+
+// 帯を決めるときの「今」。最後にサーバから状態を読めた時刻（checkedAt）より先には進めない。
+// なぜ: 保護者のスマホが通信できない間も時計だけ進めると、子どものスマホは元気なのに「30分以上連絡が取れていません」と出てしまう
+export function alertClock(now: Date, checkedAt: Date | null): Date {
+  return checkedAt && checkedAt.getTime() < now.getTime() ? checkedAt : now;
 }

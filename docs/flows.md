@@ -329,6 +329,34 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 - 子01 ホームには、まだ許可していないもの（他のアプリの上に表示・通知・電池の最適化・ユーザー補助）を並べた「見守りのための許可」のカードを出す（`PermissionGuideCard`・`child-view.ts` の `permissionGuide`。Figma にない）。使用状況へのアクセスは「今日の使用量」のカードが案内する。ユーザー補助は、制限する Web サイトが1つ以上登録されているときだけ並ぶ（12章）。
 - 上限に達したあと、ブラウザで保護者の登録した Web サイトを開いたときは、ブラウザを1つ前に戻してから子11 を出す（12章。ブラウザが対象外アプリでも止める）。
 
+### 許可の見張りと親への通告（D-113）
+
+子どもが設定の画面で「ユーザー補助」などの許可を勝手にオフにすると、C2・C4・Web サイトの制限が効かなくなります。Android ではこれらのスイッチだけを固定できない（Device Owner でも、止められるのは設定アプリ全体）ので、**変わったら保護者に知らせる** ことにしました（docs/decisions.md D-113）。
+
+```mermaid
+flowchart LR
+  S["session.tsx（子どもとしてログイン・起動）"] -->|"native.setStatusReporter(URL, 合言葉, childId)"| K["EngineStore（アプリ専用の保存場所）"]
+  M["MonitorService（30 秒ごと）"] --> F["EnginePermissions.flags（4つの許可）"]
+  A["StatusReportReceiver（画面が消えている間・15 分ごとの目覚まし）"] --> F
+  F --> R{"StatusReportRules.shouldSend<br/>変わった？ 15 分たった？"}
+  R -->|送る| P["POST deviceStatusReport（HttpURLConnection）"]
+  P --> D["device_statuses（offSince・lastSeenAt）"]
+  D --> G["親01: useDeviceStatus → deviceStatusGet（30 秒ごと）→ DeviceAlertBanner"]
+  F --> N{"ユーザー補助がオフ＆Web サイトの登録あり？"}
+  N -->|はい| U["子どもの端末に通知「ユーザー補助をオンに戻してください。保護者に知らせました」"]
+```
+
+1. **送り先と合言葉を渡す**: `src/lib/session.tsx` が、ログインの状態が変わるたびに `src/lib/status-reporter.ts` の `statusReporterAction` で決めて、子どもとしてログインしていれば `native.setStatusReporter(apiUrl("deviceStatusReport"), 合言葉, 自分の userId)`、保護者・ログアウト・401 なら `native.clearStatusReporter()` を呼ぶ。Kotlin は `EngineStore`（`slope_engine` の `report_url`・`report_token`・`report_child_id`）に置く。ログアウトの `clearLocalData` でも消える。
+2. **見張る**: `MonitorService` の見張り（30 秒ごと。画面がついたときはすぐ）が `EnginePermissions.flags`（使用状況へのアクセス・他のアプリの上に表示・通知・ユーザー補助。子01 の許可のカードと同じ判定）を読む。画面が消えて CPU が眠っている間は、見張りが止まるので、`AlarmManager` の目覚まし（`setAndAllowWhileIdle`。15 分ごと・端末の休止中でも鳴る）で `StatusReportReceiver` が同じことをする。
+3. **送る**: `StatusReportRules.shouldSend` が「まだ送っていない・前に送った状態と違う・前に届いてから 15 分たった」なら送る。通信は見張りとは別のスレッドで、`HttpURLConnection`（つなぐ 5 秒・読む 4 秒）。本文は `childId`・許可ごとのオン/オフ・測った時刻だけ（使用時間・アプリ名・URL は送らない）。
+   - 失敗（時間切れ・通信できない・5xx・408・429）: 黙って 1 分後にやり直す。ほかの 4xx（403 など）: 15 分待つ。
+   - 401 で本文がサーバの `unauthorized`: 保存した合言葉を消して送るのをやめる（連携を外された・ログアウトされた）。Vercel の保護ページなど、ほかの 401 では消さない。
+4. **保存する**: サーバ（`src/server/services/device-status.ts`・`backend/src/db/device-status.ts`）は合言葉の本人の行（`device_statuses`）に、許可ごとのオン/オフ・オフになった時刻（最初にオフと届いた報告の測った時刻）・最後に届いた時刻（サーバの時計）を保存する。遅れて届いた古い報告では状態を変えない。
+5. **保護者に知らせる**: 親01 ホーム（`src/app/parent/home.tsx`）が `useDeviceStatus`（`src/components/parent/data.tsx`。`deviceStatusGet` を 30 秒ごと）で読み、帯の部品 `DeviceAlertBanner`（`src/components/parent/DeviceAlertBanner.tsx`。別の係が作る）に `status` と `hasBlockedSites` を渡す（[screens.md](screens.md) の親01）。最後に届いてから 30 分以上なら「連絡が取れていません」（アプリが消された・電源が切れた・通信がない可能性）。まだ一度も届いていない（古いアプリ）ときは何も出さない。
+6. **子どもに催促する**: ユーザー補助がオフで、保護者が Web サイトを1件以上登録しているときは、`MonitorService` が子どもの端末に通知「ユーザー補助をオンに戻してください。保護者に知らせました」を出す（`PermissionNudge`。チャンネル「許可を戻すお願い」）。押すと Android のユーザー補助の設定（一覧）が開く（`EnginePermissions.settingsIntent`）。オンに戻ったら消す。
+
+目安: 子どもがユーザー補助をオフにしてから親01 に帯が出るまで、画面がついていれば **ふつう 1 分以内**（見張り 30 秒＋親01 の取り直し 30 秒）。画面が消えたまま置かれた場合は最長 15 分ほど（目覚まし）。「連絡が取れていません」は最後に届いてから 30 分。電池の最適化から外していない端末では、休止中に通信を止められて生存報告が届かず、夜などに「連絡が取れていません」が出ることがあります。
+
 ## 9. 利用記録の送信（C8）
 
 担当: `src/lib/usage-outbox.ts`（送信待ち）、`src/lib/usage-calc.ts` の `toUsageDayReport`（記録の形）、`backend/src/db/usage-persistence.ts` の `persistUsageSubmission`（サーバの保存。`src/server/handlers/usageUpload.ts` から呼ぶ）。

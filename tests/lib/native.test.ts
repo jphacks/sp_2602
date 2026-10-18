@@ -42,6 +42,8 @@ describe("native（モジュールなし）", () => {
         blockedSites: [],
       });
       native.saveParentWidget({ days: [], testPeriods: [] }); // 保護者のウィジェット（親08）
+      native.setStatusReporter("http://10.0.2.2:3000/api/device-status/report", "t", "c1"); // 許可の見張り（D-113）
+      native.clearStatusReporter();
     }).not.toThrow();
   });
 

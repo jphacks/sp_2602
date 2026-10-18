@@ -123,8 +123,18 @@ export interface NativeEngine {
   showLimitReached(): boolean;
   // アプリを開く（学習用アプリへの誘導）。開けなければ false
   openApp(packageName: string): boolean;
-  // ログアウトのときに、端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットの値を消して描き直す）
+  // ログアウトのときに、端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットの値を消して描き直す）。
+  // 許可の状態の送り先と合言葉（setStatusReporter）も消える
   clearLocalData(): void;
+
+  // ── 許可の見張りと親への通告（docs/decisions.md D-113）──
+  // 監視（MonitorService）が許可の状態をサーバへ直接送るための、送り先の URL（deviceStatusReport の完全な URL）・合言葉・
+  // 子どもの id（送る本文の childId）を渡す。
+  // Kotlin はアプリ専用の保存場所（EngineStore）に置き、アプリを閉じていても送る。子どもとしてログインしているときだけ渡す
+  // （src/lib/session.tsx。ログイン時・起動時）。Kotlin は 401 が返ったら自分で消して送るのをやめる
+  setStatusReporter(url: string, token: string, childId: string): void;
+  // 送り先と合言葉を消す（保護者・役割のない人・合言葉が無効になった 401 のとき。ログアウトは clearLocalData で消える）
+  clearStatusReporter(): void;
 
   // ── C5（保護者のウィジェット・親08）──
   // 保護者のウィジェットの値を端末に保存し、ウィジェットを保護者の形で描き直す。

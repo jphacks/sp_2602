@@ -24,6 +24,8 @@ vi.mock("expo", () => ({
     showLimitReached: boom,
     openApp: () => true,
     clearLocalData: boom,
+    setStatusReporter: boom,
+    clearStatusReporter: boom,
   }),
 }));
 
@@ -48,6 +50,8 @@ describe("native（Kotlin が例外を出す）", () => {
       native.startEngine();
       native.stopEngine();
       native.clearLocalData();
+      native.setStatusReporter("https://example.test/api/device-status/report", "t", "c1");
+      native.clearStatusReporter();
       native.saveRestriction({
         date: "2026-10-17",
         limit: { kind: "limited", limitMinutes: 60 },

@@ -11,6 +11,7 @@ import { and, count, eq, gt, inArray, isNull, lte, ne, or } from "drizzle-orm";
 import {
   authIdentities,
   childConfigVersions,
+  deviceStatuses,
   familyLinks,
   pairClaimFailures,
   pairTickets,
@@ -518,6 +519,8 @@ export async function unlinkChild(
       .update(pairTickets)
       .set({ state: "expired", revokedAt: new Date() })
       .where(and(eq(pairTickets.childId, childId), inArray(pairTickets.state, ["waiting", "claimed"])));
+    // 端末の許可の状態（D-113）は消す（次に紐づけた保護者に前の様子を見せない。紐づけ直せば端末がすぐ送り直す）
+    await tx.delete(deviceStatuses).where(eq(deviceStatuses.childId, childId));
     return { childId, revokedSessions: await revokeAllSessions(tx, childId) };
   });
 }
