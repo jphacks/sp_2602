@@ -35,7 +35,8 @@ object SecretBox {
   // それでも失敗し、しかも鍵が壊れている（あるのに使えない: InvalidKeyException・UnrecoverableKeyException など）ときだけ、
   // 鍵を消して新しい鍵で1回だけやり直す（そのままでは毎回失敗して直らないため）。
   //   鍵を作り直すと、同じ鍵で封をしたもう一方の値（JS の Session / Kotlin の report_token）は開けなくなるが、
-  //   それぞれ既存の「開けない → 消す（JS: loadSession）・送らない（Kotlin: loadReporter が null）→ ログインし直し・JS が setStatusReporter で封をし直す」に落ちる。
+  //   それぞれ既存の「開けない → ログアウト状態（JS: loadSession が null。置いた値は消さず、次にログインすれば上書き）・
+  //   送らない（Kotlin: loadReporter が null）→ ログインし直し・JS が setStatusReporter で封をし直す」に落ちる。
   // 開ける側（open）の失敗では鍵を消さない（値の書き換え・一時的な失敗で消すと、他の値まで読めなくなるため）
   @Synchronized
   fun seal(plain: String): String? {

@@ -72,13 +72,27 @@ describe("session-store", () => {
     expect(storage.data.get(storageKeys.session) ?? "").not.toContain(session.token);
   });
 
-  it("開けない（鍵が作り直された）・壊れている・形が違うときは消して null（ログインし直し）", async () => {
-    for (const raw of [
-      JSON.stringify({ v: 1, sealed: "sb1:xxxx" }),
-      JSON.stringify({ v: 1, sealed: "plain-token" }),
-      "{not json",
-      JSON.stringify({ hello: "world" }),
-    ]) {
+  it("封を開けられない（Keystore の一時的な失敗・鍵が作り直された）ときは、消さずに null。次に開けられれば使える（M-6 とそろえる）", async () => {
+    const storage = memory();
+    await saveSession(storage, box, session);
+    const saved = storage.data.get(storageKeys.session);
+    expect(await loadSession(storage, noBox)).toBeNull();
+    expect(storage.data.get(storageKeys.session)).toBe(saved); // 消さない・平文に戻さない
+    expect(storage.data.get(storageKeys.session) ?? "").not.toContain(session.token);
+    // 次の起動で開ければ、そのまま使える
+    expect(await loadSession(storage, box)).toEqual(session);
+    // 封の形でない値（"sb1:" で始まらない）も、開けない値として消さずに null
+    const other = memory();
+    other.data.set(storageKeys.session, JSON.stringify({ v: 1, sealed: "plain-token" }));
+    expect(await loadSession(other, box)).toBeNull();
+    expect(other.data.has(storageKeys.session)).toBe(true);
+    // 次にログインすれば上書きされる
+    await saveSession(other, box, session);
+    expect(await loadSession(other, box)).toEqual(session);
+  });
+
+  it("開けたのに中身が Session の形でない・壊れている・形が違うときは消して null（ログインし直し）", async () => {
+    for (const raw of [JSON.stringify({ v: 1, sealed: "sb1:xxxx" }), "{not json", JSON.stringify({ hello: "world" })]) {
       const storage = memory();
       storage.data.set(storageKeys.session, raw);
       expect(await loadSession(storage, box), raw).toBeNull();
