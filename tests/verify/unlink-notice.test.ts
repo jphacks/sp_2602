@@ -23,6 +23,16 @@ async function unauthorizedBody(res: Response) {
   return ApiError.parse(await res.json());
 }
 
+// 理由のない 401: 生の本文（JSON）に reason のキーそのものがないことを確かめる。
+// ApiError.parse は知らない理由を「理由なし」（undefined）に読み替えるので、parse したあとの reason では、
+// サーバが別の理由を付けてしまっていても見逃すため
+async function expectNoReason(res: Response) {
+  expect(res.status).toBe(401);
+  const raw: unknown = await res.json();
+  expect(raw).toMatchObject({ code: "unauthorized" });
+  expect(raw).not.toHaveProperty("reason");
+}
+
 const reasonOf = async (token: string) =>
   (
     await (
@@ -84,9 +94,7 @@ describe("V: ほかの 401 には理由が付かない（D-133）", () => {
   it("ログアウトした合言葉: 401 に reason なし。理由は sign_out で残る", async () => {
     const me = await newPerson("n4");
     await ok(post("/api/auth/sign-out", {}, me.token));
-    const body = await unauthorizedBody(await get("/api/auth/me", me.token));
-    expect(body.code).toBe("unauthorized");
-    expect(body.reason).toBeUndefined();
+    await expectNoReason(await get("/api/auth/me", me.token));
     expect(await reasonOf(me.token)).toMatchObject({ reason: "sign_out" });
   });
 
@@ -94,16 +102,24 @@ describe("V: ほかの 401 には理由が付かない（D-133）", () => {
     const lost = await newPerson("n5");
     const current = await newPerson("n5");
     await ok(post("/api/auth/sign-out", { otherDevices: true }, current.token));
-    expect((await unauthorizedBody(await get("/api/auth/me", lost.token))).reason).toBeUndefined();
+    await expectNoReason(await get("/api/auth/me", lost.token));
     expect(await reasonOf(lost.token)).toMatchObject({ reason: "sign_out_others" });
+  });
+
+  it("外された合言葉は、30 日たって期限が切れていても family_unlink が付く（端末を止める側に倒す）", async () => {
+    const { child, parent } = await newFamily("n7");
+    await ok(post("/api/family/unlink", { childId: child.userId }, parent.token));
+    clock.addMs(SESSION_IDLE_MS + 60_000);
+    expect((await unauthorizedBody(await get("/api/auth/me", child.token))).reason).toBe("family_unlink");
+    expect((await unauthorizedBody(await get("/api/auth/check", child.token))).reason).toBe("family_unlink");
   });
 
   it("30 日使わずに期限が切れた合言葉・知らない合言葉・合言葉なし: 401 に reason なし", async () => {
     const idle = await newPerson("n6");
     clock.addMs(SESSION_IDLE_MS + 60_000);
-    expect((await unauthorizedBody(await get("/api/auth/me", idle.token))).reason).toBeUndefined();
-    expect((await unauthorizedBody(await get("/api/auth/me", "no-such-token"))).reason).toBeUndefined();
-    expect((await unauthorizedBody(await get("/api/auth/me", null))).reason).toBeUndefined();
+    await expectNoReason(await get("/api/auth/me", idle.token));
+    await expectNoReason(await get("/api/auth/me", "no-such-token"));
+    await expectNoReason(await get("/api/auth/me", null));
   });
 
   it("外せなかったとき（403）は、子どもの合言葉は使えるまま", async () => {
@@ -150,7 +166,7 @@ describe("V: 合言葉がまだ使えるかの確かめ（authCheck。D-134）",
       clock.addMs(86_400_000);
       await get("/api/auth/check", child.token);
     }
-    expect((await unauthorizedBody(await get("/api/auth/check", child.token))).reason).toBeUndefined();
+    await expectNoReason(await get("/api/auth/check", child.token));
   });
 
   it("外された子どもの合言葉は 401 + reason: family_unlink。ログアウトした・知らない・なしは理由なしの 401", async () => {
@@ -160,9 +176,9 @@ describe("V: 合言葉がまだ使えるかの確かめ（authCheck。D-134）",
 
     const me = await newPerson("k5");
     await ok(post("/api/auth/sign-out", {}, me.token));
-    expect((await unauthorizedBody(await get("/api/auth/check", me.token))).reason).toBeUndefined();
-    expect((await unauthorizedBody(await get("/api/auth/check", "no-such-token"))).reason).toBeUndefined();
-    expect((await unauthorizedBody(await get("/api/auth/check", null))).reason).toBeUndefined();
+    await expectNoReason(await get("/api/auth/check", me.token));
+    await expectNoReason(await get("/api/auth/check", "no-such-token"));
+    await expectNoReason(await get("/api/auth/check", null));
   });
 
   it("回数の上限に数えない（1分に何回呼んでも 429 にならない）", async () => {

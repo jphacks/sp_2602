@@ -201,7 +201,8 @@ async function findSession(token: string, { touch = true }: { touch?: boolean } 
 type RevokeReason = "sign_out" | "sign_out_others" | "family_unlink";
 
 // 保護者が連携を外したので使えなくなった合言葉か（無効にした合言葉のうち、理由が family_unlink のもの）。
-// 期限切れ・知らない合言葉・ログアウトした合言葉は false（ふつうの 401 のまま）。
+// 知らない合言葉・ログアウトした合言葉・外されずに期限が切れただけの合言葉は false（ふつうの 401 のまま）。
+// 外された合言葉は、そのあと 30 日たって期限が切れていても true（外された端末を止める側に倒す）。
 // 合言葉を知っている本人にしか返らないので、ほかの人に「この子どもは外された」が漏れることはない
 async function wasUnlinked(token: string): Promise<boolean> {
   const database = await db();

@@ -1,7 +1,7 @@
 // サーバ側のエラー（lead の担当）。処理の中では AppError を throw し、形の変換は route.ts に任せる。
 //   throw new AppError("upstream_failed");                       // 既定の文
 //   throw new AppError("not_found", "その結果は見つかりません");   // 文を上書き
-//   throw new AppError("unauthorized", 文, 次にすること, "family_unlink"); // 401 の理由を付ける（D-133。auth.ts の authorize だけ）
+//   throw new AppError("unauthorized", 文, 次にすること, "family_unlink"); // 401 の理由を付ける（D-133。auth.ts の unlinkedError だけが作る。authorize と checkToken（authCheck。D-134）が投げる）
 
 import { ZodError } from "zod";
 import {
