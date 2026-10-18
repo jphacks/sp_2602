@@ -12,7 +12,10 @@
 | F-3 IN-06 NUL 文字で 500 | 修正 | 下の 4 |
 | F-4 IN-12 エラーのログに入力が出る | 修正 | 下の 4 |
 | IPA-11 依存の既知の脆弱性 | 一部修正・残りは受け入れ | 下の 5 |
-| F-2 PII-10・F-5 AVL-01・F-7 IPA-15・X-1 | 未対応 | 範囲を確かめてから |
+| X-1 読むだけで設定の版が上がる | 修正 | 下の X-1 |
+| F-2 PII-10 連携を外したあと、別の保護者に前の家庭のデータが見える（高） | 修正 | 下の F-2 / F-7 |
+| F-7 IPA-15 連携を外す操作の監査記録がない | 修正 | 下の F-2 / F-7 |
+| F-5 AVL-01 ログイン・QR の発行に回数の上限がない | 修正 | 下の F-5 |
 
 ## 1. 合言葉の平文保存（F-1）
 
@@ -56,3 +59,30 @@
 - `npm audit` は 32 件（high 21・moderate 11）→ 21 件（high 21・moderate 0）。残りはすべて braces と node-forge が元で、それを含む expo・metro などに同じ指摘が連なって数えられている。`audit fix --force` の案（expo 44・react-native 0.72 への格下げ）は使わない。
 - 直接の依存の版は変えていない。`backend/` は 0 件のまま。
 - 未確認: `npm run db:generate` / `db:migrate` を esbuild 0.25 で走らせてはいない（drizzle-kit のコードは esbuild-kit を参照していない）。Android の Gradle の依存の監査は未実施。
+
+## X-1. 読むだけで設定の版が上がる
+
+- 原因: `topUpDailyLimits`（`backend/src/db/c10-recalculate.ts`）は「保存してある最後の日」がしきい値（今日 + 60 日）より前なら作り足して版を上げていた。空白期間だけで通常上限も計画もない子どもは、空白期間の後ろの日が「上限未設定」（一覧に入らない）なので、作り直しても最後の日は空白期間の終わりのまま。毎回しきい値に届かず、`configGet` のたびに同じ中身で版が上がっていた（計画はあるが通常上限がなく、最後のテストが近い子どもも同じ）。
+- 直し方: `recalculateC10InTransaction` に `onlyIfChanged` を足し、作り直した結果が前の版と同じ（日付・種類・分・空白期間）なら保存せず false を返す。`topUpDailyLimits` は保存したときだけ版を上げる。D-54 の「中身が変わったときだけ版を 1 上げる」のとおり。設定を保存するときの再計算はこれまでどおり毎回保存する。
+- テスト: `tests/server/topup.test.ts` の X-1（空白期間だけの子どもで `configGet` を何度呼んでも版は 1 のまま。日がたっても同じ）。作り足したときに版が上がるのは同じファイルの既存のテストで確かめている。
+
+## F-2 / F-7. 連携を外したあとのデータと、外した記録（PII-10 / IPA-15）
+
+- 直し方（F-2）: `unlinkChild`（`src/server/auth.ts`）が、連携の行を消すのと同じトランザクションで、子どもの家庭ごとのデータを消す（`backend/src/db/family-unlink.ts` の `clearChildFamilyData`）。消す表: 利用記録（`usage_records`・`usage_day_reports`・`usage_sync_batches`）、1日の上限（`daily_limits`・`plan_calculation_versions`）、計画・通常上限（`plan_settings`・`child_usual_limits`）、テスト期間・空白期間、対象外アプリ（`excluded_apps`・`removed_excluded_apps`・`excluded_app_states`）、Web サイト（`blocked_sites`・`blocked_site_states`）、アプリ一覧とアイコン（`child_app_lists`・`child_app_list_items`・`child_app_icons`）、端末の許可の状態（`device_statuses`）。`src/server/auth.ts` の TODO はこれで閉じた。
+- 消さないもの: 利用者の行（`users`）・ログインの紐づけ（`auth_identities`）・QR の記録（`pair_tickets`。関わった人しか読めない）・取り消した合言葉の行。家庭のデータではないため。
+- 設定の版（`child_config_versions`）は消さずに 1 上げる（0 に戻すと、端末が持っている前の版より小さくなり、次の家庭の設定を取り込まないおそれがある）。子どもの端末が取り込んだ版（`child_applied_versions`）は数だけなので残す。
+- 同じ保護者と紐づけ直しても、設定は最初からになる（前は「続きから使えるように」残していた。open-questions.md の `unlinkChild` の項目を決めた）。
+- 直し方（F-7）: 新しい表 `audit_events`（migration `0016_family_unlink_audit.sql`）に、`action = "family_unlink"`・`actor_user_id`（外した保護者）・`child_id`・`created_at` を、外すのと同じトランザクションで1行書く。消したデータの中身は残さない。外せなかったとき（403・not_found）は書かない。読む API・画面はまだない（DB を見る）。
+- テスト: `tests/verify/unlink-data.test.ts`（result.md の手順どおり: 子C が C1 とデータを作る → C1 が外す → 子C が C2 と連携 → C2 の `usageGet`・`testPeriodList`・空白期間・計画・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の状態・子どもの `configGet` に前の家庭のデータが出ない。版は前より大きい。ほかの家庭のデータは消えない。監査の行が1行残り、403 のときは残らない）。
+- 残り: 子どもの端末の送信待ち（`src/lib/usage-outbox.ts`）は 401 では消さない（同じ人がログインし直して送れるように）ので、外された時点で送れていなかった今日・昨日の分は、別の保護者と紐づけ直したあとに送られて、新しい保護者に見えることがある。端末側で「連携が外れた」ことを知って送信待ちを消すのは別の対応。
+
+## F-5. ログイン・QR の発行の回数の上限（AVL-01）
+
+- 直し方: `src/server/rate-limit.ts` の `countCall`。窓の間に同じ相手から上限の回数を呼ばれたら、その間は `rate_limited`（429。ApiError の形）。断った呼び出しは数えないので、窓が過ぎればまた受け付ける。
+- 数は DB の新しい表 `rate_limit_hits`（migration `0017_rate_limit_hits.sql`）に残す。Vercel のインスタンスはメモリを共有しないため（`pairClaim` の `pair_claim_failures` と同じ考え）。相手（IP・subject・利用者 id）は SHA-256 にして残し、IP をそのまま置かない。窓を過ぎた行は数えるときに消す。
+- 上限:
+  - `authGoogle`: IP ごとに 1 分 20 回（Google の確認より先に数える。家庭・学校では保護者と子どもの端末が同じ IP になるので多め）。同じ人（Google の sub・MOCK の idToken）ごとに 1 分 10 回。
+  - `pairStart`: 1 人 1 分 5 回（1 回ごとに `pair_tickets` へ行を書くため。QR は 10 分使えるので、ふつうは 1 回で足りる）。
+- IP は Vercel が付ける `x-real-ip`・`x-forwarded-for` の先頭（Vercel は利用者が送った値を上書きする）。ヘッダがない手元のサーバ・テストでは IP ごとの上限は数えず、人ごとの上限だけが効く。
+- 限界: 数えてから書くので、同時に届いた分だけ上限を少し超えることはある。監査ログ（AVL-01 の期待結果）は出していない。
+- テスト: `tests/verify/revoke-and-limit.test.ts` の F-5（pairStart は 5 回の次が 429・ほかの子どもは止まらない・1 分たてば出せる。authGoogle は同じ人 10 回の次が 429・ほかの人は止まらない・1 分たてば入れる。同じ IP 20 回の次が 429・ほかの IP は止まらない・通らない idToken でも数える）。`tests/verify/security.test.ts` の「QR の code を 20 回出す」は、上限にかからないように 12 秒ずつ時計を進めるようにした。
