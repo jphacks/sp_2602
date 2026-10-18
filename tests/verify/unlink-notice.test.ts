@@ -114,3 +114,57 @@ describe("V: ほかの 401 には理由が付かない（D-133）", () => {
     expect(await reasonOf(b.child.token)).toEqual({ reason: null, revokedAt: null });
   });
 });
+
+describe("V: 合言葉がまだ使えるかの確かめ（authCheck。D-134）", () => {
+  const lastUsedOf = async (token: string) =>
+    (
+      await (await db())
+        .select({ lastUsedAt: userSessions.lastUsedAt })
+        .from(userSessions)
+        .where(eq(userSessions.tokenHash, digest(token)))
+    )[0]?.lastUsedAt.toISOString();
+
+  it("使える合言葉なら 200 { ok: true }。中身（名前・役割）は返さない", async () => {
+    const { child } = await newFamily("k1");
+    expect(await ok(get("/api/auth/check", child.token))).toEqual({ ok: true });
+  });
+
+  it("DB に書かない: 何度呼んでも「最後に使った時刻」は変わらない（合言葉の期限も延びない）", async () => {
+    const { child } = await newFamily("k2");
+    const before = await lastUsedOf(child.token);
+    for (let i = 0; i < 3; i++) {
+      clock.addMs(5 * 60_000);
+      await ok(get("/api/auth/check", child.token));
+    }
+    expect(await lastUsedOf(child.token)).toBe(before);
+    // ふつうの API（authMe）は今までどおり延ばす
+    await ok(get("/api/auth/me", child.token));
+    expect(await lastUsedOf(child.token)).not.toBe(before);
+  });
+
+  it("30 日使っていない合言葉は、authCheck を呼び続けても期限が切れる（理由なしの 401）", async () => {
+    const { child } = await newFamily("k3");
+    for (let i = 0; i < 31; i++) {
+      clock.addMs(86_400_000);
+      await get("/api/auth/check", child.token);
+    }
+    expect((await unauthorizedBody(await get("/api/auth/check", child.token))).reason).toBeUndefined();
+  });
+
+  it("外された子どもの合言葉は 401 + reason: family_unlink。ログアウトした・知らない・なしは理由なしの 401", async () => {
+    const { child, parent } = await newFamily("k4");
+    await ok(post("/api/family/unlink", { childId: child.userId }, parent.token));
+    expect((await unauthorizedBody(await get("/api/auth/check", child.token))).reason).toBe("family_unlink");
+
+    const me = await newPerson("k5");
+    await ok(post("/api/auth/sign-out", {}, me.token));
+    expect((await unauthorizedBody(await get("/api/auth/check", me.token))).reason).toBeUndefined();
+    expect((await unauthorizedBody(await get("/api/auth/check", "no-such-token"))).reason).toBeUndefined();
+    expect((await unauthorizedBody(await get("/api/auth/check", null))).reason).toBeUndefined();
+  });
+
+  it("回数の上限に数えない（1分に何回呼んでも 429 にならない）", async () => {
+    const { child } = await newFamily("k6");
+    for (let i = 0; i < 30; i++) expect((await get("/api/auth/check", child.token)).status).toBe(200);
+  });
+});

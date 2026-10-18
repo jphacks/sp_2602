@@ -137,6 +137,14 @@ async function sessionUser(tx: Executor, userId: string): Promise<Omit<Session, 
   return { userId: user.id, name: user.name || "利用者", role: user.role };
 }
 
+// 合言葉がまだ使えるかだけを確かめる（authCheck。D-134）。DB は読むだけ（期限を延ばさない）。
+// 使えなければ authorize と同じ 401（外された子どもの合言葉なら reason: family_unlink）
+export async function checkToken(request: Request): Promise<void> {
+  const token = tokenOf(request);
+  const caller = token ? await findSession(token, { touch: false }) : null;
+  if (!caller) throw token && (await wasUnlinked(token)) ? unlinkedError() : new AppError("unauthorized");
+}
+
 export async function authorize(rule: AuthRule, request: Request): Promise<Caller | null> {
   if (rule === "none") return null;
   const token = tokenOf(request);
@@ -154,7 +162,8 @@ export async function authorize(rule: AuthRule, request: Request): Promise<Calle
 // なぜ: デモの人の合言葉は固定で、公開リポジトリ（contracts/fixtures.ts）に平文で書いてある。前はハッシュの一致だけで
 //   通していたので、MOCK=1 のサーバが一度でも DB に見本を入れると、MOCK を外した後もだれでもデモの人として入れた
 //   （セキュリティ自己点検 🔴1）。MOCK=1 に戻せば、また使える（手元の開発・テスト）
-async function findSession(token: string): Promise<Session | null> {
+// touch: false なら「最後に使った時刻」を書かない（authCheck。1分ごとに呼ばれても DB に書かず、合言葉の期限も延ばさない）
+async function findSession(token: string, { touch = true }: { touch?: boolean } = {}): Promise<Session | null> {
   const database = await db();
   const now = new Date();
   const mockLogin = database
@@ -183,7 +192,7 @@ async function findSession(token: string): Promise<Session | null> {
   if (!row) return null;
   const idle = now.getTime() - row.lastUsedAt.getTime();
   if (idle > SESSION_IDLE_MS) return null;
-  if (idle >= LAST_USED_WRITE_MS)
+  if (touch && idle >= LAST_USED_WRITE_MS)
     await database.update(userSessions).set({ lastUsedAt: now }).where(eq(userSessions.id, row.sessionId));
   return { token, userId: row.userId, name: row.name || "利用者", role: row.role };
 }
