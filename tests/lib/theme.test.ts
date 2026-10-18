@@ -1,4 +1,4 @@
-// テーマカラー（白色 = light / 黒色 = dark）のテスト（contracts/tokens.ts の palettes・src/lib/theme-store.ts）。
+// テーマカラー（白色 = light / 黒色 = dark / ベージュ = notebook。ノートは子ども用の見た目だけ）のテスト（contracts/tokens.ts の palettes・src/lib/theme-store.ts）。
 // 色の組がライト・ダークで同じ名前を全部持っていること（ダークに抜けがあると、その部品だけ色が付かない）、
 // 選んだテーマを端末に保存して読み戻せること、壊れた保存でも落ちずにライトになること、ログアウトでは消えないことを確かめる。
 import { type ColorName, palettes, type ThemeName } from "@contracts/tokens";
@@ -7,7 +7,10 @@ import { createConfigCache } from "@/lib/config-cache";
 import { clearLocalDataFor } from "@/lib/sign-out";
 import { clearSessionData, type KeyValueStorage, storageKeys } from "@/lib/storage";
 import {
+  classicThemeName,
   DEFAULT_THEME,
+  KIDS_THEME_OPTIONS,
+  kidsThemeLabel,
   loadThemeName,
   saveThemeName,
   statusBarStyle,
@@ -80,17 +83,40 @@ describe("色の組（contracts/tokens.ts の palettes）", () => {
 });
 
 describe("テーマの選択肢と文言（theme-store.ts）", () => {
-  it("選択肢は「白色」（ライト）「黒色」（ダーク）の順で、色の組と同じテーマを全部持つ", () => {
+  it("保護者の選択肢は「白色」（ライト）「黒色」（ダーク）の2つ。どちらも色の組がある", () => {
     expect(THEME_OPTIONS.map((o) => [o.name, o.label])).toEqual([
       ["light", "白色"],
       ["dark", "黒色"],
     ]);
-    expect(THEME_OPTIONS.map((o) => o.name).sort()).toEqual(Object.keys(palettes).sort());
+    for (const o of THEME_OPTIONS) expect(palettes[o.name]).toBeDefined();
   });
 
-  it("設定の一覧の値は、ライトなら「白色」、ダークなら「黒色」", () => {
+  it("子ども用の選択肢は3つ（Figma 子06 の白色・黒色・ベージュ）で、保存する名前を全部持つ", () => {
+    expect(KIDS_THEME_OPTIONS.map((o) => [o.name, o.label, o.short])).toEqual([
+      ["light", "白色（ホワイトボード）", "白色"],
+      ["dark", "黒色（黒板）", "黒色"],
+      ["notebook", "ベージュ（ノート）", "ベージュ"],
+    ]);
+    expect(KIDS_THEME_OPTIONS.map((o) => o.name).sort()).toEqual(Object.keys(palettes).sort());
+  });
+
+  it("保護者の今の見た目では、ノートはライトとして描く（色の組も一覧の値も白色）", () => {
+    expect(classicThemeName("notebook")).toBe("light");
+    expect(classicThemeName("light")).toBe("light");
+    expect(classicThemeName("dark")).toBe("dark");
+    expect(palettes.notebook).toBe(palettes.light);
+  });
+
+  it("設定の一覧の値は、ライトなら「白色」、ダークなら「黒色」（保護者はノートも「白色」）", () => {
     expect(themeLabel("light")).toBe("白色");
     expect(themeLabel("dark")).toBe("黒色");
+    expect(themeLabel("notebook")).toBe("白色");
+  });
+
+  it("子ども用の設定の一覧の値は「白色」「黒色」「ベージュ」（Figma 子07）", () => {
+    expect(kidsThemeLabel("light")).toBe("白色");
+    expect(kidsThemeLabel("dark")).toBe("黒色");
+    expect(kidsThemeLabel("notebook")).toBe("ベージュ");
   });
 
   it("既定はライト（白色）", () => {
@@ -100,6 +126,7 @@ describe("テーマの選択肢と文言（theme-store.ts）", () => {
   it("ステータスバーの文字は、ダークでは明るく（light）、ライトでは暗く（dark）", () => {
     expect(statusBarStyle("dark")).toBe("light");
     expect(statusBarStyle("light")).toBe("dark");
+    expect(statusBarStyle("notebook")).toBe("dark"); // ノートはクリームの紙（明るい地）
   });
 });
 
@@ -115,6 +142,12 @@ describe("テーマの保存と読み込み（theme-store.ts）", () => {
     expect(storage.data.has(storageKeys.theme)).toBe(true);
     await saveThemeName("light", storage);
     expect(await loadThemeName(storage)).toBe("light");
+  });
+
+  it("ベージュ（ノート）も保存して読み戻せる（子ども用の見た目で選んだもの）", async () => {
+    const storage = memoryStorage();
+    await saveThemeName("notebook", storage);
+    expect(await loadThemeName(storage)).toBe("notebook");
   });
 
   it("保存が壊れている・知らない値のときは落ちずにライト", async () => {

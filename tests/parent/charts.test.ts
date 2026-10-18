@@ -136,7 +136,7 @@ describe("reviewWeekBars（親03 週ごとの1日の使用時間）", () => {
 
   it("計画の前の週は淡い色・下地なし・上は使った時間の平均", () => {
     expect(bars[0]).toMatchObject({ topLabel: "250", track: null, value: 250, fill: "muted" });
-    expect(bars[0]?.tags).toEqual([{ label: "前の試験", tone: "soft" }]);
+    expect(bars[0]?.tags).toEqual([{ label: "前のテスト", tone: "soft" }]);
   });
 
   it("記録のない週は「？」と「－」（0 分にしない）", () => {
@@ -148,9 +148,9 @@ describe("reviewWeekBars（親03 週ごとの1日の使用時間）", () => {
     expect(bars[3]?.tags).toEqual([{ label: "今週", tone: "strong" }]);
   });
 
-  it("これからの週は上限だけ（Figma 167・100）。今の試験の週に札", () => {
+  it("これからの週は上限だけ（Figma 167・100）。今のテストの週に札", () => {
     expect(bars[4]).toMatchObject({ topLabel: "167", track: 167, value: null, missing: false });
-    expect(bars[5]).toMatchObject({ topLabel: "100", tags: [{ label: "今の試験", tone: "soft" }] });
+    expect(bars[5]).toMatchObject({ topLabel: "100", tags: [{ label: "今のテスト", tone: "soft" }] });
   });
 
   it("計画がなければ、すべて計画の前として淡い色", () => {

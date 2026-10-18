@@ -8,7 +8,7 @@
 import { mockSessions } from "@contracts/fixtures";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deletePeriod, fetchPeriods, savePeriod } from "@/components/schedule/actions";
-import { appliedStatus, saveFailure, validatePeriod } from "@/components/schedule/logic";
+import { APPLIED_LABEL, appliedStatus, PENDING_LABEL, saveFailure, validatePeriod } from "@/components/schedule/logic";
 import { ApiCallError, call, errorOf, setSessionToken } from "@/lib/api";
 import app from "@/server/app";
 import { fresh } from "../verify/helpers";
@@ -253,7 +253,7 @@ describe("保護者の一覧の反映済み／反映待ち（Q6。一覧が最�
 
   it("計画・対象外アプリ・空白期間を保存しただけでは、テストの一覧は反映済みのまま。テストを足すと反映待ち", async () => {
     await childFetches();
-    expect(await statusOf("test")).toBe("反映済み");
+    expect(await statusOf("test")).toBe(APPLIED_LABEL);
 
     // 計画と対象外アプリを保存する（設定の版は上がるが、テストの日程は変わっていない）
     const plan = await call("planGet", { childId: CHILD_ID });
@@ -279,8 +279,8 @@ describe("保護者の一覧の反映済み／反映待ち（Q6。一覧が最�
     });
     const tests = await fetchPeriods("test", CHILD_ID);
     expect(tests.childAppliedVersion).toBeLessThan(tests.configVersion); // 設定の版で決めていた前は「反映待ち」になっていた
-    expect(await statusOf("test")).toBe("反映済み");
-    expect(await statusOf("blank")).toBe("反映待ち"); // 空白期間は変わったので、こちらは反映待ち
+    expect(await statusOf("test")).toBe(APPLIED_LABEL);
+    expect(await statusOf("blank")).toBe(PENDING_LABEL); // 空白期間は変わったので、こちらは反映待ち
 
     await savePeriod("test", {
       childId: CHILD_ID,
@@ -289,9 +289,9 @@ describe("保護者の一覧の反映済み／反映待ち（Q6。一覧が最�
       startDate: "2026-11-10",
       endDate: "2026-11-11",
     });
-    expect(await statusOf("test")).toBe("反映待ち");
+    expect(await statusOf("test")).toBe(PENDING_LABEL);
 
     await childFetches();
-    expect([await statusOf("test"), await statusOf("blank")]).toEqual(["反映済み", "反映済み"]);
+    expect([await statusOf("test"), await statusOf("blank")]).toEqual([APPLIED_LABEL, APPLIED_LABEL]);
   });
 });
