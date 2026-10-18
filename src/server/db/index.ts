@@ -52,7 +52,14 @@ async function connect(): Promise<RuntimeDb> {
   if (process.env.VERCEL_ENV === "production") throw new Error("DATABASE_URL が未設定です（Vercel の本番では必須）");
   const [{ PGlite }, { drizzle }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite")]);
   const dir = process.env.LOCAL_DB_DIR?.trim();
-  const client = dir ? new PGlite(dir) : new PGlite();
+  // テストだけ: マイグレーション済みの DB の写し（tests/setup/pglite-template.ts が1回だけ作る）から開く。
+  //   空の DB を作るのは重く、並べて走らせると時間切れになるため。マイグレーションは下でいつもどおり当てる（当て済みなら何もしない）
+  const template = process.env.VITEST && !dir ? process.env.SLOPE_TEST_PGLITE_TEMPLATE : undefined;
+  const client = dir
+    ? new PGlite(dir)
+    : template
+      ? new PGlite({ loadDataDir: await (await import("node:fs")).openAsBlob(template) })
+      : new PGlite();
   const local = drizzle({ client, schema });
   // 表は本番（Neon）と同じマイグレーション（backend/drizzle）で作る。フォルダに残した DB には、まだ当てていない分だけ当てる。
   // なぜ: 前は drizzle-kit の pushSchema で表の形を合わせていたが、データの入った DB では確認の質問を出そうとして、
