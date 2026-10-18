@@ -1,5 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
+import { orderedBlockedSites } from "./blocked-sites.js";
 import type { Database } from "./index.js";
+import { blockedSites } from "./schema/blocked-sites.js";
 import { childConfigVersions } from "./schema/family.js";
 import { excludedApps } from "./schema/excluded-apps.js";
 import { dailyLimits, planCalculationVersions, planSettings, testPeriods } from "./schema/planning.js";
@@ -28,6 +30,8 @@ export interface ChildConfigSnapshot {
   } | null;
   usualLimitMinutes: number | null;
   excludedApps: Array<{ appId: string; label: string; sinceVersion: number; enabled: boolean }>;
+  /** 制限する Web サイト（D-111）。登録した版の古い順 */
+  blockedSites: Array<{ pattern: string; sinceVersion: number }>;
   calculation: {
     version: number;
     sourceC10InputVersion: number;
@@ -103,6 +107,11 @@ export async function readChildConfigSnapshot(
       .where(eq(excludedApps.childId, childId))
       .orderBy(excludedApps.appId);
 
+    const blockedSiteRows = await tx
+      .select({ pattern: blockedSites.pattern, sinceVersion: blockedSites.sinceVersion })
+      .from(blockedSites)
+      .where(eq(blockedSites.childId, childId));
+
     const [latestCalculation] = await tx
       .select({
         version: planCalculationVersions.version,
@@ -139,6 +148,7 @@ export async function readChildConfigSnapshot(
       planSettings: settings ?? null,
       usualLimitMinutes: usualLimit?.minutes ?? null,
       excludedApps: excludedAppsRows,
+      blockedSites: orderedBlockedSites(blockedSiteRows),
       calculation: latestCalculation
         ? {
           ...latestCalculation,

@@ -1,13 +1,22 @@
 // ログアウトのときに、端末に残したその人のデータを消す（session.tsx の signOut が呼ぶ）。
 // なぜ: 同じ端末で別の人がログインし直したときに、前の人の設定（C7 のキャッシュ）や、まだ送っていない利用記録（C8 の送信待ち）が
 //   混ざらないようにするため。子どもの userId はそのまま childId なので、その子どもの送信待ちを消す（保護者には送信待ちはない）。
+//   Q15 で前に送ったアプリの一覧（端末のアプリの名前の一覧）も消す（端末に残さない。入り直したら送り直す）。
+//   保護者の端末のメモリにある子どものアプリのアイコン（app-icons.ts）も消す。
 // 合言葉の期限切れ（401）では呼ばない（同じ人がまたログインして、残った記録を送れるように）。
 // ログアウトの最初に、合言葉をサーバでも無効にする（revokeServerSession。401 で自動でログアウトしたときは呼ばない）。
 import { call, timeoutSignal } from "./api";
+import { type AppIconCache, appIconCache } from "./app-icons";
+import { type ChildAppsSync, childAppsSync } from "./child-apps-sync";
 import { type ConfigCache, configCache } from "./config-cache";
 import { type UsageOutbox, usageOutbox } from "./usage-outbox";
 
-type Deps = { configCache: Pick<ConfigCache, "clearAll">; usageOutbox: Pick<UsageOutbox, "removeChild"> };
+type Deps = {
+  configCache: Pick<ConfigCache, "clearAll">;
+  usageOutbox: Pick<UsageOutbox, "removeChild">;
+  childAppsSync: Pick<ChildAppsSync, "clear">;
+  appIcons: Pick<AppIconCache, "clear">;
+};
 
 // ログアウトのときにサーバへ「この合言葉を無効にして」と頼むのを待つ時間。
 // 通信できない・サーバが応答しないときもログアウトは進めるので、ふつうの呼び出し（20 秒）より短くする
@@ -31,7 +40,15 @@ export async function revokeServerSession(deps: RevokeDeps = revokeDeps): Promis
   }
 }
 
-export async function clearLocalDataFor(userId: string, deps: Deps = { configCache, usageOutbox }): Promise<void> {
-  // 片方が失敗しても、もう片方は消す
-  await Promise.allSettled([deps.configCache.clearAll(), deps.usageOutbox.removeChild(userId)]);
+export async function clearLocalDataFor(
+  userId: string,
+  deps: Deps = { configCache, usageOutbox, childAppsSync, appIcons: appIconCache },
+): Promise<void> {
+  // どれかが失敗しても、ほかは消す
+  deps.appIcons.clear(); // メモリの上だけなので失敗しない
+  await Promise.allSettled([
+    deps.configCache.clearAll(),
+    deps.usageOutbox.removeChild(userId),
+    deps.childAppsSync.clear(userId),
+  ]);
 }

@@ -1,7 +1,7 @@
 // MOCK 用の固定データと、各 API の返り値の例。
 //   - mockSessions / mockLogins: MOCK=1 のときのログイン（保護者・子ども・はじめての人）。サーバが DB を開くときにこの3人を入れる（src/server/seed/demo.ts）
 //   - mockPair: ペアリングの状態ごとの例（画面がすべての分かれ道を試せるように）
-//   - mockExcludedAppCandidates: 親16 で対象外を選ぶ候補（TODO(保留): Q15）
+//   - mockExcludedAppCandidates: MOCK のデモの子どもの「端末のアプリ一覧」の見本（src/server/seed/demo.ts だけが DB に入れる。Q15・D-110）
 //   - fixtures: 各 API の返り値の例（画面を作るときの見本・テストの期待値）。日付は Figma の見本に合わせて 2026-10-12 の週
 // 画面の見本データとして使ってよいが、本番の値の代わりに画面へ直書きしない（取れなかった値を見本で埋めない）。
 import type { Res } from "./api.js";
@@ -54,10 +54,11 @@ export const mockPair = {
   Res<"pairStatus">
 >;
 
-// ── C9 の候補 ──
+// ── C9 の候補（Q15）──
 
-// TODO(保留): Q15 親が対象外アプリを選ぶ候補をどこから得るかは保留（子どもの端末のアプリ一覧をサーバへ送る API は作らない）。
-// それまで親16 はこの固定の候補（Figma 親16 の4つ）で動かす
+// MOCK のデモの子どもの端末のアプリ一覧の見本（Figma 親16 の4つ）。本物の候補は子どもの端末が送る一覧（childAppsUpload）。
+// 使うのは MOCK の見本を DB に入れるとき（src/server/seed/demo.ts の seedMockAccounts）とテストだけ。
+// 画面（親16）はここを読まない（届いていない一覧を見本で埋めない。docs/decisions.md D-110）
 export const mockExcludedAppCandidates: ExcludedAppInput[] = [
   { packageName: "com.example.studynote", label: "学習ノート" },
   { packageName: "com.example.wordcards", label: "英単語カード" },
@@ -115,6 +116,12 @@ const excludedApps = [
   { packageName: "com.example.wordcards", label: "英単語カード", sinceVersion: 3 },
 ] satisfies Res<"excludedAppsGet">["apps"];
 
+// 制限する Web サイト（D-111）。ショート動画だけを止める登録と、サイト全体を止める登録
+const blockedSites = [
+  { pattern: "youtube.com/shorts", sinceVersion: 2 },
+  { pattern: "tiktok.com", sinceVersion: 3 },
+] satisfies Res<"blockedSitesGet">["sites"];
+
 const week = ["2026-10-12", "2026-10-13", "2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18"];
 const weekLimits = [300, 287, 273, 260, 247, 233, 220];
 const weekUsed = [255, 243, 222, 120, null, null, null];
@@ -129,6 +136,7 @@ const snapshot = {
   blankPeriods,
   dailyLimits: week.map((date, i) => ({ date, kind: "limited" as const, limitMinutes: weekLimits[i] ?? 0 })),
   excludedApps,
+  blockedSites,
   generatedAt: "2026-10-15T09:00:00.000Z",
 } satisfies Extract<Res<"configGet">, { changed: true }>["snapshot"];
 
@@ -239,4 +247,31 @@ export const fixtures = {
     childAppliedVersion: 2, // 英単語カード（sinceVersion 3）は「反映待ち」
   } satisfies Res<"excludedAppsGet">,
   excludedAppsSave: { apps: excludedApps, configVersion: 3 } satisfies Res<"excludedAppsSave">,
+  blockedSitesGet: {
+    childId: demoUserIds.child,
+    sites: blockedSites,
+    sitesChangedVersion: 3, // tiktok.com を足した版
+    configVersion: 3,
+    childAppliedVersion: 2, // tiktok.com（sinceVersion 3）は「反映待ち」
+  } satisfies Res<"blockedSitesGet">,
+  blockedSitesSave: { sites: blockedSites, sitesChangedVersion: 3, configVersion: 3 } satisfies Res<"blockedSitesSave">,
+  childAppsUpload: {
+    appCount: 4,
+    receivedAt: "2026-10-15T09:00:00.000Z",
+    iconsNeeded: [],
+  } satisfies Res<"childAppsUpload">,
+  childAppIconsUpload: { saved: 0 } satisfies Res<"childAppIconsUpload">,
+  // 見本にはアイコンがない（画面は仮のアイコン＝頭文字を出す）
+  childAppIconsGet: { childId: demoUserIds.child, icons: [] } satisfies Res<"childAppIconsGet">,
+  childAppsGet: {
+    childId: demoUserIds.child,
+    // 表示名の順（サーバが Intl.Collator("ja") で並べた順。かな → 漢字）
+    apps: [
+      { packageName: "com.example.game", label: "ゲーム", iconHash: null },
+      { packageName: "com.example.wordcards", label: "英単語カード", iconHash: null },
+      { packageName: "com.example.studynote", label: "学習ノート", iconHash: null },
+      { packageName: "com.example.video", label: "動画アプリ", iconHash: null },
+    ],
+    receivedAt: "2026-10-15T09:00:00.000Z",
+  } satisfies Res<"childAppsGet">,
 };

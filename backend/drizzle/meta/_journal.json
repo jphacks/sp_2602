@@ -92,6 +92,20 @@
       "when": 1792253632712,
       "tag": "0012_server_meta_epoch",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792257364678,
+      "tag": "0013_child_app_lists",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792259151105,
+      "tag": "0014_blocked_sites",
+      "breakpoints": true
     }
   ]
 }

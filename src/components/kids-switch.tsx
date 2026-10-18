@@ -35,13 +35,19 @@ import { StateView as ClassicStateView } from "./StateView";
 import { TextField as ClassicTextField } from "./TextField";
 import { ThemeDialog as ClassicThemeDialog } from "./ThemeDialog";
 
+// アイコンの名前の型の読み替え。アプリの Icon（./Icon）には、新しい部品の Icon にまだない名前がある
+// （language: 保護者の「制限する Web サイト」。D-111。保護者の画面は今の部品で描くので、新しい部品には渡らない）。
+// 名前のほかは同じ props なので、型だけ新しい部品の props として渡す（新しい部品は、知らない名前を question の形で描く）。
+// src/kids は写したもの（直さない）なので、ここで読み替える。新しい部品の元にその形ができたら、写し直せば読み替えは要らなくなる
+export type KidsProps<C> = C extends (props: infer P) => unknown ? P : never;
+
 // ── 共通の部品（index.ts） ──
 
 export function AppText(p: ComponentProps<typeof ClassicAppText>) {
   return useKidsUI() ? <Kids.AppText {...p} /> : <ClassicAppText {...p} />;
 }
 export function Banner(p: ComponentProps<typeof ClassicBanner>) {
-  return useKidsUI() ? <Kids.Banner {...p} /> : <ClassicBanner {...p} />;
+  return useKidsUI() ? <Kids.Banner {...(p as KidsProps<typeof Kids.Banner>)} /> : <ClassicBanner {...p} />;
 }
 export function BarChart(p: ComponentProps<typeof ClassicBarChart>) {
   return useKidsUI() ? <Kids.BarChart {...p} /> : <ClassicBarChart {...p} />;
@@ -50,19 +56,19 @@ export function Legend(p: ComponentProps<typeof ClassicLegend>) {
   return useKidsUI() ? <Kids.Legend {...p} /> : <ClassicLegend {...p} />;
 }
 export function Button(p: ComponentProps<typeof ClassicButton>) {
-  return useKidsUI() ? <Kids.Button {...p} /> : <ClassicButton {...p} />;
+  return useKidsUI() ? <Kids.Button {...(p as KidsProps<typeof Kids.Button>)} /> : <ClassicButton {...p} />;
 }
 export function Card(p: ComponentProps<typeof ClassicCard>) {
   return useKidsUI() ? <Kids.Card {...p} /> : <ClassicCard {...p} />;
 }
 export function Chip(p: ComponentProps<typeof ClassicChip>) {
-  return useKidsUI() ? <Kids.Chip {...p} /> : <ClassicChip {...p} />;
+  return useKidsUI() ? <Kids.Chip {...(p as KidsProps<typeof Kids.Chip>)} /> : <ClassicChip {...p} />;
 }
 export function DateField(p: ComponentProps<typeof ClassicDateField>) {
   return useKidsUI() ? <Kids.DateField {...p} /> : <ClassicDateField {...p} />;
 }
 export function Dialog(p: ComponentProps<typeof ClassicDialog>) {
-  return useKidsUI() ? <Kids.Dialog {...p} /> : <ClassicDialog {...p} />;
+  return useKidsUI() ? <Kids.Dialog {...(p as KidsProps<typeof Kids.Dialog>)} /> : <ClassicDialog {...p} />;
 }
 export function ErrorBanner(p: ComponentProps<typeof ClassicErrorBanner>) {
   return useKidsUI() ? <Kids.ErrorBanner {...p} /> : <ClassicErrorBanner {...p} />;
@@ -71,19 +77,23 @@ export function Gauge(p: ComponentProps<typeof ClassicGauge>) {
   return useKidsUI() ? <Kids.Gauge {...p} /> : <ClassicGauge {...p} />;
 }
 export function Icon(p: ComponentProps<typeof ClassicIcon>) {
-  return useKidsUI() ? <Kids.Icon {...p} /> : <ClassicIcon {...p} />;
+  return useKidsUI() ? <Kids.Icon {...(p as KidsProps<typeof Kids.Icon>)} /> : <ClassicIcon {...p} />;
 }
 export function IconBadge(p: ComponentProps<typeof ClassicIconBadge>) {
-  return useKidsUI() ? <Kids.IconBadge {...p} /> : <ClassicIconBadge {...p} />;
+  return useKidsUI() ? <Kids.IconBadge {...(p as KidsProps<typeof Kids.IconBadge>)} /> : <ClassicIconBadge {...p} />;
 }
 export function ListItem(p: ComponentProps<typeof ClassicListItem>) {
-  return useKidsUI() ? <Kids.ListItem {...p} /> : <ClassicListItem {...p} />;
+  return useKidsUI() ? <Kids.ListItem {...(p as KidsProps<typeof Kids.ListItem>)} /> : <ClassicListItem {...p} />;
 }
 export function LogoutListItem() {
   return useKidsUI() ? <Kids.LogoutListItem /> : <ClassicLogoutListItem />;
 }
 export function MessageView(p: ComponentProps<typeof ClassicMessageView>) {
-  return useKidsUI() ? <Kids.MessageView {...p} /> : <ClassicMessageView {...p} />;
+  return useKidsUI() ? (
+    <Kids.MessageView {...(p as KidsProps<typeof Kids.MessageView>)} />
+  ) : (
+    <ClassicMessageView {...p} />
+  );
 }
 export function ProgressBar(p: ComponentProps<typeof ClassicProgressBar>) {
   return useKidsUI() ? <Kids.ProgressBar {...p} /> : <ClassicProgressBar {...p} />;
@@ -95,7 +105,7 @@ export function StateView(p: ComponentProps<typeof ClassicStateView>) {
   return useKidsUI() ? <Kids.StateView {...p} /> : <ClassicStateView {...p} />;
 }
 export function TextField(p: ComponentProps<typeof ClassicTextField>) {
-  return useKidsUI() ? <Kids.TextField {...p} /> : <ClassicTextField {...p} />;
+  return useKidsUI() ? <Kids.TextField {...(p as KidsProps<typeof Kids.TextField>)} /> : <ClassicTextField {...p} />;
 }
 export function ThemeDialog(p: ComponentProps<typeof ClassicThemeDialog>) {
   return useKidsUI() ? <Kids.ThemeDialog {...p} /> : <ClassicThemeDialog {...p} />;

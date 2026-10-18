@@ -146,7 +146,8 @@ export const RESTRICTION_UPCOMING_DAYS = 14;
 // C4: C7 のスナップショットから、Kotlin に渡す判定の値（NativeRestriction）を作る（child-data.tsx の refresh が saveRestriction に渡す）。
 // 上限の区別は data.md 2章のとおり: 上限あり（0 分を含む）= limited、空白期間 = unlimited、日付がない = unset。
 // upcoming は date の翌日から RESTRICTION_UPCOMING_DAYS 日分（Kotlin は日付が変わったら、ここから今日の上限を取り出す）。
-// testPeriods は判定には使わず、Kotlin がウィジェット（C5）の「次のテスト」のために保存する
+// testPeriods は判定には使わず、Kotlin がウィジェット（C5）の「次のテスト」のために保存する。
+// blockedSites（D-111）は Kotlin の engine/WebGuardService.kt が読む（上限に達した日だけ、ブラウザで開いたら止める）
 export function toNativeRestriction(
   snapshot: ConfigSnapshot,
   date: string,
@@ -166,6 +167,8 @@ export function toNativeRestriction(
       return { date: d, limit: toNative(d) };
     }),
     excludedPackages: snapshot.excludedApps.map((a) => a.packageName),
+    // 制限する Web サイト（D-111）。上限に達したあと、Kotlin のユーザー補助がブラウザでこのサイトを止める
+    blockedSites: snapshot.blockedSites.map((s) => s.pattern),
     essentialPackages: [...(opts.essentialPackages ?? ESSENTIAL_PACKAGES)],
     learningPackages: [...(opts.learningPackages ?? LEARNING_PACKAGES)],
     configVersion: snapshot.configVersion,

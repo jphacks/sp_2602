@@ -14,6 +14,9 @@ vi.mock("expo", () => ({
     getDailyUsage: async () => {
       throw new Error("OS のエラー");
     },
+    getLauncherApps: async () => {
+      throw new Error("一覧のエラー");
+    },
     saveRestriction: boom,
     startEngine: boom,
     stopEngine: boom,
@@ -33,10 +36,13 @@ describe("native（Kotlin が例外を出す）", () => {
       overlay: false,
       notifications: false,
       batteryOptimization: false,
+      accessibility: false,
     });
     expect(native.showLimitReached()).toBe(false);
     const usage = await native.getDailyUsage("2026-10-17");
     expect(usage).toEqual({ status: "unavailable", reason: "OS のエラー" });
+    // アプリ一覧（Q15）も、例外は外へ出さず unavailable（0 個の一覧にしない）
+    expect(await native.getLauncherApps()).toEqual({ status: "unavailable", reason: "一覧のエラー" });
     expect(() => {
       native.openPermissionSettings("notifications");
       native.startEngine();
@@ -50,6 +56,7 @@ describe("native（Kotlin が例外を出す）", () => {
         learningPackages: [],
         configVersion: 1,
         testPeriods: [],
+        blockedSites: [],
       });
     }).not.toThrow();
   });

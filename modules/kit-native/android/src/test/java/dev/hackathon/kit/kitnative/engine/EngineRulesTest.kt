@@ -8,7 +8,8 @@ import org.junit.Test
 
 // engine/ の純粋な関数のテスト（Android の端末なしで JVM で動く）。
 //   cd android && ./gradlew :kit-native:testDebugUnitTest
-// 確かめること: 日本時間 0:00 の区切り（Q3）・前面時間の数え方（C2）・到達の判定が JS の C3（usage-calc.ts）と同じ規則か（C4）
+// 確かめること: 日本時間 0:00 の区切り（Q3）・前面時間の数え方（C2）・到達の判定が JS の C3（usage-calc.ts）と同じ規則か（C4）・
+//   ホーム画面に出るアプリの一覧の整え方とアイコンの大きさの決め方（Q15。LauncherAppList・AppIconCodec）
 class EngineRulesTest {
   private val min = 60_000L
 
@@ -196,5 +197,82 @@ class EngineRulesTest {
       )
     assertEquals(100, ok.usedPercent)
     assertTrue(ok.reached)
+  }
+
+  // ── LauncherAppList（Q15）──
+  @Test
+  fun アプリ一覧_同じアプリは1つにまとめSlope自身を除きpackageNameの順() {
+    val raw =
+      listOf(
+        LauncherApp("com.example.video", "動画"),
+        LauncherApp("dev.hackathon.slope", "Slope"),
+        LauncherApp("com.example.camera", "カメラ"),
+        LauncherApp("com.example.video", "動画（別の入口）"), // 入口が2つあるアプリ
+        LauncherApp("", "名前だけ"),
+        LauncherApp("  com.example.app  ", " アプリ "),
+      )
+    val apps = LauncherAppList.normalize(raw, "dev.hackathon.slope")
+    assertEquals(
+      listOf(
+        LauncherApp("com.example.app", "アプリ"),
+        LauncherApp("com.example.camera", "カメラ"),
+        LauncherApp("com.example.video", "動画"), // 先に見えた方の名前
+      ),
+      apps,
+    )
+  }
+
+  @Test
+  fun アプリ一覧_OSが返す順が違っても同じ一覧になる() {
+    val a = listOf(LauncherApp("b.app", "B"), LauncherApp("a.app", "A"), LauncherApp("c.app", "C"))
+    assertEquals(LauncherAppList.normalize(a, "self"), LauncherAppList.normalize(a.reversed(), "self"))
+  }
+
+  @Test
+  fun アプリ一覧_名前は空ならpackageName_長すぎれば120文字で切る() {
+    assertEquals("com.example.blank", LauncherAppList.cleanLabel("   ", "com.example.blank"))
+    val long = "あ".repeat(130)
+    assertEquals(LauncherAppList.MAX_LABEL, LauncherAppList.cleanLabel(long, "x").length)
+    // 120 文字目が絵文字（サロゲートペア）の前半なら、その手前で切る（半分だけの文字を送らない）
+    val emoji = "a".repeat(LauncherAppList.MAX_LABEL - 1) + "😀" + "b"
+    val cut = LauncherAppList.cleanLabel(emoji, "x")
+    assertEquals(LauncherAppList.MAX_LABEL - 1, cut.length)
+    assertFalse(Character.isHighSurrogate(cut.last()))
+  }
+
+  @Test
+  fun アプリ一覧_まとめてもアイコンは残す() {
+    val apps =
+      LauncherAppList.normalize(
+        listOf(LauncherApp(" com.example.a ", "A", iconPng = "iVBORw0KGgo=", iconHash = "ab")),
+        "self",
+      )
+    assertEquals(LauncherApp("com.example.a", "A", "iVBORw0KGgo=", "ab"), apps.single())
+  }
+
+  // ── AppIconCodec（Q15）──
+  @Test
+  fun アイコン_収まる大きさまで小さくする_どれも収まらなければnull() {
+    val tried = ArrayList<Int>()
+    // 一辺 × 100 バイトになる仮の PNG（96px は 9600 バイト）
+    val encode = { size: Int -> tried.add(size); ByteArray(size * 100) }
+    assertEquals(9600, AppIconCodec.pick(intArrayOf(96, 72, 48), 20_000, encode)?.size)
+    assertEquals(listOf(96), tried)
+    tried.clear()
+    assertEquals(4800, AppIconCodec.pick(intArrayOf(96, 72, 48), 5_000, encode)?.size)
+    assertEquals(listOf(96, 72, 48), tried)
+    assertNull(AppIconCodec.pick(intArrayOf(96, 72, 48), 100, encode))
+    // 作れなかった大きさは飛ばす・空は使わない
+    assertNull(AppIconCodec.pick(intArrayOf(96), 20_000) { null })
+    assertNull(AppIconCodec.pick(intArrayOf(96), 20_000) { ByteArray(0) })
+  }
+
+  @Test
+  fun アイコン_ハッシュはSHA256の16進小文字() {
+    // "abc" の SHA-256（サーバの node:crypto と同じ値になること）
+    assertEquals(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+      AppIconCodec.sha256Hex("abc".toByteArray(Charsets.UTF_8)),
+    )
   }
 }

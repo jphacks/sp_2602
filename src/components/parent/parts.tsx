@@ -1,5 +1,6 @@
 // 保護者の画面だけで使う小さい見た目の部品（Figma 親03・親09・親16 に1か所ずつ出てくるもの）。
-//   AppInitial : アプリの頭文字のアイコン（薄い青の角丸四角・青い太字。親09・親16）
+//   AppInitial : アプリの頭文字のアイコン（薄い青の角丸四角・青い太字。アイコンがまだ届いていないときの仮のアイコン）
+//   AppIcon    : 子どもの端末から届いた本物のアイコン（親09・親16。Q15）。uri がない・読めないときは AppInitial
 //   LinkCard   : 薄い青の横長のボタン「各アプリごとの利用時間を見る ›」（親03）
 //   Note       : 薄いグレーの注意書き（線の「i」＋文。親03）
 //   Strip      : 薄いグレーの全丸の帯（期間の表示。親03）
@@ -8,8 +9,8 @@
 //                Android の標準の Switch は小さく形も違うため、Figma の形で描く。
 //                切り替えたときは、つまみが前の場所・大きさから新しい場所へすべる（最後の形は今までと同じ。動きを減らす設定なら動かさない）
 import { tokens } from "@contracts/tokens";
-import { type ReactNode, useLayoutEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { type ReactNode, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Animated, Image, Pressable, StyleSheet, View } from "react-native";
 import { AppText, Icon, type IconName } from "@/components";
 import { motion, useReducedMotion } from "@/lib/motion";
 import { makeStyles, useColors } from "@/lib/theme";
@@ -29,6 +30,23 @@ export function AppInitial({ initial }: { initial: string }) {
         {initial}
       </AppText>
     </View>
+  );
+}
+
+// uri は src/lib/app-icons.ts の useAppIcons が返す data: の URI。画像を読めなかったら頭文字に戻す（空白にしない）
+export function AppIcon({ initial, uri }: { initial: string; uri?: string | null }) {
+  const styles = useStyles();
+  // 読めなかった画像（新しい画像になったら、もう一度出してみる）
+  const [failedUri, setFailedUri] = useState<string | null>(null);
+  if (!uri || failedUri === uri) return <AppInitial initial={initial} />;
+  return (
+    <Image
+      source={{ uri }}
+      style={styles.icon}
+      onError={() => setFailedUri(uri)}
+      accessibilityIgnoresInvertColors
+      importantForAccessibility="no"
+    />
   );
 }
 
@@ -156,6 +174,8 @@ const useStyles = makeStyles((c) =>
       alignItems: "center",
       justifyContent: "center",
     },
+    // 本物のアイコン（頭文字の四角と同じ大きさ。アイコン自体の形で切り抜かれているので角は丸めるだけ）
+    icon: { width: tokens.size.appIcon, height: tokens.size.appIcon, borderRadius: tokens.radius.sm },
     link: {
       minHeight: tokens.size.button,
       flexDirection: "row",

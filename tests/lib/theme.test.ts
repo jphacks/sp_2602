@@ -3,6 +3,8 @@
 // 選んだテーマを端末に保存して読み戻せること、壊れた保存でも落ちずにライトになること、ログアウトでは消えないことを確かめる。
 import { type ColorName, palettes, type ThemeName } from "@contracts/tokens";
 import { describe, expect, it } from "vitest";
+import { createAppIconCache } from "@/lib/app-icons";
+import { createChildAppsSync } from "@/lib/child-apps-sync";
 import { createConfigCache } from "@/lib/config-cache";
 import { clearLocalDataFor } from "@/lib/sign-out";
 import { clearSessionData, type KeyValueStorage, storageKeys } from "@/lib/storage";
@@ -186,7 +188,14 @@ describe("テーマの保存と読み込み（theme-store.ts）", () => {
     });
 
     await clearSessionData(storage);
-    await clearLocalDataFor("child-a", { configCache, usageOutbox });
+    const childAppsSync = createChildAppsSync({
+      storage,
+      upload: async () => ({ iconsNeeded: [] }),
+      uploadIcons: async () => ({}),
+      epoch: async () => null,
+    });
+    const appIcons = createAppIconCache({ fetchList: async () => ({ apps: [] }), fetchIcons: async () => [] });
+    await clearLocalDataFor("child-a", { configCache, usageOutbox, childAppsSync, appIcons });
 
     expect(await loadThemeName(storage)).toBe("dark");
   });

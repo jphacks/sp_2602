@@ -4,10 +4,12 @@
 // 行き先: 「←」→ 親04 設定（Figma には戻るボタンがないが、タブの外の画面なので戻れるようにした）。
 // 「反映済み／反映待ち」は子どもの端末が使っている版と、そのアプリが変わった版の比較（Q6。excluded.ts）。
 //   どちらの版もサーバの応答（sinceVersion・removedApps・appsChangedVersion）にあるので、開き直しても正しく出る。
-// TODO(保留): Q15 候補の一覧（子どもの端末のアプリ一覧）をどこから得るかは保留。今は MOCK の候補（mockExcludedAppCandidates）を並べる。
+// 候補（Q15・D-110）: call("childAppsGet")（子どもの端末から届いたアプリ一覧）を表示名の順に並べ、保存済みの対象外アプリで一覧にない
+//   もの（消されたアプリなど）を後ろに足す（excluded.ts の candidateApps）。一覧は開いたときに1回読む（まだ届いていない・読めない
+//   ときは、届くまで 30 秒ごとの取り直しのたびに読み直す）。届いていなければ見本で埋めず「まだ届いていません」と出す。
+//   アプリが多いので名前で絞り込める（filterRows）。アイコンは子どもの端末から届いた本物（useAppIcons。なければ頭文字）。
 import type { ApiError } from "@contracts/errors";
-import { mockExcludedAppCandidates } from "@contracts/fixtures";
-import type { ExcludedAppsView } from "@contracts/schemas";
+import type { ChildAppsView, ExcludedAppsView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -23,6 +25,7 @@ import {
   RevealGroup,
   Screen,
   StateView,
+  TextField,
 } from "@/components";
 import { ChildGate } from "@/components/parent/data";
 import {
@@ -30,12 +33,14 @@ import {
   type ExcludedRow,
   excludedListStatus,
   excludedRows,
+  filterRows,
   hasUnsaved,
   removedVersions,
   syncExcludedDraft,
 } from "@/components/parent/excluded";
-import { AppInitial, Toggle } from "@/components/parent/parts";
+import { AppIcon, Toggle } from "@/components/parent/parts";
 import { call, errorOf } from "@/lib/api";
+import { appIconCache, useAppIcons } from "@/lib/app-icons";
 import { useParentData } from "@/lib/parent-data";
 import { usePolling } from "@/lib/polling";
 import { makeStyles } from "@/lib/theme";
@@ -65,13 +70,34 @@ function ExcludedBody({ childId }: { childId: string }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [savedOk, setSavedOk] = useState(false);
+  // 子どもの端末のアプリ一覧（候補）。null = まだ読めていない
+  const [childApps, setChildApps] = useState<ChildAppsView | null>(null);
+  const [childAppsError, setChildAppsError] = useState<ApiError | null>(null);
+  const [query, setQuery] = useState(""); // 名前での絞り込み
+  // 一覧が届いたら、30 秒ごとの取り直しでは読み直さない（数百件の一覧を何度も運ばないため。画面に戻ったときは読み直す）
+  const childAppsDone = useRef(false);
   // 取り直しの関数から、今の保存済みの一覧・スイッチ・版を読むため（関数を作り直さずに済むように）
   const latest = useRef({ saved: view?.apps ?? null, draft, baseVersion });
   useEffect(() => {
     latest.current = { saved: view?.apps ?? null, draft, baseVersion };
   }, [view, draft, baseVersion]);
 
+  const loadChildApps = useCallback(async () => {
+    if (childAppsDone.current) return;
+    try {
+      const v = await call("childAppsGet", { childId });
+      appIconCache.rememberList(childId, v.apps); // アイコンのハッシュを覚える（アイコンを読むときに一覧を読み直さない）
+      setChildApps(v);
+      setChildAppsError(null);
+      childAppsDone.current = v.receivedAt != null;
+    } catch (e) {
+      const error = errorOf(e);
+      if (error) setChildAppsError(error);
+    }
+  }, [childId]);
+
   const load = useCallback(async () => {
+    void loadChildApps(); // 候補の一覧は別に読む（失敗しても対象外アプリの一覧は出す）
     try {
       const v = await call("excludedAppsGet", { childId });
       // 動かしかけのスイッチは戻さない（取り直しで消えないように）。保存していない変更がなければ、サーバの今の一覧と版に合わせる
@@ -84,14 +110,33 @@ function ExcludedBody({ childId }: { childId: string }) {
       const error = errorOf(e);
       if (error) setLoadError(error);
     }
-  }, [childId]);
+  }, [childId, loadChildApps]);
   usePolling(load);
+  // 候補: 一覧が届いていれば一覧＋保存済み、届いていなければ保存済みだけ
+  const listed = childApps?.receivedAt ? childApps.apps : null;
+  const rows =
+    view && draft
+      ? excludedRows({
+          childApps: listed,
+          saved: view.apps,
+          draft,
+          childAppliedVersion: view.childAppliedVersion,
+          removedAt: removedVersions(view.removedApps),
+        })
+      : [];
+  const shown = filterRows(rows, query);
+  const icons = useAppIcons(
+    childId,
+    rows.map((r) => r.packageName),
+  );
   // 画面を離れたら「保存しました」の帯を消す（なぜ: この画面はタブの中にあり、離れても消えずに残るので、
-  //   あとで開き直したときに、今の操作の結果のように古い「保存しました」が出たままになっていた）
+  //   あとで開き直したときに、今の操作の結果のように古い「保存しました」が出たままになっていた）。
+  // 候補の一覧も、次に画面に戻ったときに1回読み直す（離れている間に子どもがアプリを入れた・消したかもしれないため）
   useFocusEffect(
     useCallback(
       () => () => {
         setSavedOk(false);
+        childAppsDone.current = false;
       },
       [],
     ),
@@ -110,7 +155,7 @@ function ExcludedBody({ childId }: { childId: string }) {
 
   const save = async () => {
     if (!view || !draft || baseVersion == null) return;
-    const apps = appsToSave(mockExcludedAppCandidates, view.apps, draft);
+    const apps = appsToSave(listed, view.apps, draft);
     setSaving(true);
     setSaveError(null);
     try {
@@ -188,18 +233,53 @@ function ExcludedBody({ childId }: { childId: string }) {
               {!loadError && <ListStatus status={excludedListStatus(view)} />}
             </View>
           </Reveal>
-          {excludedRows({
-            candidates: mockExcludedAppCandidates,
-            saved: view.apps,
-            draft,
-            childAppliedVersion: view.childAppliedVersion,
-            removedAt: removedVersions(view.removedApps),
-          }).map((r, i) => (
-            <Reveal key={r.packageName} index={Math.min(3 + i, ROW_ORDER_MAX)}>
-              <AppRow row={r} onToggle={(on) => toggle(r.packageName, on)} disabled={saving} />
-            </Reveal>
-          ))}
-          <Reveal index={ROW_ORDER_MAX}>
+          {/* 子どもの端末の一覧が届いていない・読めないときの帯は、後から分かったら高さを広げて入れる */}
+          <Reveal index={3} show={childApps != null && !childApps.receivedAt}>
+            <Banner
+              icon="info"
+              message="子どものスマホからアプリの一覧がまだ届いていません"
+              hint="子どものスマホで Slope を開くと届きます。届くまでは、対象外にしたアプリだけを出しています"
+            />
+          </Reveal>
+          <Reveal index={3} show={!childApps && childAppsError != null}>
+            <Banner
+              tone="warning"
+              icon="cloud_off"
+              message="子どものスマホのアプリの一覧を読み込めませんでした"
+              hint="通信できると自動で読み込み直します。それまでは、対象外にしたアプリだけを出しています"
+            />
+          </Reveal>
+          <Reveal index={3} show={listed != null && rows.length > 0}>
+            <TextField
+              label="アプリの名前でしぼりこむ"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="例: ゲーム"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+          </Reveal>
+          {/* 一覧はひとまとまりで出す（アプリが数百あり、絞り込むたびに1行ずつ動かすと重いため） */}
+          <Reveal index={4}>
+            <View style={styles.list}>
+              {shown.map((r) => (
+                <AppRow
+                  key={r.packageName}
+                  row={r}
+                  icon={icons.get(r.packageName)}
+                  onToggle={(on) => toggle(r.packageName, on)}
+                  disabled={saving}
+                />
+              ))}
+              {rows.length > 0 && shown.length === 0 && (
+                <AppText tone="muted">「{query.trim()}」に合うアプリはありません</AppText>
+              )}
+              {listed && rows.length === 0 && (
+                <AppText tone="muted">子どものスマホにアプリが見つかりませんでした</AppText>
+              )}
+            </View>
+          </Reveal>
+          <Reveal index={5}>
             <AppText variant="caption" tone="muted">
               電話・緊急通報などは、いつも制限されません（ここでは変えられません）。
             </AppText>
@@ -209,9 +289,6 @@ function ExcludedBody({ childId }: { childId: string }) {
     </Screen>
   );
 }
-
-// 行の順番の打ち止め（たくさん並んでも待たせすぎない。これより下は同じ時に出る）
-const ROW_ORDER_MAX = 10;
 
 const statusText = { applied: "反映済み", pending: "反映待ち", unsaved: "まだ保存していません" } as const;
 
@@ -228,16 +305,32 @@ function ListStatus({ status }: { status: "applied" | "pending" }) {
   );
 }
 
-function AppRow({ row, onToggle, disabled }: { row: ExcludedRow; onToggle: (on: boolean) => void; disabled: boolean }) {
+function AppRow({
+  row,
+  icon,
+  onToggle,
+  disabled,
+}: {
+  row: ExcludedRow;
+  icon: string | undefined;
+  onToggle: (on: boolean) => void;
+  disabled: boolean;
+}) {
   const styles = useStyles();
   return (
     <View style={styles.row}>
-      <AppInitial initial={row.initial} />
+      <AppIcon initial={row.initial} uri={icon} />
       <View style={styles.middle}>
         <AppText variant="body" strong>
           {row.label}
         </AppText>
         {/* 反映済みの行は何も出さない（見出しの札が「反映済み」と言っている）。読み上げには残す */}
+        {/* 対象外にしたが、子どもの端末の一覧にない（消されたかもしれない）。OFF にできるように残して出す */}
+        {row.missing && (
+          <AppText variant="caption" tone="muted">
+            子どものスマホに見つかりません（消されたかもしれません）
+          </AppText>
+        )}
         {row.status === "pending" ? (
           <View style={styles.chipRow}>
             <PopIn replayKey={row.status}>
@@ -283,5 +376,7 @@ const useStyles = makeStyles((c) =>
       gap: tokens.space[2],
     },
     chipRow: { flexDirection: "row" },
+    // 一覧の行の間隔（Screen の本文の間隔と同じ）
+    list: { gap: tokens.layout.cardGap },
   }),
 );

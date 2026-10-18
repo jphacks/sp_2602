@@ -27,9 +27,11 @@ object LimitPrompt {
   const val CHANNEL_LIMIT = "slope_limit"
   const val NOTIFICATION_LIMIT_ID = 2601
 
-  // 案内を出す。出せた（はず）なら true。どちらの方法も使えなければ false
-  fun show(context: Context): Boolean {
-    if (EnginePermissions.canDrawOverlays(context)) {
+  // 案内を出す。出せた（はず）なら true。どちらの方法も使えなければ false。
+  // canStartDirectly: 「他のアプリの上に表示」の許可がなくても画面を出してよいか。ユーザー補助のサービス（WebGuardService）から
+  //   呼ぶときは true（OS が動かしているユーザー補助のサービスは、裏からの画面の起動の制限の例外）
+  fun show(context: Context, canStartDirectly: Boolean = false): Boolean {
+    if (canStartDirectly || EnginePermissions.canDrawOverlays(context)) {
       try {
         context.startActivity(limitIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         return true

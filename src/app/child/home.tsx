@@ -55,7 +55,8 @@ export default function ChildHome() {
   };
 
   const reached = view.kind === "percent" && view.reached;
-  const guide = permissionGuide(permissions, native.available);
+  // config: 制限する Web サイトがあるときだけ「ユーザー補助」も案内する（D-111）
+  const guide = permissionGuide(permissions, native.available, config);
   // 画面を開いたときに出す順番（見えているものだけを上から数える。出ていない帯の分は詰める）
   const order = { stale: reached ? 1 : 0, usage: (reached ? 1 : 0) + (stale ? 1 : 0) };
 

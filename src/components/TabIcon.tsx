@@ -8,6 +8,7 @@ import { TabIcon as KidsTabIcon, useTabBarOptions as useKidsTabBarOptions } from
 import { useKidsUI } from "@/kids/KidsUI";
 import { makeStyles, useColors } from "@/lib/theme";
 import { Icon, type IconName } from "./Icon";
+import type { KidsProps } from "./kids-switch";
 import { tabBarHeight } from "./tab-bar-size";
 
 function ClassicTabIcon({ name, focused }: { name: IconName; focused: boolean }) {
@@ -84,7 +85,7 @@ function useClassicTabBarOptions() {
 // ── 子ども用の見た目への振り分け（決まりは ../kids-switch.tsx。この部品は画面がファイルを直接読むので、ここで振り分ける） ──
 
 export function TabIcon(p: ComponentProps<typeof ClassicTabIcon>) {
-  return useKidsUI() ? <KidsTabIcon {...p} /> : <ClassicTabIcon {...p} />;
+  return useKidsUI() ? <KidsTabIcon {...(p as KidsProps<typeof KidsTabIcon>)} /> : <ClassicTabIcon {...p} />;
 }
 
 // hooks の決まりで、両方を毎回呼んでから選ぶ。

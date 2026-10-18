@@ -10,6 +10,7 @@ import { type ComponentProps, memo } from "react";
 import { QrCard as KidsQrCard } from "@/kids/components/pair/QrCard";
 import { RoleChoice as KidsRoleChoice } from "@/kids/components/pair/RoleChoice";
 import { useKidsUI } from "@/kids/KidsUI";
+import type { KidsProps } from "../kids-switch";
 import { QrCard as ClassicQrCard } from "./QrCard";
 import { RoleChoice as ClassicRoleChoice } from "./RoleChoice";
 
@@ -17,5 +18,5 @@ export const QrCard = memo(function QrCard(p: ComponentProps<typeof ClassicQrCar
   return useKidsUI() ? <KidsQrCard {...p} /> : <ClassicQrCard {...p} />;
 });
 export function RoleChoice(p: ComponentProps<typeof ClassicRoleChoice>) {
-  return useKidsUI() ? <KidsRoleChoice {...p} /> : <ClassicRoleChoice {...p} />;
+  return useKidsUI() ? <KidsRoleChoice {...(p as KidsProps<typeof KidsRoleChoice>)} /> : <ClassicRoleChoice {...p} />;
 }

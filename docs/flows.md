@@ -16,6 +16,7 @@
 9. 利用記録の送信（C8）
 10. 保護者の画面（C6）
 11. 制限対象外アプリ（C9）と反映済み／反映待ち
+12. 制限する Web サイト（D-111）
 
 ---
 
@@ -238,7 +239,7 @@ sequenceDiagram
 - 日別上限は保存した日から 120 日先まで作ります（`src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS`）。設定を変えないまま日がたって、残りが 60 日（`LIMIT_TOPUP_MIN_DAYS`）を切ったら、次の `configGet` のときに今日から 120 日先まで作り足します（`backend/src/db/c10-recalculate.ts` の `topUpDailyLimits`。今日より前は変えない。設定の版と計算の版が 1 上がる）。
 - まだ一度も日別上限を計算していない子どもの `configGet` は、`calculationVersion: 0`・日別上限なし（上限未設定）を返します（エラーにしない）。
 - 計画の開始日は**今日以降**でないと保存できません（Q14。`src/server/services/plan-settings.ts` の `savePlanForCaller`）。デモの見本（`src/server/seed/demo.ts`）は API を通らずに DB の処理を直接呼ぶので、14日前の開始日を入れられる。
-- 対象外アプリの保存（C9）は C10 を計算し直しませんが、版は上がります。
+- 対象外アプリの保存（C9）・制限する Web サイトの保存（D-111）は C10 を計算し直しませんが、版は上がります。
 - 画面側:
   - 日程: `src/components/schedule/PeriodEditor.tsx`（保存は `actions.ts` の `savePeriod`・`deletePeriod`）。**変更・削除**は入力を始めた時点の版を送り、**登録**は最新の版を送る（30秒ごとの取り直しで最新の版を送ると、ほかの端末の変更を黙って上書きしてしまうため）。失敗の出し分けは `logic.ts`（conflict → 読み込み直し・bad_request → 入力を残してサーバの文・not_found → 一覧へ・通信 → もう一度）。
   - 計画: `src/app/parent/plan.tsx` の `save`。保存の応答のあと、設定の組を取り直して新しい日別上限がそろってから「計画を作りました」（`plan-form.ts` の `saveConfirmation`）。
@@ -283,6 +284,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 | epoch が同じで新しい版 | 採用して端末に保存（`adopt`） |
 
    手元の組に epoch がなければ（epoch を足す前に保存した組）、`knownVersion` を送らない（どの DB の版か分からないので、中身つきで返してもらって置き換える）。採用した組は子どもの端末では Kotlin にも渡す（`native.saveRestriction`。毎回上書き）。
+   組には制限する Web サイト（`blockedSites`。D-111）も入る。この項目を足す前に端末へ保存した組は、読むときに空（登録なし）として扱う（`ConfigSnapshot` の `.default([])`。同じ版の応答と食い違わない）。
 
 4. 通信に失敗したら、最後に正常だった組を `stale`（最新でない可能性あり）で返す。手元にもなければ `unavailable`（取得不可。上限を 0 分として扱わない）。
 5. 待っている間にほかの取得が新しい組を保存したかもしれないので、比べる前に読み直す（古い応答で上書きしない）。
@@ -312,7 +314,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 
 ## 8. 上限に届いたとき（C4）
 
-- 判定の値: `child-data.tsx` の `refresh` が毎回 `native.saveRestriction(toNativeRestriction(snapshot, 今日))`（`src/lib/usage-calc.ts`）で Kotlin に渡す。中身は `{ date, limit, upcoming（翌日から14日分の上限）, excludedPackages, essentialPackages, learningPackages, configVersion, testPeriods（ウィジェット用） }`。`learningPackages` は子11 の「お勧めアプリ」と同じ1つの一覧（`src/lib/usage-calc.ts` の `LEARNING_PACKAGES`。今は仮に Google Classroom・Duolingo）。`limit` は `limited`／`unlimited`／`unset` を分けて渡す。設定が分からないときは渡さない（前の値で判定を続ける）。
+- 判定の値: `child-data.tsx` の `refresh` が毎回 `native.saveRestriction(toNativeRestriction(snapshot, 今日))`（`src/lib/usage-calc.ts`）で Kotlin に渡す。中身は `{ date, limit, upcoming（翌日から14日分の上限）, excludedPackages, essentialPackages, learningPackages, blockedSites（制限する Web サイト。12章）, configVersion, testPeriods（ウィジェット用） }`。`learningPackages` は子11 の「お勧めアプリ」と同じ1つの一覧（`src/lib/usage-calc.ts` の `LEARNING_PACKAGES`。今は仮に Google Classroom・Duolingo）。`limit` は `limited`／`unlimited`／`unset` を分けて渡す。設定が分からないときは渡さない（前の値で判定を続ける）。
 - **Kotlin の監視**（`engine/MonitorService.kt`。Foreground Service・種類は specialUse・通知「Slope が使用時間を見守っています」）:
   - 始まる: 子どもの画面が出たとき（ログイン後）と、設定を取れたとき（`native.startEngine()`）。端末の再起動・Slope の更新のあと（`BootReceiver`。監視を始めたことがあり、判定の値が保存してあるときだけ）。
   - 止まる: ログアウト（`session.tsx` の `signOut` → `native.clearLocalData()`。監視を止め、Kotlin の保存とウィジェットの値を消す）。
@@ -324,7 +326,8 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 - **今の画面の動き**: 子01 ホーム（`src/app/child/home.tsx`）が見えている間に `calc` が到達になったら、その日に1回だけ `native.showLimitReached()` を呼び（Kotlin がなければ何もしない）、子11（`/child/limit-reached`）へ進む（`child-view.ts` の `shouldOpenLimitScreen`）。
 - 子11（`src/app/child/limit-reached.tsx`）: 「今日のスマホの時間は終わりです。続きはあしたにしよう」・今日の使用量・次のテスト・「お勧めアプリはこちらです ›」（`LEARNING_PACKAGES` を上から順に `native.openApp` で試す。開けなければ案内のダイアログ）・「閉じる」。
 - Android は他のアプリを無条件には止められません（MVP_SPEC 2章）。子11 は「案内」で、遮断は約束しない文にしています。
-- 子01 ホームには、まだ許可していないもの（他のアプリの上に表示・通知・電池の最適化）を並べた「見守りのための許可」のカードを出す（`PermissionGuideCard`・`child-view.ts` の `permissionGuide`。Figma にない）。使用状況へのアクセスは「今日の使用量」のカードが案内する。
+- 子01 ホームには、まだ許可していないもの（他のアプリの上に表示・通知・電池の最適化・ユーザー補助）を並べた「見守りのための許可」のカードを出す（`PermissionGuideCard`・`child-view.ts` の `permissionGuide`。Figma にない）。使用状況へのアクセスは「今日の使用量」のカードが案内する。ユーザー補助は、制限する Web サイトが1つ以上登録されているときだけ並ぶ（12章）。
+- 上限に達したあと、ブラウザで保護者の登録した Web サイトを開いたときは、ブラウザを1つ前に戻してから子11 を出す（12章。ブラウザが対象外アプリでも止める）。
 
 ## 9. 利用記録の送信（C8）
 
@@ -378,10 +381,30 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 ### 対象外アプリ
 
 - 画面: 親16（`src/app/parent/excluded-apps.tsx`）。保存できるのは保護者だけ（サーバも `auth: "parent"` で確かめる）。
-- 候補の一覧は **MOCK の固定値**（`contracts/fixtures.ts` の `mockExcludedAppCandidates`：学習ノート・英単語カード・動画アプリ・ゲーム）＋保存済みのアプリ。子どもの端末のアプリ一覧をサーバへ送る API は作っていません（Q15 保留）。
+- 候補の一覧は **子どもの端末から届いたアプリ一覧**（`childAppsGet`。表示名の順）＋一覧にない保存済みの対象外アプリ（消されたアプリなど。後ろに「子どものスマホに見つかりません」と出し、OFF にできるようにする）。一覧がまだ届いていなければ、見本で埋めずに「まだ届いていません」の帯と保存済みのアプリだけを出す（`src/components/parent/excluded.ts` の `candidateApps`・`filterRows`。Q15・D-110）。
 - 保存は `call("excludedAppsSave", { childId, expectedVersion, apps: 全件 })`（差分ではなく全件の置き換え。`excluded.ts` の `appsToSave`）。
 - サーバは、前から対象外だったアプリの `sinceVersion`（対象外になった版）を変えず、新しく入ったアプリには新しい版を付ける（`backend/src/db/excluded-app-settings.ts` の `replaceExcludedAppsForParent`）。外したアプリは `removedApps`（外した版 `removedVersion`）に残し、もう一度対象外にしたら消す。一覧（アプリの組と名前）が変わったときだけ `appsChangedVersion`（一覧が最後に変わった版）を進める。
 - 子どもの端末は次の C7 で新しい組を受け取り、以後の C3（合計から除く）と C4（`excludedPackages`）で使う。
+
+### 子どもの端末のアプリ一覧とアイコン（Q15・D-110）
+
+```
+子どもの端末（child-data.tsx の refresh。30 秒ごとに呼ぶが、確かめるのは起動して最初の回と、そのあと 1 日 1 回だけ）
+  → Kotlin getLauncherApps（ホーム画面に出るアプリ。<queries> の MAIN/LAUNCHER で見える分。Slope 自身は除く。
+      アイコンは 96px の PNG（20KB に収まらなければ 72px・48px）と SHA-256）
+  → 整える（child-apps-sync.ts の prepareChildApps。契約の長さ・件数・アイコンの形）
+  → 前に送った中身（slope.child-apps.<childId>）と同じで、C7 の epoch も同じなら何もしない
+  → childAppsUpload（一覧＋アイコンのハッシュ）→ 応答の iconsNeeded のアイコンだけ childAppIconsUpload（50 枚ずつ）
+  → 全部送れたら「送った中身」を覚える。送れなかったら覚えずに 30 分あとにもう一度（画面は止めない）
+保護者の端末
+  親16: childAppsGet（開いたとき・画面に戻ったとき）→ 候補。アイコンは useAppIcons
+  親09: useAppIcons（childAppsGet を 10 分使い回し、端末にない・ハッシュが変わったアイコンだけ childAppIconsGet で 50 個ずつ）
+  アイコンがないアプリは頭文字の仮のアイコンのまま。読んだアイコンはメモリに置き、ログアウトで消す
+```
+
+- 一覧が取れない（Kotlin がない・OS のエラー）ときは送らない（空の一覧で親16 の候補を消さない）。
+- サーバの DB が作り直された（C7 の `epoch` が変わった。D-109）ときは、同じ中身でも送り直す。
+- アイコンが変わったアプリは、名前が同じでもハッシュが変わるので一覧ごと送り直し、そのアイコンだけを送る。
 
 ### 反映済み／反映待ち（Q6）
 
@@ -393,5 +416,32 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 | 親05 テスト日程・空白期間の一覧 | その一覧が最後に変わった版（テスト期間は `periodsChangedVersion`、空白期間は `blankChangedVersion`。一度も変えていなければ 0 で「反映済み」）。計画・対象外アプリなど、ほかの種類の変更では「反映待ち」にならない（D-88） | `schedule/logic.ts` の `appliedStatus` |
 | 親16 対象外アプリ（行ごと） | 対象外のアプリは `sinceVersion`、外したアプリは `removedApps` の `removedVersion`。一度も対象外になっていないアプリは「反映済み」。どれもサーバの値なので、画面を開き直しても正しく出る | `parent/excluded.ts` の `excludedRows`・`removedVersions` |
 | 親16 対象外アプリ（一覧の全体。見出しの横の札） | `appsChangedVersion`（一度も変えていなければ 0 で「反映済み」） | `parent/excluded.ts` の `excludedListStatus` |
+| 制限する Web サイト（行ごと・一覧の全体） | 行は登録を足した版 `sinceVersion`、見出しの横の札は `sitesChangedVersion`（一度も変えていなければ 0 で「反映済み」）。Web サイトの保存では、ほかの一覧（親05・親16）は「反映待ち」にならない | `parent/blocked-sites.ts` の `siteRows`・`sitesListStatus` |
 
 子どもの端末がまだ一度も取りに来ていない（`childAppliedVersion` が `null`）ときは「反映待ち」です。
+
+## 12. 制限する Web サイト（D-111）
+
+保護者が登録したサイトを、**その日の上限に達したあとだけ**、子どもの端末のブラウザで止めます（上限なし・未設定・空白期間・ルールが分からない日は止めない。C4 と同じ）。
+
+```
+保護者（親04 設定 →「制限する Web サイト」。src/app/parent/blocked-sites.tsx）
+  → 入力を normalizeSitePattern でそろえて下書きに入れる（ドメインらしくなければ入力欄の下に理由。contracts/web-sites.ts）
+  → blockedSitesSave（全件・expectedVersion）→ 版が 1 上がる（表 blocked_sites・blocked_site_states）
+子どもの端末（6章の C7）
+  → configGet の組の blockedSites → toNativeRestriction → native.saveRestriction（Kotlin の EngineStore の restriction）
+  → 子01 の「見守りのための許可」に「ユーザー補助（Slope）」が並ぶ（登録が1つ以上あり、まだオンでないときだけ）
+     → 押すと Android の「ユーザー補助」の設定が開く（EnginePermissions の ACCESSIBILITY）→ 子どもの端末の人が Slope をオンにする
+Kotlin（engine/WebGuardService.kt。ユーザー補助のサービス。Chrome・Samsung Internet・Firefox・Edge の出来事だけが届く）
+  → 出来事のたびに: 見守りが動いている・today_usage が今日の分で reached・登録がある、でなければ何もしない（画面の中も読まない）
+  → アドレス欄（view id。ブラウザごと）を探し、入力中（focused）なら判定しない
+  → アドレス欄の文字が登録に当たれば（WebSites.matches）:
+       ブラウザを1つ前に戻す（GLOBAL_ACTION_BACK。同じ登録には 2 秒あける）
+       0.3 秒あとに子11 を出す（LimitPrompt。同じ登録には 60 秒・どの登録にも 10 秒あける。WebBlockGate）
+```
+
+- 登録の形と一致の規則は [data.md の「制限する Web サイト」](data.md)。TS（`contracts/web-sites.ts`）と Kotlin（`engine/WebSites.kt`）は同じ例の表で確かめる。
+- 「上限に達したか」は Kotlin の監視（8章）が 15〜30 秒ごとに書く `today_usage` を使う（ユーザー補助のサービスは使用時間を読み直さない）。そのため、上限に達してから止め始めるまで最大 30 秒ほどかかる。
+- ユーザー補助のサービスは「他のアプリの上に表示」の許可がなくても子11 を前に出せる（Android の裏からの起動の制限の例外）。出せなければ通知で案内する。
+- 止められないもの（MVP_SPEC 2章「強制停止・常時遮断は保証しない」）: 上の4つ以外のブラウザ・アプリの中で開いたページ・アドレス欄にドメインしか出さないブラウザでのパスつきの登録・ユーザー補助がオフのとき。
+- 保護者の画面の「反映済み／反映待ち」は、行ごとに `sinceVersion`、一覧の全体は `sitesChangedVersion` と `childAppliedVersion` を比べる（`src/components/parent/blocked-sites.ts` の `siteRows`・`sitesListStatus`。11章の表と同じ考え方）。外しかけてまだ保存していない登録は「外します（まだ保存していません）」として残し、「戻す」で戻せる。

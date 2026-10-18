@@ -2,6 +2,7 @@
 // データ: call("usageGet", { 今日〜今日 }) の UsageDay（usedMinutes = 制限の対象の合計、apps = アプリ別の分数）。30 秒ごとに取り直す。
 // 行き先: 「←」→ 来た画面（親01 の「詳しく見る」・親03 の「アプリごとの利用時間を見る」）。
 // 記録がない日は「まだ記録が届いていません」（0 分と区別する。C6）。対象外のアプリは合計に入らないので、別の見出しで分けて出す。
+// アイコン: 子どもの端末から届いた本物のアイコン（useAppIcons。Q15・D-110）。届いていないアプリは頭文字の仮のアイコン。
 import { todayString } from "@contracts/dates";
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
@@ -19,8 +20,9 @@ import {
 } from "@/components";
 import { ChildGate, useUsage } from "@/components/parent/data";
 import { mdw, timeJst } from "@/components/parent/format";
-import { AppInitial } from "@/components/parent/parts";
+import { AppIcon } from "@/components/parent/parts";
 import { type AppRow, appUsageRows, limitText, todaySummary } from "@/components/parent/today";
+import { useAppIcons } from "@/lib/app-icons";
 import { motion, useAnimatedNumber } from "@/lib/motion";
 import { makeStyles } from "@/lib/theme";
 
@@ -42,6 +44,29 @@ function AppUsageBody({ childId }: { childId: string }) {
   if (summary.kind === "missing")
     return <StateView state="unknown" message="今日の記録を取得できませんでした" onRetry={() => void reload()} />;
   const rows = appUsageRows(day?.apps ?? []);
+  return (
+    <AppUsageList childId={childId} today={today} rows={rows} summary={summary} stale={state.status === "stale"} />
+  );
+}
+
+// アイコンの hook は早く返す分かれ道の後ろで呼べないので、一覧の部分を分ける
+function AppUsageList({
+  childId,
+  today,
+  rows,
+  summary,
+  stale,
+}: {
+  childId: string;
+  today: string;
+  rows: ReturnType<typeof appUsageRows>;
+  summary: Exclude<ReturnType<typeof todaySummary>, { kind: "missing" }>;
+  stale: boolean;
+}) {
+  const icons = useAppIcons(
+    childId,
+    [...rows.restricted, ...rows.excluded].map((r) => r.packageName),
+  );
   const measuredAt = summary.kind === "recorded" && summary.measuredAt ? timeJst(summary.measuredAt) : null;
   // 行は上から順に出す（合計のカードの次から）。たくさんあっても待たせすぎないよう、順番は途中で打ち止めにする
   let order = 2;
@@ -49,7 +74,7 @@ function AppUsageBody({ childId }: { childId: string }) {
   return (
     // ホームと同じく、開いたときは上から順にふわっと出す。後から出る帯は高さを広げて入れる
     <RevealGroup>
-      <Reveal index={0} show={state.status === "stale"}>
+      <Reveal index={0} show={stale}>
         <Banner
           tone="warning"
           icon="cloud_off"
@@ -85,7 +110,7 @@ function AppUsageBody({ childId }: { childId: string }) {
           ) : (
             rows.restricted.map((r) => (
               <Reveal key={r.packageName} index={next()}>
-                <AppUsageRow row={r} />
+                <AppUsageRow row={r} icon={icons.get(r.packageName)} />
               </Reveal>
             ))
           )}
@@ -96,7 +121,7 @@ function AppUsageBody({ childId }: { childId: string }) {
               </Reveal>
               {rows.excluded.map((r) => (
                 <Reveal key={r.packageName} index={next()}>
-                  <AppUsageRow row={r} />
+                  <AppUsageRow row={r} icon={icons.get(r.packageName)} />
                 </Reveal>
               ))}
             </>
@@ -146,11 +171,11 @@ function TotalCard(props: { minutes: number | null; limit: string; today: string
   );
 }
 
-function AppUsageRow({ row }: { row: AppRow }) {
+function AppUsageRow({ row, icon }: { row: AppRow; icon: string | undefined }) {
   const styles = useStyles();
   return (
     <View style={styles.row} accessible accessibilityLabel={`${row.label} ${row.minutes}分`}>
-      <AppInitial initial={row.initial} />
+      <AppIcon initial={row.initial} uri={icon} />
       <View style={styles.middle}>
         <AppText variant="body">{row.label}</AppText>
         <ProgressBar percent={row.barPercent} thin />

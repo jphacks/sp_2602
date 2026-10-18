@@ -7,6 +7,7 @@ import dev.hackathon.kit.kitnative.engine.DailyUsage
 import dev.hackathon.kit.kitnative.engine.DayWindow
 import dev.hackathon.kit.kitnative.engine.EnginePermissions
 import dev.hackathon.kit.kitnative.engine.EngineStore
+import dev.hackathon.kit.kitnative.engine.LauncherApps
 import dev.hackathon.kit.kitnative.engine.LimitPrompt
 import dev.hackathon.kit.kitnative.engine.LimitRules
 import dev.hackathon.kit.kitnative.engine.MonitorService
@@ -29,6 +30,7 @@ import java.util.TimeZone
 // Kotlin を書き換えたら、アプリを作り直す（npm run android）。Fast Refresh では反映されない。
 // Function の名前・引数・戻り値は contracts/native.ts の NativeEngine と1対1（中身は engine/ の部品）:
 //   C2: getPermissions・openPermissionSettings・getDailyUsage
+//   Q15: getLauncherApps（ホーム画面に出るアプリの一覧。親16 の候補として JS がサーバへ送る）
 //   C4: saveRestriction・startEngine・stopEngine・getEngineStatus・showLimitReached・openApp・clearLocalData
 //   C5: saveParentWidget（保護者のウィジェット。子どものウィジェットの値は saveRestriction と監視が保存する）
 class KitNativeModule : Module() {
@@ -49,7 +51,8 @@ class KitNativeModule : Module() {
 
     // ── C2 ──────────────────────────────────────────────
 
-    // 権限の状態 { usageAccess, overlay, notifications, batteryOptimization }（engine/EnginePermissions.kt）
+    // 権限の状態 { usageAccess, overlay, notifications, batteryOptimization, accessibility }（engine/EnginePermissions.kt）。
+    // accessibility は制限する Web サイト（D-111）のユーザー補助のサービス（engine/WebGuardService.kt）がオンか
     Function("getPermissions") {
       EnginePermissions.status(context)
     }
@@ -85,11 +88,35 @@ class KitNativeModule : Module() {
       }
     }
 
+    // ── Q15（親16 の候補）──────────────────────────────────
+
+    // ホーム画面に出るアプリの一覧（Slope 自身は除く・packageName の順・アイコンの PNG とハッシュつき）。
+    // contracts/native.ts の NativeLauncherAppsResult の形で返す。
+    // QUERY_ALL_PACKAGES ではなく AndroidManifest の <queries>（MAIN + LAUNCHER）で見える分を読む（engine/LauncherApps.kt）。
+    // アプリ名を引く・アイコンを描くのに時間がかかる（数百のアプリで数秒）ので非同期にする。JS が呼ぶのは起動時と1日1回だけ。
+    // OS のエラーは投げる（JS が unavailable にして、送らない）
+    AsyncFunction("getLauncherApps") {
+      val apps = LauncherApps.read(context)
+      mapOf(
+        "status" to "ok",
+        "apps" to
+          apps.map {
+            mapOf(
+              "packageName" to it.packageName,
+              "label" to it.label,
+              "iconPng" to it.iconPng,
+              "iconHash" to it.iconHash,
+            )
+          },
+      )
+    }
+
     // ── C4 ──────────────────────────────────────────────
 
     // 判定に使う値（NativeRestriction）を端末に保存する。以後は電波がなくてもこれで判定する。保存できたら true。
     // 形が違うときは保存せず false（前の値で判定を続ける。JS の画面の処理は止めない）。
     // テストの日程（testPeriods）は判定には使わず、ウィジェット（C5。K-B の widget/）の保存へ渡して描き直させる
+    // 制限する Web サイト（blockedSites。D-111）も一緒に保存し、ユーザー補助のサービス（engine/WebGuardService.kt）が読む
     Function("saveRestriction") { restriction: Map<String, Any?> ->
       val ctx = context
       try {
