@@ -2,8 +2,8 @@
 
 <img width="400" height="400" alt="pencil" src="https://github.com/user-attachments/assets/9ad0db9d-d920-48da-969e-1ede4df45e18" />
 
-#### デモ動画
-[YouTubeでSlopeのデモを見る](https://youtu.be/6JZ5fuiZiJ8)
+#### 紹介動画
+[Slopeの紹介動画](https://youtu.be/6JZ5fuiZiJ8)
 
 ## 製品概要 
 
