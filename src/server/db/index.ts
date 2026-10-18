@@ -15,32 +15,62 @@ import { PgTable } from "drizzle-orm/pg-core";
 import type { Database } from "../../../backend/src/db/index.js";
 import * as schema from "../../../backend/src/db/schema/index.js";
 import { isMock } from "../env.js";
+import { DatabaseOpenError, DatabaseUnavailableError, describeError, isDatabaseUnavailable } from "../errors.js";
 import { seedMockAccounts } from "../seed/demo.js";
 
 export { isDatabaseHealthy } from "../../../backend/src/db/health.js";
 export type Db = Database;
 
-type RuntimeDb = { db: Db; kind: "neon" | "pglite"; close?: () => Promise<void> };
+type RuntimeDb = { db: Db; kind: "neon" | "pglite"; close?: () => Promise<void>; isClosed?: () => boolean };
 // 開発中の再読み込みでも作り直さないよう、プロセスに1つだけ持つ
 const g = globalThis as unknown as { __slopeRuntimeDb?: Promise<RuntimeDb> };
 
+// 手元の DB（PGlite）が閉じていたら開き直す（セキュリティ検査 AVL-04: 前は閉じたものを使い続け、どの API も失敗し続けた）。
+// Neon は接続の池（Pool）が切れた接続を自分で張り直すので、ここでは何もしない
 export async function db(): Promise<Db> {
+  const pending = runtime();
+  const opened = await pending;
+  if (!opened.isClosed?.()) return opened.db;
+  // 同時に呼ばれたほかの呼び出しがもう開き直していたら、それを使う（2つ開かない）
+  if (g.__slopeRuntimeDb === pending) g.__slopeRuntimeDb = undefined;
   return (await runtime()).db;
+}
+
+// テスト用: 手元の DB（PGlite）を、覚えたまま閉じる（DB が落ちたときの API の返事と、開き直しを確かめるため）
+export async function closeDatabaseClientForTests(): Promise<void> {
+  if (process.env.DATABASE_URL || !process.env.VITEST) throw new Error("テストの手元の DB でだけ使えます");
+  await (await runtime()).close?.();
 }
 
 function runtime(): Promise<RuntimeDb> {
   g.__slopeRuntimeDb ??= open().catch((error) => {
     g.__slopeRuntimeDb = undefined; // 失敗したら次の呼び出しでやり直す
-    throw error;
+    // 接続の失敗（通信・接続を断られた・時間切れ・閉じた PGlite など。errors.ts の isDatabaseUnavailable）だけを
+    // 一時的に使えない 503 unavailable にする。前はすべての失敗を 503 で包んだので、本番で DATABASE_URL がない・
+    // マイグレーションの SQL の誤りといった設定の誤り・不具合まで「一時的に使えない」になり、原因の場所もログに出なかった
+    if (isDatabaseUnavailable(error)) throw new DatabaseUnavailableError("DB につながりませんでした", { cause: error });
+    throw new DatabaseOpenError("DB を開けませんでした", { cause: error });
   });
   return g.__slopeRuntimeDb;
 }
 
 async function open(): Promise<RuntimeDb> {
   const opened = await connect();
-  if (seedsMockOnOpen(opened.kind)) await seedMockAccounts(opened.db);
-  else if (isMock()) console.warn("MOCK=1 ですが、DATABASE_URL の DB にはデモの3人と見本を自動では入れません（D-126）");
+  try {
+    if (seedsMockOnOpen(opened.kind)) await seedMockAccounts(opened.db);
+    else if (isMock())
+      console.warn("MOCK=1 ですが、DATABASE_URL の DB にはデモの3人と見本を自動では入れません（D-126）");
+  } catch (error) {
+    await closeQuietly(opened.close);
+    throw error;
+  }
   return opened;
+}
+
+// 開きかけで失敗した DB を閉じてから捨てる（呼び出しのたびに開いたままの PGlite・Pool が溜まらないように）。
+// 閉じるときの失敗は、元の失敗を隠さないよう無視する
+async function closeQuietly(close: (() => Promise<void>) | undefined): Promise<void> {
+  await close?.().catch(() => undefined);
 }
 
 // DB を開いたときにデモの3人と見本を入れるか: MOCK=1 で、手元の DB（PGlite）のときだけ
@@ -54,10 +84,19 @@ async function connect(): Promise<RuntimeDb> {
       import("drizzle-orm/neon-serverless"),
     ]);
     const pool = new Pool({ connectionString: url, max: 1 });
+    // 待っている間の接続が切れると、Pool は "error" を出す。受け手がないと Node はそれを捕まえられない例外にして、
+    // プロセスごと落ちる（Vercel のインスタンスが休んでいる間に Neon が接続を閉じたとき）。記録だけして、次の呼び出しで張り直させる
+    pool.on("error", (error: unknown) =>
+      console.error("[db pool] 待っている間の接続が切れました", describeError(error)),
+    );
     return { db: drizzle({ client: pool, schema }) as unknown as Db, kind: "neon", close: () => pool.end() };
   }
   // 本番で黙って手元の DB に保存すると、データが消えても気づけない
-  if (process.env.VERCEL_ENV === "production") throw new Error("DATABASE_URL が未設定です（Vercel の本番では必須）");
+  // ログ（describeError）は message を出さない決まりなので、何が足りないかを code で分かるようにする
+  if (process.env.VERCEL_ENV === "production")
+    throw Object.assign(new Error("DATABASE_URL が未設定です（Vercel の本番では必須）"), {
+      code: "DATABASE_URL_MISSING",
+    });
   const [{ PGlite }, { drizzle }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite")]);
   const dir = process.env.LOCAL_DB_DIR?.trim();
   // テストだけ: マイグレーション済みの DB の写し（tests/setup/pglite-template.ts が1回だけ作る）から開く。
@@ -73,10 +112,16 @@ async function connect(): Promise<RuntimeDb> {
   // なぜ: 前は drizzle-kit の pushSchema で表の形を合わせていたが、データの入った DB では確認の質問を出そうとして、
   //   何も表示せずにプロセスを終わらせた（立て直したサーバが起動しない）。マイグレーションなら質問は出ず、
   //   テストのたびに「マイグレーションと表の定義（backend/src/db/schema）が合っているか」も確かめられる
-  const { migrate } = await import("drizzle-orm/pglite/migrator");
-  await migrate(local, { migrationsFolder: fileURLToPath(new URL("../../../backend/drizzle", import.meta.url)) });
+  // 失敗したら（PGlite が起動できない・マイグレーションの SQL の誤りなど）、作った PGlite を閉じてから捨てる
+  try {
+    const { migrate } = await import("drizzle-orm/pglite/migrator");
+    await migrate(local, { migrationsFolder: fileURLToPath(new URL("../../../backend/drizzle", import.meta.url)) });
+  } catch (error) {
+    await closeQuietly(() => client.close());
+    throw error;
+  }
   // 問い合わせの書き方は同じなので、型は本番にそろえる
-  return { db: local as unknown as Db, kind: "pglite", close: () => client.close() };
+  return { db: local as unknown as Db, kind: "pglite", close: () => client.close(), isClosed: () => client.closed };
 }
 
 // テスト用: 手元の DB（PGlite）を空にして、seed なら見本を入れ直す。Neon には決して使わない（本物のデータを消さないように）

@@ -15,6 +15,8 @@ describe("authentication and pairing storage schema", () => {
     const session = getTableConfig(userSessions);
     expect(session.columns.find((column) => column.name === "token_hash")?.notNull).toBe(true);
     expect(session.columns.find((column) => column.name === "expires_at")?.notNull).toBe(false);
+    // 無効にした理由（D-133）。無効にしていない行・0018 より前に無効にした行は NULL
+    expect(session.columns.find((column) => column.name === "revoked_reason")?.notNull).toBe(false);
   });
 
   it("keeps QR code hashes unique and leaves expiry optional without fixing family cardinality", () => {

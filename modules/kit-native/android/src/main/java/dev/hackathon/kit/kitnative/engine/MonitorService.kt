@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import dev.hackathon.kit.kitnative.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -205,9 +206,17 @@ class MonitorService : Service() {
     }
     if (EngineStore.loadReporter(this) != null) {
       val app = applicationContext
+      // 画面がついているか（合言葉の確かめの間隔を決める。消えている間は 15 分ごとにする。D-134）
+      val interactive = (getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isInteractive ?: true
       scope.launch(Dispatchers.IO) {
         try {
           StatusReporter.reportIfDue(app, flags, now)
+        } catch (e: Exception) {
+          // 次の見張りでやり直す
+        }
+        // D-134: 合言葉がまだ使えるかを確かめる（保護者が連携を外したら、ここで監視を止める）。送信が届いた直後なら省く
+        try {
+          SessionCheck.checkIfDue(app, interactive, now)
         } catch (e: Exception) {
           // 次の見張りでやり直す
         }

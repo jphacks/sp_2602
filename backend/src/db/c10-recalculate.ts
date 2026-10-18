@@ -23,13 +23,18 @@ export class C10CalculationInputError extends Error {
   }
 }
 
-/** Recalculate and persist D6 plus its source input version inside the caller's transaction. */
+/**
+ * Recalculate and persist D6 plus its source input version inside the caller's transaction.
+ * Returns true when a new revision was saved. With onlyIfChanged, nothing is saved (false) when the
+ * result equals the latest revision (the top-up must not advance versions for the same limits. D-54 / X-1).
+ */
 export async function recalculateC10InTransaction(
   tx: Transaction,
   childId: string,
   sourceC10InputVersion: number,
   now: Date = new Date(),
-): Promise<void> {
+  { onlyIfChanged = false }: { onlyIfChanged?: boolean } = {},
+): Promise<boolean> {
   const [settings] = await tx.select({
     planStartDate: planSettings.planStartDate,
     startLimitMinutes: planSettings.startLimitMinutes,
@@ -88,6 +93,9 @@ export async function recalculateC10InTransaction(
   if (!config || config.c10InputVersion !== sourceC10InputVersion) {
     throw new Error("C10 input version changed while its calculation was being saved.");
   }
+  // 作り直しても中身が前の版と同じなら保存しない（例: 空白期間だけで通常上限がない子どもは、空白期間の後ろの日が
+  // 「上限未設定」なので、何度作り足しても最後の日がしきい値に届かない。そのたびに版を上げると、読むだけで版が上がる。X-1）
+  if (onlyIfChanged && latest && sameLimits(existing, merged)) return false;
 
   const version = (latest?.version ?? 0) + 1;
   await tx.insert(planCalculationVersions).values({ childId, version, sourceC10InputVersion });
@@ -111,6 +119,19 @@ export async function recalculateC10InTransaction(
       calculationVersion: version,
     });
   if (rows.length) await tx.insert(dailyLimits).values(rows);
+  return true;
+}
+
+// 日別上限の2つの並び（どちらも日付順）が、日付・種類・分・空白期間まで同じか
+function sameLimits(a: DailyLimit[], b: DailyLimit[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((x, i) => {
+    const y = b[i];
+    if (!y || x.date !== y.date || x.kind !== y.kind) return false;
+    return x.kind === "limited"
+      ? y.kind === "limited" && x.limitMinutes === y.limitMinutes
+      : y.kind === "unlimited" && x.blankPeriodId === y.blankPeriodId;
+  });
 }
 
 type Executor = Database | Transaction;
@@ -144,7 +165,9 @@ export async function topUpDailyLimits(db: Database, childId: string, now: Date 
       // Another request may have topped up while this one waited for the lock.
       const last = await lastLimitDate(tx, childId);
       if (last === null || last >= threshold) return false;
-      await recalculateC10InTransaction(tx, childId, config.c10InputVersion, now);
+      // 作り足しても日別上限が変わらないとき（上限のない日しか先にない）は、版を上げない（D-54「中身が変わったときだけ」。X-1）
+      const saved = await recalculateC10InTransaction(tx, childId, config.c10InputVersion, now, { onlyIfChanged: true });
+      if (!saved) return false;
       await tx.update(childConfigVersions).set({ version: config.version + 1, updatedAt: now })
         .where(eq(childConfigVersions.childId, childId));
       return true;

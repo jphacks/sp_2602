@@ -18,7 +18,7 @@ export async function getConfigForCaller(caller: Caller, childId: string, knownV
     if (error instanceof TestPeriodAccessDeniedError) throw new AppError("forbidden");
     throw error;
   }
-  // 日別上限の残りが少なければ、ここで作り足す（設定の版が 1 上がる。LIMIT_TOPUP_MIN_DAYS）
+  // 日別上限の残りが少なければ、ここで作り足す（中身が変わったときだけ設定の版が 1 上がる。LIMIT_TOPUP_MIN_DAYS）
   await topUpDailyLimits(database, childId);
   const snapshot = await readChildConfigSnapshot(database, childId);
   // この DB の epoch（D-109）。changed: false の応答にも必ず入れる（端末は手元の epoch と違えば、版を比べずに取り直す）

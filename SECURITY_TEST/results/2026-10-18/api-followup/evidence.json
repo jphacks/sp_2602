@@ -1,0 +1,30 @@
+{
+  "runtime": "synthetic in-memory PGlite; loopback HTTP only",
+  "route": "isolated snapshot 0ddfc7e",
+  "cases": {
+    "API02_unknown_bearer": {
+      "status": 401,
+      "code": "unauthorized",
+      "bodyContainsSyntheticUsageMarker": false,
+      "elapsedMs": 124
+    },
+    "API02_idle_expired_session": {
+      "status": 401,
+      "code": "unauthorized",
+      "bodyContainsSyntheticUsageMarker": false,
+      "elapsedMs": 25
+    },
+    "API04_parent_a_read_child_b_usage": {
+      "status": 403,
+      "code": "forbidden",
+      "bodyContainsSyntheticUsageMarker": false,
+      "elapsedMs": 22
+    },
+    "API04_parent_b_read_own_child_usage": {
+      "status": 200,
+      "code": null,
+      "bodyContainsSyntheticUsageMarker": true,
+      "elapsedMs": 34
+    }
+  }
+}

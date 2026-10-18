@@ -128,6 +128,15 @@ object WidgetStore {
   fun clear(context: Context) {
     prefs(context).edit().clear().apply()
   }
+
+  // 保護者として使ったときの値だけを消す（監視が動いている端末でログアウトしたとき。LocalData.clearParent）。
+  // ウィジェットが保護者の形なら全部消す（テストの日程も保護者の画面から入れたもの。子どもの値は次の saveRestriction で入れ直す）。
+  // 子どもの形なら、保護者の日ごとの減りだけを消す（子どものテストの日程は残す）
+  fun clearParent(context: Context) {
+    val p = prefs(context)
+    if (p.getString(WidgetKeys.ROLE, null) == WidgetRole.PARENT) p.edit().clear().apply()
+    else p.edit().remove(WidgetKeys.PARENT_DAYS).apply()
+  }
 }
 
 // ── 表示の形（ここで判断し、SlopeWidget は描くだけ）────────────────────────────

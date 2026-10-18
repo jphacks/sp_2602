@@ -26,6 +26,7 @@
 - [google-login-setup.md](google-login-setup.md) … 本物の Google ログインを使うための Google Cloud の登録手順。
 - [release-signing.md](release-signing.md) … release 版を自分たちの鍵で署名する手順（鍵の作り方・`gradle.properties`・Google ログイン用の SHA-1 の登録し直し）。
 - [device-owner.md](device-owner.md) … デモの間 Slope を消せないようにする手順（Device Owner。スマホの初期化が要る・デモ専用）と解除のしかた。
+- [d9-usage-window-verification.md](d9-usage-window-verification.md) … D9（制限を外す時間帯）の検証。Android の使用イベントから前面の利用区間を作り直し、外す時間との重なりを計算できるか（`UsageWindowCalculator`）。
 
 ## まず読む順番
 
@@ -57,7 +58,7 @@
 | MOCK | 本物の代わりの仮の動き。`MOCK=1` のサーバは `mock-` のログインを受け付け、手元の DB にデモの人と見本のデータを入れる（処理は本物と同じ DB の処理。Vercel の本番では無視する。`MOCK=1` でないサーバではデモの人の合言葉は使えない） |
 | 冪等（べきとう） | 同じものを何回送っても1回と同じ結果になること（利用記録の送り直しで二重にならない） |
 | Context | React の「画面全体でデータを共有する仕組み」。`src/lib/` の session・flow・child-data・parent-data |
-| Kotlin の窓口 | Android だけでできること（使用時間の取得・制限画面）を呼ぶための入口。中身はまだない |
+| Kotlin の窓口 | Android だけでできること（使用時間の取得・制限画面・ウィジェット・合言葉の封など）を呼ぶための入口（`src/lib/native.ts`）。中身は `modules/kit-native/`（Kotlin の Expo Module）。Kotlin の部品がない環境では安全な既定値を返す |
 
 ## 説明書を直すときの約束
 

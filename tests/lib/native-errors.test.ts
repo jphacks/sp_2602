@@ -24,6 +24,9 @@ vi.mock("expo", () => ({
     showLimitReached: boom,
     openApp: () => true,
     clearLocalData: boom,
+    releaseDeviceOwner: boom,
+    isEngineEnabled: boom,
+    clearParentLocalData: boom,
     setStatusReporter: boom,
     clearStatusReporter: boom,
   }),
@@ -41,6 +44,10 @@ describe("native（Kotlin が例外を出す）", () => {
       accessibility: false,
     });
     expect(native.showLimitReached()).toBe(false);
+    // Device Owner をやめられなくても、外へ出さず false（連携が外れたときのほかの片付けを止めない。D-133）
+    expect(native.releaseDeviceOwner()).toBe(false);
+    // 監視が動いているか分からないときは「動いている」とみなす（ログアウトで監視を止めないように。D-136）
+    expect(native.isEngineEnabled()).toBe(true);
     const usage = await native.getDailyUsage("2026-10-17");
     expect(usage).toEqual({ status: "unavailable", reason: "OS のエラー" });
     // アプリ一覧（Q15）も、例外は外へ出さず unavailable（0 個の一覧にしない）
@@ -50,6 +57,7 @@ describe("native（Kotlin が例外を出す）", () => {
       native.startEngine();
       native.stopEngine();
       native.clearLocalData();
+      native.clearParentLocalData();
       native.setStatusReporter("https://example.test/api/device-status/report", "t", "c1");
       native.clearStatusReporter();
       native.saveRestriction({

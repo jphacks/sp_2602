@@ -61,7 +61,7 @@
 * **Android ネイティブ**: Kotlin の Expo Module（[modules/kit-native](modules/kit-native)）と config plugin（[plugins/](plugins)）
 * **サーバ**: [Hono](https://hono.dev/)（API）／ [Zod](https://zod.dev/)（入力と出力の形の検査）／ jose（トークンの確かめ）
 * **DB**: [Drizzle ORM](https://orm.drizzle.team/) と drizzle-kit（表の設計と migration）／ postgres ／ @neondatabase/serverless
-* **開発の道具**: TypeScript 6 ／ [Vitest](https://vitest.dev/)（テスト約 800 件）／ [Biome](https://biomejs.dev/)（lint と整形）／ tsx ／ Gradle と Android SDK
+* **開発の道具**: TypeScript 6 ／ [Vitest](https://vitest.dev/)（テスト約 1000 件）／ [Biome](https://biomejs.dev/)（lint と整形）／ tsx ／ Gradle と Android SDK
 
 #### デバイス
 * Android スマートフォン（targetSdk 36 = Android 16、minSdk 24）
@@ -78,3 +78,5 @@
   * Google のトークンはサーバで署名を確かめる。合言葉は長い乱数で、DB にはハッシュだけを残す（30日使わないと無効・ログアウトでも無効）
   * どの API も、呼んだ人がその子どもを扱えるかを確かめる（[src/server/route.ts](src/server/route.ts) の `checkChildAccess`）
   * 今回直したもの: テスト用の合言葉を本番で断る・利用記録が溜まらないようにする・Android のバックアップを切る・release 版を自分の鍵で署名する
+  * そのあとのセキュリティテストで直したもの（F-1〜F-7。[SECURITY_TEST/fixes.md](SECURITY_TEST/fixes.md)）: 合言葉を Android Keystore の鍵で封をして置く・日付と入力の形を制限する・DB の障害は 503 にする・ログに入力を出さない・連携を外したら前の家庭のデータを消して記録を残す・ログインと QR の発行に回数の上限
+  * 保護者から子どもとの連携を外せるようにした（外された子どもの端末は約1分で制限が止まる）。子どもが自分でログアウトして制限を止める道はなくした

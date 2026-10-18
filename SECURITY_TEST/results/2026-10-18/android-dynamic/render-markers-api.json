@@ -1,0 +1,12 @@
+[
+  {
+    "marker": "script literal",
+    "status": 200,
+    "returnedAsLiteral": true
+  },
+  {
+    "marker": "img literal",
+    "status": 200,
+    "returnedAsLiteral": true
+  }
+]

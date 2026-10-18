@@ -4,6 +4,8 @@
 //   Q15 で前に送ったアプリの一覧（端末のアプリの名前の一覧）も消す（端末に残さない。入り直したら送り直す）。
 //   保護者の端末のメモリにある子どものアプリのアイコン（app-icons.ts）も消す。
 // 合言葉の期限切れ（401）では呼ばない（同じ人がまたログインして、残った記録を送れるように）。
+// ただし、保護者が連携を外した 401（reason: family_unlink）では呼ぶ（session.tsx の clearUnlinked。前の家庭の時期の記録を
+// 次に紐づけた保護者へ送らないように。セキュリティ検査 F-2 の残り。D-133）。
 // ログアウトの最初に、合言葉をサーバでも無効にする（revokeServerSession。401 で自動でログアウトしたときは呼ばない）。
 import { call, timeoutSignal } from "./api";
 import { type AppIconCache, appIconCache } from "./app-icons";

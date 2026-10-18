@@ -286,4 +286,37 @@ class EngineRulesTest {
       AppIconCodec.sha256Hex("abc".toByteArray(Charsets.UTF_8)),
     )
   }
+
+  // ── 封を開けた合言葉のメモリの置き場（EngineStore。見張りのたびに Keystore で開けない）──
+  @Test
+  fun 開けた合言葉は同じ封の間はメモリから返し_封が変わったら開け直す() {
+    val cache = OpenedSecretCache()
+    var opens = 0
+    val open = { s: String -> opens++; if (s.startsWith("sb1:")) s.removePrefix("sb1:") else null }
+    assertEquals("t1", cache.get("sb1:t1", open))
+    assertEquals("t1", cache.get("sb1:t1", open))
+    assertEquals("t1", cache.get("sb1:t1", open))
+    assertEquals(1, opens) // 2回目からは開けない
+    // 置いてある封が変わった（JS が新しい合言葉を渡した）ら開け直して入れ替える
+    assertEquals("t2", cache.get("sb1:t2", open))
+    assertEquals(2, opens)
+    // 開けられない封は持たない（次にまた試す）。前の合言葉も返さない
+    assertNull(cache.get("broken", open))
+    assertNull(cache.get("broken", open))
+    assertEquals(4, opens)
+  }
+
+  @Test
+  fun 入れ替えと消すで前の合言葉を返さない() {
+    val cache = OpenedSecretCache()
+    var opens = 0
+    val open = { s: String -> opens++; s.removePrefix("sb1:") }
+    cache.put("sb1:new", "new") // saveReporter: 封をした値と組で入れ替える
+    assertEquals("new", cache.get("sb1:new", open))
+    assertEquals(0, opens)
+    cache.clear() // clearReporter・clear・ifReporterToken のあと
+    assertEquals("new", cache.get("sb1:new", open))
+    assertEquals(1, opens) // 消したあとは開け直す
+    assertFalse(cache.get("sb1:other", open) == "new")
+  }
 }

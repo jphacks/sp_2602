@@ -60,6 +60,37 @@ describe("日別上限の作り足し", () => {
     });
   });
 
+  it("空白期間だけで通常上限がない子どもは、何度取りに来ても版が上がらない（作り足しても中身が変わらない。X-1）", async () => {
+    const { child, parent } = await newFamily("topup-blank");
+    await ok(
+      post(
+        "/api/blank-period/create",
+        { childId: child.userId, expectedVersion: 0, name: "夏休み", startDate: "2026-10-20", endDate: "2026-10-21" },
+        parent.token,
+      ),
+    );
+    const first = snapshotOf(await configGet(child.userId, child.token));
+    expect(first.configVersion).toBe(1);
+    // 空白期間の2日だけ（後ろは上限未設定なので、最後の日はしきい値に届かない）
+    expect(first.dailyLimits.map((l) => l.kind)).toEqual(["unlimited", "unlimited"]);
+
+    for (let i = 0; i < 5; i++) {
+      expect(await configGet(child.userId, child.token, 1)).toEqual({
+        changed: false,
+        configVersion: 1,
+        epoch: expect.any(String),
+      });
+      expect(await versionOf(child.userId, parent.token)).toBe(1);
+    }
+    // 日がたっても同じ（空白期間の日は前の値のまま・先は未設定のまま）
+    clock.set("2026-11-04T03:00:00Z");
+    expect(await configGet(child.userId, child.token, 1)).toEqual({
+      changed: false,
+      configVersion: 1,
+      epoch: expect.any(String),
+    });
+  });
+
   it("一度も日別上限を作っていない子ども（紐づけ直後）は作り足さない（版は 0 のまま・未設定）", async () => {
     const { child } = await newFamily("topup-none");
     clock.set("2026-11-04T03:00:00Z"); // 合言葉が切れない20日後

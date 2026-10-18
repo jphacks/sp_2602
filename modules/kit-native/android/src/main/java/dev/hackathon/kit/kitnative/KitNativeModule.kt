@@ -2,6 +2,7 @@ package dev.hackathon.kit.kitnative
 
 import android.content.Context
 import android.os.Build
+import dev.hackathon.kit.kitnative.admin.DeviceOwnerPolicy
 import dev.hackathon.kit.kitnative.engine.AppVisibility
 import dev.hackathon.kit.kitnative.engine.DailyUsage
 import dev.hackathon.kit.kitnative.engine.DayWindow
@@ -12,6 +13,8 @@ import dev.hackathon.kit.kitnative.engine.LimitPrompt
 import dev.hackathon.kit.kitnative.engine.LimitRules
 import dev.hackathon.kit.kitnative.engine.MonitorService
 import dev.hackathon.kit.kitnative.engine.PermissionNudge
+import dev.hackathon.kit.kitnative.engine.SecretBox
+import dev.hackathon.kit.kitnative.engine.SessionCheck
 import dev.hackathon.kit.kitnative.engine.StatusReporter
 import dev.hackathon.kit.kitnative.engine.UsageReader
 import dev.hackathon.kit.kitnative.widget.SlopeWidget
@@ -34,6 +37,7 @@ import java.util.TimeZone
 //   C2: getPermissions・openPermissionSettings・getDailyUsage
 //   Q15: getLauncherApps（ホーム画面に出るアプリの一覧。親16 の候補として JS がサーバへ送る）
 //   C4: saveRestriction・startEngine・stopEngine・getEngineStatus・showLimitReached・openApp・clearLocalData
+//   D-136: isEngineEnabled・clearParentLocalData（監視が動いている端末のログアウトで、監視を止めない）
 //   C5: saveParentWidget（保護者のウィジェット。子どものウィジェットの値は saveRestriction と監視が保存する）
 //   D-113: setStatusReporter・clearStatusReporter（許可の状態をサーバへ直接送る送り先と合言葉。engine/StatusReporter.kt）
 class KitNativeModule : Module() {
@@ -152,18 +156,30 @@ class KitNativeModule : Module() {
       PermissionNudge.cancel(ctx)
     }
 
-    // ログアウトのときに、この端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットのテストの日程を消して、
-    // ウィジェットを描き直す）。前の人の値が、次にログインした人の判定やウィジェットに残らないようにするため
+    // ログアウトのとき・保護者に連携を外されたと分かったとき（D-133）に、この端末に残した値を全部消す（監視を止め、判定の値・
+    // 今日の使用量・ウィジェットのテストの日程を消して、ウィジェットを描き直す）。前の人の値が、次にログインした人の判定や
+    // ウィジェットに残らないようにするため。中身は LocalData.kt（許可の状態を送った返事で外されたと分かったときも同じものを呼ぶ）
     Function("clearLocalData") {
-      val ctx = context
-      EngineStore.setEngineEnabled(ctx, false) // 先に印を消す（動いている監視が、消した値を書き戻さないように）
-      MonitorService.stop(ctx)
-      EngineStore.clear(ctx) // 許可の状態の送り先と合言葉（D-113）もここで消える
-      StatusReporter.cancelHeartbeat(ctx)
-      PermissionNudge.cancel(ctx)
-      LimitPrompt.cancelLimitNotification(ctx)
-      WidgetStore.clear(ctx)
-      SlopeWidget.requestUpdate(ctx)
+      LocalData.clear(context)
+    }
+
+    // この端末で監視が動いているか（監視を続ける印が立っている・監視の Service が動いている）。
+    // 動いている端末（子どもの端末）では、JS はログアウトで clearLocalData を呼ばず（監視を止めない）、入口 /pair に
+    // 「ログアウト」も出さない（D-136 の抜け道をふさぐ。src/lib/session-core.ts の clearDeviceOnSignOut・canSignOut）
+    Function("isEngineEnabled") {
+      EngineStore.isEngineEnabled(context) || MonitorService.running
+    }
+
+    // 監視が動いている端末でログアウトしたときの片付け（LocalData.clearParent）。監視・判定の値・許可の状態の送り先は残し、
+    // 保護者のウィジェットの値だけを消して描き直す
+    Function("clearParentLocalData") {
+      LocalData.clearParent(context)
+    }
+
+    // デモ用の Device Owner（アンインストールの止め）をやめる。保護者に連携を外されたときだけ JS が呼ぶ（src/lib/session.tsx。D-133）。
+    // ログアウト・期限切れでは呼ばない。やめたら true（もともと Device Owner でなければ false）
+    Function("releaseDeviceOwner") {
+      DeviceOwnerPolicy.release(context)
     }
 
     // ── D-113（許可の見張りと親への通告）──────────────────────────
@@ -173,17 +189,26 @@ class KitNativeModule : Module() {
     Function("setStatusReporter") { url: String, token: String, childId: String ->
       val ctx = context
       if (EngineStore.saveReporter(ctx, url, token, childId)) {
+        SessionCheck.onReporterChanged() // 前の合言葉の 401 で延ばした確かめの間隔を戻す
         MonitorService.checkNow()
         StatusReporter.scheduleHeartbeat(ctx)
       }
     }
 
-    // 送り先と合言葉を消す（保護者・役割のない人・401 のとき。ログアウトは clearLocalData でも消える）
+    // 送り先と合言葉を消す（監視が動いていない端末で、保護者・役割のない人・ログアウト・401 のとき。ログアウトは clearLocalData でも消える。
+    // 監視が動いている端末では JS は呼ばない。Kotlin が自分の合言葉で確かめ続け、外されたら family_unlink で止まる。src/lib/status-reporter.ts）
     Function("clearStatusReporter") {
       val ctx = context
       EngineStore.clearReporter(ctx)
       StatusReporter.cancelHeartbeat(ctx)
     }
+
+    // ── 合言葉の封（セキュリティ検査 PII-05 / AND-05）──────────────────
+    // JS がログインの Session（合言葉を含む）を AsyncStorage に置く前に封をする・読んだら開ける（src/lib/session-store.ts）。
+    // 鍵は Android Keystore（engine/SecretBox.kt）。封ができない・開けないときは null（JS は平文で置かない・ログインし直し）
+    Function("sealSecret") { plain: String -> SecretBox.seal(plain) }
+
+    Function("openSecret") { sealed: String -> SecretBox.open(sealed) }
 
     // ── C5（保護者のウィジェット・Figma 親08）──────────────────────
 

@@ -22,6 +22,7 @@ import {
   type ChildAppIcon,
   MAX_APP_ICONS_PER_CALL,
   MAX_CHILD_APPS,
+  PackageName,
 } from "@contracts/schemas";
 import { z } from "zod";
 import { call } from "./api";
@@ -31,8 +32,7 @@ import { appStorage, type KeyValueStorage, readJson, storageKeys, writeJson } fr
 export const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 1日1回
 export const RETRY_INTERVAL_MS = 30 * 60 * 1000; // 送れなかったら 30 分あとに
 
-// 契約（contracts/schemas.ts の ChildApp）の長さの上限
-const MAX_PACKAGE = 255;
+// 契約（contracts/schemas.ts の ChildApp）の名前の長さの上限（packageName の形と長さは、契約の PackageName をそのまま使って確かめる）
 const MAX_LABEL = 120;
 
 // 文字の数（UTF-16 の単位。Zod の max と同じ数え方）で切る。絵文字などの途中では切らない
@@ -52,13 +52,14 @@ function iconOf(app: NativeLauncherApp): { iconHash: string; png: string } | nul
 
 // Kotlin の一覧 → 送る一覧（契約に合う形）とアイコン。Kotlin も整えているが、古い版の Kotlin・ほかの OS でも契約で断られないように
 // ここでも整える:
-//   packageName は前後の空白を除き、空・長すぎるものは入れない／名前は前後の空白を除き、空なら packageName、長すぎれば切る／
+//   packageName は前後の空白を除き、契約の PackageName（英数字・"_" を "." でつなぐ形・255 文字まで）に合わないものは1件ずつ外す
+//   （1件でも合わないと、一覧の送信（childAppsUpload）が毎回 400 になるため）／名前は前後の空白を除き、空なら packageName、長すぎれば切る／
 //   同じアプリは1つ（先に出た方）／packageName の順／多すぎれば MAX_CHILD_APPS 件まで／契約に合わないアイコンは付けない
 export function prepareChildApps(apps: readonly NativeLauncherApp[]): { apps: ChildApp[]; icons: ChildAppIcon[] } {
   const byPackage = new Map<string, { app: ChildApp; png: string | null }>();
   for (const raw of apps) {
     const packageName = raw.packageName.trim();
-    if (!packageName || packageName.length > MAX_PACKAGE || byPackage.has(packageName)) continue;
+    if (!PackageName.safeParse(packageName).success || byPackage.has(packageName)) continue;
     const label = clip(raw.label.trim() || packageName, MAX_LABEL);
     const icon = iconOf(raw);
     byPackage.set(packageName, {

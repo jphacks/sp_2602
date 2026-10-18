@@ -1,7 +1,14 @@
 // 許可の見張りと親への通告（docs/decisions.md D-113）: Kotlin の監視（MonitorService）に、許可の状態の送り先と合言葉を渡すかを決める。
 // session.tsx がログインの状態が変わるたびに呼ぶ（ログイン時・起動時に渡し、ログアウト・401 で消す）。
-//   - 子どもとしてログインしている（オフラインで続けている間も）→ 渡す
-//   - 保護者・役割のない人・ログアウトした・合言葉が無効になった（401）→ 消す
+//   - 子どもとしてログインしている（オフラインで続けている間も）→ 渡す（前と違う合言葉なら、Kotlin はそちらに入れ替える）
+//   - 監視（Kotlin の engine）が動いている端末で、それ以外（ログアウト状態・役割のない人・保護者）→ 何もしない（消さない）
+//       なぜ: 子どもの端末の JS は、連携が外れた（family_unlink）以外の理由でもログアウト状態になる（封が開けられない・
+//       ほかの端末からログアウトされた・期限切れの 401）。そこで Kotlin の送り先と合言葉まで消すと、そのあと保護者が
+//       連携を外しても、JS にも Kotlin にも family_unlink が届かず、監視と Device Owner が残ったまま抜けられなくなる。
+//       Kotlin は残した合言葉で確かめ続け（理由のない 401 なら間隔を 15 分に延ばす）、外されたら family_unlink で止まる
+//       （サーバは外したときに、すでに無効の合言葉にも理由を付ける。src/server/auth.ts の unlinkChild）。
+//       連携が外れたときの片付け（session.tsx の clearUnlinked → native.clearLocalData）では監視ごと消えるので、残らない
+//   - 監視が動いていない端末（保護者の端末・まだ紐づけていない端末）で、保護者・役割のない人・ログアウトした・401 → 消す
 //   - 確かめ中 → 何もしない（起動直後に、前回の送り先を一度消してから渡し直すことをしない）
 // 中身は純粋な関数（tests/lib/status-reporter.test.ts）。native.ts を読まない（Node のテストで expo を読まないため）
 import type { Session } from "@contracts/schemas";
@@ -13,10 +20,12 @@ export type StatusReporterAction =
 
 type State = { status: "checking" } | { status: "signedOut" } | { status: "signedIn"; session: Session };
 
-export function statusReporterAction(state: State, url: string): StatusReporterAction {
+// monitoring: この端末で監視が動いているか（native.isEngineEnabled。session.tsx が渡す）
+export function statusReporterAction(state: State, url: string, monitoring: boolean): StatusReporterAction {
   if (state.status === "checking") return { kind: "keep" };
   if (state.status === "signedIn" && state.session.role === "child")
     return { kind: "set", url, token: state.session.token, childId: state.session.userId };
+  if (monitoring) return { kind: "keep" };
   return { kind: "clear" };
 }
 

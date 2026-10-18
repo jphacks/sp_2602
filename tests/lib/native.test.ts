@@ -26,11 +26,14 @@ describe("native（モジュールなし）", () => {
     expect(native.getEngineStatus()).toEqual({ running: false, restrictionDate: null });
     expect(native.showLimitReached()).toBe(false);
     expect(native.openApp("com.example.studynote")).toBe(false);
+    expect(native.releaseDeviceOwner()).toBe(false); // Kotlin がない（古い dev client）ときは何もしない
+    expect(native.isEngineEnabled()).toBe(false); // 監視は動いていない（ログアウトは今までどおり clearLocalData。D-136）
     expect(() => {
       native.startEngine();
       native.stopEngine();
       native.openPermissionSettings("overlay");
       native.clearLocalData();
+      native.clearParentLocalData();
       native.saveRestriction({
         date: "2026-10-17",
         limit: { kind: "unset" },

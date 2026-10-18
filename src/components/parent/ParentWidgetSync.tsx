@@ -3,17 +3,21 @@
 // native.saveParentWidget で渡す（Kotlin が保存してウィジェットを保護者の形で描き直す）。値の作り方は widget.ts。
 // 設定が無い（unavailable）ときは保存しない（前の値を残す。0 分減と出さない）。ログアウトでは session.tsx の
 // native.clearLocalData() がウィジェットの値も消す。
+// 家族の一覧が空（子どもとの連携を外した・つながっていない）と分かったら、「つながっていません」にする（前の子どもの数字を残さない。D-133）。
+// 連携を外した直後は、外した画面（UnlinkChildItem.tsx）も同じ値を保存する（すぐ QR の読み取りへ移り、この部品が外れるため）。
+// 設定の子どもが家族の一覧にいなければ保存しない（外す前に始まった読み直しが外したあとに届いても、前の子どもの値で上書きしない）。
+// 決め方は widget.ts の parentWidgetUpdate。
 import { todayString } from "@contracts/dates";
 import { useEffect } from "react";
 import { native } from "@/lib/native";
 import { useParentData } from "@/lib/parent-data";
-import { parentWidgetData } from "./widget";
+import { parentWidgetUpdate } from "./widget";
 
 export function ParentWidgetSync(): null {
-  const { config } = useParentData();
+  const { config, family } = useParentData();
   useEffect(() => {
-    if (!config || config.status === "unavailable") return;
-    native.saveParentWidget(parentWidgetData(config.snapshot, todayString()));
-  }, [config]);
+    const data = parentWidgetUpdate(config, family, todayString());
+    if (data) native.saveParentWidget(data);
+  }, [config, family]);
   return null;
 }

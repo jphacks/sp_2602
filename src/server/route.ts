@@ -16,10 +16,10 @@ import {
   type StreamRoute,
 } from "../../contracts/api.js";
 import { authorize, type Caller, checkChildAccess } from "./auth.js";
-import { badRequest, toApiError } from "./errors.js";
+import { badRequest, badRequestOf, toApiError } from "./errors.js";
 
-// 処理に渡す、入力以外の情報。caller は auth が "none" の API でだけ null
-export type Ctx = { caller: Caller | null };
+// 処理に渡す、入力以外の情報。caller は auth が "none" の API でだけ null。request は呼び出し元の IP を見るため（authGoogle の回数の上限）
+export type Ctx = { caller: Caller | null; request: Request };
 
 // auth が "none" 以外の API の処理で、呼んだ人を取り出す（null なら route の設定の誤り）
 export function callerOf(ctx: Ctx): Caller {
@@ -41,6 +41,14 @@ async function readInput(request: Request, method: string): Promise<unknown> {
   }
 }
 
+// 入力のどこかの文字列（キーも含む）に NUL 文字があるか
+function hasNul(value: unknown, depth = 0): boolean {
+  if (typeof value === "string") return value.includes("\u0000");
+  if (depth > 64 || value === null || typeof value !== "object") return false;
+  for (const [k, v] of Object.entries(value)) if (k.includes("\u0000") || hasNul(v, depth + 1)) return true;
+  return false;
+}
+
 const errorResponse = (e: unknown) => {
   const { status, body } = toApiError(e);
   return Response.json(body, { status });
@@ -53,11 +61,17 @@ async function prepare(
 ): Promise<Response | { ctx: Ctx; input: unknown }> {
   let ctx: Ctx;
   try {
-    ctx = { caller: await authorize(route.auth, request) };
+    ctx = { caller: await authorize(route.auth, request), request };
   } catch (e) {
     return errorResponse(e);
   }
-  const parsed = route.req.safeParse(await readInput(request, route.method));
+  const input = await readInput(request, route.method);
+  // NUL 文字（\u0000）はどの項目でも受け付けない（Postgres の文字列に保存できず、DB が断って 500 になった。セキュリティ検査 F-3 / IN-06）
+  if (hasNul(input)) {
+    const { status, body } = badRequestOf("文字列に使えない文字（NUL）が入っています");
+    return Response.json(body, { status });
+  }
+  const parsed = route.req.safeParse(input);
   if (!parsed.success) {
     const { status, body } = badRequest(parsed.error);
     return Response.json(body, { status });

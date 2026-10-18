@@ -227,6 +227,24 @@ describe("合言葉", () => {
     setUnauthorizedHandler(null);
   });
 
+  it("登録した関数には、サーバの返事（401 の理由 family_unlink も）を渡す。知らない理由は「理由なし」として読む（D-133）", async () => {
+    const { call, setSessionToken, setUnauthorizedHandler } = await load("http://h");
+    const seen: unknown[] = [];
+    setUnauthorizedHandler((error) => seen.push(error.reason ?? null));
+    setSessionToken("old");
+    mockFetch(() =>
+      Response.json({ code: "unauthorized", message: "m", hint: "h", reason: "family_unlink" }, { status: 401 }),
+    );
+    await call("planGet", { childId: "c1" }).catch(() => undefined);
+    mockFetch(() =>
+      Response.json({ code: "unauthorized", message: "m", hint: "h", reason: "future_reason" }, { status: 401 }),
+    );
+    await call("planGet", { childId: "c1" }).catch(() => undefined);
+    expect(seen).toEqual(["family_unlink", null]);
+    setSessionToken(null);
+    setUnauthorizedHandler(null);
+  });
+
   // 合言葉が無効になる（サーバが DB 版に替わる等）→ ログイン画面 → ログインし直した後に、前の合言葉で送っていた呼び出しの 401 が
   // 遅れて届いても、新しくログインした人をログアウトさせない
   it("前の合言葉で送った呼び出しの 401 が、ログインし直した後に届いても、登録した関数を呼ばない", async () => {

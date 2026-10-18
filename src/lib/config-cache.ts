@@ -7,6 +7,9 @@
 //   - epoch が同じなら: 手元より古い版の応答は捨てる（手元を保つ）。同じ版で中身が違うのは整合性エラー（手元を保つ）
 //   - 通信に失敗したら、最後に正常だったキャッシュを stale（最新でない可能性あり）として返す。キャッシュもなければ unavailable
 //   - C2 の取得・C8 の送信は、ここが失敗しても止めない（別々に動く）
+//   - 取りに行っている間に、その子どもの組を消した（clear: 連携を外した・clearAll: ログアウト）ら、届いた結果は書かずに捨てる
+//     （unavailable を返す）。なぜ: 外す前に始まった読み直しが外したあとに届くと、前の子どもの組が端末に戻り、
+//     保護者のウィジェットも前の子どもの値で上書きされうるため（D-133 の再検査）
 // 中心の判断（reconcileConfig）は純粋な関数。保存と通信は createConfigCache に渡す（テストで差し替える）。
 //   const state = await configCache.refresh(childId);
 //   if (state.status !== "unavailable") 画面に state.snapshot を出す（stale なら「最新でない可能性があります」も出す）
@@ -92,6 +95,22 @@ export function createConfigCache(deps: ConfigCacheDeps) {
     if (!ids.includes(childId)) await writeJson(deps.storage, storageKeys.configIndex, [...ids, childId]);
   };
 
+  // 消した回数（子どもごと・全部）。refresh の始めに覚え、書く前・書いたあとに変わっていたら（消された）結果を捨てる
+  const clearedTimes = new Map<string, number>();
+  let clearedAllTimes = 0;
+  const generation = (childId: string) => `${clearedAllTimes}:${clearedTimes.get(childId) ?? 0}`;
+  const removeEntry = async (childId: string) => {
+    await deps.storage.removeItem(storageKeys.config(childId));
+    const ids = await readIndex();
+    if (ids.includes(childId))
+      await writeJson(
+        deps.storage,
+        storageKeys.configIndex,
+        ids.filter((id) => id !== childId),
+      );
+  };
+  const dropped: ConfigState = { status: "unavailable", error: null };
+
   const staleOr = (cached: CachedConfig | null, reason: StaleReason, error: ApiError | null): ConfigState =>
     cached
       ? { status: "stale", snapshot: cached.snapshot, savedAt: cached.savedAt, reason, error }
@@ -105,13 +124,15 @@ export function createConfigCache(deps: ConfigCacheDeps) {
 
     // サーバに確かめて、採用する組を決める
     async refresh(childId: string): Promise<ConfigState> {
+      const gen = generation(childId);
+      const isDropped = () => generation(childId) !== gen;
       const before = await read(childId);
       let result: ConfigResult;
       try {
         // epoch のない古い保存分は、どの DB の版か分からないので版を送らない（中身つきで返してもらい、丸ごと置き換える）
         result = await deps.fetchConfig(childId, before?.epoch ? before.snapshot.configVersion : undefined);
       } catch (e) {
-        return staleOr(before, "network", errorOf(e));
+        return isDropped() ? dropped : staleOr(before, "network", errorOf(e));
       }
       // 待っている間にほかの取得が新しい組を保存したかもしれないので、比べる前に読み直す（古い応答で上書きしない）
       let cached = await read(childId);
@@ -120,7 +141,7 @@ export function createConfigCache(deps: ConfigCacheDeps) {
         try {
           decision = reconcileConfig(childId, null, await deps.fetchConfig(childId, undefined));
         } catch (e) {
-          return staleOr(cached, "network", errorOf(e));
+          return isDropped() ? dropped : staleOr(cached, "network", errorOf(e));
         }
         cached = await read(childId);
         if (decision.action === "adopt" && cached)
@@ -130,6 +151,8 @@ export function createConfigCache(deps: ConfigCacheDeps) {
             epoch: decision.epoch,
           });
       }
+      // 待っている間にその子どもの組を消していたら（連携を外した・ログアウト）、何も書かずに捨てる
+      if (isDropped()) return dropped;
       switch (decision.action) {
         case "keep":
           return cached
@@ -149,7 +172,12 @@ export function createConfigCache(deps: ConfigCacheDeps) {
             await addToIndex(childId);
             await writeJson(deps.storage, storageKeys.config(childId), entry);
           } catch {
-            return staleOr(cached, "save_failed", null);
+            return isDropped() ? dropped : staleOr(cached, "save_failed", null);
+          }
+          // 書いている間に消されていたら、書いた分も消して捨てる（消したあとに前の子どもの組を残さない）
+          if (isDropped()) {
+            await removeEntry(childId).catch(() => undefined);
+            return dropped;
           }
           // 版が変わったときだけ知らせる（同じ版の入れ直しでは知らせない）
           if (deps.ackAdopted && cached?.snapshot.configVersion !== entry.snapshot.configVersion)
@@ -165,19 +193,16 @@ export function createConfigCache(deps: ConfigCacheDeps) {
     },
 
     // 手元の組を消す（連携の解除のとき）
+    // 取りに行っている途中の refresh(childId) の結果も捨てる
     async clear(childId: string): Promise<void> {
-      await deps.storage.removeItem(storageKeys.config(childId));
-      const ids = await readIndex();
-      if (ids.includes(childId))
-        await writeJson(
-          deps.storage,
-          storageKeys.configIndex,
-          ids.filter((id) => id !== childId),
-        );
+      clearedTimes.set(childId, (clearedTimes.get(childId) ?? 0) + 1);
+      await removeEntry(childId);
     },
 
     // この端末にある組を全部消す（ログアウトのとき。保護者の端末にある子どもの組も、子どもの端末の自分の組も）
+    // 取りに行っている途中の refresh の結果も捨てる
     async clearAll(): Promise<void> {
+      clearedAllTimes += 1;
       for (const id of await readIndex()) await deps.storage.removeItem(storageKeys.config(id));
       await deps.storage.removeItem(storageKeys.configIndex);
     },

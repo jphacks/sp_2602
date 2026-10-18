@@ -77,6 +77,7 @@ export function isUncertain(error: ApiError): boolean {
     error.code === "timeout" ||
     error.code === "internal" ||
     error.code === "upstream_failed" ||
+    error.code === "unavailable" ||
     error.code === "rate_limited"
   );
 }
@@ -85,7 +86,7 @@ export function isUncertain(error: ApiError): boolean {
 // なぜ: 前は原因にかかわらず「通信を確かめて、もう一度ためしてください。」と「もう一度つくる」を出していた。
 //   すでに家族と連携している子ども（409 conflict。親1↔子1・Q2）や保護者の端末（409）でも通信のせいに見え、
 //   「もう一度つくる」を押しても同じ失敗を繰り返すだけだった。
-//   通信・時間切れ・サーバの一時的な不具合 → 待ってもう一度（retry）。サーバがはっきり断った → サーバの hint を出し、
+//   通信・時間切れ・サーバの一時的な不具合・回数の上限 → 待ってもう一度（retry）。サーバがはっきり断った → サーバの hint を出し、
 //   ホームへ（役割を取り直して入口で振り分け直す。連携済みなら子どものホームへ進める）
 export type IssueFailedText = { body: string; next: "retry" | "home" };
 
@@ -95,9 +96,11 @@ export function issueFailedText(error: ApiError): IssueFailedText {
     case "timeout":
       return { body: "通信を確かめて、もう一度ためしてください。", next: "retry" };
     case "rate_limited":
-      return { body: "混み合っています。少し待ってから、もう一度ためしてください。", next: "retry" };
+      // 回数の上限（1人1分に5回）。待つ長さはサーバの hint（「1分ほど待ってから、もう一度 QR を出してください」）で知らせる
+      return { body: error.hint, next: "retry" };
     case "internal":
     case "upstream_failed":
+    case "unavailable":
       return { body: "うまく処理できませんでした。少し待ってから、もう一度ためしてください。", next: "retry" };
     default:
       return { body: error.hint, next: "home" };

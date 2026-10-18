@@ -1,7 +1,7 @@
 // tmp/animations/rnweb/whiteboard/components/Banner.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
 // 帯の案内（ホワイトボード）。props はアプリの Banner（src/components/Banner.tsx）と同じ。
 // 形（Figma 子03・子08・子01-C・子05-B・kids-design-round2.md 5 章）:
-//   - 地は塗らず、手で4辺を引いた枠。左にアイコン 24、右に文（BIZ UDPGothic 14）。補足（hint）があるときは文を太字に、補足は 12 の muted
+//   - 地は塗らず、手で4辺を引いた枠。左にアイコン 24、右に文（BIZ UDPゴシック 14）。補足（hint）があるときは文を太字に、補足は 12 の muted
 //   - 種類（info・warning・danger・success）は色で分けない（赤・黄を使わない）。違いはアイコンだけ（info＝info、warning＝warning・cloud_off、danger＝error）
 //   - action（「読み込み直す」などの文字だけのボタン）は文の下の右端に、少し小さい 14 の太字で
 //   - 上限に達した帯（icon="block"。子11・子01-D）だけは箱にしない: ボードに「一文として書いた」形で、文の下に緑マーカーの下線を引く
@@ -15,7 +15,8 @@ import { StyleSheet, View } from "react-native";
 import { keepTailTogether } from "@/components/text-wrap";
 import { Text } from "@/kids/lib/text";
 import { useColors } from "@/lib/theme";
-import { makeToolStyles, seedOf, useSize, useTool } from "../tools";
+import { fonts } from "../theme/tool";
+import { seedOf, useSize, useTool } from "../tools";
 import { AppText } from "./AppText";
 import { ButtonContext } from "./Button";
 import { Icon, type IconName } from "./Icon";
@@ -88,13 +89,13 @@ function ReachedBanner({
 }) {
   const c = useColors();
   const { Underline } = useTool();
-  const text = useReachedText();
+  const text = reachedTextStyles;
   const [{ w }, onLayout] = useSize();
   return (
     <View style={styles.reached} {...a11y}>
       <Icon name="block" color={c.text} />
       <View style={styles.text} onLayout={onLayout}>
-        {/* Figma 子11: BIZ UDPGothic Bold 15・行の高さ 23（AppText の大きさにない形なので Text で書く） */}
+        {/* Figma 子11: BIZ UDPゴシック Bold 15・行の高さ 23（AppText の大きさにない形なので Text で書く） */}
         <Text style={[text.reachedText, { color: c.text }]}>{keepTailTogether(message)}</Text>
         {w > 0 && (
           <View style={styles.reachedLine}>
@@ -136,8 +137,6 @@ const styles = StyleSheet.create({
   reachedLine: { marginTop: -1, marginLeft: -2 },
 });
 
-const useReachedText = makeToolStyles(({ fonts }) =>
-  StyleSheet.create({
-    reachedText: { fontFamily: fonts.body, fontWeight: "700", fontSize: 15, lineHeight: 23 },
-  }),
-);
+const reachedTextStyles = StyleSheet.create({
+  reachedText: { ...fonts.bold, fontSize: 15, lineHeight: 23 },
+});

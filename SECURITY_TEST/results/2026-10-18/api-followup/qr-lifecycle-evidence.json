@@ -1,0 +1,42 @@
+{
+  "executedAt": "2026-10-18T05:05:07.289Z",
+  "minSpacingMs": 1100,
+  "totalRequests": 17,
+  "rawSecretsSaved": false,
+  "steps": [
+    {
+      "case": "PII-09-cancel-invalidation",
+      "issueStatus": 200,
+      "cancelStatus": 200,
+      "cancelState": "expired",
+      "claimAfterCancelStatus": 409,
+      "claimAfterCancelErrorCode": "conflict"
+    },
+    {
+      "case": "PII-09-reissue-invalidation-waiting",
+      "issue2Status": 200,
+      "issue3Status": 200,
+      "pairIdsDistinct": true,
+      "codesDistinct": true,
+      "oldTicketStateAfterReissue": "expired",
+      "claimOldAfterReissueStatus": 409,
+      "claimOldAfterReissueErrorCode": "conflict"
+    },
+    {
+      "case": "PII-09-reissue-invalidation-claimed",
+      "claim3Status": 200,
+      "claim3State": "claimed",
+      "issue4Status": 200,
+      "confirmOldClaimed3Status": 409,
+      "confirmOldClaimed3ErrorCode": "conflict"
+    },
+    {
+      "case": "PII-09-signout-without-cancel-observation",
+      "signOutStatus": 200,
+      "statusWithRevokedToken": 401,
+      "claim4AfterChildSignOutStatus": 200,
+      "claim4AfterChildSignOutState": "claimed",
+      "confirm4WithRevokedChildTokenStatus": 401
+    }
+  ]
+}

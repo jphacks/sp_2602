@@ -1,0 +1,33 @@
+{
+  "probeUid": 10235,
+  "targetUid": 10234,
+  "databaseReadable": false,
+  "providers": [
+    {
+      "authority": "com.quedotcom.androidslope.FileSystemFileProvider",
+      "securityDenied": true
+    },
+    {
+      "authority": "com.quedotcom.androidslope.mlkitinitprovider",
+      "securityDenied": true
+    },
+    {
+      "authority": "com.quedotcom.androidslope.resources.AndroidContextProvider",
+      "securityDenied": true
+    },
+    {
+      "authority": "com.quedotcom.androidslope.androidx-startup",
+      "securityDenied": true
+    }
+  ],
+  "services": [
+    {
+      "component": "dev.hackathon.kit.kitnative.engine.MonitorService",
+      "securityDenied": true
+    },
+    {
+      "component": "dev.hackathon.kit.kitnative.engine.WebGuardService",
+      "securityDenied": true
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "time": "2026-10-18T03:50:30.448Z",
+  "shellUidCanReadAppDatabase": false,
+  "privateServiceRejected": true,
+  "privateProviderRejected": true,
+  "credentialValuesOrAppDataCopiedToReport": false,
+  "syntheticTokenLogLines": 0,
+  "fatalExceptionLogLines": 0,
+  "bearerCredentialLogLines": 0
+}

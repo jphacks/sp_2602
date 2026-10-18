@@ -149,7 +149,7 @@ const known = (s: ColorSchemeName): ColorSchemeName => (s === "red" || s === "bl
 // 当てた結果を覚えておく（同じ道具・同じ配色なら、いつも同じ値の組。useMemo の依存やスタイルの覚え場所が毎回変わらないように）
 const cache = new WeakMap<ToolValues, Map<ColorSchemeName, ToolValues>>();
 
-// 道具の値に配色を当てる。色の役目のうち表にあるものだけを替え、ほかの色・太さ・書体・時間はそのまま
+// 道具の値に配色を当てる。色の役目のうち表にあるものだけを替え、ほかの色・太さ・時間はそのまま（書体は道具の値に持たない。theme/tool.ts の fonts）
 export function withScheme(values: ToolValues, scheme: ColorSchemeName): ToolValues {
   const s = known(scheme);
   let byScheme = cache.get(values);

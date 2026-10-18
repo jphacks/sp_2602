@@ -3,9 +3,12 @@
 //   - 「ほかの端末からもログアウト」で、なくした端末の合言葉を止められる
 //   - 保護者が子どもを外すと、子どもの合言葉はすべて使えなくなり、保護者もその子どものデータを扱えなくなる
 //   - QR の番号を何度もまちがえると、しばらく断る（総当たりを防ぐ）
+//   - ログイン・QR を出すのを短い間に何度もくり返すと、しばらく断る（F-5）
 import { PairTicket } from "@contracts/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
+import app from "@/server/app";
 import { PAIR_CLAIM_MAX_FAILURES, PAIR_CLAIM_WINDOW_MS } from "@/server/auth";
+import { AUTH_IP_LIMIT, AUTH_SUBJECT_LIMIT, PAIR_START_LIMIT } from "@/server/rate-limit";
 import { clock, codeOf, fresh, get, newFamily, newPerson, ok, post } from "./helpers";
 
 beforeEach(async () => {
@@ -137,5 +140,95 @@ describe("V: QR の番号を送る回数の上限", () => {
     expect((await post("/api/pair/claim", { code: ticket.code }, parent.token)).status).toBe(200);
     // 成功の後は、また上限の回数までまちがえられる（1回目のまちがいで止まらない）
     expect((await post("/api/pair/claim", { code: wrongCode(99) }, parent.token)).status).toBe(404);
+  });
+});
+
+// セキュリティ検査 F-5（AVL-01）: ログインと QR を出す回数の上限
+const loginFrom = (idToken: string, ip: string) =>
+  app.request("/api/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+    headers: { "Content-Type": "application/json", "x-forwarded-for": `${ip}, 10.0.0.1` },
+  });
+
+describe("V: QR を出す回数の上限（F-5）", () => {
+  it(`1人 ${PAIR_START_LIMIT.max} 回までは出せて、次は 429 rate_limited。ほかの子どもは止まらない`, async () => {
+    const child = await newPerson("c-s1");
+    const other = await newPerson("c-s2");
+    for (let i = 0; i < PAIR_START_LIMIT.max; i++) await ok(post("/api/pair/start", {}, child.token));
+    const blocked = await post("/api/pair/start", {}, child.token);
+    expect(blocked.status).toBe(429);
+    expect(await codeOf(blocked)).toBe("rate_limited");
+    await ok(post("/api/pair/start", {}, other.token));
+  });
+
+  it(`同時に30本送っても、通るのは ${PAIR_START_LIMIT.max} 本まで。断った分は数えず、あとから上限まで出せる`, async () => {
+    // 前は「数える→足す」を別々に行っていたので、同時に送ると30本とも 200 になった
+    const child = await newPerson("c-s4");
+    const burst = await Promise.all(Array.from({ length: 30 }, () => post("/api/pair/start", {}, child.token)));
+    const statuses = burst.map((r) => r.status);
+    expect(
+      statuses.every((s) => s === 200 || s === 429),
+      statuses.join(","),
+    ).toBe(true);
+    const passed = statuses.filter((s) => s === 200).length;
+    expect(passed).toBeLessThanOrEqual(PAIR_START_LIMIT.max);
+    for (let i = passed; i < PAIR_START_LIMIT.max; i++) await ok(post("/api/pair/start", {}, child.token));
+    expect((await post("/api/pair/start", {}, child.token)).status).toBe(429);
+  });
+
+  it("時間がたてば、また出せる", async () => {
+    const child = await newPerson("c-s3");
+    for (let i = 0; i < PAIR_START_LIMIT.max; i++) await ok(post("/api/pair/start", {}, child.token));
+    expect((await post("/api/pair/start", {}, child.token)).status).toBe(429);
+    clock.addMs(PAIR_START_LIMIT.windowMs);
+    await ok(post("/api/pair/start", {}, child.token));
+  });
+});
+
+describe("V: ログインの回数の上限（F-5）", () => {
+  it(`同じ人は ${AUTH_SUBJECT_LIMIT.max} 回までログインでき、次は 429 rate_limited。時間がたてば、また入れる`, async () => {
+    for (let i = 0; i < AUTH_SUBJECT_LIMIT.max; i++)
+      await ok(post("/api/auth/google", { idToken: "mock-new-l1" }, null));
+    const blocked = await post("/api/auth/google", { idToken: "mock-new-l1" }, null);
+    expect(blocked.status).toBe(429);
+    expect(await codeOf(blocked)).toBe("rate_limited");
+    // ほかの人は止まらない
+    await ok(post("/api/auth/google", { idToken: "mock-new-l2" }, null));
+    clock.addMs(AUTH_SUBJECT_LIMIT.windowMs);
+    await ok(post("/api/auth/google", { idToken: "mock-new-l1" }, null));
+  });
+
+  it(`同じ IP からは ${AUTH_IP_LIMIT.max} 回まで（人が違っても数える）。ほかの IP は止まらない。時間がたてば、また入れる`, async () => {
+    for (let i = 0; i < AUTH_IP_LIMIT.max; i++) await ok(loginFrom(`mock-new-ip${i}`, "203.0.113.5"));
+    const blocked = await loginFrom("mock-new-ip-x", "203.0.113.5");
+    expect(blocked.status).toBe(429);
+    expect(await codeOf(blocked)).toBe("rate_limited");
+    await ok(loginFrom("mock-new-ip-y", "198.51.100.7"));
+    clock.addMs(AUTH_IP_LIMIT.windowMs);
+    await ok(loginFrom("mock-new-ip-x", "203.0.113.5"));
+  });
+
+  it(`同じ IP・同じ人から同時に送っても、通るのは上限まで（IP ${AUTH_IP_LIMIT.max} 回・人 ${AUTH_SUBJECT_LIMIT.max} 回）`, async () => {
+    const byIp = await Promise.all(
+      Array.from({ length: AUTH_IP_LIMIT.max * 2 }, (_, i) => loginFrom(`mock-new-burst-ip${i}`, "203.0.113.20")),
+    );
+    expect(byIp.filter((r) => r.status === 200).length).toBeLessThanOrEqual(AUTH_IP_LIMIT.max);
+    // 人ごと: IP は毎回変えて、人の上限だけにかける。先に1回ログインして、同時に作られた人が重ならないようにする
+    await ok(post("/api/auth/google", { idToken: "mock-new-burst-subject" }, null));
+    const bySubject = await Promise.all(
+      Array.from({ length: AUTH_SUBJECT_LIMIT.max * 3 }, (_, i) =>
+        loginFrom("mock-new-burst-subject", `198.51.100.${i + 1}`),
+      ),
+    );
+    for (const res of [...byIp, ...bySubject]) expect([200, 429]).toContain(res.status);
+    expect(bySubject.filter((r) => r.status === 200).length).toBeLessThanOrEqual(AUTH_SUBJECT_LIMIT.max - 1);
+  });
+
+  it("IP の上限は Google の確認より先に数える（通らない idToken でも数え、上限をこえたら 429）", async () => {
+    // 通らない理由（401・Google の設定がない）はこのテストでは問わない
+    for (let i = 0; i < AUTH_IP_LIMIT.max; i++)
+      expect((await loginFrom("not-a-google-token", "203.0.113.9")).status).not.toBe(429);
+    expect((await loginFrom("not-a-google-token", "203.0.113.9")).status).toBe(429);
   });
 });

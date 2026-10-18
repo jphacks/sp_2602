@@ -10,11 +10,11 @@
 
 | 型 | 形 | 決まり |
 |---|---|---|
-| `IsoDate` | `"2026-10-17"` | 実在する日付だけ。日本時間の「その日」 |
+| `IsoDate` | `"2026-10-17"` | 実在する日付で、**2000-01-01〜2099-12-31** だけ（範囲の外は `bad_request`。D-128）。日本時間の「その日」 |
 | `IsoDateTime` | `"2026-10-17T10:00:00.000Z"`・`"2026-10-17T19:00:00+09:00"` | タイムゾーンつきの本当の日時だけ（`z.iso.datetime({ offset: true })`）。タイムゾーンのない日時は端末の地域で意味が変わるので受け付けない |
 | `Minutes` | 整数 | 0〜1440。**0 分は有効な上限**（その日は使えない） |
 | `ConfigVersion` | 整数 | 0 以上。設定の版 |
-| `PackageName` | `"com.google.android.youtube"` | Android のアプリの識別子（1〜255 文字） |
+| `PackageName` | `"com.google.android.youtube"` | Android のアプリの識別子（1〜255 文字）。Android のパッケージ名の形（英数字と `_` を `.` でつなぐ。`/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/`）だけ。空白・改行・NUL・ほかの記号は `bad_request`（D-129） |
 | `ChildQuery` | `{ childId }` | 「どの子どもの話か」。サーバが必ず扱えるか確かめる |
 | `ChildAppliedVersion` | 版 または `null` | 子どもの端末が使っている版。まだ一度も取りに来ていなければ `null` |
 
@@ -286,12 +286,13 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 |---|---|---|---|
 | `slope_engine` / `restriction` | JSON。`saveRestriction` で受け取った判定の値（`date`・`limit`・`upcoming`・`excludedPackages`・`essentialPackages`・`learningPackages`・`blockedSites`・`configVersion`・`savedAt`）。`blockedSites` は Kotlin がもう一度そろえ、そろわないものは捨てる | `saveRestriction` | 監視・`getEngineStatus`・再起動後・Web サイトの制限（`WebGuardService`。D-111） |
 | `slope_engine` / `today_usage` | JSON。今日のまとめ `{date, status, restrictedMinutes, limit, usedPercent, reached, measuredAt}`。`usedPercent` は C3 と同じ規則、出せない状態は `null` | 監視（30 秒ごと）・`getDailyUsage`（今日の分） | ウィジェット（`EngineStore.loadToday`）・Web サイトの制限（`reached` が今日の分で true のときだけ止める。D-111） |
-| `slope_engine` / `engine_enabled` | Boolean。監視を続けるか | `startEngine`・`stopEngine`・`clearLocalData` | 再起動後・監視 |
-| `slope_engine` / `report_url`・`report_token`・`report_child_id` | 許可の状態の送り先（`deviceStatusReport` の完全な URL）・合言葉（子どもの session token）・送る本文の `childId`（D-113） | `setStatusReporter`（子どもとしてログイン・起動したとき） | 監視の許可の見張り（`StatusReporter`）。`clearStatusReporter`・401・`clearLocalData` で消す |
+| `slope_engine` / `engine_enabled` | Boolean。監視を続けるか | `startEngine`・`stopEngine`・`clearLocalData` | 再起動後・監視・`isEngineEnabled`（監視が動いている端末ではログアウトで監視を止めない。D-136） |
+| `slope_engine` / `report_url`・`report_token_sealed`・`report_child_id` | 許可の状態の送り先（`deviceStatusReport` の完全な URL）・合言葉（子どもの session token）を Android Keystore の鍵で封をしたもの（`SecretBox`。`"sb1:…"`。平文では置かない。セキュリティ検査 F-1）・送る本文の `childId`（D-113） | `setStatusReporter`（子どもとしてログイン・起動したとき） | 監視の許可の見張り（`StatusReporter`）と合言葉の確かめ（`SessionCheck`。D-134）。開けた合言葉はプロセスのメモリにだけ持ち、Keystore で開けるのは起動後の最初の1回と封が変わったときだけ（`OpenedSecretCache`）。`clearStatusReporter`・401・`clearLocalData` で消す |
+| `slope_engine` / `report_token` | 古い版が平文で置いた合言葉 | 新しくは書かない | 読んだときに封をし直して `report_token_sealed` へ移し、消す（古い版から移すときだけ） |
 | `slope_engine` / `report_sent`・`report_sent_at`・`report_retry_at` | 最後に届いた許可の状態（`"1101"` の形）と時刻・失敗したあと次に送ってよい時刻 | `StatusReporter` | `StatusReporter`（送るかどうか。`StatusReportRules.shouldSend`） |
 | `slope.widget`（K-B） | テストの日程 | `saveRestriction` の `testPeriods` → `WidgetStore.saveTests` | ウィジェット |
 
-`today_usage` が変わったら、自分のアプリにだけ放送 `dev.hackathon.kit.kitnative.TODAY_UPDATED` を送る（ウィジェットが描き直す）。ログアウト（`clearLocalData`）で全部消す。
+`today_usage` が変わったら、自分のアプリにだけ放送 `dev.hackathon.kit.kitnative.TODAY_UPDATED` を送る（ウィジェットが描き直す）。`clearLocalData`（監視が動いていない端末のログアウト・連携が外れたとき）で全部消す。監視が動いている端末のログアウトでは消さず、保護者のウィジェットの値だけを消す（`clearParentLocalData`。D-136）。
 
 ## 6. `backend/` の DB の表との対応
 
@@ -299,7 +300,7 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 
 | データ | DBの表 | 備考 |
 |---|---|---|
-| ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull。合言葉は SHA-256 の hash でだけ保存し（`src/server/auth/digest.ts`）、最後に使ってから30日で無効（使うたびに延長。D-1）。ログアウトで失効（`otherDevices: true` なら同じ人のほかの合言葉も）。子どもを外すと、その子どもの合言葉はすべて失効 |
+| ユーザー・Google identity・セッション | `users`, `auth_identities`, `user_sessions` | roleは連携前にnull。合言葉は SHA-256 の hash でだけ保存し（`src/server/auth/digest.ts`）、最後に使ってから30日で無効（使うたびに延長。D-1）。ログアウトで失効（`otherDevices: true` なら同じ人のほかの合言葉も）。子どもを外すと、その子どもの合言葉はすべて失効。失効させるときは `user_sessions.revoked_reason`（varchar 40・NULL 可。migration `0018_session_revoked_reason.sql`）に理由を残す: `sign_out`（その端末のログアウト）・`sign_out_others`（ほかの端末からのログアウト）・`family_unlink`（子どもを外した）。NULL は失効していない行か、0018 より前に失効させた行。`family_unlink` の合言葉で呼ばれたときだけ 401 に `reason` を付ける（D-133）。デモの人の固定の合言葉は、ログインし直すと `revoked_at`・`revoked_reason` とも NULL に戻る |
 | 親子関係・QR | `family_links`, `pair_tickets`, `pair_claim_failures` | 親1人↔子1人（Q2）。QRは10分・1回だけ・出し直しで前を無効（Q10）。QRコードそのものではなくhashを保存。番号のまちがい（`pairClaim` の not_found・conflict）を人ごとに `pair_claim_failures` に数え、10分に10回で `rate_limited`。成功したら消す（Vercel のインスタンスはメモリを共有しないので表に数える） |
 | DB の epoch（C7） | `server_meta` | 1行だけ（`id` は必ず 1）。`epoch` は uuid で、最初に読んだときに作る（`backend/src/db/server-epoch.ts` の `readServerEpoch`。migration `0012_server_meta_epoch.sql`）。DB を作り直す・PGlite と Neon を切り替えると別の値、再起動では同じ値。`configGet` の応答に入れる（D-109）。手で書き換えない（書き換えると全部の端末が設定を取り直す） |
 | 設定版・反映版 | `child_config_versions`, `child_applied_versions` | 全体 `version` とC10入力専用 `c10_input_version` を別管理。`version` は 0 から（0 = まだ一度も保存していない。0 以上の決まりつき）。一覧が最後に変わった版 `test_periods_changed_version`・`blank_periods_changed_version` が API の `periodsChangedVersion`・`blankChangedVersion` になる |
@@ -309,6 +310,8 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 | 制限する Web サイト（D-111） | `blocked_sites`, `blocked_site_states` | `blocked_sites` は子どもと登録（`pattern`。そろえた形・200 文字まで）の組に1行、`since_version`（足した版）。外した登録は行を消す。`blocked_site_states` は子ども1人に1行で `sites_changed_version`（一覧が最後に変わった版。行がない = 0）。保存は版の確かめ・版を 1 上げる・入れ替えを1回のトランザクションで（`backend/src/db/blocked-sites.ts`。migration `0014_blocked_sites.sql`）。C7 の組を読むトランザクションでも一緒に読む |
 | Q15（子どもの端末のアプリ一覧とアイコン） | `child_app_lists`, `child_app_list_items`, `child_app_icons` | `child_app_lists` は子ども1人に1行の「届いた」印（`received_at`。行がない = まだ届いていない）。`child_app_list_items` は packageName・表示名（全件の置き換え）。`child_app_icons` はアイコンの PNG（base64・20KB まで）と `icon_hash`（中身の SHA-256。サーバが計算し直して確かめた値）。一覧から消えたアプリのアイコンは一覧の置き換えのときに消す。下の2つは `child_app_lists` を消すと一緒に消える。設定の版とは別（migration `0013_child_app_lists.sql`。D-110） |
 | 許可の見張り（D-113） | `device_statuses` | 子ども1人に1行（行がない = まだ一度も届いていない）。許可ごとのオン/オフ（`usage_access`・`overlay`・`notifications`・`accessibility`）と、オフになった時刻（`*_off_since`。最初にオフと届いた報告の測った時刻）・`measured_at`（今の状態を測った時刻。これより古い報告では状態を変えない）・`last_seen_at`（最後に届いた時刻・サーバの時計）。連携を外すと消す（`unlinkChild`）。設定の版とは別（`backend/src/db/device-status.ts`。migration `0015_device_statuses.sql`） |
+| 監査の記録（D-138・F-7） | `audit_events` | 壊す操作を1回1行。`action`（今は `family_unlink` だけ）・`actor_user_id`（した人。保護者）・`child_id`（どの子ども）・`created_at`（サーバの時計）。`unlinkChild` と同じトランザクションで書く（`backend/src/db/family-unlink.ts` の `recordFamilyUnlink`）。消したデータの中身は残さない。書き足すだけで、書き換え・削除はしない（migration `0016_family_unlink_audit.sql`） |
+| 呼び出し回数の上限（D-131・F-5） | `rate_limit_hits` | 上限を数える API を呼ぶたびに1行。`bucket`（`auth-ip`・`auth-subject`・`pair-start`）・`key_hash`（IP・ログインの subject・利用者 id の SHA-256。IP をそのまま残さない）・`hit_at`（サーバの時計）。窓（1分）を過ぎた行は、次にその bucket を数えるときに消す。断った呼び出しは数えない（`src/server/rate-limit.ts` の `countCall`。migration `0017_rate_limit_hits.sql`） |
 | C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない。子ども・日ごとに一番新しい測定だけを残す（採用した日は前の日報と明細を消して入れ替え、採用しなかった日は保存しない。送信 ID の記録 `usage_sync_batches` は送り直しを見分けるために残す。D-127）。受け付ける日付は今日（日本時間）の190日前〜明日（`src/server/handlers/usageUpload.ts`）。サーバの時計より先の測定時刻はサーバの時計で保存する（送り直しを見分ける指紋は送られたままの中身で作る。`backend/src/db/usage-persistence.ts`） |
 
 日別上限が複数計算版に残る場合、C6は現行 `c10_input_version` に一致する最新計算版だけを参照します。一致する計算版がなければ上限は未計算として扱います。

@@ -32,8 +32,7 @@ export type ToolValues = {
   frame: { radius: number; wobble: number };
   // 使った割合のバーの置き場所（Figma の ProgressTrack の左右の空き）と、少しでも使ったときの最低の長さ
   usedBar: { insetLeft: number; insetRight: number; minLength: number };
-  // 書体（見出し・本文・大きな数字）。headingWeight は見出しの太さ（Yusei Magic は太字がないので "400"・Klee One は SemiBold "600"。省くと "400"）
-  fonts: { heading: string; body: string; number: string; headingWeight?: "400" | "600" };
+  // 書体は道具ごとに持たない（どの道具でも同じ。下の fonts）
   // 動きの時間（ミリ秒）。役目の名前: field（入力欄の線が太くなる・エラーの文）・select（テーマの選択）。そのほかは描き方の中で使う
   timing: { field: number; select: number } & Record<string, number>;
   // 週の棒の場所の高さ（省くと tokens: 子02 の小さいグラフ 90・ほか 140）。ノートは鉛筆を立てるので高い（Figma ノートの子02 は約 118）
@@ -90,14 +89,16 @@ export const handBox = {
   wobble: 0.6,
 } as const;
 
-// 書体の名前（アプリでは expo-font で読み込む。確認ページは Google Fonts）
-//   見出し＝Yusei Magic（太字がない。fontWeight は "400" にする。太字を指定すると合成されて字がつぶれる）
-//   本文・日付・ボタン・タブ＝BIZ UDPGothic（400 / 700）
-//   大きな数字・Slope＝Londrina Solid（900）
+// 書体（どの道具・テーマでも同じ。D-135）。スタイルに広げて使う: { ...fonts.bold, fontSize: 18, lineHeight: 26 }
+//   子どもの画面の文字は、見出し・本文・ボタン・数字・タブ・入力欄・グラフの目盛りまで全部 BIZ UDPゴシック（BIZ UDPGothic）。
+//   教科書・学校の配布物向けの UD（ユニバーサルデザイン）書体で、子どもが読み間違えにくい。漢字・かな・英数字を1つの書体で持つ。
+//   強弱は書体を変えずに、太さ（body＝Regular 400・bold＝Bold 700）・大きさ・色で付ける。手書きの雰囲気は線・色・模様（マーカー・チョーク・鉛筆）で出す。
+//   logo は上のバーのアプリ名「Slope」だけ（アプリのアイコンと同じ字形のロゴ。字ではなく図として扱う。Londrina Solid 900）。ほかの文字に使わない。
+// アプリでは expo-font で読み込み（src/kids/font-files.ts）、描く直前に太さごとのファイルの名前に直す（src/kids/fonts.ts）。確認ページは Google Fonts
 export const fonts = {
-  heading: "Yusei Magic",
-  body: "BIZ UDPGothic",
-  number: "Londrina Solid",
+  body: { fontFamily: "BIZ UDPGothic", fontWeight: "400" },
+  bold: { fontFamily: "BIZ UDPGothic", fontWeight: "700" },
+  logo: { fontFamily: "Londrina Solid", fontWeight: "900" },
 } as const;
 
 // 動きの時間（ミリ秒）。確認ページ（themes/parts.tsx・ThemedHome.tsx）と指示書 3 章の値
@@ -130,7 +131,6 @@ export const markerTool: ToolValues = {
   stroke: { ...stroke, frame: stroke.box, frameStrong: stroke.boxFocus },
   frame: { radius: handBox.radius, wobble: handBox.wobble },
   usedBar: { insetLeft: 5, insetRight: 11, minLength: 13 }, // Figma 子01: カードの中の幅 272 のうち左 5・右 11 を空けた 256
-  fonts,
   timing: { ...timing, select: timing.highlight },
 };
 

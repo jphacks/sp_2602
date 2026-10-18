@@ -1,33 +1,38 @@
 // ログイン状態（C1）を画面全体で共有する Context。src/app/_layout.tsx が SessionProvider で包む。
-//   - ログインしたら、合言葉と本人（Session）を端末に保存し、api.ts に合言葉を覚えさせる
+//   - ログインしたら、合言葉と本人（Session）を端末に保存し（Keystore の鍵で封をして。session-store.ts）、api.ts に合言葉を覚えさせる
 //   - 起動時は保存した合言葉で authMe を呼び、サーバで確かめる（役割が変わっていれば新しい役割になる）
 //       401（合言葉が無効）→ 保存を消してログアウト状態
+//       401 で、保護者が連携を外した（reason: family_unlink）→ さらに端末の制限を止め、送信待ち・設定を消し、
+//         ログイン画面に「保護者との連携が外れました」を出す（session-core.ts の expire。D-133）。
+//         ただし API の送り先が https か開発中（__DEV__）のときだけ。http の release 版では理由のない 401 と同じ（canTrustUnlink）
 //       通信できない → 保存してある Session で続ける（offline: true。子どもの端末が電波なしでも使えるように）
-//   - ログアウトは、まず合言葉をサーバでも無効にし（authSignOut。通信できなくても進める）、保存を消し、Google のログインも外す。
+//   - 確かめ直す（refresh）ときは、この起動の間に使っている Session（メモリ）を先に使う。封ができず端末に置けなかったときも
+//     ログイン画面へ戻されないように（session-core.ts）
+//   - ログアウトは（保護者と役割が決まる前の人だけ。子どもはできない。D-136）、まず合言葉をサーバでも無効にし（authSignOut。通信できなくても進める）、保存を消し、Google のログインも外す。
 //     設定のキャッシュとその人の送信待ちも消す（sign-out.ts。別の人で入り直したときに、前の人の設定やデータが混ざらないように）。
-//     401 で自動でログアウトした（合言葉がもう無効）ときは、サーバには頼まない
+//     401 で自動でログアウトした（合言葉がもう無効）ときは、サーバには頼まない。
+//     この端末で監視が動いている（子どもの端末）ときは、ログアウトしても監視を止めない（clearDeviceOnSignOut。D-136）
 // 画面では: const { state, signIn, signOut, refresh } = useSession();
 //   state.status: "checking"（確かめ中）/ "signedOut"（ログインしていない）/ "signedIn"（session あり）
 import type { ApiError } from "@contracts/errors";
-import { Session } from "@contracts/schemas";
+import type { Session } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
+import { canSignOut, clearDeviceOnSignOut, createSessionCore, type SessionState } from "./session-core";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
 import { applyStatusReporter, statusReporterAction } from "./status-reporter";
-import { appStorage, clearSessionData, readJson, storageKeys, writeJson } from "./storage";
+import { appStorage, clearSessionData } from "./storage";
+import { trustUnlinkForApp } from "./trust-unlink";
 
-export type SessionState =
-  | { status: "checking" }
-  | { status: "signedOut"; error: ApiError | null } // error はログインに失敗したとき（子09 のダイアログ）
-  | { status: "signedIn"; session: Session; offline: boolean }; // offline = サーバで確かめられていない（通信できない）
+export type { SessionState } from "./session-core";
 
 type SessionContextValue = {
   state: SessionState;
   // idToken（Google または MOCK）でログインする。成功すれば signedIn になる。失敗は state.error と戻り値で分かる
   signIn: (idToken: string) => Promise<ApiError | null>;
-  // ログアウト（端末の合言葉を消す）
+  // ログアウト（端末の合言葉を消す）。子ども（役割 child）では何もしない（D-136。canSignOut）
   signOut: () => Promise<void>;
   // サーバに本人と役割を確かめ直す（QR の紐づけが終わった後に呼ぶと、role が parent / child になる）
   refresh: () => Promise<void>;
@@ -44,52 +49,47 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // 「ログインの期限が切れました」を出さないため（自分でログアウトしているので）
   const signingOut = useRef(false);
 
-  const forget = useCallback(async (error: ApiError | null) => {
-    setSessionToken(null);
-    await clearSessionData().catch(() => undefined);
-    setState({ status: "signedOut", error });
-  }, []);
-
-  const adopt = useCallback(async (session: Session) => {
-    setSessionToken(session.token);
-    await writeJson(appStorage, storageKeys.session, session).catch(() => undefined);
-    setState({ status: "signedIn", session, offline: false });
-  }, []);
-
-  // 保存してある合言葉で、サーバに確かめる
-  const verify = useCallback(async () => {
-    const saved = await readJson(appStorage, storageKeys.session, Session);
-    if (!saved) {
-      setState({ status: "signedOut", error: null });
-      return;
-    }
-    setSessionToken(saved.token);
-    try {
-      await adopt(await call("authMe"));
-    } catch (e) {
-      // 401 なら（本文の code が読めなくても）保存を消してログイン画面へ。通信できないときだけ保存した Session で続ける
-      if (isUnauthorized(e)) await forget(null);
-      else setState({ status: "signedIn", session: saved, offline: true });
-    }
-  }, [adopt, forget]);
+  // 分かれ道（adopt・forget・verify）は session-core.ts。Provider ごとに1つだけ作る
+  const [core] = useState(() =>
+    createSessionCore({
+      storage: appStorage,
+      box: native,
+      setToken: setSessionToken,
+      authMe: () => call("authMe"),
+      isUnauthorized,
+      errorOf,
+      // 連携が外れた（D-133）: ログアウトと同じく、Kotlin の監視を止めて Kotlin が端末に残した値を消し、
+      // その子どもの送信待ち・設定のキャッシュ・送ったアプリの一覧を消す（Google のログインは外さない。サーバにも頼まない）。
+      // デモ用の Device Owner（アンインストールの止め）もやめる。外されたときだけ（ログアウト・期限切れではやめない）。
+      // やめられなくても（Device Owner でない・Kotlin が古い）ほかの片付けは続ける（native.ts が例外を false にする）
+      clearUnlinked: async (userId) => {
+        native.clearLocalData();
+        native.releaseDeviceOwner();
+        await clearLocalDataFor(userId);
+      },
+      // family_unlink を信じるのは、API の送り先が https か、開発中（__DEV__）のときだけ（偽の 401 で制限と Device Owner を
+      // 止められないように。session-core.ts の canTrustUnlink）。信じられなければ理由のない 401 と同じにする
+      trustUnlink: trustUnlinkForApp,
+      clearSaved: () => clearSessionData(),
+      setState,
+    }),
+  );
+  const { adopt, forget, verify, expire } = core;
 
   useEffect(() => {
-    // 使っている途中で合言葉が無効になったら（401）、ログアウト状態にする
-    setUnauthorizedHandler(() => {
+    // 使っている途中で合言葉が無効になったら（401）、ログアウト状態にする（連携が外れたときは片付けもする）
+    setUnauthorizedHandler((error) => {
       if (signingOut.current) return;
-      void forget({
-        code: "unauthorized",
-        message: "ログインの期限が切れました",
-        hint: "もう一度ログインしてください",
-      });
+      void expire(error);
     });
     void verify();
     return () => setUnauthorizedHandler(null);
-  }, [verify, forget]);
+  }, [verify, expire]);
 
-  // D-113: Kotlin の監視に、許可の状態の送り先と合言葉を渡す（子どもだけ）・消す（ログアウト・401・保護者）
+  // D-113: Kotlin の監視に、許可の状態の送り先と合言葉を渡す（子どもだけ）・消す（ログアウト・401・保護者）。
+  // 監視が動いている端末では消さない（Kotlin が自分の合言葉で確かめ続け、外されたら family_unlink で止まる。status-reporter.ts）
   useEffect(() => {
-    applyStatusReporter(statusReporterAction(state, apiUrl("deviceStatusReport")), native);
+    applyStatusReporter(statusReporterAction(state, apiUrl("deviceStatusReport"), native.isEngineEnabled()), native);
   }, [state]);
 
   const signIn = useCallback(
@@ -108,16 +108,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const who = current.current;
+    // 子どもは自分でログアウトできない（D-136。ログアウトすると制限が止まるため。画面にも出していない）。
+    // 抜けるのは保護者が連携を外したとき（expire の family_unlink）だけ
+    if (!canSignOut(who)) return;
     signingOut.current = true;
     try {
       // 端末の合言葉・データを消す前に、サーバでも合言葉を無効にする（失敗は黙って無視して進める。sign-out.ts）
       if (who) await revokeServerSession();
       await signOutGoogle();
       if (who) await clearLocalDataFor(who.userId).catch(() => undefined);
-      // C4・C5: 子どもの端末の監視（Kotlin の Foreground Service）を止め、Kotlin が端末に残した値（判定の値・今日の使用量・
-      // ウィジェットのテストの日程）を消してウィジェットを描き直す。再起動しても始めない（保護者の端末では消すものがないだけ）。
+      // C4・C5: Kotlin が端末に残した値を消してウィジェットを描き直す。
+      // 監視が動いている端末（子どもの端末で、役割のない人・保護者としてログインし直した）では、監視を止めず、
+      // 保護者のウィジェットの値だけを消す（監視が止まるのは連携が外れたときだけ。D-136。session-core.ts の clearDeviceOnSignOut）。
       // sign-out.ts の clearLocalDataFor から呼ばないのは、あちらを Node のテストで expo を読まずに動かすため
-      native.clearLocalData();
+      clearDeviceOnSignOut(native);
       await forget(null);
     } finally {
       signingOut.current = false;

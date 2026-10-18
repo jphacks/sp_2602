@@ -8,6 +8,8 @@
 
 ## 1. 後で決める質問（Q16〜Q23）
 
+Q20（子どもの端末のログアウト）は決まったので消しました（子どもは自分でログアウトできない。[decisions.md](decisions.md) の D-136）。
+
 ### Q16. C10 の計算の細かい決まり
 
 C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOptions`（計算の引数）で切り替えられるように作ってあります。既定値を変えるか、`backend/src/db/c10-recalculate.ts` の `recalculateC10InTransaction` から `computeDailyLimits` に引数を渡すと、計算全体が変わります（今は引数を渡さず既定値で計算している）。
@@ -40,11 +42,6 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 
 - 今の仮の動き: 「計画の初日の上限」と「今日の上限」を比べる（上限の減り）。Figma 親03 の数字（40 分・13%）がこの読み方で合うため。作る前の質問の一覧のおすすめ（先週と今週の**使った時間**を比べる）とは違う。
 - 変える場所: `src/components/parent/review.ts` の `limitReduction`（この関数だけを差し替える）と、表示の `src/app/parent/review.tsx` の `ReductionCard`。
-
-### Q20. 子どもの端末のログアウト
-
-- 今の仮の動き: 子07 にログアウトがある（確認のダイアログつき。`src/components/LogoutListItem.tsx`）。ログアウトで、まず合言葉をサーバでも無効にし（`authSignOut`。D-90）、合言葉・設定のキャッシュ全部・その子どもの送信待ちを消す（`src/lib/sign-out.ts`）。**まだ送っていない利用記録は、ログアウトすると失われる**。監視（Kotlin）はまだないので、ログアウトで監視が止まるかは決めていない。
-- 変える場所: 子どもの画面から外すなら `src/app/child/settings.tsx`。ログアウトで消すものは `src/lib/sign-out.ts` の `clearLocalDataFor`（合言葉は `src/lib/storage.ts` の `clearSessionData`）。
 
 ### Q21. 安全上の「必須例外」アプリの一覧（C3・C4）
 
@@ -79,7 +76,6 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 | `src/server/plan/daily-limits.ts` の `DailyLimitOptions`・`selectPeriods`・`buildRawLimit`・`computeDailyLimits` | C10 の細かい決まり | → Q16 | → Q16 |
 | `src/server/plan/daily-limits.ts` の `LIMIT_HORIZON_DAYS` | 日別上限を何日先まで作るか | 保存した日から 120 日（残り 60 日で作り足す） | → Q16-7 |
 | `src/server/services/plan-settings.ts` の `savePlanForCaller`・`src/components/parent/plan-form.ts` の `planFormFromView` | 始まった計画の S・G だけを変えたいとき | 開始日は今日以降でないと保存できないので、親02 は開始日の初期値を今日にする（＝今日から計画を作り直すことになる） | `savePlanForCaller` の開始日の確認と `planFormFromView` |
-| `src/server/auth.ts` の `unlinkChild` | 外した子どもの設定・利用記録を消すか | 残す（同じ保護者と紐づけ直したときに続きから使えるように）。別の保護者と紐づけ直すと、その保護者に前の利用記録・端末のアプリ一覧とアイコン（Q15）が見える。端末の許可の状態（`device_statuses`。D-113）だけは消す | 消すなら `unlinkChild` のトランザクションで、設定・期間・日別上限・対象外アプリ・利用記録・アプリ一覧（`child_app_lists`。中身とアイコンは一緒に消える）の表からもその子どもの行を消す |
 | `contracts/schemas.ts` の `periodFields` | 期間の終了日を含むか | 含む | → Q16-11 |
 
 ### 端末の仕組み（`src/lib/`）
@@ -137,11 +133,11 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 
 ### Neon に migration を入れる
 
-- コードを Vercel に出す前に、プレビューと本番の DB に `backend/drizzle/0011_auth_rules_and_list_versions.sql` を入れる（それぞれの `DATABASE_URL` で `npm run db:migrate`。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。入れないと、QR の読み取り・期間の一覧・設定の保存が失敗します。
+- **コードを Vercel に出す前に、プレビューと本番の両方の DB に `backend/drizzle/0016_family_unlink_audit.sql`・`0017_rate_limit_hits.sql`・`0018_session_revoked_reason.sql` を入れる**（それぞれの `DATABASE_URL` で `npm run db:migrate`。まだ入っていない `0011_auth_rules_and_list_versions.sql` などの前のものも一緒に入る。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。**入れずに出すと、`authGoogle`・`pairStart` が表 `rate_limit_hits` が無くて 500 になり、ログインできなくなります**（`familyUnlink` も `audit_events` が無くて 500。0018 が無いと、列 `revoked_reason` が無くて、ログイン・ログアウト・子どもを外す・通らない合言葉での呼び出しすべて（知らない・期限が切れた・無効にした合言葉、`authCheck` も）が 500）。0011 を入れていなければ、QR の読み取り・期間の一覧・設定の保存も失敗します。
+- 出す前に、範囲の外の古いデータ（2000〜2099 年の外の日付・Android の形でないアプリ名）が残っていないかを SQL で確かめる（[development.md の「出す前に確かめる SQL」](development.md#出す前に確かめる-sql範囲の外の古いデータ)）。残っていると、それを返す API が出力の契約チェックで 500 になります（D-128・D-129）。
+- この版を入れたら dev client を作り直す（Kotlin が変わったため: 合言葉の封 `SecretBox`（`sealSecret`・`openSecret`）と `EngineStore` の封をした合言葉・開けた合言葉をメモリに持つ `OpenedSecretCache`、連携が外れたときに監視を止める `StatusReporter`・`LocalData`、約1分ごとの合言葉の確かめ `SessionCheck`（D-134）、外されたときに Device Owner をやめる `releaseDeviceOwner`、監視が動いている端末でログアウトしても監視を止めない `isEngineEnabled`・`clearParentLocalData`（D-136）、D9 の検証の `UsageWindowCalculator`・`ForegroundTime`・`UsageReader`、電源断の番号 `DEVICE_SHUTDOWN` = 26。[development.md](development.md#この版を入れたら-dev-client-を作り直す)）。
 
-### 外した子どものデータ
-
-- `familyUnlink` で外した子どもの設定・利用記録は残しています（D-101。上の 2章の「サーバ」の表）。消すか残すかを決めます。
+外した子どものデータ（消す。D-138）と、子どもを外す画面（親04 設定の「子どもとの連携を外す」。D-133）は決まったので、この章から消しました。
 
 ## 5. デバッグで残った、判断が要るもの（2026-10-17）
 

@@ -12,7 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { tabBarHeight } from "@/components/tab-bar-size";
 import { Text } from "@/kids/lib/text";
 import { makeStyles, useColors } from "@/lib/theme";
-import { makeToolStyles, useTool } from "../tools";
+import { fonts } from "../theme/tool";
+import { useTool } from "../tools";
 import { Icon, type IconName } from "./Icon";
 
 export function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
@@ -23,7 +24,7 @@ export function TabIcon({ name, focused }: { name: IconName; focused: boolean })
 // タブの文字と、選んでいるタブの下線
 function TabLabel({ focused, children }: { focused: boolean; children: string }) {
   const styles = useStyles();
-  const font = useLabelFont();
+  const font = labelFont;
   const { Underline } = useTool();
   return (
     <View style={styles.labelBox}>
@@ -86,5 +87,5 @@ export function useTabBarOptions() {
   } as const;
 }
 
-// タブの文字の書体（今の道具の本文の書体）
-const useLabelFont = makeToolStyles(({ fonts }) => StyleSheet.create({ label: { fontFamily: fonts.body } }));
+// タブの文字の書体（太さは選んでいるかどうかで labelActive・labelIdle が決める）
+const labelFont = StyleSheet.create({ label: { fontFamily: fonts.body.fontFamily } });

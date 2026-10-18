@@ -1,0 +1,9 @@
+{
+  "normalRebootRequested": true,
+  "bootCompletedObserved": false,
+  "observedWaitSeconds": 31.1,
+  "subsequentBootCompletedObserved": true,
+  "subsequentObservationUtc": "2026-10-18T04:34:49.988381+00:00",
+  "timezoneAfterReboot": "GMT",
+  "adbReverseRestored": true
+}

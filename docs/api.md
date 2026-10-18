@@ -40,7 +40,7 @@ flowchart TD
   B -- "合言葉がない・無効・30日使っていない" --> E1["401 unauthorized"]
   B -- "役割が違う" --> E2["403 forbidden"]
   B -- "OK" --> C{"2. 入力を契約の Zod で検査"}
-  C -- "合わない・壊れた JSON" --> E3["400 bad_request（issues つき）"]
+  C -- "合わない・壊れた JSON・どこかに NUL 文字" --> E3["400 bad_request（issues つき）"]
   C -- "OK" --> D{"3. childId があれば checkChildAccess"}
   D -- "扱えない子ども" --> E4["403 forbidden"]
   D -- "OK" --> F["4. 処理（handlers/ → auth.ts・services/ → backend/src/db の DB の処理）"]
@@ -51,7 +51,8 @@ flowchart TD
 ```
 
 - **ログインの確認は入力の検査より先**です（ログインしていない人に入力の詳細を返さない）。
-- 契約にない道は `404 not_found`（`app.ts` の `notFound`）。想定外の例外は `500 internal`（中身は返さない）。
+- 入力のどの文字列（キーも含む）にも NUL 文字（`\u0000`）は入れられない。契約の検査より先に `400 bad_request` で断る（Postgres が保存できず 500 になっていた。D-129）。
+- 契約にない道は `404 not_found`（`app.ts` の `notFound`）。DB につながらない（止まっている・接続を断られた・切れた・時間切れ・閉じた）ときは `503 unavailable`（D-130）。DB を開けない理由が接続ではない（`DATABASE_URL` などの設定・migration の SQL の誤り）ときと、それ以外の想定外の例外は `500 internal`（中身は返さない）。
 
 ## 3. API の一覧
 
@@ -61,18 +62,19 @@ flowchart TD
 
 | 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
 |---|---|---|---|---|---|
-| `health` | GET `/api/health` | none | なし | `{ ok: true, mock: boolean }` | — |
-| `authGoogle` | POST `/api/auth/google` | none | `{ idToken }` | `Session`（`token`・`userId`・`name`・`role`） | 401（トークンが正しくない・`MOCK=1` でないのに `mock-`）、502 `upstream_failed`（サーバに `GOOGLE_WEB_CLIENT_ID` がない・Google の鍵が取れない） |
-| `authMe` | GET `/api/auth/me` | signedIn | なし | `Session` | 401 |
+| `health` | GET `/api/health` | none | なし | `{ ok: true, mock: boolean }` | 503 `unavailable`（DB につながらない・開けない。開けない理由によらず 503。`src/server/handlers/health.ts`） |
+| `authGoogle` | POST `/api/auth/google` | none | `{ idToken }` | `Session`（`token`・`userId`・`name`・`role`） | 401（トークンが正しくない・`MOCK=1` でないのに `mock-`）、502 `upstream_failed`（サーバに `GOOGLE_WEB_CLIENT_ID` がない・Google の鍵が取れない）、429 `rate_limited`（同じ IP から1分に20回・同じ人から1分に10回をこえた。IP の分は Google の確かめより先に数える。D-131） |
+| `authMe` | GET `/api/auth/me` | signedIn | なし | `Session` | 401（保護者に連携を外された子どもの合言葉なら `reason: "family_unlink"` 付き。D-133） |
+| `authCheck` | GET `/api/auth/check` | none（処理の中で合言葉を確かめる） | なし（`Authorization: Bearer <合言葉>`） | `{ ok: true }`（中身は返さない） | 401（合言葉がない・無効。外された子どもの合言葉なら `reason: "family_unlink"`）。子どもの端末の Kotlin の監視が約1分ごとに呼ぶ（D-134）。DB は読むだけで、「最後に使った時刻」も書かない（合言葉の期限を延ばさない）。回数の上限には数えない |
 | `authSignOut` | POST `/api/auth/sign-out` | signedIn | なし（本文を付けない）か `{ otherDevices: true }` | `{ ok: true, revoked }`（`revoked` は無効にした合言葉の数）。本文なしなら呼んだ合言葉だけ、`otherDevices: true` なら同じ人のほかの合言葉をすべて無効にする（以後その合言葉は 401） | 401、400（知らない項目を入れた） |
-| `pairStart` | POST `/api/pair/start` | signedIn | `{ name? }`（画面に出す呼び名） | `PairTicket`（`pairId`・`code`・`expiresAt`） | 409（保護者の端末・すでに連携済み） |
+| `pairStart` | POST `/api/pair/start` | signedIn | `{ name? }`（画面に出す呼び名） | `PairTicket`（`pairId`・`code`・`expiresAt`） | 409（保護者の端末・すでに連携済み）、429 `rate_limited`（1人1分に5回をこえた。D-131） |
 | `pairStatus` | POST `/api/pair/status` | signedIn | `{ pairId }` | `PairStatus` | 404（自分が関わっていないペアリングも 404。あるかどうかを漏らさない） |
 | `pairClaim` | POST `/api/pair/claim` | signedIn | `{ code }` | `PairStatus`（`claimed`） | 403（子どもの端末）、404（知らない番号）、409（期限切れ・使用済み・自分の QR・どちらかが連携済み）、429 `rate_limited`（10分のうちに 404・409 を10回。正しい番号でも断る。D-102） |
 | `pairConfirm` | POST `/api/pair/confirm` | signedIn | `{ pairId, accept }` | `PairStatus`（`linked` か `rejected`） | 403（QR を出した子ども以外）、404、409（期限切れ・まだ読まれていない・役割が合わない・連携済み） |
 | `pairCancel` | POST `/api/pair/cancel` | signedIn | `{ pairId }` | `PairStatus`（`waiting`・`claimed` は `expired` にする。`expired`・`rejected` はそのまま） | 403（QR を出した子ども以外）、404（関わっていないペアリング）、409（もう `linked`） |
 | `linkStatus` | GET `/api/link/status` | signedIn | なし | `LinkStatus`（`state`・`role`・`partners`） | — |
 | `familyGet` | GET `/api/family/get` | parent | なし | `Family`（`children`。MVP は最大1人） | 403（保護者以外） |
-| `familyUnlink` | POST `/api/family/unlink` | parent | `{ childId }` | `FamilyUnlinkResult`（`childId`・`revokedSessions`）。連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする。子どものデータは残す（D-101） | 403（保護者以外・連携していない子ども） |
+| `familyUnlink` | POST `/api/family/unlink` | parent | `{ childId }` | `FamilyUnlinkResult`（`childId`・`revokedSessions`）。連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする。子どもの家庭ごとのデータ（利用記録・日別上限・計画・通常上限・テスト期間・空白期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の許可の状態）は同じトランザクションで消し、設定の版を 1 上げ、外した記録を `audit_events` に残す（D-101・D-138。`backend/src/db/family-unlink.ts`）。子どもの合言葉は理由 `family_unlink` で無効にするので、外したあとに子どもの端末がどの API を呼んでも 401 に `reason: "family_unlink"` が付く（D-133）。画面は親04 設定の「子どもとの連携を外す」（二段階の確認。D-133） | 403（保護者以外・連携していない子ども）、404（同じ子どもをもう外していた。ふつうは route の確かめで先に 403） |
 
 ### 通常上限・計画（D8）
 
@@ -169,7 +171,7 @@ flowchart TD
 
 | 名前 | 道 | auth | 入力 | 出力 | 主なエラー |
 |---|---|---|---|---|---|
-| `deviceStatusReport` | POST `/api/device-status/report` | child | `{ childId, permissions: { usageAccess, overlay, notifications, accessibility（すべて真偽）}, measuredAt }`（`childId` は自分の分だけ。保存先も合言葉の本人） | `DeviceStatusReportResult`（`{ ok: true }`） | 400（許可が足りない・真偽でない・時刻でない・`childId` がない）、401（合言葉が無効。Kotlin は保存した合言葉を消して送るのをやめる）、403（保護者・紐づけ前の人・ほかの子どもの `childId`） |
+| `deviceStatusReport` | POST `/api/device-status/report` | child | `{ childId, permissions: { usageAccess, overlay, notifications, accessibility（すべて真偽）}, measuredAt }`（`childId` は自分の分だけ。保存先も合言葉の本人） | `DeviceStatusReportResult`（`{ ok: true }`） | 400（許可が足りない・真偽でない・時刻でない・`childId` がない）、401（合言葉が無効。Kotlin は保存した合言葉を消して送るのをやめる。`reason: "family_unlink"` なら監視も止めて端末の値を消す。D-133）、403（保護者・紐づけ前の人・ほかの子どもの `childId`） |
 | `deviceStatusGet` | POST `/api/device-status/get` | parent | `{ childId }` | `DeviceStatusView`（`{ status: ChildDeviceStatus \| null }`。`null` = まだ一度も届いていない。`ChildDeviceStatus` は `permissions`（許可ごとの真偽）・`offSince`（許可ごとのオフになった時刻。オンなら `null`）・`measuredAt`・`lastSeenAt`（サーバに最後に届いた時刻）） | 403（子どもは自分の分でも 403・連携していない子ども） |
 
 - `offSince` は「最初にオフと届いた報告の測った時刻」です。オフのまま届き続けても変えず、オンに戻ると消えます。端末の時計がサーバより先に進んでいても、サーバの今より先にはしません。
@@ -193,17 +195,19 @@ flowchart TD
 - `message`: 何が起きたか（利用者に見せる文）
 - `hint`: 次に何をすればよいか（利用者に見せる文）
 - `issues`: `bad_request` のときだけ。どの項目がなぜだめか（開発者向け）
+- `reason`: `unauthorized` のときだけ、合言葉が無効になった理由（D-133）。今は `family_unlink`（保護者が子どもとの連携を外したので、子どもの合言葉を無効にした）だけ。サーバが「無効にした合言葉」で呼ばれ、無効にした理由が `family_unlink` のときだけ付ける。知らない合言葉・ログアウトした合言葉・外されずに期限が切れた（30日使わなかった）だけの合言葉には付けない（外された合言葉は、そのあと期限が切れていても付く。端末を止める側に倒す）。合言葉を持っている本人にしか返らない。code を新しくしないのは、古い版のアプリが知らない code を `internal` と取り違えて、401 でログアウトしなくなるため（古い版は今までどおりログアウトするだけ）。アプリは知らない理由を「理由なし」として読む（`contracts/errors.ts` の `UnauthorizedReason`）
 
 | code | HTTP | 意味 | 既定の文（message ／ hint） |
 |---|---|---|---|
 | `bad_request` | 400 | 入力が契約と合わない・計算できない入力 | 入力の内容を受け付けられませんでした ／ 入力を見直して、もう一度送ってください |
-| `unauthorized` | 401 | 合言葉がない・無効 | ログインが確認できませんでした ／ もう一度 Google でログインしてください |
+| `unauthorized` | 401 | 合言葉がない・無効。保護者に連携を外された子どもの合言葉なら `reason: "family_unlink"` と「保護者との連携が外れました ／ また使うときは、ログインしてから保護者と QR でつなぎ直してください」（D-133） | ログインが確認できませんでした ／ もう一度 Google でログインしてください |
 | `forbidden` | 403 | その役割ではできない・扱えない子ども | この操作はできません ／ 保護者の端末から操作してください |
 | `not_found` | 404 | 対象がない | 見つかりませんでした ／ 最初の画面からやり直してください |
 | `conflict` | 409 | 状態が合わない（版のずれ・二重登録など） | すでに処理されています ／ 画面を更新してください |
 | `upstream_failed` | 502 | 外部のサービス（Google など）が失敗 | 外部のサービスが応答しませんでした ／ 少し待ってから、もう一度押してください |
 | `timeout` | 504 | 時間切れ | 時間がかかりすぎて中断しました ／ もう一度押してください |
-| `rate_limited` | 429 | 呼び出し回数の上限 | 混み合っています ／ 30秒ほど待ってから、もう一度押してください |
+| `rate_limited` | 429 | 呼び出し回数の上限（`pairClaim` のまちがい・`authGoogle`・`pairStart`。D-102・D-131） | 混み合っています ／ 30秒ほど待ってから、もう一度押してください |
+| `unavailable` | 503 | DB につながらないなど、一時的に使えない（どの API でも。`health` も。D-130）。古い版のアプリは知らない code を `internal` として扱う | ただいま使えません ／ 少し待ってから、もう一度押してください |
 | `network` | 0 | 通信できない（**アプリ側でだけ作る**。サーバで投げても `upstream_failed` になる） | 通信できませんでした ／ 接続を確認して、もう一度押してください |
 | `internal` | 500 | それ以外のサーバの不具合 | うまく処理できませんでした ／ もう一度押してください。続く場合は担当者に伝えてください |
 
@@ -215,7 +219,7 @@ flowchart TD
 - 失敗は必ず `ApiCallError` で投げられる。画面は `catch (e) { setError(errorOf(e)) }` とし、`ErrorBanner` などで出す。
 - `errorOf(e)` は、自分で中断した（画面を離れた）ときだけ `null` を返す（何も出さない）。
 - 時間制限は `{ signal: timeoutSignal(ミリ秒) }`。紐づけの画面は 15 秒にしている。
-- 合言葉を付けて 401 が返ったら、`session.tsx` がログアウト状態にする。
+- 合言葉を付けて 401 が返ったら、`session.tsx` がログアウト状態にする。`reason: "family_unlink"` なら、さらに端末の制限（Kotlin の監視）を止め、その子どもの送信待ち・設定のキャッシュを消し、ログイン画面に「保護者との連携が外れました」を出す（`src/lib/session-core.ts` の `expire`。D-133）。理由のない 401 では制限を止めない（期限切れを待つだけで制限から逃げられないように）。
 - つなぎ先は `EXPO_PUBLIC_API_URL`。空なら `http://10.0.2.2:3000`（Android エミュレータから見た手元の PC）。
 
 ## 5. 版（expectedVersion）の決まり

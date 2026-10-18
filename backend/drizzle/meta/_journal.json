@@ -113,6 +113,27 @@
       "when": 1792286336419,
       "tag": "0015_device_statuses",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792301695574,
+      "tag": "0016_family_unlink_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792301767935,
+      "tag": "0017_rate_limit_hits",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792329393911,
+      "tag": "0018_session_revoked_reason",
+      "breakpoints": true
     }
   ]
 }

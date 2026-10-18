@@ -1,0 +1,61 @@
+{
+  "sourceCommit": "0ddfc7e",
+  "artifactType": "merged release manifest only; no signed APK",
+  "signatureGateExcludedForManifestInspection": true,
+  "targetSdk": "36",
+  "applicationAttributes": {
+    "name": "com.quedotcom.androidslope.MainApplication",
+    "allowBackup": "false",
+    "appComponentFactory": "androidx.core.app.CoreComponentFactory",
+    "dataExtractionRules": "@xml/slope_data_extraction_rules",
+    "enableOnBackInvokedCallback": "false",
+    "extractNativeLibs": "false",
+    "icon": "@mipmap/ic_launcher",
+    "label": "@string/app_name",
+    "roundIcon": "@mipmap/ic_launcher_round",
+    "supportsRtl": "true",
+    "theme": "@style/AppTheme"
+  },
+  "exported": [
+    {
+      "type": "activity",
+      "name": "com.quedotcom.androidslope.MainActivity",
+      "permission": null
+    },
+    {
+      "type": "receiver",
+      "name": "dev.hackathon.kit.kitnative.widget.SlopeWidget",
+      "permission": null
+    },
+    {
+      "type": "receiver",
+      "name": "dev.hackathon.kit.kitnative.admin.SlopeDeviceAdminReceiver",
+      "permission": "android.permission.BIND_DEVICE_ADMIN"
+    },
+    {
+      "type": "receiver",
+      "name": "dev.hackathon.kit.kitnative.admin.DeviceOwnerBootReceiver",
+      "permission": null
+    },
+    {
+      "type": "receiver",
+      "name": "dev.hackathon.kit.kitnative.admin.DeviceOwnerReleaseReceiver",
+      "permission": "android.permission.DUMP"
+    },
+    {
+      "type": "receiver",
+      "name": "dev.hackathon.kit.kitnative.engine.BootReceiver",
+      "permission": null
+    },
+    {
+      "type": "service",
+      "name": "com.google.android.gms.auth.api.signin.RevocationBoundService",
+      "permission": "com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION"
+    },
+    {
+      "type": "receiver",
+      "name": "androidx.profileinstaller.ProfileInstallReceiver",
+      "permission": "android.permission.DUMP"
+    }
+  ]
+}

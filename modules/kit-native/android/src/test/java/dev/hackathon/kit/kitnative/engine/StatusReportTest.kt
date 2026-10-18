@@ -9,7 +9,9 @@ import org.junit.Test
 // 許可の見張りと親への通告（D-113）の純粋な部分のテスト（StatusReport.kt）。
 //   cd android && ./gradlew :kit-native:testDebugUnitTest
 // 確かめること: 変わったとき・15 分ごと・失敗のあとの待ち・時計が戻ったときに送るか、送る本文の形（使用時間などを入れない）、
-//   サーバの返事の読み方（401 は ApiError の unauthorized のときだけ合言葉を消す）、ユーザー補助の催促の出し分け
+//   サーバの返事の読み方（401 は ApiError の unauthorized のときだけ合言葉が無効とみなす。理由が family_unlink なら監視も止める）、
+//   返事のあとにすること（理由のない 401 は、監視が動いていれば合言葉を残し、止まっていれば消す。replyAction）、
+//   ユーザー補助の催促の出し分け
 class StatusReportTest {
   private val min = 60_000L
   private val allOn = PermissionFlags(usageAccess = true, overlay = true, notifications = true, accessibility = true)
@@ -76,6 +78,23 @@ class StatusReportTest {
       ReportOutcome.Unauthorized,
       StatusReportRules.outcome(401, "{\"code\": \"unauthorized\",\"message\":\"x\",\"hint\":\"y\"}"),
     )
+    // 保護者が連携を外した 401（reason: family_unlink。D-133）だけ Unlinked（監視を止めて端末の値を消す）
+    assertEquals(
+      ReportOutcome.Unlinked,
+      StatusReportRules.outcome(
+        401,
+        "{\"code\":\"unauthorized\",\"message\":\"x\",\"hint\":\"y\",\"reason\": \"family_unlink\"}",
+      ),
+    )
+    // 理由が違う 401 では監視を止めない。unauthorized でない本文に reason があっても止めない
+    assertEquals(
+      ReportOutcome.Unauthorized,
+      StatusReportRules.outcome(401, "{\"code\":\"unauthorized\",\"message\":\"x\",\"hint\":\"y\",\"reason\":\"other\"}"),
+    )
+    assertEquals(
+      ReportOutcome.Failed(StatusReportRules.HEARTBEAT_MS),
+      StatusReportRules.outcome(401, "{\"code\":\"forbidden\",\"reason\":\"family_unlink\"}"),
+    )
     // サーバの ApiError でない 401（Vercel の保護ページなど）では合言葉を消さない（ほかの 4xx と同じく、生存報告の間隔まで待つ）
     assertEquals(ReportOutcome.Failed(StatusReportRules.HEARTBEAT_MS), StatusReportRules.outcome(401, "<html>"))
     assertEquals(ReportOutcome.Failed(StatusReportRules.HEARTBEAT_MS), StatusReportRules.outcome(401, null))
@@ -84,6 +103,64 @@ class StatusReportTest {
     assertEquals(ReportOutcome.Failed(StatusReportRules.HEARTBEAT_MS), StatusReportRules.outcome(400, null))
     assertEquals(ReportOutcome.Failed(StatusReportRules.RETRY_MS), StatusReportRules.outcome(429, null))
     assertEquals(ReportOutcome.Failed(StatusReportRules.RETRY_MS), StatusReportRules.outcome(503, null))
+  }
+
+  @Test
+  fun 連携が外れたを信じるのはhttpsか開発用のビルドのときだけ() {
+    assertTrue(StatusReportRules.trustsUnlink("https://slope.example.com/api/device-status/report", debuggable = false))
+    assertTrue(StatusReportRules.trustsUnlink("HTTPS://slope.example.com/api/device-status/report", debuggable = false))
+    // release 版で http（手元の LAN のサーバ・既定の http://10.0.2.2:3000）なら信じない（偽のプロキシで作れるため）
+    assertFalse(StatusReportRules.trustsUnlink("http://10.0.2.2:3000/api/device-status/report", debuggable = false))
+    assertFalse(StatusReportRules.trustsUnlink("http://192.168.0.5:3000/api/auth/check", debuggable = false))
+    assertFalse(StatusReportRules.trustsUnlink("", debuggable = false))
+    // 開発用のビルド（debuggable）なら http でも信じる（手元で試せるように）
+    assertTrue(StatusReportRules.trustsUnlink("http://10.0.2.2:3000/api/device-status/report", debuggable = true))
+  }
+
+  @Test
+  fun releaseでhttpの送り先なら連携が外れたは理由のない401と同じにする() {
+    val http = "http://10.0.2.2:3000/api/device-status/report"
+    val https = "https://slope.example.com/api/device-status/report"
+    val unlinked = StatusReportRules.outcome(401, "{\"code\":\"unauthorized\",\"reason\":\"family_unlink\"}")
+    assertEquals(ReportOutcome.Unlinked, unlinked)
+    assertEquals(ReportOutcome.Unauthorized, StatusReportRules.guardUnlinked(unlinked, http, debuggable = false))
+    assertEquals(ReportOutcome.Unlinked, StatusReportRules.guardUnlinked(unlinked, http, debuggable = true))
+    assertEquals(ReportOutcome.Unlinked, StatusReportRules.guardUnlinked(unlinked, https, debuggable = false))
+    // ほかの結果は送り先によらずそのまま
+    for (o in listOf(ReportOutcome.Sent, ReportOutcome.Unauthorized, ReportOutcome.Failed(StatusReportRules.RETRY_MS))) {
+      assertEquals(o, StatusReportRules.guardUnlinked(o, http, debuggable = false))
+    }
+    // 合言葉の確かめ（SessionCheck）も同じ読み方を通る
+    val checked = SessionCheckRules.outcome(401, "{\"code\":\"unauthorized\",\"reason\":\"family_unlink\"}")
+    assertEquals(ReportOutcome.Unauthorized, StatusReportRules.guardUnlinked(checked, http, debuggable = false))
+  }
+
+  @Test
+  fun 返事のあとにすること_guardUnlinkedと監視が動いているかの組み合わせ() {
+    val http = "http://10.0.2.2:3000/api/device-status/report"
+    val https = "https://slope.example.com/api/device-status/report"
+    val unlinked = StatusReportRules.outcome(401, "{\"code\":\"unauthorized\",\"reason\":\"family_unlink\"}")
+    val plain = StatusReportRules.outcome(401, "{\"code\":\"unauthorized\"}")
+    for (engine in listOf(true, false)) {
+      // 信じてよい family_unlink（https・開発用のビルド）だけ止める。監視が動いているかによらない
+      assertEquals(ReplyAction.StopUnlinked, StatusReportRules.replyAction(unlinked, https, debuggable = false, engineEnabled = engine))
+      assertEquals(ReplyAction.StopUnlinked, StatusReportRules.replyAction(unlinked, http, debuggable = true, engineEnabled = engine))
+      assertEquals(ReplyAction.Valid, StatusReportRules.replyAction(ReportOutcome.Sent, http, debuggable = false, engineEnabled = engine))
+      assertEquals(
+        ReplyAction.Retry(StatusReportRules.RETRY_MS),
+        StatusReportRules.replyAction(ReportOutcome.Failed(StatusReportRules.RETRY_MS), https, debuggable = false, engineEnabled = engine),
+      )
+    }
+    // 理由のない 401: 監視が動いていれば合言葉を残して間隔を延ばす（外されたら family_unlink を受けて止まれるように）。止まっていれば消す
+    assertEquals(ReplyAction.KeepAndSlowDown, StatusReportRules.replyAction(plain, https, debuggable = false, engineEnabled = true))
+    assertEquals(ReplyAction.ClearToken, StatusReportRules.replyAction(plain, https, debuggable = false, engineEnabled = false))
+    // release 版で http の family_unlink は信じない（guardUnlinked を通る）= 理由のない 401 と同じ。監視は止めない
+    assertEquals(ReplyAction.KeepAndSlowDown, StatusReportRules.replyAction(unlinked, http, debuggable = false, engineEnabled = true))
+    assertEquals(ReplyAction.ClearToken, StatusReportRules.replyAction(unlinked, http, debuggable = false, engineEnabled = false))
+    // 合言葉の確かめ（SessionCheck）の返事も同じ決め方を通る
+    val checked = SessionCheckRules.outcome(401, "{\"code\":\"unauthorized\",\"reason\":\"family_unlink\"}")
+    assertEquals(ReplyAction.KeepAndSlowDown, StatusReportRules.replyAction(checked, http, debuggable = false, engineEnabled = true))
+    assertEquals(ReplyAction.StopUnlinked, StatusReportRules.replyAction(checked, https, debuggable = false, engineEnabled = true))
   }
 
   @Test

@@ -4,7 +4,14 @@
 import type { ConfigSnapshot, DailyLimit, PlanSettings, TestPeriod } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
 import { limitReduction } from "@/components/parent/review";
-import { PARENT_WIDGET_DAYS, parentWidgetData, reductionForWidget } from "@/components/parent/widget";
+import {
+  PARENT_WIDGET_DAYS,
+  parentWidgetData,
+  parentWidgetUpdate,
+  reductionForWidget,
+  unlinkedParentWidgetData,
+} from "@/components/parent/widget";
+import type { ConfigState } from "@/lib/config-cache";
 
 const today = "2026-10-15";
 const plan = (over: Partial<PlanSettings> = {}): PlanSettings => ({
@@ -108,5 +115,57 @@ describe("parentWidgetData（端末に保存する値）", () => {
   it("計画がなければ、どの日も文（計画がまだありません）", () => {
     const d = parentWidgetData(snap({ plan: null }), today, 3);
     expect(d.days.map((x) => x.reduction.kind)).toEqual(["message", "message", "message"]);
+  });
+});
+
+describe("子どもとつながっていない保護者のウィジェット（D-133）", () => {
+  it("前の子どもの数字・テストを残さず、今日から先の毎日「つながっていません」の文にする", () => {
+    const w = unlinkedParentWidgetData(today);
+    expect(w.testPeriods).toEqual([]);
+    expect(w.days).toHaveLength(PARENT_WIDGET_DAYS);
+    expect(w.days[0]?.date).toBe(today);
+    expect(w.days.at(-1)?.date).toBe("2026-11-14");
+    for (const d of w.days)
+      expect(d.reduction).toEqual({
+        kind: "message",
+        title: "つながっていません",
+        body: "子どもと QR でつなぐと出ます",
+      });
+  });
+});
+
+describe("parentWidgetUpdate（保存するかと、その値。ParentWidgetSync が使う）", () => {
+  const full = (childId: string): ConfigSnapshot => ({
+    ...snap(),
+    childId,
+    configVersion: 3,
+    calculationVersion: 3,
+    usualLimitMinutes: 300,
+    blankPeriods: [],
+    excludedApps: [],
+    blockedSites: [],
+    generatedAt: "2026-10-15T00:00:00.000Z",
+  });
+  const fresh = (childId: string): ConfigState => ({ status: "fresh", snapshot: full(childId), savedAt: "x" });
+  const a = { id: "child-a" };
+  const b = { id: "child-b" };
+
+  it("家族の一覧にいる子どもの設定なら、その値を保存する（一覧がまだ読めていない null のときも）", () => {
+    expect(parentWidgetUpdate(fresh("child-a"), [a, b], today)).toEqual(parentWidgetData(full("child-a"), today));
+    expect(parentWidgetUpdate(fresh("child-a"), null, today)).toEqual(parentWidgetData(full("child-a"), today));
+  });
+
+  it("家族の一覧が空なら「つながっていません」（設定が残っていても）", () => {
+    expect(parentWidgetUpdate(fresh("child-a"), [], today)).toEqual(unlinkedParentWidgetData(today));
+    expect(parentWidgetUpdate(null, [], today)).toEqual(unlinkedParentWidgetData(today));
+  });
+
+  it("外したあとに届いた前の子どもの設定（一覧にいない子ども）では保存しない（前の子どもの値で上書きしない）", () => {
+    expect(parentWidgetUpdate(fresh("child-a"), [b], today)).toBeNull();
+  });
+
+  it("設定がない・取れない（unavailable）なら保存しない（0 分減と出さない）", () => {
+    expect(parentWidgetUpdate(null, [a], today)).toBeNull();
+    expect(parentWidgetUpdate({ status: "unavailable", error: null }, [a], today)).toBeNull();
   });
 });

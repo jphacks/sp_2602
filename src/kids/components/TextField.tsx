@@ -3,7 +3,7 @@
 // 形（Figma 子03・子03-B・kids-design-rules.md 3 章）:
 //   - 今の道具の枠の線（useTool().FrameLine。ホワイトボードは手で4辺を引いた線・角 8）。高さ 64・左右 16。上に小さいラベル（12・muted）、下に値（16）。右のアイコンは ink
 //   - 選んでいる欄（入力中）とエラーの欄は線を太く（ホワイトボードは 2.3 → 3.2）。太くなるのは values.timing.field（200ms）で
-//   - エラーの文は欄のすぐ下に、warning のアイコン 14 ＋ BIZ UDPGothic Bold 12（ink。赤は使わない）。高さを広げて 200ms で入る
+//   - エラーの文は欄のすぐ下に、warning のアイコン 14 ＋ BIZ UDPゴシック Bold 12（ink。赤は使わない）。高さを広げて 200ms で入る
 //   - 入力した値は消さない（validation-error）
 //   <TextField label="テストの名前" value={name} onChangeText={setName} trailingIcon="title" />
 import { tokens } from "@contracts/tokens";
@@ -13,7 +13,8 @@ import { keepTailTogether } from "@/components/text-wrap";
 import { Text, TextInput } from "@/kids/lib/text";
 import { useReducedMotion } from "@/lib/motion";
 import { makeStyles, useColors } from "@/lib/theme";
-import { makeToolStyles, seedOf, useSize, useTool } from "../tools";
+import { fonts } from "../theme/tool";
+import { seedOf, useSize, useTool } from "../tools";
 import { AppText } from "./AppText";
 import { Icon, type IconName } from "./Icon";
 
@@ -25,7 +26,7 @@ type Props = Omit<TextInputProps, "style" | "placeholderTextColor"> & {
 
 export function TextField({ label, error, trailingIcon, ...input }: Props) {
   const styles = useStyles();
-  const fonts = useInputFont();
+  const font = inputFont;
   const c = useColors();
   const [focused, setFocused] = useState(false);
   return (
@@ -50,7 +51,7 @@ export function TextField({ label, error, trailingIcon, ...input }: Props) {
               setFocused(false);
               input.onBlur?.(e);
             }}
-            style={[styles.input, fonts.input]}
+            style={[styles.input, font.input]}
           />
         </View>
         {trailingIcon && <Icon name={trailingIcon} color={c.text} />}
@@ -94,7 +95,7 @@ export function FieldError({ error }: { error?: string | null }) {
   const c = useColors();
   const reduced = useReducedMotion();
   const { values } = useTool();
-  const text = useErrorText();
+  const text = errorText;
   const [shown, setShown] = useState(error ?? null);
   const [h, setH] = useState(0);
   const v = useRef(new Animated.Value(error ? 1 : 0)).current;
@@ -185,6 +186,6 @@ const errorStyles = StyleSheet.create({
   text: { flex: 1, fontWeight: "700", fontSize: tokens.font.xs, lineHeight: 17 },
 });
 
-// 書体は今の道具の本文の書体
-const useInputFont = makeToolStyles(({ fonts }) => StyleSheet.create({ input: { fontFamily: fonts.body } }));
-const useErrorText = makeToolStyles(({ fonts }) => StyleSheet.create({ error: { fontFamily: fonts.body } }));
+// 書体は本文の書体（太さはそれぞれのスタイルが決める）
+const inputFont = StyleSheet.create({ input: { fontFamily: fonts.body.fontFamily } });
+const errorText = StyleSheet.create({ error: { fontFamily: fonts.body.fontFamily } });

@@ -1,0 +1,382 @@
+{
+  "observedAt": "2026-10-18T03:06:27.397Z",
+  "server": "127.0.0.1:4312",
+  "database": "ephemeral PGlite",
+  "minRequestStartIntervalMs": 1000,
+  "cases": [
+    {
+      "id": "API-01-signedIn",
+      "status": 401,
+      "responseBytes": 144,
+      "durationMs": 522.79,
+      "body": {
+        "code": "unauthorized",
+        "message": "ログインが確認できませんでした",
+        "hint": "もう一度 Google でログインしてください"
+      }
+    },
+    {
+      "id": "API-01-parent",
+      "status": 401,
+      "responseBytes": 144,
+      "durationMs": 19.32,
+      "body": {
+        "code": "unauthorized",
+        "message": "ログインが確認できませんでした",
+        "hint": "もう一度 Google でログインしてください"
+      }
+    },
+    {
+      "id": "API-01-child",
+      "status": 401,
+      "responseBytes": 144,
+      "durationMs": 21.73,
+      "body": {
+        "code": "unauthorized",
+        "message": "ログインが確認できませんでした",
+        "hint": "もう一度 Google でログインしてください"
+      }
+    },
+    {
+      "id": "API-01-pair",
+      "status": 401,
+      "responseBytes": 144,
+      "durationMs": 19.33,
+      "body": {
+        "code": "unauthorized",
+        "message": "ログインが確認できませんでした",
+        "hint": "もう一度 Google でログインしてください"
+      }
+    },
+    {
+      "id": "PII-01-parentA",
+      "status": 200,
+      "responseBytes": 76,
+      "durationMs": 35.52,
+      "body": {
+        "children": [
+          {
+            "id": "71000000-0000-4000-8000-000000000002",
+            "name": "childA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "PII-01-parentB",
+      "status": 200,
+      "responseBytes": 76,
+      "durationMs": 29.58,
+      "body": {
+        "children": [
+          {
+            "id": "72000000-0000-4000-8000-000000000002",
+            "name": "childB"
+          }
+        ]
+      }
+    },
+    {
+      "id": "PII-01-family-boundary",
+      "status": "pass",
+      "body": {
+        "parentAChildCount": 1,
+        "parentBChildCount": 1,
+        "onlyOwnChildren": true
+      }
+    },
+    {
+      "id": "API-05-before",
+      "status": 200,
+      "responseBytes": 132,
+      "durationMs": 62.89,
+      "body": {
+        "childId": "72000000-0000-4000-8000-000000000002",
+        "plan": null,
+        "usualLimitMinutes": null,
+        "configVersion": 0,
+        "childAppliedVersion": null
+      }
+    },
+    {
+      "id": "API-05-cross-family-write",
+      "status": 403,
+      "responseBytes": 148,
+      "durationMs": 28.78,
+      "body": {
+        "code": "forbidden",
+        "message": "連携していない子どもの情報は扱えません",
+        "hint": "QR で連携してから操作してください"
+      }
+    },
+    {
+      "id": "API-05-after",
+      "status": 200,
+      "responseBytes": 132,
+      "durationMs": 62.72,
+      "body": {
+        "childId": "72000000-0000-4000-8000-000000000002",
+        "plan": null,
+        "usualLimitMinutes": null,
+        "configVersion": 0,
+        "childAppliedVersion": null
+      }
+    },
+    {
+      "id": "API-05-state-check",
+      "status": "unchanged",
+      "body": {
+        "before": {
+          "childId": "72000000-0000-4000-8000-000000000002",
+          "plan": null,
+          "usualLimitMinutes": null,
+          "configVersion": 0,
+          "childAppliedVersion": null
+        },
+        "after": {
+          "childId": "72000000-0000-4000-8000-000000000002",
+          "plan": null,
+          "usualLimitMinutes": null,
+          "configVersion": 0,
+          "childAppliedVersion": null
+        }
+      }
+    },
+    {
+      "id": "API-03-before",
+      "status": 200,
+      "responseBytes": 132,
+      "durationMs": 54.17,
+      "body": {
+        "childId": "71000000-0000-4000-8000-000000000002",
+        "plan": null,
+        "usualLimitMinutes": null,
+        "configVersion": 0,
+        "childAppliedVersion": null
+      }
+    },
+    {
+      "id": "API-03-child-parent-write",
+      "status": 403,
+      "responseBytes": 130,
+      "durationMs": 22.29,
+      "body": {
+        "code": "forbidden",
+        "message": "保護者だけができる操作です",
+        "hint": "保護者の端末から操作してください"
+      }
+    },
+    {
+      "id": "API-03-after",
+      "status": 200,
+      "responseBytes": 132,
+      "durationMs": 35.09,
+      "body": {
+        "childId": "71000000-0000-4000-8000-000000000002",
+        "plan": null,
+        "usualLimitMinutes": null,
+        "configVersion": 0,
+        "childAppliedVersion": null
+      }
+    },
+    {
+      "id": "API-03-state-check",
+      "status": "unchanged",
+      "body": {
+        "before": {
+          "childId": "71000000-0000-4000-8000-000000000002",
+          "plan": null,
+          "usualLimitMinutes": null,
+          "configVersion": 0,
+          "childAppliedVersion": null
+        },
+        "after": {
+          "childId": "71000000-0000-4000-8000-000000000002",
+          "plan": null,
+          "usualLimitMinutes": null,
+          "configVersion": 0,
+          "childAppliedVersion": null
+        }
+      }
+    },
+    {
+      "id": "API-12a",
+      "status": 403,
+      "responseBytes": 148,
+      "durationMs": 22.13,
+      "body": {
+        "code": "forbidden",
+        "message": "連携していない子どもの情報は扱えません",
+        "hint": "QR で連携してから操作してください"
+      }
+    },
+    {
+      "id": "API-12b",
+      "status": 403,
+      "responseBytes": 148,
+      "durationMs": 26.89,
+      "body": {
+        "code": "forbidden",
+        "message": "連携していない子どもの情報は扱えません",
+        "hint": "QR で連携してから操作してください"
+      }
+    },
+    {
+      "id": "API-07-IN-07-spoof",
+      "status": 200,
+      "responseBytes": 65,
+      "durationMs": 77.48,
+      "body": {
+        "configVersion": 1,
+        "calculationVersion": 1,
+        "usualLimitMinutes": 77
+      }
+    },
+    {
+      "id": "API-07-IN-07-DB-check",
+      "status": "unchanged",
+      "body": {
+        "users": [
+          {
+            "id": "71000000-0000-4000-8000-000000000001",
+            "role": "parent"
+          },
+          {
+            "id": "71000000-0000-4000-8000-000000000002",
+            "role": "child"
+          }
+        ],
+        "familyLinkCount": 3
+      }
+    },
+    {
+      "id": "PII-08-seed-A",
+      "status": 200,
+      "responseBytes": 105,
+      "durationMs": 41.85,
+      "body": {
+        "submissionId": "74000000-0000-4000-8000-000000000001",
+        "status": "accepted",
+        "appliedDates": [
+          "2026-10-18"
+        ]
+      }
+    },
+    {
+      "id": "PII-08-seed-B",
+      "status": 200,
+      "responseBytes": 105,
+      "durationMs": 26.08,
+      "body": {
+        "submissionId": "74000000-0000-4000-8000-000000000002",
+        "status": "accepted",
+        "appliedDates": [
+          "2026-10-18"
+        ]
+      }
+    },
+    {
+      "id": "PII-08-parentA",
+      "status": 200,
+      "responseBytes": 290,
+      "durationMs": 33.33,
+      "body": {
+        "childId": "71000000-0000-4000-8000-000000000002",
+        "from": "2026-10-18",
+        "to": "2026-10-18",
+        "days": [
+          {
+            "date": "2026-10-18",
+            "recorded": true,
+            "usedMinutes": 3,
+            "measuredAt": "2026-10-18T03:06:19.319Z",
+            "limit": {
+              "kind": "limited",
+              "limitMinutes": 77
+            },
+            "apps": []
+          }
+        ],
+        "lastUploadedAt": "2026-10-18T03:06:20.271Z"
+      }
+    },
+    {
+      "id": "PII-08-parentB",
+      "status": 200,
+      "responseBytes": 258,
+      "durationMs": 25.73,
+      "body": {
+        "childId": "72000000-0000-4000-8000-000000000002",
+        "from": "2026-10-18",
+        "to": "2026-10-18",
+        "days": [
+          {
+            "date": "2026-10-18",
+            "recorded": true,
+            "usedMinutes": 7,
+            "measuredAt": "2026-10-18T03:06:20.288Z",
+            "limit": null,
+            "apps": []
+          }
+        ],
+        "lastUploadedAt": "2026-10-18T03:06:21.270Z"
+      }
+    },
+    {
+      "id": "PII-08-family-boundary",
+      "status": "distinct",
+      "body": {
+        "parentAReceivedData": true,
+        "parentBReceivedData": true
+      }
+    },
+    {
+      "id": "PII-10-unlink",
+      "status": 200,
+      "responseBytes": 70,
+      "durationMs": 73.04,
+      "body": {
+        "childId": "71000000-0000-4000-8000-000000000002",
+        "revokedSessions": 1
+      }
+    },
+    {
+      "id": "PII-10-family-after-unlink",
+      "status": 200,
+      "responseBytes": 15,
+      "durationMs": 23.96,
+      "body": {
+        "children": []
+      }
+    },
+    {
+      "id": "PII-10-state-check",
+      "status": "unlinked",
+      "body": {
+        "remainingChildren": 0
+      }
+    },
+    {
+      "id": "AVL-04-health-after-local-db-close",
+      "status": 500,
+      "responseBytes": 165,
+      "durationMs": 32.42,
+      "body": {
+        "code": "internal",
+        "message": "うまく処理できませんでした",
+        "hint": "もう一度押してください。続く場合は担当者に伝えてください"
+      }
+    },
+    {
+      "id": "AVL-04-data-after-local-db-close",
+      "status": 500,
+      "responseBytes": 165,
+      "durationMs": 83.7,
+      "body": {
+        "code": "internal",
+        "message": "うまく処理できませんでした",
+        "hint": "もう一度押してください。続く場合は担当者に伝えてください"
+      }
+    }
+  ]
+}

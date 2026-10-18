@@ -11,7 +11,8 @@
       "!**/node_modules",
       "!**/package-lock.json",
       "!backend",
-      "!.claude"
+      "!.claude",
+      "!SECURITY_TEST/results"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },

@@ -1,0 +1,426 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.quedotcom.androidslope"
+    android:versionCode="1"
+    android:versionName="1.0.0" >
+
+    <uses-sdk
+        android:minSdkVersion="24"
+        android:targetSdkVersion="36" />
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+
+            <category android:name="android.intent.category.BROWSABLE" />
+
+            <data android:scheme="https" />
+        </intent>
+
+        <package android:name="host.exp.exponent" /> <!-- Query open documents -->
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
+        </intent>
+        <intent>
+
+            <!-- Required for preview handler checks when targeting API 30+. -->
+            <action android:name="android.intent.action.VIEW" />
+
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <intent>
+            <action android:name="androidx.camera.extensions.action.VENDOR_ACTION" />
+        </intent>
+    </queries>
+
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!--
+    On Android 17 (SDK 37) devices, apps that declare this must hold ACCESS_LOCAL_NETWORK
+    to reach the dev server over the local network. Loopback via `adb reverse` is exempt.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" /> <!-- ── K-B: Device Owner（デモ専用）。再起動のあとにアンインストールの止めを確かめ直すため ── -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /> <!-- ── K-A: 使用時間（C2）と上限の案内（C4）。engine/。RECEIVE_BOOT_COMPLETED は上の K-B の宣言を共有する（engine/BootReceiver.kt も使う） ── -->
+    <!-- 使用状況へのアクセス（UsageStatsManager）。設定画面でユーザーが許可する特別な権限（宣言だけでは使えない） -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" /> <!-- アプリ名（label）・ランチャーの一覧・学習用アプリを開くために、ほかのアプリが見える必要がある（Android 11 以降） -->
+    <!--
+       Q15 のアプリ一覧（engine/LauncherApps.kt）はこれに頼らず、下の <queries> で見える分だけを読む。
+       これを外すかは別に決める（外すと、ホーム画面に出ないアプリの使用時間の名前が packageName になる）
+    -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" /> <!-- 監視の Foreground Service（Android 14 以降は種類ごとの権限も要る。種類は specialUse） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" /> <!-- 見守り中の通知・時間が終わった案内の通知（Android 13 以降は実行時の許可） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" /> <!-- 時間が終わった案内を全画面の通知で出す（Android 14 以降は設定での許可が要る。なければ上から出る通知になる） -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" /> <!-- 「電池の最適化から外しますか」の確認を直接出す -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <permission
+        android:name="com.quedotcom.androidslope.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="com.quedotcom.androidslope.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+
+    <application
+        android:name="com.quedotcom.androidslope.MainApplication"
+        android:allowBackup="false"
+        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+        android:dataExtractionRules="@xml/slope_data_extraction_rules"
+        android:debuggable="true"
+        android:enableOnBackInvokedCallback="false"
+        android:extractNativeLibs="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true" >
+        <meta-data
+            android:name="expo.modules.updates.ENABLED"
+            android:value="false" />
+        <meta-data
+            android:name="expo.modules.updates.ENABLE_BSDIFF_PATCH_SUPPORT"
+            android:value="true" />
+        <meta-data
+            android:name="expo.modules.updates.EXPO_UPDATES_CHECK_ON_LAUNCH"
+            android:value="ALWAYS" />
+        <meta-data
+            android:name="expo.modules.updates.EXPO_UPDATES_LAUNCH_WAIT_MS"
+            android:value="0" />
+
+        <activity
+            android:name="com.quedotcom.androidslope.MainActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.App.SplashScreen"
+            android:windowSoftInputMode="adjustResize" >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="slope" />
+                <data android:scheme="exp+slope" />
+            </intent-filter>
+        </activity>
+
+        <meta-data
+            android:name="org.unimodules.core.AppLoader#react-native-headless"
+            android:value="expo.modules.adapters.react.apploader.RNHeadlessAppLoader" />
+        <meta-data
+            android:name="com.facebook.soloader.enabled"
+            android:value="true" />
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="barcode_ui" />
+
+        <activity
+            android:name="expo.modules.devlauncher.launcher.DevLauncherActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" />
+        <activity
+            android:name="expo.modules.devlauncher.compose.AuthActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.AppCompat.DayNight.NoActionBar" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="expo-dev-launcher" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name="expo.modules.devlauncher.launcher.errors.DevLauncherErrorActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.DevLauncher.ErrorActivity" />
+
+        <provider
+            android:name="expo.modules.filesystem.FileSystemFileProvider"
+            android:authorities="com.quedotcom.androidslope.FileSystemFileProvider"
+            android:exported="false"
+            android:grantUriPermissions="true" >
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_system_provider_paths" />
+        </provider>
+
+        <activity
+            android:name="com.facebook.react.devsupport.DevSettingsActivity"
+            android:exported="false" /> <!-- ── K-B: 子どものウィジェット（C5・Figma 子12）。widget/SlopeWidget.kt ── -->
+        <receiver
+            android:name="dev.hackathon.kit.kitnative.widget.SlopeWidget"
+            android:exported="true"
+            android:label="Slope" >
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- K-A の監視が今日の使用量を保存したとき（EngineStore.ACTION_TODAY_UPDATED。自分のアプリにだけ送られる）。描き直すだけ -->
+                <action android:name="dev.hackathon.kit.kitnative.TODAY_UPDATED" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/slope_widget_info" />
+        </receiver> <!-- ── K-B: Device Owner（デモ専用・アンインストールの防止）。admin/。手順は docs/device-owner.md ── -->
+        <!-- 受け手。dpm set-device-owner で指名する。クラスの名前・場所を変えると指名が外れる -->
+        <receiver
+            android:name="dev.hackathon.kit.kitnative.admin.SlopeDeviceAdminReceiver"
+            android:description="@string/slope_admin_description"
+            android:exported="true"
+            android:label="@string/slope_admin_label"
+            android:permission="android.permission.BIND_DEVICE_ADMIN" >
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/slope_device_admin" />
+
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver> <!-- 再起動・アプリの更新のあとに止めを確かめ直す（どちらも OS しか送れない放送） -->
+        <receiver
+            android:name="dev.hackathon.kit.kitnative.admin.DeviceOwnerBootReceiver"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver> <!-- PC（adb）から Device Owner を解除する入口。DUMP の権限は adb（shell）にしかないので、ほかのアプリからは送れない -->
+        <receiver
+            android:name="dev.hackathon.kit.kitnative.admin.DeviceOwnerReleaseReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP" >
+            <intent-filter>
+                <action android:name="dev.hackathon.kit.kitnative.action.RELEASE_DEVICE_OWNER" />
+            </intent-filter>
+        </receiver> <!-- ── K-A: 使用時間の監視と上限の案内（C4）。engine/MonitorService.kt ── -->
+        <!-- 種類 specialUse: 使用時間の見守りに合う決まった種類がないため。用途の説明を下の property に書く（Android 14 以降の約束） -->
+        <service
+            android:name="dev.hackathon.kit.kitnative.engine.MonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" >
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Parental screen-time monitoring: measures the child&apos;s daily app usage and shows a notice when the parent-set daily limit is reached" />
+        </service>
+        <!--
+         ── D-111: 制限する Web サイト。engine/WebGuardService.kt（ユーザー補助のサービス）──
+         上限に達したあと、ブラウザで保護者の登録したサイトを開いたら、ブラウザを1つ前に戻して「時間は終わりです」を出す。
+         設定の「ユーザー補助」で子どもの端末の人がオンにする（EnginePermissions.ACCESSIBILITY）。
+         BIND_ACCESSIBILITY_SERVICE: OS だけがこのサービスにつなげる（ほかのアプリからは呼べない）。exported="false" でも OS はつなげる。
+         読む範囲（ブラウザ4つのアドレス欄だけ）は res/xml/slope_web_guard.xml。
+         参考: SelfLock（https://github.com/EtashTyagi/SelfLock 。MIT License。modules/kit-native/LICENSE-SelfLock）の AndroidManifest の宣言
+        -->
+        <service
+            android:name="dev.hackathon.kit.kitnative.engine.WebGuardService"
+            android:exported="false"
+            android:label="@string/slope_web_guard_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" >
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/slope_web_guard" />
+        </service>
+        <!--
+         ── D-113: 画面が消えている間の、許可の状態の生存報告（15 分ごとの目覚まし）。engine/StatusReporter.kt ──
+         自分のアプリの AlarmManager からだけ届く（exported="false"）
+        -->
+        <receiver
+            android:name="dev.hackathon.kit.kitnative.engine.StatusReportReceiver"
+            android:exported="false" /> <!-- 端末の再起動・Slope の更新のあとに監視を再開する（どちらも OS しか送れない放送）。engine/BootReceiver.kt -->
+        <receiver
+            android:name="dev.hackathon.kit.kitnative.engine.BootReceiver"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <uses-library
+            android:name="androidx.camera.extensions.impl"
+            android:required="false" />
+
+        <service
+            android:name="androidx.camera.core.impl.MetadataHolderService"
+            android:enabled="false"
+            android:exported="false" >
+            <meta-data
+                android:name="androidx.camera.core.impl.MetadataHolderService.DEFAULT_CONFIG_PROVIDER"
+                android:value="androidx.camera.camera2.Camera2Config$DefaultProvider" />
+        </service>
+        <!--
+        This activity is an invisible delegate activity to start scanner activity
+        and receive result, so it's unnecessary to support screen orientation and
+        we can avoid any side effect from activity recreation in any case.
+        -->
+        <activity
+            android:name="com.google.mlkit.vision.codescanner.internal.GmsBarcodeScanningDelegateActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" >
+        </activity>
+        <!--
+        This activity is an invisible delegate activity to start scanner activity
+        and receive result, so it's unnecessary to support screen orientation and
+        we can avoid any side effect from activity recreation in any case.
+        -->
+        <activity
+            android:name="com.google.mlkit.vision.documentscanner.internal.GmsDocumentScanningDelegateActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen" >
+        </activity>
+
+        <service
+            android:name="com.google.mlkit.common.internal.MlKitComponentDiscoveryService"
+            android:directBootAware="true"
+            android:exported="false" >
+            <meta-data
+                android:name="com.google.firebase.components:com.google.mlkit.vision.barcode.internal.BarcodeRegistrar"
+                android:value="com.google.firebase.components.ComponentRegistrar" />
+            <meta-data
+                android:name="com.google.firebase.components:com.google.mlkit.vision.common.internal.VisionCommonRegistrar"
+                android:value="com.google.firebase.components.ComponentRegistrar" />
+            <meta-data
+                android:name="com.google.firebase.components:com.google.mlkit.common.internal.CommonComponentRegistrar"
+                android:value="com.google.firebase.components.ComponentRegistrar" />
+        </service>
+
+        <provider
+            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
+            android:authorities="com.quedotcom.androidslope.mlkitinitprovider"
+            android:exported="false"
+            android:initOrder="99" />
+
+        <activity
+            android:name="com.google.android.gms.auth.api.signin.internal.SignInHubActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+        <!--
+            Service handling Google Sign-In user revocation. For apps that do not integrate with
+            Google Sign-In, this service will never be started.
+        -->
+        <service
+            android:name="com.google.android.gms.auth.api.signin.RevocationBoundService"
+            android:exported="true"
+            android:permission="com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION"
+            android:visibleToInstantApps="true" />
+
+        <activity
+            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+
+        <provider
+            android:name="org.jetbrains.compose.resources.AndroidContextProvider"
+            android:authorities="com.quedotcom.androidslope.resources.AndroidContextProvider"
+            android:enabled="true"
+            android:exported="false" >
+        </provider>
+
+        <activity
+            android:name="androidx.compose.ui.tooling.PreviewActivity"
+            android:exported="true" />
+
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="com.quedotcom.androidslope.androidx-startup"
+            android:exported="false" >
+            <meta-data
+                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+                android:value="androidx.startup" />
+            <meta-data
+                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+                android:value="androidx.startup" />
+        </provider>
+
+        <uses-library
+            android:name="androidx.window.extensions"
+            android:required="false" />
+        <uses-library
+            android:name="androidx.window.sidecar"
+            android:required="false" />
+
+        <service
+            android:name="androidx.room.MultiInstanceInvalidationService"
+            android:directBootAware="true"
+            android:exported="false" />
+        <service
+            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+            android:exported="false" >
+            <meta-data
+                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+                android:value="cct" />
+        </service>
+        <service
+            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" >
+        </service>
+
+        <receiver
+            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+            android:exported="false" />
+        <receiver
+            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+            android:directBootAware="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.DUMP" >
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>
