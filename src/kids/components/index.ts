@@ -11,6 +11,8 @@ export { type Bar, BarChart, Legend } from "./BarChart";
 export { Button } from "./Button";
 export { Card } from "./Card";
 export { Chip } from "./Chip";
+// 配色の変更（子ども用の見た目だけ。アプリの src/components/index.ts も kids-switch.tsx を通して同じ名前を出す）
+export { ColorSchemeDialog } from "./ColorSchemeDialog";
 export { DateField } from "./DateField";
 export { Dialog } from "./Dialog";
 export { ErrorBanner } from "./ErrorBanner";

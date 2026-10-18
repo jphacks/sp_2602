@@ -2,10 +2,13 @@
 // 道具の入口。components/ の部品は、ここの useTool() から「役目の部品」を取って描く（「ホワイトボードだから」という分岐を部品に書かない）。
 // どの道具を使うかは、今のテーマの名前で決める（toolNameForTheme）: ホワイトボード＝marker・黒板＝chalk・ノート＝pencil。
 // 道具の組（Tool）は tools/marker.tsx・chalk.tsx・pencil.tsx。値（色・太さ・書体・時間）は theme/tool.ts・chalk.ts・pencil.ts。
+// 配色（赤・緑・青。useColorScheme）は useTool() が values に当ててから返す（theme/schemes.ts の withScheme）。部品は values.colors を読むだけでよい。
 // 役目の一覧と props は下の型と README の「道具の役目」。道具を足す手順は README の「道具を足すとき」。
 import { type ComponentType, createContext, type ReactNode, useContext } from "react";
 import type { Animated, StyleProp, ViewProps, ViewStyle } from "react-native";
-import { useTheme } from "@/lib/theme";
+import type { ColorSchemeName } from "@/kids/lib/theme-store";
+import { useColorScheme, useTheme } from "@/lib/theme";
+import { withScheme } from "../theme/schemes";
 import type { ToolName, ToolValues } from "../theme/tool";
 import { chalkKit } from "./chalk";
 import { markerKit } from "./marker";
@@ -101,22 +104,36 @@ export function ToolProvider({ tool, children }: { tool: ToolName; children: Rea
   return <Override.Provider value={tool}>{children}</Override.Provider>;
 }
 
-// 今の道具
+// 配色を当てた道具の組（同じ道具・同じ配色なら同じ組を返す。部品の useMemo などの依存が毎回変わらないように）
+const schemed = new Map<string, Tool>();
+function toolWithScheme(name: ToolName, scheme: ColorSchemeName): Tool {
+  const key = `${name}:${scheme}`;
+  let tool = schemed.get(key);
+  if (!tool) {
+    const kit = toolByName(name);
+    tool = { ...kit, values: withScheme(kit.values, scheme) };
+    schemed.set(key, tool);
+  }
+  return tool;
+}
+
+// 今の道具（今のテーマの道具に、今の配色を当てたもの）
 export function useTool(): Tool {
   const override = useContext(Override);
   const { name } = useTheme();
-  return toolByName(override ?? toolNameForTheme(name as string));
+  const { scheme } = useColorScheme();
+  return toolWithScheme(toolByName(override ?? toolNameForTheme(name as string)).values.name, scheme);
 }
 
-// 道具の値（書体など）を使うスタイルを、道具ごとに1回だけ作る（makeStyles の道具版）
+// 道具の値（書体など）を使うスタイルを、道具と配色の組ごとに1回だけ作る（makeStyles の道具版）
 export function makeToolStyles<T>(factory: (v: ToolValues) => T): () => T {
-  const cache = new Map<ToolName, T>();
+  const cache = new WeakMap<ToolValues, T>(); // 鍵は配色を当てた値の組（withScheme が同じ組を返すので、道具×配色ごとに1つ）
   return function useToolStyles(): T {
     const { values } = useTool();
-    let styles = cache.get(values.name);
+    let styles = cache.get(values);
     if (styles === undefined) {
       styles = factory(values);
-      cache.set(values.name, styles);
+      cache.set(values, styles);
     }
     return styles;
   };

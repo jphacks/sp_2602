@@ -1,6 +1,7 @@
 // tmp/animations/rnweb/whiteboard/pencil/HighlightLine.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
 // 蛍光ペンの短い線（Underline の役目）。
-//   tab     … 選んでいるタブの文字の下に、緑の蛍光ペンで「行って・戻る」2本（Figma の下のタブ。EXPRESSION.md 1-14）。
+//   色は今の配色の太い線の蛍光ペン（colors.highlightGreenLine＝usedLine。緑の配色で #A5B37A）
+//   tab     … 選んでいるタブの文字の下に、蛍光ペンで「行って・戻る」2本（Figma の下のタブ。EXPRESSION.md 1-14）。
 //             太い線の緑 #A5B37A・太さ 3.2・濃さ 0.85、少し波打つ2本。1本目は左→右 130ms、すぐ戻りの2本目は右→左 120ms。
 //             選ばれなくなったら、すぐ消す（蛍光ペンは本当は消えないので、消える途中は見せない）
 //   reached … 上限に達した帯の文の下に、緑の蛍光ペンを1本（Figma 子11・子01-D。EXPRESSION.md 1-7）。
@@ -8,7 +9,8 @@
 // 動きを減らすなら、引いた形をすぐ出す（useDraw）。
 import { Animated, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { pencil, pencilStroke, pencilTiming } from "../theme/pencil";
+import { pencilStroke, pencilTiming } from "../theme/pencil";
+import { useToolColors } from "../tools/scheme-colors";
 import { bezier, pencilEase, useDraw } from "./draw";
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -33,10 +35,11 @@ function Drawn({
   easing?: (t: number) => number;
 }) {
   const a = useDraw(len, width, start, delay, duration, easing);
+  const colors = useToolColors("pencil");
   return (
     <AnimatedPath
       d={d}
-      stroke={pencil.highlightGreenLine}
+      stroke={colors.highlightGreenLine}
       strokeWidth={width}
       strokeLinecap="round"
       strokeLinejoin="round"

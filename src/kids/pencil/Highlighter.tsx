@@ -1,14 +1,16 @@
 // tmp/animations/rnweb/whiteboard/pencil/Highlighter.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
-// 蛍光ペン（ゼブラ マイルドライナー）で文字の後ろに引く帯。数字の緑（NumberMark）・テストの日付のピンク（TestMark）。
+// 蛍光ペン（ゼブラ マイルドライナー）で文字の後ろに引く帯。数字（NumberMark）・テストの日付（TestMark）。
+// 色はどちらも今の配色の蛍光ペン（primaryHighlight・testHighlight。緑の配色で #A8C48B。元は数字＝緑・日付＝ピンク）。
 // 子どもが平たいペン先で、文字の下半分を左から右へ一息で引いた形（EXPRESSION.md 1-4・1-5）:
 //   - 高さ＝文字の 0.5、文字の上から 0.45 の所から。左に 3・右に 4 はみ出す。端は平たいペン先で斜めに切れる（-8°）
 //   - 書き始めと書き終わりはペン先が止まるので、端に少しだけインクがたまって濃い（幅 3 のもう少し濃い所）
 //   - すける色なので、文字は前に読める（Measured が印を文字の後ろに置く）
 //   - twice（テストが近い）: 少し上（0.3）を、長さ 0.85・濃さ 0.7 で、もう一度なぞる（重なった所が濃いピンク）
 // 時間: 数字は数え終わってから（start）すぐ 360ms（開いたときに start を渡すなら delay 1080）。日付はカードが出てから 1170ms から 360ms、twice は +160ms 後に 300ms。
-//   <Measured mark={(w, h) => <HighlightMark w={w} h={h} start={open} color={pencil.highlightPink} delay={1170} twice />}>…</Measured>
+//   <Measured mark={(w, h) => <HighlightMark w={w} h={h} start={open} color={colors.highlightPink ?? colors.test} delay={1170} twice />}>…</Measured>
 import { Animated, StyleSheet, View } from "react-native";
-import { pencil, pencilTiming } from "../theme/pencil";
+import { pencilTiming } from "../theme/pencil";
+import { useToolColors } from "../tools/scheme-colors";
 import { pencilEase, useStroke } from "./draw";
 
 type Props = { w: number; h: number; start: boolean; color: string; delay: number; twice?: boolean };
@@ -83,12 +85,16 @@ export function PencilTestMark({
   twice?: boolean;
   delay?: number;
 }) {
-  return <HighlightMark w={w} h={h} start={start} color={pencil.highlightPink} delay={delay} twice={twice} />;
+  const colors = useToolColors("pencil");
+  return (
+    <HighlightMark w={w} h={h} start={start} color={colors.highlightPink ?? colors.test} delay={delay} twice={twice} />
+  );
 }
 
 // start は「数え終わったとき」（Gauge と同じ）。画面を開いたときに start を渡すなら delay={pencilTiming.numberMarkAt}（280 + 800）
 export function PencilNumberMark({ w, h, start, delay = 0 }: { w: number; h: number; start: boolean; delay?: number }) {
-  return <HighlightMark w={w} h={h} start={start} color={pencil.highlightGreen} delay={delay} />;
+  const colors = useToolColors("pencil");
+  return <HighlightMark w={w} h={h} start={start} color={colors.highlightGreen ?? colors.used} delay={delay} />;
 }
 
 const s = StyleSheet.create({

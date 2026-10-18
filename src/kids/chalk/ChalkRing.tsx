@@ -1,5 +1,5 @@
 // tmp/animations/rnweb/whiteboard/chalk/ChalkRing.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
-// 子02 の円（今日の使用量）。黄チョークを寝かせて太く書いた円（弧の長さ＝割合）。上から時計回り。
+// 子02 の円（今日の使用量）。使った時間の色のチョーク（今の配色。元は黄）を寝かせて太く書いた円（弧の長さ＝割合）。上から時計回り。
 // 形（Figma 子02・子02-C）:
 //   - 上限＝内と外の2本の点線の円（#75867A 1.2。使った割合のバーの「点線の枠」と同じ、チョークの入る場所）
 //   - 黄チョークの太い弧 12（端は丸い＝棒の先）。真ん中は粉がいちばん多く白っぽく光る（芯 4）
@@ -12,6 +12,7 @@ import { Animated, View } from "react-native";
 import Svg, { Circle, Defs, G, Mask, Rect } from "react-native-svg";
 import { chalk, chalkStroke } from "../theme/chalk";
 import type { RingProps } from "../tools";
+import { useToolColors } from "../tools/scheme-colors";
 import { holeLanes, useSvgId } from "./draw";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -21,6 +22,7 @@ const OVERSHOOT = 0.035;
 
 export function ChalkRing({ progress, size }: RingProps) {
   const id = useSvgId("chalkRing");
+  const colors = useToolColors("chalk"); // used・usedCore（芯の光）・usedOverlap（重なり）は配色ごとの色
   const width = chalkStroke.ring;
   // Figma 子02（240 の箱）: 弧の真ん中の半径 109.5、外の点線 119、内の点線 93
   const r = size / 2 - 10.5;
@@ -95,7 +97,7 @@ export function ChalkRing({ progress, size }: RingProps) {
         <G mask={`url(#${id})`}>
           <AnimatedCircle
             {...common}
-            stroke={chalk.used}
+            stroke={colors.used}
             strokeWidth={width}
             strokeDasharray={`${c * 2} ${c * 2}`}
             strokeDashoffset={lines.arcOffset}
@@ -104,7 +106,7 @@ export function ChalkRing({ progress, size }: RingProps) {
           {/* 真ん中の光（寝かせたチョークの、粉がいちばん多い所） */}
           <AnimatedCircle
             {...common}
-            stroke={chalk.usedCore}
+            stroke={colors.usedCore}
             strokeWidth={chalkStroke.ringCore}
             strokeDasharray={`${c * 2} ${c * 2}`}
             strokeDashoffset={lines.arcOffset}
@@ -113,7 +115,7 @@ export function ChalkRing({ progress, size }: RingProps) {
           {/* 書き始めの上に重なった所（粉が重なって明るい） */}
           <AnimatedCircle
             {...common}
-            stroke={chalk.usedOverlap}
+            stroke={colors.usedOverlap}
             strokeWidth={width - 1}
             strokeDasharray={`${lines.over} ${c * 2}`}
             strokeDashoffset={lines.overOffset}

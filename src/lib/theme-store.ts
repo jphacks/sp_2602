@@ -3,6 +3,9 @@
 // 保存は storage.ts の仕組み（AsyncStorage・Zod で形を確かめる）を使う。キーは storageKeys.theme。
 // 保存がない・壊れている・知らない値（古い版や新しい版のアプリが書いた形）のときは既定のライトにする（落とさない）。
 // ログアウトでは消さない（人ではなく端末の好み。sign-out.ts・clearSessionData はこのキーに触れない）。
+// 配色（赤・緑・青）も同じ作り（キーは storageKeys.colorScheme。既定は緑）。配色は子ども用の見た目だけに効く
+// （「使った時間」「テスト」の色と、選んでいるタブの下線が変わる。保護者の今の見た目は変えない）。
+// 端末の保存だけで、サーバとの約束（contracts）には入れない（人ではなく端末の好みなので、サーバへは送らない）。
 import type { ThemeName } from "@contracts/tokens";
 import { z } from "zod";
 import { appStorage, type KeyValueStorage, readJson, storageKeys, writeJson } from "./storage";
@@ -56,4 +59,35 @@ export async function loadThemeName(storage: KeyValueStorage = appStorage): Prom
 
 export async function saveThemeName(name: ThemeName, storage: KeyValueStorage = appStorage): Promise<void> {
   await writeJson(storage, storageKeys.theme, name);
+}
+
+// ── 配色（子07 の「配色の変更」・ダイアログの「赤」「緑」「青」） ──
+
+export type ColorSchemeName = "red" | "green" | "blue";
+
+// 既定は緑（今のホワイトボード・ノートの「使った時間」の緑に近いので、配色を足す前の見た目からの変わり方が小さい）
+export const DEFAULT_COLOR_SCHEME: ColorSchemeName = "green";
+
+// 選択肢（上から順にダイアログに並べる）。label はダイアログの行と、設定の一覧の右の値の両方に使う
+export const COLOR_SCHEME_OPTIONS = [
+  { name: "red", label: "赤" },
+  { name: "green", label: "緑" },
+  { name: "blue", label: "青" },
+] as const satisfies readonly { name: ColorSchemeName; label: string }[];
+
+const colorSchemeSchema = z.enum(["red", "green", "blue"]);
+
+// 設定の一覧の右に出す値（「赤」「緑」「青」）。知らない名前は既定（緑）
+export function colorSchemeLabel(name: ColorSchemeName): string {
+  const label = (n: string) => COLOR_SCHEME_OPTIONS.find((o) => o.name === n)?.label;
+  return label(name) ?? label(DEFAULT_COLOR_SCHEME) ?? COLOR_SCHEME_OPTIONS[0].label;
+}
+
+// 端末に保存した配色を読む。ない・壊れている・知らない値のときは既定（緑）
+export async function loadColorScheme(storage: KeyValueStorage = appStorage): Promise<ColorSchemeName> {
+  return (await readJson(storage, storageKeys.colorScheme, colorSchemeSchema)) ?? DEFAULT_COLOR_SCHEME;
+}
+
+export async function saveColorScheme(name: ColorSchemeName, storage: KeyValueStorage = appStorage): Promise<void> {
+  await writeJson(storage, storageKeys.colorScheme, name);
 }

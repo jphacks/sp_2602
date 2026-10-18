@@ -12,6 +12,7 @@ export {
   Button,
   Card,
   Chip,
+  ColorSchemeDialog,
   DateField,
   Dialog,
   ErrorBanner,

@@ -1,5 +1,5 @@
 // tmp/animations/rnweb/whiteboard/chalk/ChalkCircle.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
-// テストの日付の印（黒板）: ピンクのチョークで「10月28日（水）」全体を丸く囲む（先生が黒板で大事な日付を囲む形）。
+// テストの日付の印（黒板）: テストの色のチョーク（今の配色。使った時間と同じ色の仲間で、形＝丸囲みで分ける）で「10月28日（水）」全体を丸く囲む（先生が黒板で大事な日付を囲む形）。
 // 形は確認ページ（rnweb/themes/parts.tsx の ChalkCircle）のまま: 文字の左右 12・上下 7 の外を通る楕円。手で書いた丸は閉じきらず、
 // 書き始め（右上）を少し越えて終わる。線は 2.8、粉のかすれ（点の抜け）と、書き始め濃い・書き終わり薄い（ChalkStroke）。
 // twice（3日以内・テスト中。child-view.ts の nextTestEmphasis）: もう一度、少しずらしてなぞる（左下から、2.2。Figma 子01-H の2本の線）。
@@ -7,14 +7,16 @@
 // 使い方: 測った文字に重ねる（Measured。印は文字の後ろ）。
 //   <Measured mark={(w, h) => <ChalkCircle w={w} h={h} start={open} twice={emphasis} />}><Text>10月28日（水）</Text></Measured>
 import Svg from "react-native-svg";
-import { chalk, chalkStroke, chalkTiming } from "../theme/chalk";
+import { chalkStroke, chalkTiming } from "../theme/chalk";
 import type { TestMarkProps } from "../tools";
+import { useToolColors } from "../tools/scheme-colors";
 import { ChalkStroke } from "./ChalkStroke";
 import { bezier } from "./draw";
 
 const PAD = 12;
 
 export function ChalkCircle({ w, h, start, twice = false, delay = chalkTiming.markAt }: TestMarkProps) {
+  const colors = useToolColors("chalk");
   if (!w) return null;
   const W = w + PAD * 2;
   const H = h + 14;
@@ -69,7 +71,7 @@ export function ChalkCircle({ w, h, start, twice = false, delay = chalkTiming.ma
       <ChalkStroke
         d={one.d}
         length={one.len}
-        color={chalk.test}
+        color={colors.test}
         width={chalkStroke.circle}
         start={start}
         delay={delay}
@@ -80,7 +82,7 @@ export function ChalkCircle({ w, h, start, twice = false, delay = chalkTiming.ma
         <ChalkStroke
           d={two.d}
           length={two.len}
-          color={chalk.test}
+          color={colors.test}
           width={chalkStroke.circle2}
           start={start}
           delay={delay + chalkTiming.circle2After}

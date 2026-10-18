@@ -2,11 +2,18 @@
 // 写した部品の `@/lib/theme-store` は、scripts/sync-kids-ui.mjs がここへ書き換える（src/kids/lib/ にあるものはこちらを読む決まり）。
 // 違うのは選択肢と文言だけ: 子ども用の見た目は3つ（白色＝ホワイトボード・黒色＝黒板・ベージュ＝ノート。Figma 子06）。
 // 保存・読み込み・既定・ステータスバーの色はアプリのものそのまま（保存する名前は保護者と同じ light・dark に notebook を足したもの）。
+// 配色（赤・緑・青。子07 の「配色の変更」）は子ども用の見た目だけのものなので、アプリのものをそのまま出す（名前も同じ）。
 export {
+  COLOR_SCHEME_OPTIONS,
+  type ColorSchemeName,
+  colorSchemeLabel,
+  DEFAULT_COLOR_SCHEME,
   DEFAULT_THEME,
   KIDS_THEME_OPTIONS as THEME_OPTIONS,
   kidsThemeLabel as themeLabel,
+  loadColorScheme,
   loadThemeName,
+  saveColorScheme,
   saveThemeName,
   statusBarStyle,
   type ThemeName,

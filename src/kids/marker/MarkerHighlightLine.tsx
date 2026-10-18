@@ -2,11 +2,12 @@
 // 短い下線（選んでいるタブの緑の下線・上限に達した帯の文の下の緑の下線）。少しだけゆるく波打つ1本、端は丸。
 // active が true になったら、左から「キュッ」と引く（タブ・テーマの選択: 200ms / 上限の帯: 300ms 待って 420ms）。
 // active が false になったら消す（タブを選び直したとき）。動きを減らすなら、すぐ引いた形。
-//   <MarkerHighlightLine width={34} active={focused} />                                   … タブ（濃い緑・太さ 3）
-//   <MarkerHighlightLine width={w * 0.92} color={marker.used} thickness={3.4} active delay={300} duration={420} easing={ease.reached} />
+//   <MarkerHighlightLine width={34} active={focused} />                                   … タブ（usedLine・太さ 3）
+//   <MarkerHighlightLine width={w * 0.92} color={colors.used} thickness={3.4} active delay={300} duration={420} easing={ease.reached} />
 import { View } from "react-native";
 import Svg from "react-native-svg";
-import { marker, stroke, timing } from "../theme/tool";
+import { stroke, timing } from "../theme/tool";
+import { useToolColors } from "../tools/scheme-colors";
 import { bezier, ease } from "./draw";
 import { MarkerStroke } from "./MarkerStroke";
 
@@ -24,13 +25,14 @@ type Props = {
 export function MarkerHighlightLine({
   width,
   active,
-  color = marker.usedLine,
+  color,
   thickness = stroke.tab,
   delay = 0,
   duration = timing.highlight,
   easing = ease.stroke,
   wave = 1,
 }: Props) {
+  const colors = useToolColors("marker"); // color を渡さなければ今の配色のタブの下線の色
   const h = thickness + 5;
   const pad = thickness / 2 + 0.5;
   const w = Math.max(1, width - pad * 2);
@@ -52,7 +54,7 @@ export function MarkerHighlightLine({
         <MarkerStroke
           d={line.d}
           length={line.len}
-          color={color}
+          color={color ?? colors.usedLine}
           width={thickness}
           start={active}
           delay={delay}

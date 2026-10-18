@@ -9,18 +9,24 @@
 import { Animated, StyleSheet, View } from "react-native";
 import body from "../assets/chalk/body.png";
 import { chalk, chalkStroke, chalkTool } from "../theme/chalk";
+import { useToolColors } from "../tools/scheme-colors";
 import { Speckle } from "./Speckle";
 
 type Len = Animated.Value | Animated.AnimatedInterpolation<number> | number;
 type Props = { length: Len; thin?: boolean; color?: string };
 
-export function ChalkStick({ length, thin = false, color = chalk.used }: Props) {
+export function ChalkStick({ length, thin = false, color }: Props) {
+  const colors = useToolColors("chalk"); // color を渡さなければ今の配色の使った時間の色
   const h = thin ? chalkStroke.stickThin : chalkStroke.stick;
   return (
     <View style={[s.track, thin && s.trackThin]}>
       <View style={[s.limit, thin ? s.limitThin : s.limitWide]} />
       <Animated.View
-        style={[s.stick, thin && s.stickThin, { width: length as never, height: h, backgroundColor: color }]}
+        style={[
+          s.stick,
+          thin && s.stickThin,
+          { width: length as never, height: h, backgroundColor: color ?? colors.used },
+        ]}
       >
         <View style={[s.hi, thin && s.hiThin]} />
         <View style={[s.shade, thin && s.shadeThin]} />

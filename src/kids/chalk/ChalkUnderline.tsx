@@ -1,17 +1,19 @@
 // tmp/animations/rnweb/whiteboard/chalk/ChalkUnderline.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
-// 短い下線（選んでいるタブ・上限に達した帯の文の下）。黄チョークで引いた、少し波打つ1本（使った時間の色）。
+// 短い下線（選んでいるタブ・上限に達した帯の文の下）。使った時間の色のチョーク（今の配色。タブは usedLine・帯は used）で引いた、少し波打つ1本。
 // 黄チョークをさっと引くと、書き始めは濃く、終わりはかすれて抜ける。板の上を引きずるので「キュッ」とは引けない。
 //   tab     … 幅 34・太さ 2.8（Figma の下のタブ）。選んだら 260ms で左から（ease.drag）。選び直したら消える
 //   reached … 文の幅の 92%・太さ 2.8（Figma 子11・子01-D）。帯が出てから 300ms 待って 520ms（長い線を引きずる時間）
 // 動きを減らすなら、引いた形をすぐ出す。
 import { View } from "react-native";
 import Svg from "react-native-svg";
-import { chalk, chalkStroke, chalkTiming } from "../theme/chalk";
+import { chalkStroke, chalkTiming } from "../theme/chalk";
 import type { UnderlineProps } from "../tools";
+import { useToolColors } from "../tools/scheme-colors";
 import { ChalkStroke } from "./ChalkStroke";
 import { bezier } from "./draw";
 
 export function ChalkUnderline({ width, active, kind }: UnderlineProps) {
+  const colors = useToolColors("chalk");
   const reached = kind === "reached";
   const thickness = reached ? chalkStroke.reached : chalkStroke.tab;
   const h = thickness + 5;
@@ -45,7 +47,7 @@ export function ChalkUnderline({ width, active, kind }: UnderlineProps) {
         <ChalkStroke
           d={line.d}
           length={line.len}
-          color={chalk.used}
+          color={reached ? colors.used : colors.usedLine}
           width={thickness}
           start={active}
           delay={reached ? chalkTiming.reachedDelay : 0}
