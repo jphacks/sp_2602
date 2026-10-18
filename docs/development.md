@@ -157,7 +157,8 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 | 「通信できませんでした」 | `EXPO_PUBLIC_API_URL` が PC の IP か・同じ Wi-Fi か・サーバが立っているか・Metro を立て直したか |
 | ログイン画面に戻された（「ログインの期限が切れました」） | `state/pglite` を消した・`MOCK_PERSIST=0` で立て直していないか（上の「手元のサーバを立て直すと」）。30日使わなかった合言葉も無効になる（D-1） |
 | 「開発用のログインはこのサーバでは使えません」 | サーバの `.env` に `MOCK=1` があるか |
-| Google ログインで DEVELOPER_ERROR | [google-login-setup.md](google-login-setup.md) の「気をつけること」（パッケージ名・SHA-1・Web のクライアント ID） |
+| Google ログインで DEVELOPER_ERROR | [google-login-setup.md](google-login-setup.md) の「気をつけること」（パッケージ名・SHA-1・Web のクライアント ID）。release 版なら自分たちの鍵の SHA-1 を登録したか（[release-signing.md](release-signing.md)） |
+| release 版を作ると「release 版を署名する鍵の設定が足りないので止めました」 | [release-signing.md](release-signing.md) の 1〜2（鍵と `~/.gradle/gradle.properties` の4つの値）。debug 版・dev client には要らない |
 | 子どもの画面が「使った時間を取得できませんでした」 | `EXPO_PUBLIC_FAKE_USAGE=1` にして Metro を立て直したか |
 
 ## 8. Vercel の DB（Neon）を扱う
