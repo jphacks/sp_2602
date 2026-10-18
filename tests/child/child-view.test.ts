@@ -55,6 +55,7 @@ const snapshot = (over: Partial<ConfigSnapshot> = {}): ConfigSnapshot => ({
   blankPeriods: [],
   dailyLimits: [],
   excludedApps: [],
+  blockedSites: [],
   generatedAt: "2026-10-15T00:00:00.000Z",
   ...over,
 });

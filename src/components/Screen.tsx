@@ -3,11 +3,47 @@
 //   <Screen title="テスト日程の登録" footer={<Button label="登録する" onPress={save} />}>…</Screen>
 //   <Screen title="アプリごとの利用時間" onBack={() => router.back()}>…</Screen>
 import { tokens } from "@contracts/tokens";
-import type { ReactNode } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { type ReactNode, useEffect, useState } from "react";
+import {
+  AppState,
+  Keyboard,
+  KeyboardAvoidingView,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { makeStyles } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Icon } from "./Icon";
+import { nextKeyboardAvoid } from "./keyboard-avoid";
+
+// キーボードを避けるのを効かせるか（決まりは keyboard-avoid.ts）。
+// ほかのアプリのキーボードの合図で、入力欄のない画面の中身がずれたまま残らないようにする
+function useKeyboardAvoid(): boolean {
+  const [enabled, setEnabled] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () =>
+      setEnabled((cur) =>
+        nextKeyboardAvoid(cur, { kind: "show", focusedInput: TextInput.State.currentlyFocusedInput() != null }),
+      ),
+    );
+    const hide = Keyboard.addListener("keyboardDidHide", () =>
+      setEnabled((cur) => nextKeyboardAvoid(cur, { kind: "hide" })),
+    );
+    const app = AppState.addEventListener("change", (s) =>
+      setEnabled((cur) => nextKeyboardAvoid(cur, { kind: "appState", active: s === "active" })),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+      app.remove();
+    };
+  }, []);
+  return enabled;
+}
 
 type Props = {
   title: string;
@@ -21,6 +57,8 @@ type Props = {
 };
 
 export function Screen({ title, onBack, right, footer, scroll = true, bottomInset = true, children }: Props) {
+  const avoidKeyboard = useKeyboardAvoid();
+  const colorStyles = useColorStyles();
   const body = scroll ? (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {children}
@@ -29,7 +67,7 @@ export function Screen({ title, onBack, right, footer, scroll = true, bottomInse
     <View style={[styles.content, styles.fill]}>{children}</View>
   );
   return (
-    <SafeAreaView style={styles.root} edges={bottomInset ? ["top", "bottom"] : ["top"]}>
+    <SafeAreaView style={[styles.root, colorStyles.root]} edges={bottomInset ? ["top", "bottom"] : ["top"]}>
       <View style={styles.appBar}>
         {onBack && (
           <Pressable
@@ -49,14 +87,19 @@ export function Screen({ title, onBack, right, footer, scroll = true, bottomInse
         </View>
         {right}
       </View>
-      <View style={styles.fill}>{body}</View>
-      {footer && <View style={styles.footer}>{footer}</View>}
+      {/* Android 15 以降は画面が端まで広がるため、キーボードが出ても画面が縮まず、下の入力欄がキーボードに隠れる
+          （実機 SC-53C・Android 16 で親02 の「最終目標」が隠れた）。キーボードの高さだけ下を空けて、本文を縮める。
+          ただし Slope の入力欄にフォーカスがあるときだけ（ほかのアプリから戻った瞬間に届くキーボードの合図では縮めない） */}
+      <KeyboardAvoidingView style={styles.fill} behavior="padding" enabled={avoidKeyboard}>
+        <View style={styles.fill}>{body}</View>
+        {footer && <View style={styles.footer}>{footer}</View>}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: tokens.color.bg },
+  root: { flex: 1 },
   fill: { flex: 1 },
   appBar: {
     height: tokens.size.appBar,
@@ -79,3 +122,10 @@ const styles = StyleSheet.create({
     gap: tokens.layout.cardGap,
   },
 });
+
+// 色だけはテーマで変わるので分けて持つ（src/lib/theme.tsx）
+const useColorStyles = makeStyles((c) =>
+  StyleSheet.create({
+    root: { backgroundColor: c.bg },
+  }),
+);

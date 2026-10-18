@@ -2,7 +2,27 @@
 import type { ApiError } from "@contracts/errors";
 import { describe, expect, it } from "vitest";
 import { googleOutcome, loginNotice, serverFailure } from "@/components/pair/login-view";
-import { formatHoursMinutes, parseUsualLimit, splitMinutes } from "@/components/pair/usual-limit-input";
+import {
+  formatHoursMinutes,
+  parseUsualLimit,
+  splitMinutes,
+  usualLimitExit,
+  usualLimitFromOf,
+} from "@/components/pair/usual-limit-input";
+
+// 親01 の帯から来たのに、閉じると入口へ置き換えていたので、ホームの上にもう1つホームが重なり、
+// Android の戻るボタンでホームからホームへ戻っていた（回帰テスト）
+describe("通常上限の画面を閉じたときの行き先", () => {
+  it("親01 のホームから来た（from=home）なら戻る", () => {
+    expect(usualLimitExit(usualLimitFromOf("home"))).toBe("back");
+  });
+
+  it("紐づけの直後（from なし・知らない値）なら入口で振り分け直す", () => {
+    expect(usualLimitExit(usualLimitFromOf(undefined))).toBe("entry");
+    expect(usualLimitExit(usualLimitFromOf("other"))).toBe("entry");
+    expect(usualLimitExit(usualLimitFromOf(["home"]))).toBe("entry");
+  });
+});
 
 describe("通常上限の入力", () => {
   it("時間と分を分に直す", () => {

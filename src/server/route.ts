@@ -14,9 +14,9 @@ import {
   type Res,
   type StreamDef,
   type StreamRoute,
-} from "../../contracts/api";
-import { authorize, type Caller, checkChildAccess } from "./auth";
-import { badRequest, toApiError } from "./errors";
+} from "../../contracts/api.js";
+import { authorize, type Caller, checkChildAccess } from "./auth.js";
+import { badRequest, toApiError } from "./errors.js";
 
 // 処理に渡す、入力以外の情報。caller は auth が "none" の API でだけ null
 export type Ctx = { caller: Caller | null };
@@ -27,9 +27,18 @@ export function callerOf(ctx: Ctx): Caller {
   return ctx.caller;
 }
 
+// 本文がない POST（入力なしの API。authSignOut）は undefined にする（契約の z.void() で受け付ける）。
+// 本文があって JSON として読めなければ null（契約の検査で bad_request になる）
 async function readInput(request: Request, method: string): Promise<unknown> {
   if (method === "GET") return undefined;
-  return request.json().catch(() => null);
+  const text = await request.text().catch(() => null);
+  if (text == null) return null;
+  if (text.trim() === "") return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 const errorResponse = (e: unknown) => {
@@ -54,7 +63,7 @@ async function prepare(
     return Response.json(body, { status });
   }
   try {
-    checkChildAccess(ctx.caller, parsed.data);
+    await checkChildAccess(ctx.caller, parsed.data);
   } catch (e) {
     return errorResponse(e);
   }

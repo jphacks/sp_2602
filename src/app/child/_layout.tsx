@@ -4,7 +4,7 @@
 // タブに出ない画面（タブは出たまま）: limit-reached（子11）・schedule-edit/[id]（子05）
 
 import { Redirect, Tabs } from "expo-router";
-import { TabIcon, useTabBarOptions } from "@/components/TabIcon";
+import { hiddenTabOptions, TabIcon, useTabBarOptions } from "@/components/TabIcon";
 import { ChildDataProvider } from "@/lib/child-data";
 import { useSession } from "@/lib/session";
 
@@ -13,8 +13,10 @@ export default function ChildLayout() {
   const { state } = useSession();
   if (state.status !== "signedIn" || state.session.role !== "child") return <Redirect href="/" />;
   return (
-    <ChildDataProvider childId={state.session.userId}>
-      <Tabs screenOptions={tabBarOptions}>
+    // key: サーバ上の自分の id が変わったら（child-data.tsx が 403 で確かめ直した結果）、前の id の設定・使用時間を持ち越さずに作り直す
+    <ChildDataProvider key={state.session.userId} childId={state.session.userId}>
+      {/* backBehavior="history": 「←」や戻るボタンで、来た画面へ戻す（既定の firstRoute だと、タブに出ない画面からいつもホームへ戻る） */}
+      <Tabs screenOptions={tabBarOptions} backBehavior="history">
         <Tabs.Screen
           name="home"
           options={{ title: "ホーム", tabBarIcon: (p) => <TabIcon name="home" focused={p.focused} /> }}
@@ -35,8 +37,8 @@ export default function ChildLayout() {
           name="settings"
           options={{ title: "設定", tabBarIcon: (p) => <TabIcon name="settings" focused={p.focused} /> }}
         />
-        <Tabs.Screen name="limit-reached" options={{ href: null }} />
-        <Tabs.Screen name="schedule-edit/[id]" options={{ href: null }} />
+        <Tabs.Screen name="limit-reached" options={hiddenTabOptions} />
+        <Tabs.Screen name="schedule-edit/[id]" options={hiddenTabOptions} />
       </Tabs>
     </ChildDataProvider>
   );

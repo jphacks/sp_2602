@@ -4,21 +4,22 @@
 //   - 古い版で送ると conflict になり、画面は「読み込み直す」を出す（saveFailure）
 //   - 送る前の検査（validatePeriod）で止める重なりは、サーバでも断られる（同じ決まり）
 //   - 空白期間は保護者だけ（子どもは forbidden → 「保護者だけが変えられます」）
+//   - 親05 の「反映済み／反映待ち」は、テスト日程が最後に変わった版で決まる（計画・対象外アプリの保存では反映待ちにならない）
 import { mockSessions } from "@contracts/fixtures";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { deletePeriod, fetchPeriods, savePeriod } from "@/components/schedule/actions";
-import { saveFailure, validatePeriod } from "@/components/schedule/logic";
-import { ApiCallError, errorOf, setSessionToken } from "@/lib/api";
+import { appliedStatus, saveFailure, validatePeriod } from "@/components/schedule/logic";
+import { ApiCallError, call, errorOf, setSessionToken } from "@/lib/api";
 import app from "@/server/app";
-import { resetStore } from "@/server/mock/store";
+import { fresh } from "../verify/helpers";
 
 const PARENT = mockSessions["mock-google-parent"].token;
 const CHILD = mockSessions["mock-google-child"].token;
 const CHILD_ID = mockSessions["mock-google-child"].userId;
 
-beforeEach(() => {
+beforeEach(async () => {
   // 時計は日本時間 2026-10-15 12:00（見本のテスト「数学」10/26〜10/28 がある。空白期間はない）
-  resetStore({ seed: true, now: () => new Date(Date.parse("2026-10-15T03:00:00Z")) });
+  await fresh("2026-10-15T03:00:00Z");
   vi.stubGlobal("fetch", (url: string, init: RequestInit) => app.request(url, init));
 });
 
@@ -234,5 +235,63 @@ describe("空白期間（保護者だけ。Q7）", () => {
     );
     expect(error.code).toBe("forbidden");
     expect(saveFailure(error, "blank").error.message).toBe("空白期間は保護者だけが変えられます");
+  });
+});
+
+describe("保護者の一覧の反映済み／反映待ち（Q6。一覧が最後に変わった版で決める）", () => {
+  // 子どもの端末が設定を取りに来た（C7）ことにする
+  const childFetches = async () => {
+    setSessionToken(CHILD);
+    const { configVersion } = await call("planGet", { childId: CHILD_ID });
+    await call("configGet", { childId: CHILD_ID, knownVersion: configVersion });
+    setSessionToken(PARENT);
+  };
+  const statusOf = async (kind: "test" | "blank") => {
+    const s = await fetchPeriods(kind, CHILD_ID);
+    return appliedStatus(s.changedVersion, s.childAppliedVersion).label;
+  };
+
+  it("計画・対象外アプリ・空白期間を保存しただけでは、テストの一覧は反映済みのまま。テストを足すと反映待ち", async () => {
+    await childFetches();
+    expect(await statusOf("test")).toBe("反映済み");
+
+    // 計画と対象外アプリを保存する（設定の版は上がるが、テストの日程は変わっていない）
+    const plan = await call("planGet", { childId: CHILD_ID });
+    if (!plan.plan) throw new Error("見本の計画があるはず");
+    const saved = await call("planSave", {
+      childId: CHILD_ID,
+      expectedVersion: plan.configVersion,
+      planStartDate: "2026-10-20",
+      startLimitMinutes: plan.plan.startLimitMinutes,
+      finalGoalMinutes: plan.plan.finalGoalMinutes,
+    });
+    const excluded = await call("excludedAppsSave", {
+      childId: CHILD_ID,
+      expectedVersion: saved.configVersion,
+      apps: [{ packageName: "com.example.wordcards", label: "英単語カード" }],
+    });
+    const blank = await savePeriod("blank", {
+      childId: CHILD_ID,
+      expectedVersion: excluded.configVersion,
+      name: "冬休み",
+      startDate: "2026-12-24",
+      endDate: "2027-01-07",
+    });
+    const tests = await fetchPeriods("test", CHILD_ID);
+    expect(tests.childAppliedVersion).toBeLessThan(tests.configVersion); // 設定の版で決めていた前は「反映待ち」になっていた
+    expect(await statusOf("test")).toBe("反映済み");
+    expect(await statusOf("blank")).toBe("反映待ち"); // 空白期間は変わったので、こちらは反映待ち
+
+    await savePeriod("test", {
+      childId: CHILD_ID,
+      expectedVersion: blank.configVersion,
+      name: "英語",
+      startDate: "2026-11-10",
+      endDate: "2026-11-11",
+    });
+    expect(await statusOf("test")).toBe("反映待ち");
+
+    await childFetches();
+    expect([await statusOf("test"), await statusOf("blank")]).toEqual(["反映済み", "反映済み"]);
   });
 });

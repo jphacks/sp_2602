@@ -10,5 +10,5 @@
     }
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "tmp", "android", "ios", "dist", "backend"]
+  "exclude": ["node_modules", "tmp", "android", "ios", "dist", "backend", ".claude"]
 }

@@ -5,6 +5,7 @@ import { tokens } from "@contracts/tokens";
 import { type BarcodeScanningResult, type BarcodeSettings, CameraView } from "expo-camera";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { AppText } from "@/components";
+import { makeStyles, useColors } from "@/lib/theme";
 
 // QR だけを読む（ほかのバーコードには反応しない）
 const scannerSettings: BarcodeSettings = { barcodeTypes: ["qr"] };
@@ -16,6 +17,8 @@ type Props = {
 };
 
 export function QrScanner({ scanning, verifying, onScanned }: Props) {
+  const styles = useStyles();
+  const c = useColors();
   const onBarcode = scanning ? (r: BarcodeScanningResult) => onScanned(r.data) : undefined;
   return (
     <View style={styles.camera}>
@@ -29,7 +32,7 @@ export function QrScanner({ scanning, verifying, onScanned }: Props) {
       {!verifying && (
         <View style={styles.hint}>
           <AppText variant="label" tone="onPrimary" center>
-            {"子どものスマホに出ている\nQRコードを枠に入れてね"}
+            子どものスマホに出ているQRコードを枠に入れてね
           </AppText>
         </View>
       )}
@@ -41,7 +44,7 @@ export function QrScanner({ scanning, verifying, onScanned }: Props) {
           <View style={[styles.corner, styles.bottomRight, verifying && styles.cornerDim]} />
           {verifying && (
             <View style={styles.verifying} accessibilityLiveRegion="polite">
-              <ActivityIndicator size="large" color={tokens.color.white} />
+              <ActivityIndicator size="large" color={c.white} />
               <AppText tone="onPrimary" center>
                 確かめています…
               </AppText>
@@ -64,65 +67,67 @@ const fill = {
 const cornerLength = tokens.space[12];
 const cornerWidth = tokens.space[1];
 
-const styles = StyleSheet.create({
-  camera: {
-    flex: 1,
-    borderRadius: tokens.radius.dialog,
-    overflow: "hidden",
-    backgroundColor: tokens.color.text,
-  },
-  dim: { ...fill, backgroundColor: tokens.color.scrim },
-  hint: {
-    position: "absolute",
-    top: tokens.space[6],
-    left: tokens.space[6],
-    right: tokens.space[6],
-    paddingVertical: tokens.space[2],
-    paddingHorizontal: tokens.space[4],
-    borderRadius: tokens.radius.card,
-    backgroundColor: tokens.color.black,
-  },
-  center: { ...fill, alignItems: "center", justifyContent: "center" },
-  viewfinder: {
-    width: tokens.size.viewfinder,
-    height: tokens.size.viewfinder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  corner: {
-    position: "absolute",
-    width: cornerLength,
-    height: cornerLength,
-    borderColor: tokens.color.white,
-  },
-  cornerDim: { borderColor: tokens.color.muted },
-  topLeft: {
-    top: tokens.space[0],
-    left: tokens.space[0],
-    borderTopWidth: cornerWidth,
-    borderLeftWidth: cornerWidth,
-    borderTopLeftRadius: tokens.radius.md,
-  },
-  topRight: {
-    top: tokens.space[0],
-    right: tokens.space[0],
-    borderTopWidth: cornerWidth,
-    borderRightWidth: cornerWidth,
-    borderTopRightRadius: tokens.radius.md,
-  },
-  bottomLeft: {
-    bottom: tokens.space[0],
-    left: tokens.space[0],
-    borderBottomWidth: cornerWidth,
-    borderLeftWidth: cornerWidth,
-    borderBottomLeftRadius: tokens.radius.md,
-  },
-  bottomRight: {
-    bottom: tokens.space[0],
-    right: tokens.space[0],
-    borderBottomWidth: cornerWidth,
-    borderRightWidth: cornerWidth,
-    borderBottomRightRadius: tokens.radius.md,
-  },
-  verifying: { alignItems: "center", gap: tokens.space[3] },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    camera: {
+      flex: 1,
+      borderRadius: tokens.radius.dialog,
+      overflow: "hidden",
+      backgroundColor: c.black,
+    },
+    dim: { ...fill, backgroundColor: c.scrim },
+    hint: {
+      position: "absolute",
+      top: tokens.space[6],
+      left: tokens.space[6],
+      right: tokens.space[6],
+      paddingVertical: tokens.space[2],
+      paddingHorizontal: tokens.space[4],
+      borderRadius: tokens.radius.card,
+      backgroundColor: c.black,
+    },
+    center: { ...fill, alignItems: "center", justifyContent: "center" },
+    viewfinder: {
+      width: tokens.size.viewfinder,
+      height: tokens.size.viewfinder,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    corner: {
+      position: "absolute",
+      width: cornerLength,
+      height: cornerLength,
+      borderColor: c.white,
+    },
+    cornerDim: { borderColor: c.muted },
+    topLeft: {
+      top: tokens.space[0],
+      left: tokens.space[0],
+      borderTopWidth: cornerWidth,
+      borderLeftWidth: cornerWidth,
+      borderTopLeftRadius: tokens.radius.md,
+    },
+    topRight: {
+      top: tokens.space[0],
+      right: tokens.space[0],
+      borderTopWidth: cornerWidth,
+      borderRightWidth: cornerWidth,
+      borderTopRightRadius: tokens.radius.md,
+    },
+    bottomLeft: {
+      bottom: tokens.space[0],
+      left: tokens.space[0],
+      borderBottomWidth: cornerWidth,
+      borderLeftWidth: cornerWidth,
+      borderBottomLeftRadius: tokens.radius.md,
+    },
+    bottomRight: {
+      bottom: tokens.space[0],
+      right: tokens.space[0],
+      borderBottomWidth: cornerWidth,
+      borderRightWidth: cornerWidth,
+      borderBottomRightRadius: tokens.radius.md,
+    },
+    verifying: { alignItems: "center", gap: tokens.space[3] },
+  }),
+);

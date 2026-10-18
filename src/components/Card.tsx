@@ -3,21 +3,25 @@
 import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
+import { makeStyles } from "@/lib/theme";
 
 type Props = { tone?: "default" | "soft"; children: ReactNode };
 
 export function Card({ tone = "default", children }: Props) {
+  const styles = useStyles();
   return <View style={[styles.card, tone === "soft" && styles.soft]}>{children}</View>;
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: tokens.color.surface,
-    borderRadius: tokens.radius.card,
-    borderWidth: tokens.size.border,
-    borderColor: tokens.color.line,
-    padding: tokens.layout.cardPadding,
-    gap: tokens.space[3],
-  },
-  soft: { backgroundColor: tokens.color.primarySoft, borderColor: tokens.color.primarySoft },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: c.surface,
+      borderRadius: tokens.radius.card,
+      borderWidth: tokens.size.border,
+      borderColor: c.line,
+      padding: tokens.layout.cardPadding,
+      gap: tokens.space[3],
+    },
+    soft: { backgroundColor: c.primarySoft, borderColor: c.primarySoft },
+  }),
+);

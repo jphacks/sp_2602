@@ -1,12 +1,14 @@
 // 確かめ役（V）: 人間が決めた「仕様の決定 Q1〜Q14」のうち、サーバと仕組みで確かめられるものを点検する（plan.md）。
 // 画面だけで決まるもの（Q12 の下部タブ・Q13 の設定画面の項目）は対象外。
+
 import { addDays, dateOf, todayString } from "@contracts/dates";
+import { mockSessions } from "@contracts/fixtures";
 import { type BlankPeriod, type DailyLimit, PlanSave, TestPeriodCreate } from "@contracts/schemas";
 import { beforeEach, describe, expect, it } from "vitest";
 import { CHILD, CHILD_ID, clock, fresh, get, newFamily, newPerson, ok, PARENT, post, versionOf } from "./helpers";
 
-beforeEach(() => {
-  fresh("2026-10-15T03:00:00Z");
+beforeEach(async () => {
+  await fresh("2026-10-15T03:00:00Z");
 });
 
 type Snap = { configVersion: number; dailyLimits: DailyLimit[]; usualLimitMinutes: number | null };
@@ -54,7 +56,7 @@ describe("V: Q3 日付は Asia/Tokyo 固定・0:00 区切り", () => {
   });
 
   it("サーバの「今日」も日本時間: UTC 15:00 を過ぎてから保存すると、日別上限は翌日から始まる", async () => {
-    fresh("2026-10-15T15:00:00Z"); // 日本時間 10/16 0:00
+    await fresh("2026-10-15T15:00:00Z"); // 日本時間 10/16 0:00
     const { child, parent } = await newFamily("q3");
     const v = await versionOf(child.userId, parent.token);
     await ok(
@@ -133,7 +135,11 @@ describe("V: Q5・Q6 保存と C10 は1回の処理・版は子ども1人に1本
         .childAppliedVersion,
     ).toBeNull();
     // 2回目に「今使っている版」を送る → 反映済み
-    expect(await snapshotOf(CHILD_ID, CHILD, v)).toEqual({ changed: false, configVersion: v });
+    expect(await snapshotOf(CHILD_ID, CHILD, v)).toEqual({
+      changed: false,
+      configVersion: v,
+      epoch: expect.any(String),
+    });
     for (const path of ["/api/plan/get", "/api/test-period/list", "/api/blank-period/list", "/api/excluded-apps/get"]) {
       const r = await ok<{ childAppliedVersion: number | null; configVersion: number }>(
         post(path, { childId: CHILD_ID }, PARENT),
@@ -314,8 +320,8 @@ describe("V: Q10 QR は10分・1回だけ・出し直すと前は無効", () => 
 describe("V 回帰: 不具合4 QR を出すときの呼び名が、紐づけの後に消えた（store.pairConfirm）", () => {
   // もとは tests/verify/known-bugs.test.ts（中身と期待値はそのまま）。
   // 原因: 確定後の familyGet・linkStatus・authMe が Google のアカウント名を返していた。直し方: 確定のときに呼び名を子どもの名前として残す
-  beforeEach(() => {
-    fresh("2026-10-15T03:00:00Z");
+  beforeEach(async () => {
+    await fresh("2026-10-15T03:00:00Z");
   });
 
   it("紐づけの後、保護者の家族一覧・連携状態に出る子どもの名前は、QR を出すときに入れた呼び名", async () => {
@@ -372,7 +378,7 @@ describe("V: Q11 子どももテスト期間を追加・変更・削除できる
     );
     expect(upd.testPeriod).toMatchObject({
       createdByRole: "parent",
-      createdByUserId: "demo-parent",
+      createdByUserId: mockSessions["mock-google-parent"].userId,
       name: "子が直した",
     });
     const del = await post(

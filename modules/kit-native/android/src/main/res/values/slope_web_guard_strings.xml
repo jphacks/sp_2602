@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- D-111: 制限する Web サイトのユーザー補助のサービス（engine/WebGuardService.kt）の文言。
+     設定の「ユーザー補助」の一覧と、オンにするときの説明に出る。ほかの文言と名前がぶつからないよう slope_web_guard_ で始める -->
+<resources>
+    <string name="slope_web_guard_label">Slope（Web サイトの制限）</string>
+    <string name="slope_web_guard_description">その日のスマホの時間が終わったあと、保護者が決めた Web サイトをブラウザ（Chrome・Samsung Internet・Firefox・Edge）で開くと、前の画面に戻して Slope の案内を出します。読むのはブラウザのアドレス欄だけで、ページの中身やほかのアプリの画面は読みません。読んだアドレスは送りも残しもしません。</string>
+</resources>

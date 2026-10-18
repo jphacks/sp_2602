@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- D-111: 制限する Web サイトのユーザー補助のサービス（engine/WebGuardService.kt）の設定。
+     参考: SelfLock（https://github.com/EtashTyagi/SelfLock 。MIT License, Copyright (c) 2026 Etash Tyagi。
+     全文は modules/kit-native/LICENSE-SelfLock）の res/xml/accessibility_service_config.xml。
+     Slope では次を変えた:
+       packageNames … 出来事を受け取るアプリを、対応するブラウザ4つだけにする（ほかのアプリの画面は読まない。
+                      WebGuardService.URL_BAR_IDS と同じ並び。Firefox は org.mozilla.firefox）
+       イベント      … SelfLock と同じ3つ（画面が変わった・中身が変わった・文字が変わった）。ブラウザがページを移ったときに
+                      アドレス欄の文字を書き換えると、文字が変わった出来事だけが届くことがあるため（入力中は WebGuardService が判定しない）
+       flagReportViewIds … アドレス欄を id で探すのに要る。canRetrieveWindowContent … アドレス欄の文字を読むのに要る
+       notificationTimeout … 同じ種類の出来事をまとめる間（ミリ秒）。ページの読み込み中に何十回も判定しないように -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewTextChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="200"
+    android:packageNames="com.android.chrome,com.sec.android.app.sbrowser,org.mozilla.firefox,com.microsoft.emmx"
+    android:description="@string/slope_web_guard_description" />

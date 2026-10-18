@@ -4,8 +4,11 @@
 import { tokens } from "@contracts/tokens";
 import { Pressable, StyleSheet, View } from "react-native";
 import { AppText, Icon } from "@/components";
+import { makeStyles, useColors } from "@/lib/theme";
 
 export function RecommendAppsCard({ onPress }: { onPress: () => void }) {
+  const styles = useStyles();
+  const c = useColors();
   return (
     <Pressable
       onPress={onPress}
@@ -13,27 +16,32 @@ export function RecommendAppsCard({ onPress }: { onPress: () => void }) {
       accessibilityLabel="お勧めアプリはこちらです"
       style={({ pressed }) => [styles.card, pressed && styles.pressed]}
     >
-      <Icon name="apps" color={tokens.color.primary} />
+      <Icon name="apps" color={c.primary} />
       <View style={styles.text}>
-        <AppText variant="title">お勧めアプリはこちらです</AppText>
+        {/* Figma 子11 は1行（16 の中くらいの太さ）。title だと文字を大きくした端末で「す」だけ次の行に落ちる */}
+        <AppText variant="body" strong>
+          お勧めアプリはこちらです
+        </AppText>
       </View>
-      <Icon name="chevron_right" color={tokens.color.primary} />
+      <Icon name="chevron_right" color={c.primary} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    minHeight: tokens.size.button,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: tokens.space[3],
-    paddingHorizontal: tokens.space[5],
-    backgroundColor: tokens.color.surface,
-    borderRadius: tokens.radius.card,
-    borderWidth: tokens.size.border,
-    borderColor: tokens.color.primary,
-  },
-  text: { flex: 1 },
-  pressed: { backgroundColor: tokens.color.surfaceDim },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    card: {
+      minHeight: tokens.size.button,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: tokens.space[3],
+      paddingHorizontal: tokens.space[5],
+      backgroundColor: c.surface,
+      borderRadius: tokens.radius.card,
+      borderWidth: tokens.size.border,
+      borderColor: c.primary,
+    },
+    text: { flex: 1 },
+    pressed: { backgroundColor: c.surfaceDim },
+  }),
+);

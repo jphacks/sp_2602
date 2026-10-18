@@ -7,7 +7,7 @@
 //   - 文言は責めない言い方にする（「ちょうどいいペース！」「続きはあしたにしよう」）
 // React Native を import しない（Vitest で Node のまま動かすため）。
 import { addDays, formatDateJa, formatSlashDate, mondayOf, weekdayJa } from "@contracts/dates";
-import type { NativeUsageResult } from "@contracts/native";
+import type { NativePermission, NativePermissionStatus, NativeUsageResult } from "@contracts/native";
 import type { BlankPeriod, ConfigSnapshot } from "@contracts/schemas";
 import type { ConfigState } from "@/lib/config-cache";
 import { calcUsage, limitForDate, type nextTest, type UsageCalc } from "@/lib/usage-calc";
@@ -37,6 +37,16 @@ export function nextTestView(config: ConfigState | null, test: NextTest): NextTe
     return { kind: "test", headline, detail, ongoing: true };
   }
   return { kind: "test", headline, detail: `あと${test.daysUntil}日`, ongoing: false };
+}
+
+// 子01 の「次のテスト」のカードを、少しだけ光らせて目立たせるか（Figma にない動き）。
+// テストまで NEXT_TEST_SOON_DAYS 日以内か、テスト期間中なら光らせる（期間中は日数を数えないが、一番大事な時期なので目立たせる）。
+// テストがない・設定が取れていない（test が null）ときは光らせない（分からないものを強調しない）
+export const NEXT_TEST_SOON_DAYS = 3;
+
+export function nextTestEmphasis(test: NextTest): boolean {
+  if (!test) return false;
+  return test.ongoing || test.daysUntil <= NEXT_TEST_SOON_DAYS;
 }
 
 // ── 子01・子02・子11「今日の使用量」 ───────────────────────────
@@ -244,6 +254,61 @@ export function shouldOpenLimitScreen(calc: UsageCalc | null, today: string, sho
   return calc?.state === "ok" && calc.reached && shownForDate !== today;
 }
 
+// ── 子01「見守りのための許可」（C4） ─────────────────────────────
+
+// 上限に届いたときに案内を出すための許可のうち、まだのもの（許可してほしい順）。Figma にない案内（実機の都合で足した）。
+// 使用状況へのアクセス（usageAccess）は「今日の使用量」のカードが案内するので、ここには入れない（同じ案内を2回出さない）。
+// Kotlin の部品がない端末（available = false。Expo Go・テスト）では出さない（許可しても何も変わらないため）。
+// ユーザー補助（accessibility）は、保護者が制限する Web サイトを1つ以上登録しているときだけ出す（D-111。
+//   要らない許可を求めない。登録が分かるのは C7 の組（config）なので、config を渡さなければ出さない）
+export type PermissionGuideItem = {
+  permission: Exclude<NativePermission, "usageAccess">;
+  title: string;
+  body: string;
+};
+
+const PERMISSION_GUIDE: readonly PermissionGuideItem[] = [
+  {
+    permission: "overlay",
+    title: "ほかのアプリの上に表示",
+    body: "時間が終わったときに、Slope の案内を出すために使います",
+  },
+  {
+    permission: "notifications",
+    title: "通知",
+    body: "見守っていることと、時間が終わったことをお知らせします",
+  },
+  {
+    permission: "batteryOptimization",
+    title: "電池の最適化をオフ",
+    body: "見守りが途中で止まらないようにします",
+  },
+  {
+    // 押すと Android の「ユーザー補助」の設定が開く。そこで「Slope」を選んでオンにする（D-111）
+    permission: "accessibility",
+    title: "ユーザー補助（Slope）",
+    body: "時間が終わったあと、おうちの人が決めた Web サイトを開かないようにします。開いた画面で「Slope」をオンにしてください",
+  },
+];
+
+// 保護者が制限する Web サイトを登録しているか（設定が分からないときは「していない」として、許可を求めない）
+export function hasBlockedSites(config: ConfigState | null): boolean {
+  if (!config || config.status === "unavailable") return false;
+  return config.snapshot.blockedSites.length > 0;
+}
+
+export function permissionGuide(
+  permissions: NativePermissionStatus | null,
+  available: boolean,
+  config: ConfigState | null = null,
+): PermissionGuideItem[] {
+  if (!available || !permissions) return [];
+  const webSites = hasBlockedSites(config);
+  return PERMISSION_GUIDE.filter(
+    (item) => !permissions[item.permission] && (item.permission !== "accessibility" || webSites),
+  );
+}
+
 // ── 子11「お勧めアプリはこちらです」 ──────────────────────────
 
 // 開くアプリの一覧は LEARNING_PACKAGES（src/lib/usage-calc.ts。C4 で Kotlin に渡す学習用アプリと同じ1つの一覧）
@@ -261,9 +326,4 @@ export function testCountLabel(config: ConfigState | null): string | undefined {
   return `${config.snapshot.testPeriods.length}件`;
 }
 
-// テーマカラーの選択肢（子06）。Q13: 選べるのは白だけ（黒はダークテーマで、MVP の後）
-export const THEME_OPTIONS = [
-  { key: "white", label: "白色", enabled: true },
-  { key: "black", label: "黒色", enabled: false },
-] as const;
-export type ThemeKey = (typeof THEME_OPTIONS)[number]["key"];
+// テーマカラーの選択肢・文言（子06）は子と親で同じなので src/lib/theme-store.ts の THEME_OPTIONS・themeLabel にある

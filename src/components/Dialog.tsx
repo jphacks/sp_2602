@@ -1,11 +1,12 @@
-// ダイアログ（Figma の Scrim＋Dialog。幅 312・角丸・内側の余白 24・地は薄い紫 tokens.color.dialog）。
+// ダイアログ（Figma の Scrim＋Dialog。幅 312・角丸・内側の余白 24・地は薄い紫（色の名前 dialog））。
 // 登録完了・ログイン失敗・削除の確認・ログアウトの確認などに使う。戻るボタン（Android）で閉じたときは onClose を呼ぶ。
 //   <Dialog visible={open} icon="check_circle" iconTone="success" title="登録しました。" body="…" centered onClose={close}
 //     actions={<Button variant="pill" label="OK" onPress={close} />} />
 // centered: 題名・本文・ボタンを中央にそろえる（Figma 子04・子06・子09・親07 の形。ボタンは variant="pill" の枠付きの丸いボタン）
-import { tokens } from "@contracts/tokens";
-import type { ReactNode } from "react";
-import { Modal, StyleSheet, View } from "react-native";
+import { type ColorName, tokens } from "@contracts/tokens";
+import { type ReactNode, useEffect } from "react";
+import { Keyboard, Modal, StyleSheet, View } from "react-native";
+import { makeStyles, useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Icon, type IconName } from "./Icon";
 
@@ -24,10 +25,11 @@ type Props = {
   centered?: boolean; // 題名・本文・ボタンを中央にそろえる（アイコンがあるときの題名は、いつも中央）
 };
 
-const iconColor: Record<IconTone, string> = {
-  primary: tokens.color.primary,
-  success: tokens.color.success,
-  danger: tokens.color.danger,
+// アイコンの色（色の名前。値は今のテーマから引く）
+const iconColor: Record<IconTone, ColorName> = {
+  primary: "primary",
+  success: "success",
+  danger: "danger",
 };
 
 export function Dialog({
@@ -42,22 +44,30 @@ export function Dialog({
   actionsDirection = "row",
   centered = false,
 }: Props) {
+  const styles = useStyles();
+  const c = useColors();
   const actionsStyle =
     actionsDirection === "column" ? styles.actionsColumn : centered ? styles.actionsCenter : styles.actionsRow;
+  // 開くときに入力欄の焦点を外す（なぜ: 焦点を残したまま開くと、閉じたときに Android がその入力欄へ焦点を戻し、
+  //   キーボードがまた開いていた（親02 の完了のダイアログの「OK」。子03・子05・親05 の「登録しました」も同じ形））
+  useEffect(() => {
+    if (visible) Keyboard.dismiss();
+  }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.scrim}>
         <View style={styles.dialog} accessibilityViewIsModal>
           {icon && (
             <View style={styles.icon}>
-              <Icon name={icon} size={tokens.size.iconLarge} color={iconColor[iconTone]} />
+              <Icon name={icon} size={tokens.size.iconLarge} color={c[iconColor[iconTone]]} />
             </View>
           )}
-          <AppText variant="title" center={centered || !!icon} accessibilityRole="header">
+          <AppText variant="headline" center={centered || !!icon} accessibilityRole="header">
             {title}
           </AppText>
           {body ? (
-            <AppText tone="muted" center={centered}>
+            // Figma のダイアログの本文は 14（題名より小さい）
+            <AppText variant="small" tone="muted" center={centered}>
               {body}
             </AppText>
           ) : null}
@@ -69,24 +79,26 @@ export function Dialog({
   );
 }
 
-const styles = StyleSheet.create({
-  scrim: {
-    flex: 1,
-    backgroundColor: tokens.color.scrim,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: tokens.layout.gutter,
-  },
-  dialog: {
-    width: tokens.layout.dialogWidth,
-    maxWidth: "100%",
-    backgroundColor: tokens.color.dialog,
-    borderRadius: tokens.radius.dialog,
-    padding: tokens.layout.dialogPadding,
-    gap: tokens.space[4],
-  },
-  icon: { alignItems: "center" },
-  actionsRow: { flexDirection: "row", justifyContent: "flex-end", gap: tokens.space[2] },
-  actionsCenter: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: tokens.space[3] },
-  actionsColumn: { gap: tokens.layout.listGap },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    scrim: {
+      flex: 1,
+      backgroundColor: c.scrim,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: tokens.layout.gutter,
+    },
+    dialog: {
+      width: tokens.layout.dialogWidth,
+      maxWidth: "100%",
+      backgroundColor: c.dialog,
+      borderRadius: tokens.radius.dialog,
+      padding: tokens.layout.dialogPadding,
+      gap: tokens.space[4],
+    },
+    icon: { alignItems: "center" },
+    actionsRow: { flexDirection: "row", justifyContent: "flex-end", gap: tokens.space[2] },
+    actionsCenter: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: tokens.space[3] },
+    actionsColumn: { gap: tokens.layout.listGap },
+  }),
+);

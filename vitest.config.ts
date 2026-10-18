@@ -15,5 +15,5 @@ export default defineConfig({
     },
   },
   // PGlite（手元の DB）は最初の起動に数秒かかり、全テストを並べて走らせると既定の 5 秒を超えることがある（リハーサル4）
-  test: { include: ["tests/**/*.test.ts"], env: { MOCK: "1" }, testTimeout: 30_000 },
+  test: { include: ["tests/**/*.test.ts"], env: { MOCK: "1" }, testTimeout: 30_000, hookTimeout: 60_000 },
 });

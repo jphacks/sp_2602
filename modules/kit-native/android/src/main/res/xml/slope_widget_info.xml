@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  子どものウィジェット（C5・Figma 子12）の設定。横 4 マス × 縦 2 マス（Figma の正方形 2 つを横に並べた形）。
+  updatePeriodMillis は OS の決まりで最短 30 分（これより短くしても 30 分になる）。それより早い描き直しは
+  SlopeWidget.requestUpdate(context) で頼む。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/slope_widget_description"
+    android:initialLayout="@layout/slope_widget"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="250dp"
+    android:minResizeHeight="110dp"
+    android:previewLayout="@layout/slope_widget"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

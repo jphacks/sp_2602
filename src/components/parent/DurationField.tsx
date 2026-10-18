@@ -4,7 +4,8 @@
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, TextInput, View } from "react-native";
 import { AppText, Icon } from "@/components";
-import { fieldStyles } from "@/components/TextField";
+import { useFieldStyles } from "@/components/TextField";
+import { makeStyles, useColors } from "@/lib/theme";
 import type { DurationText } from "./format";
 
 type Props = {
@@ -13,9 +14,13 @@ type Props = {
   onChange: (v: DurationText) => void;
   error?: string | null;
   hint?: string; // 欄の下の補足（エラーがないときだけ出す）
+  editable?: boolean; // 保存している間は変えられない（送った値と画面の値がずれないように）
 };
 
-export function DurationField({ label, value, onChange, error, hint }: Props) {
+export function DurationField({ label, value, onChange, error, hint, editable = true }: Props) {
+  const c = useColors();
+  const fieldStyles = useFieldStyles();
+  const styles = useStyles();
   return (
     <View style={styles.wrap}>
       <View style={[fieldStyles.field, error ? fieldStyles.fieldError : null]}>
@@ -28,9 +33,13 @@ export function DurationField({ label, value, onChange, error, hint }: Props) {
               value={value.hours}
               onChangeText={(hours) => onChange({ ...value, hours })}
               keyboardType="number-pad"
+              editable={editable}
               maxLength={2}
               placeholder="0"
-              placeholderTextColor={tokens.color.muted}
+              placeholderTextColor={c.muted}
+              cursorColor={c.primary}
+              selectionColor={c.primarySoft}
+              selectionHandleColor={c.primary}
               accessibilityLabel={`${label}、時間`}
               style={styles.input}
             />
@@ -39,16 +48,20 @@ export function DurationField({ label, value, onChange, error, hint }: Props) {
               value={value.minutes}
               onChangeText={(minutes) => onChange({ ...value, minutes })}
               keyboardType="number-pad"
+              editable={editable}
               maxLength={2}
               placeholder="0"
-              placeholderTextColor={tokens.color.muted}
+              placeholderTextColor={c.muted}
+              cursorColor={c.primary}
+              selectionColor={c.primarySoft}
+              selectionHandleColor={c.primary}
               accessibilityLabel={`${label}、分`}
               style={styles.input}
             />
             <AppText>分</AppText>
           </View>
         </View>
-        <Icon name="clock" color={tokens.color.muted} />
+        <Icon name="clock" color={c.muted} />
       </View>
       {error ? (
         <AppText variant="caption" tone="danger">
@@ -63,18 +76,20 @@ export function DurationField({ label, value, onChange, error, hint }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { gap: tokens.space[1] },
-  text: { flex: 1, justifyContent: "center", paddingVertical: tokens.space[2] },
-  row: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
-  input: {
-    minWidth: tokens.space[8],
-    fontSize: tokens.font.base,
-    color: tokens.color.text,
-    textAlign: "right",
-    paddingVertical: tokens.space[0],
-    paddingHorizontal: tokens.space[1],
-    borderBottomWidth: tokens.size.border,
-    borderBottomColor: tokens.color.line,
-  },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    wrap: { gap: tokens.space[1] },
+    text: { flex: 1, justifyContent: "center", paddingVertical: tokens.space[2] },
+    row: { flexDirection: "row", alignItems: "center", gap: tokens.space[1] },
+    input: {
+      minWidth: tokens.space[8],
+      fontSize: tokens.font.base,
+      color: c.text,
+      textAlign: "right",
+      paddingVertical: tokens.space[0],
+      paddingHorizontal: tokens.space[1],
+      borderBottomWidth: tokens.size.border,
+      borderBottomColor: c.line,
+    },
+  }),
+);

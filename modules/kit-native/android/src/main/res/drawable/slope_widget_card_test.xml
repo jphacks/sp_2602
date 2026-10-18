@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 子どものウィジェットの右のカード（薄い青 #DDE4FF・枠なし・角丸 16。Figma 子12） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#DDE4FF" />
+    <corners android:radius="16dp" />
+</shape>

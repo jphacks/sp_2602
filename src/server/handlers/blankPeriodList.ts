@@ -1,5 +1,5 @@
 // 空白期間（Q7）の一覧。保護者だけ（子どもは configGet の blankPeriods で見る）。
-import { getStore } from "../mock/store";
-import { handle } from "../route";
+import { callerOf, handle } from "../route.js";
+import { listBlankPeriodsForParent } from "../services/blank-periods.js";
 
-export default handle("blankPeriodList", async (req) => getStore().blankPeriods(req.childId));
+export default handle("blankPeriodList", async (req, ctx) => listBlankPeriodsForParent(callerOf(ctx), req.childId));

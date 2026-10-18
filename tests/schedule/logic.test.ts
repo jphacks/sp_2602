@@ -36,6 +36,7 @@ const math = p("t1", "数学", "2026-10-28", "2026-10-30");
 const source = (periods: Period[], configVersion = 3): PeriodSource => ({
   periods,
   configVersion,
+  changedVersion: configVersion,
   childAppliedVersion: 3,
 });
 
@@ -135,6 +136,14 @@ describe("入力の検査（送る前に止める。サーバでも断られる�
     expect(validatePeriod({ name: "x", startDate: "2026-10-01", endDate: "2026-11-30" }, [math], "test").ok).toBe(
       false,
     );
+  });
+
+  it("テスト期間で開始日も終了日も同じものは重なりにしない（同じ日の数学と英語。サーバは1件として計算する。D-93）。空白期間は止める", () => {
+    const same = { name: "英語", startDate: "2026-10-28", endDate: "2026-10-30" };
+    expect(validatePeriod(same, [math], "test").ok).toBe(true);
+    expect(validatePeriod(same, [{ ...math, id: "b1", name: "冬休み" }], "blank").ok).toBe(false);
+    // 1日でもずれていれば、これまでどおり重なりとして止める
+    expect(validatePeriod({ ...same, endDate: "2026-10-31" }, [math], "test").ok).toBe(false);
   });
 
   it("変更では自分自身との重なりは見ない", () => {
@@ -254,6 +263,16 @@ describe("反映済み／反映待ち（Q6）", () => {
       label: "反映待ち",
       hint: "お子さんの端末がまだ設定を受け取っていません",
     });
+  });
+
+  it("一度も変えていない一覧（最後に変わった版が 0）は、子どもがまだ取りに来ていなくても反映済み", () => {
+    expect(appliedStatus(0, null)).toMatchObject({ label: "反映済み", tone: "success" });
+  });
+
+  it("決めるのは一覧が最後に変わった版。そのあと計画などで設定の版だけが上がっても反映済みのまま（10/17 デバッグ第2回）", () => {
+    // テストを足した版 2 は子どもに届いている（childAppliedVersion 2）。そのあと計画を保存して設定の版は 3 になった
+    const s: PeriodSource = { periods: [math], configVersion: 3, changedVersion: 2, childAppliedVersion: 2 };
+    expect(appliedStatus(s.changedVersion, s.childAppliedVersion).label).toBe("反映済み");
   });
 });
 

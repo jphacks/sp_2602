@@ -12,6 +12,7 @@ import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import type { ConfigState } from "@/lib/config-cache";
+import { useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 import { Banner } from "./Banner";
 import { Button } from "./Button";
@@ -48,6 +49,7 @@ const defaults: Record<ViewState, { message: string; hint: string }> = {
 };
 
 export function StateView({ state, children, message, hint, error, onRetry, action }: Props) {
+  const c = useColors();
   const text = {
     message: message ?? error?.message ?? defaults[state].message,
     hint: hint ?? error?.hint ?? defaults[state].hint,
@@ -58,7 +60,7 @@ export function StateView({ state, children, message, hint, error, onRetry, acti
     case "loading":
       return (
         <View style={styles.center} accessibilityLiveRegion="polite">
-          <ActivityIndicator size="large" color={tokens.color.primary} />
+          <ActivityIndicator size="large" color={c.primary} />
           <AppText tone="muted" center>
             {text.message}
           </AppText>

@@ -9,6 +9,7 @@ import {
   planTrendBars,
   reviewRange,
   reviewWeekBars,
+  trendDates,
   weekAverages,
 } from "@/components/parent/charts";
 
@@ -199,5 +200,61 @@ describe("planTrendBars（親02 今の計画での上限の下がり方）", () 
 
   it("日別上限が1日もなくても今日の1本（「－」）で壊れない", () => {
     expect(planTrendBars({ dailyLimits: [], testPeriods: [] }, today).map((b) => b.topLabel)).toEqual(["－"]);
+  });
+
+  it("途中のテストの開始日と、終わった次の日（上限が戻る日）を間引きで落とさず、札を付ける（実機の親02 で出ていなかった）", () => {
+    // 等間隔に拾うだけだと 10/17・10/22・10/27・10/31・11/5・11/10 になり、10/24（テスト）・10/26（戻る日）が出ていなかった
+    const bars = planTrendBars(
+      {
+        dailyLimits,
+        testPeriods: [test("2026-10-24", "2026-10-25", "中間"), test("2026-11-10", "2026-11-12", "期末")],
+      },
+      today,
+    );
+    expect(bars.map((b) => b.sublabel)).toEqual(["10/17", "10/24", "10/26", "10/31", "11/5", "11/10"]);
+    expect(bars.map((b) => b.tags.map((t) => t.label).join(""))).toEqual([
+      "今日",
+      "テスト",
+      "テスト後",
+      "",
+      "",
+      "テスト",
+    ]);
+    expect(bars[2]?.a11y).toContain("中間の次の日");
+    expect(bars.map((b) => b.track)).toEqual([300, 265, 255, 230, 205, 180]);
+  });
+
+  it("テストが多くて必ず入れる日が本数を超えるときは、早い順に入れ、最後のテストの開始日は残す", () => {
+    const tests = [
+      { startDate: "2026-10-19", endDate: "2026-10-19" },
+      { startDate: "2026-10-22", endDate: "2026-10-22" },
+      { startDate: "2026-10-26", endDate: "2026-10-26" },
+      { startDate: "2026-11-10", endDate: "2026-11-10" },
+    ];
+    expect(trendDates(tests, today, "2026-11-10", 6)).toEqual([
+      "2026-10-17",
+      "2026-10-19",
+      "2026-10-20",
+      "2026-10-22",
+      "2026-10-23",
+      "2026-11-10",
+    ]);
+  });
+
+  it("今日がテストの中なら、終わった次の日（戻る日）を入れる。最後のテストの後の日は入れない（グラフの範囲の外）", () => {
+    const dates = trendDates(
+      [
+        { startDate: "2026-10-16", endDate: "2026-10-18" },
+        { startDate: "2026-10-28", endDate: "2026-10-30" },
+      ],
+      today,
+      "2026-10-28",
+      6,
+    );
+    expect(dates).toContain("2026-10-19");
+    expect(dates).not.toContain("2026-10-31");
+    expect(dates).toHaveLength(6);
+    expect(dates[0]).toBe(today);
+    expect(dates.at(-1)).toBe("2026-10-28");
   });
 });

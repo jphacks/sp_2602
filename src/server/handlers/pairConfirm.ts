@@ -1,5 +1,5 @@
 // C1: 子どもの「はい / いいえ」。はいなら D2 に保存してから linked を返す。
-import { getStore } from "../mock/store";
-import { callerOf, handle } from "../route";
+import { confirmPair } from "../auth.js";
+import { callerOf, handle } from "../route.js";
 
-export default handle("pairConfirm", async (req, ctx) => getStore().pairConfirm(callerOf(ctx), req.pairId, req.accept));
+export default handle("pairConfirm", async (req, ctx) => confirmPair(callerOf(ctx), req.pairId, req.accept));

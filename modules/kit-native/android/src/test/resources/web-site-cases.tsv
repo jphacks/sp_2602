@@ -1,0 +1,71 @@
+# 制限する Web サイト（D-111）の例の表。TS（tests/lib/web-sites.test.ts）と Kotlin（WebSitesTest）の両方がこの表を読み、同じ答えになるかを確かめる。
+# 規則の中身: contracts/web-sites.ts（TS）・modules/kit-native/.../engine/WebSites.kt（Kotlin）。どちらかを変えたら、もう一方とこの表も直す。
+# 区切りはタブ。# で始まる行と空の行は読まない。
+#   normalize<TAB>保護者が打った文字<TAB>そろえた登録（ERR = 断る）
+#   match<TAB>ブラウザのアドレス欄の文字<TAB>登録<TAB>当たるか（true / false）
+
+# ── 登録の形のそろえ方 ──
+normalize	youtube.com	youtube.com
+normalize	https://www.YouTube.com/	youtube.com
+normalize	HTTP://m.youtube.com/Shorts/	m.youtube.com/shorts
+normalize	youtube.com/shorts///	youtube.com/shorts
+normalize	   youtube.com	youtube.com
+normalize	ｙｏｕｔｕｂｅ．ｃｏｍ／ｓｈｏｒｔｓ	youtube.com/shorts
+normalize	www.example.co.jp/news	example.co.jp/news
+normalize	example.com.	example.com
+normalize	xn--wgv71a.jp	xn--wgv71a.jp
+normalize	youtube	ERR
+normalize	you tube.com	ERR
+normalize	example.com/a b	ERR
+normalize	ftp://example.com	ERR
+normalize	javascript://example.com	ERR
+normalize	youtube.com/watch?v=abc	ERR
+normalize	youtube.com#top	ERR
+normalize	192.168.0.1	ERR
+normalize	-bad.example.com	ERR
+normalize	user@youtube.com	ERR
+normalize	youtube.com:443	ERR
+normalize	日本語.jp	ERR
+normalize	example.com/<script>	ERR
+normalize	www.com	ERR
+
+
+# ── ドメイン全体の登録（サブドメインもふくむ）──
+match	youtube.com	youtube.com	true
+match	https://www.youtube.com/watch?v=1	youtube.com	true
+match	m.youtube.com/shorts/abc	youtube.com	true
+match	YOUTUBE.COM	youtube.com	true
+match	youtube.com:443/	youtube.com	true
+match	sub.example.co.jp	example.co.jp	true
+
+# ── 似た名前の別ドメインは止めない ──
+match	youtube.com.evil.example	youtube.com	false
+match	notyoutube.com	youtube.com	false
+match	youtube.co	youtube.com	false
+match	https://youtube.com@evil.example/	youtube.com	false
+match	evil.example/youtube.com	youtube.com	false
+match	evil.example/?q=youtube.com	youtube.com	false
+match	youtube.com	tube.com	false
+
+# ── パスの前置きの登録 ──
+match	youtube.com/shorts	youtube.com/shorts	true
+match	youtube.com/shorts/abc	youtube.com/shorts	true
+match	https://m.youtube.com/shorts/abc?feature=share	youtube.com/shorts	true
+match	youtube.com/shorts?x=1	youtube.com/shorts	true
+match	youtube.com/shorts/	youtube.com/shorts	true
+match	YouTube.com/Shorts/ABC	youtube.com/shorts	true
+match	youtube.com./shorts/a	youtube.com/shorts	true
+match	youtube.com/watch?v=abc	youtube.com/shorts	false
+match	youtube.com/shortstory	youtube.com/shorts	false
+match	youtube.com	youtube.com/shorts	false
+match	youtube.com/?q=/shorts	youtube.com/shorts	false
+match	youtube.com/feed/shorts	youtube.com/shorts	false
+match	example.com/a/b/c	example.com/a/b	true
+match	example.com/a/bc	example.com/a/b	false
+
+# ── アドレスらしくない文字（検索の言葉・ブラウザの中の画面）は判定しない ──
+match	chrome://newtab	youtube.com	false
+match	about:blank	youtube.com	false
+match	youtube.com を検索	youtube.com	false
+match	youtube	youtube.com	false
+match		youtube.com	false

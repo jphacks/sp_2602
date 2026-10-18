@@ -5,6 +5,7 @@
 import { tokens } from "@contracts/tokens";
 import type { ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { useColors } from "@/lib/theme";
 import { AppText } from "./AppText";
 import type { IconName } from "./Icon";
 import { IconBadge } from "./IconBadge";
@@ -21,11 +22,12 @@ type Props = {
 };
 
 export function MessageView({ title, body, icon, tone = "info", iconTone, spinner, children, actions }: Props) {
+  const c = useColors();
   return (
     <View style={styles.root}>
       <View style={styles.message} accessibilityLiveRegion="polite">
         {spinner ? (
-          <ActivityIndicator size="large" color={tokens.color.primary} />
+          <ActivityIndicator size="large" color={c.primary} />
         ) : (
           icon && <IconBadge icon={icon} tone={tone} iconTone={iconTone} />
         )}
@@ -33,7 +35,8 @@ export function MessageView({ title, body, icon, tone = "info", iconTone, spinne
           {title}
         </AppText>
         {body ? (
-          <AppText tone="muted" center>
+          // Figma 親10・子13 の本文は 14（16 だと文字を大きくした端末で「…ため／に、」と1文字だけ落ちる）
+          <AppText variant="small" tone="muted" center>
             {body}
           </AppText>
         ) : null}

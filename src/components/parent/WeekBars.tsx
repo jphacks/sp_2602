@@ -5,14 +5,19 @@
 import { tokens } from "@contracts/tokens";
 import { StyleSheet, View } from "react-native";
 import { AppText } from "@/components";
+import { makeStyles } from "@/lib/theme";
 import { type ChartBar, chartNotes } from "./charts";
 
 type Props = { bars: ChartBar[]; accessibilityLabel?: string };
 
 export function WeekBars({ bars, accessibilityLabel }: Props) {
+  const styles = useStyles();
+  const fills = useFills();
+  const tags = useTags();
   const max = Math.max(1, ...bars.flatMap((b) => [b.track ?? 0, b.value ?? 0]));
   const h = (n: number) => ({ height: Math.round((Math.min(n, max) / max) * tokens.size.chartHeight) });
   const notes = chartNotes(bars);
+  const anyMissing = bars.some((b) => b.missing);
   return (
     <View style={styles.wrap}>
       <View style={styles.row} accessibilityLabel={accessibilityLabel}>
@@ -29,25 +34,41 @@ export function WeekBars({ bars, accessibilityLabel }: Props) {
               ) : b.value != null ? (
                 <View style={[styles.fill, styles.bare, fills[b.fill], h(b.value)]} />
               ) : null}
-              {b.missing && (
-                <AppText variant="caption" tone="muted" center>
-                  ？
-                </AppText>
-              )}
             </View>
-            <AppText variant="label" tone={b.emphasis ? "primary" : "default"}>
+            {/* 「？」は棒の下に自分の行を持つ（棒の場所の中に置くと、上限いっぱいの棒が「？」の分だけ上へはみ出し、
+                上の数字（親01 の今日の「120」）に重なっていた）。どれかの棒に「？」があれば、全部の棒で同じ高さを空けてそろえる */}
+            {anyMissing && (
+              <AppText variant="caption" tone="muted" center>
+                {b.missing ? "？" : " "}
+              </AppText>
+            )}
+            {/* 強調する棒（今日など）は青の太字（Figma 親01 の「木 10/15」）。
+                2行目がないとき（親03 の週の「10/12」）は日付なので小さい文字にする（大きいと隣の日付とくっつく） */}
+            <AppText
+              variant={b.sublabel ? "label" : "micro"}
+              tone={b.emphasis ? "primary" : "default"}
+              strong={b.emphasis}
+            >
               {b.label}
             </AppText>
             {b.sublabel ? (
-              <AppText variant="caption" tone={b.emphasis ? "primary" : "muted"}>
+              <AppText variant="micro" tone={b.emphasis ? "primary" : "muted"} strong={b.emphasis}>
                 {b.sublabel}
               </AppText>
             ) : null}
             {b.tags.map((t) => (
-              <View key={t.label} style={[styles.tag, tags[t.tone]]}>
-                <AppText variant="caption" tone={t.tone === "strong" ? "onPrimary" : "onPrimarySoft"}>
-                  {t.label}
-                </AppText>
+              // 札（「今の試験」など）は棒の幅より広いので、1行のまま棒の左右にはみ出して出す（Figma 親03）
+              <View key={t.label} style={styles.tagRow}>
+                <View style={[styles.tag, tags[t.tone]]}>
+                  <AppText
+                    variant="micro"
+                    strong
+                    numberOfLines={1}
+                    tone={t.tone === "strong" ? "onPrimary" : "onPrimarySoft"}
+                  >
+                    {t.label}
+                  </AppText>
+                </View>
               </View>
             ))}
           </View>
@@ -62,29 +83,36 @@ export function WeekBars({ bars, accessibilityLabel }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: { gap: tokens.space[2] },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  col: { flex: 1, alignItems: "center", gap: tokens.space[1] },
-  area: { height: tokens.size.chartHeight, justifyContent: "flex-end", alignItems: "center" },
-  track: {
-    width: tokens.size.chartBarWidth,
-    backgroundColor: tokens.color.track,
-    borderRadius: tokens.radius.sm,
-    justifyContent: "flex-end",
-    overflow: "hidden",
-  },
-  fill: { width: "100%", borderRadius: tokens.radius.sm },
-  bare: { width: tokens.size.chartBarWidth },
-  tag: { paddingHorizontal: tokens.space[1], borderRadius: tokens.radius.sm },
-});
+const useStyles = makeStyles((c) =>
+  StyleSheet.create({
+    wrap: { gap: tokens.space[2] },
+    row: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
+    col: { flex: 1, alignItems: "center", gap: tokens.space[1] },
+    area: { height: tokens.size.chartHeight, justifyContent: "flex-end", alignItems: "center" },
+    track: {
+      width: tokens.size.chartBarWidth,
+      backgroundColor: c.track,
+      borderRadius: tokens.radius.sm,
+      justifyContent: "flex-end",
+      overflow: "hidden",
+    },
+    fill: { width: "100%", borderRadius: tokens.radius.sm },
+    bare: { width: tokens.size.chartBarWidth },
+    tagRow: { width: tokens.size.chartTagWidth, alignItems: "center" },
+    tag: { paddingHorizontal: tokens.space[1], borderRadius: tokens.radius.sm },
+  }),
+);
 
-const fills = StyleSheet.create({
-  muted: { backgroundColor: tokens.color.primaryMuted },
-  strong: { backgroundColor: tokens.color.primary },
-});
+const useFills = makeStyles((c) =>
+  StyleSheet.create({
+    muted: { backgroundColor: c.primaryMuted },
+    strong: { backgroundColor: c.primaryFill },
+  }),
+);
 
-const tags = StyleSheet.create({
-  strong: { backgroundColor: tokens.color.primary },
-  soft: { backgroundColor: tokens.color.primarySoft },
-});
+const useTags = makeStyles((c) =>
+  StyleSheet.create({
+    strong: { backgroundColor: c.primaryFill },
+    soft: { backgroundColor: c.primarySoft },
+  }),
+);

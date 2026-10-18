@@ -1,7 +1,7 @@
 // 保護者側の QR の読み取り（親10〜親15）の表示の分かれ道のテスト（src/components/pair/parent-flow.ts）。
 // MVP_SPEC 4.1: カメラ権限・読取・期限切れ・使用済み・重複連携の失敗系、保存の確定（linked）まで成功を出さない、応答消失は照会。
 import type { ApiError } from "@contracts/errors";
-import { mockPair } from "@contracts/fixtures";
+import { demoChild, mockPair } from "@contracts/fixtures";
 import type { PairStatus } from "@contracts/schemas";
 import { describe, expect, it } from "vitest";
 import {
@@ -116,7 +116,7 @@ describe("子どもの確認待ち → 親15 / 共03", () => {
   it("linked のときだけ親15。つながった子どもを持つ", () => {
     expect(run([{ type: "status", status: status("linked") }], waiting)).toEqual({
       screen: "linked",
-      child: { id: "demo-child", name: "デモの子ども" },
+      child: demoChild,
     });
   });
 

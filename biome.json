@@ -10,7 +10,8 @@
       "!**/dist",
       "!**/node_modules",
       "!**/package-lock.json",
-      "!backend"
+      "!backend",
+      "!.claude"
     ]
   },
   "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 120 },

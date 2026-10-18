@@ -29,6 +29,16 @@ export const familyLinks = pgTable("family_links", {
 
 export const childConfigVersions = pgTable("child_config_versions", {
   childId: uuid("child_id").primaryKey().references(() => users.id),
-  version: integer("version").default(1).notNull(),
+  /** 0 = never saved (contracts/schemas.ts ConfigVersion). Every D3/D7/D8/blank-period change adds 1. */
+  version: integer("version").default(0).notNull(),
+  /** Advances only when D3, D8, or blank-period inputs to C10 change. */
+  c10InputVersion: integer("c10_input_version").default(1).notNull(),
+  /** The config version at which the D3 test-period list last changed (0 = never). Drives the parent's "applied / pending" label. */
+  testPeriodsChangedVersion: integer("test_periods_changed_version").default(0).notNull(),
+  /** The config version at which the blank-period list last changed (0 = never). */
+  blankPeriodsChangedVersion: integer("blank_periods_changed_version").default(0).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-}, (table) => [check("child_config_versions_positive", sql`${table.version} > 0`)]);
+}, (table) => [
+  check("child_config_versions_nonnegative", sql`${table.version} >= 0`),
+  check("child_config_versions_c10_input_positive", sql`${table.c10InputVersion} > 0`),
+]);

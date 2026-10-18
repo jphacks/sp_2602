@@ -4,32 +4,42 @@
 //   - useUsage : C6 の実績（call("usageGet")）を 30 秒ごとに取り直す。失敗したら、前に取れた値を stale として残す（0 分にしない）
 import type { ApiError } from "@contracts/errors";
 import type { Child, ParentUsageView } from "@contracts/schemas";
-import { type ReactNode, useCallback, useState } from "react";
+import { router } from "expo-router";
+import { Fragment, type ReactNode, useCallback, useState } from "react";
 import { StateView } from "@/components";
+import { familyGate, scanQrAction } from "@/components/parent/gate";
 import { call, errorOf } from "@/lib/api";
 import { useParentData } from "@/lib/parent-data";
 import { usePolling } from "@/lib/polling";
 
 export function ChildGate({ children }: { children: (child: Child) => ReactNode }) {
   const { child, family, familyError, refresh } = useParentData();
-  if (child) return <>{children(child)}</>;
-  if (familyError)
-    return (
-      <StateView
-        state="unknown"
-        message="つながりの状態を確かめられません"
-        hint={familyError.hint}
-        onRetry={() => void refresh()}
-      />
-    );
-  if (!family) return <StateView state="loading" />;
-  return (
-    <StateView
-      state="empty"
-      message="まだ子どもとつながっていません"
-      hint="子どものスマホに出したQRコードを読み取ると、使用状況を見られます"
-    />
-  );
+  const gate = familyGate(child, family, familyError);
+  switch (gate.kind) {
+    case "child":
+      // key: 見ている子どもが変わったら中身を作り直す（前の子どもの実績を、次の取り直しまで出し続けないため）
+      return <Fragment key={gate.child.id}>{children(gate.child)}</Fragment>;
+    case "unknown":
+      return (
+        <StateView
+          state="unknown"
+          message="つながりの状態を確かめられません"
+          hint={gate.error.hint}
+          onRetry={() => void refresh()}
+        />
+      );
+    case "loading":
+      return <StateView state="loading" />;
+    case "unlinked":
+      return (
+        <StateView
+          state="empty"
+          message="まだ子どもとつながっていません"
+          hint="子どものスマホに出したQRコードを読み取ると、使用状況を見られます"
+          action={{ label: scanQrAction.label, onPress: () => router.navigate(scanQrAction.href) }}
+        />
+      );
+  }
 }
 
 export type UsageState =

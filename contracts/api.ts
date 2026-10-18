@@ -9,12 +9,22 @@
 //   route.ts が必ず確かめる（紐づけ前の人はどの子どもも扱えない）。handlers の中で書き忘れることはない。
 // 決まりごと: 条件つきの取得も POST（GET で条件を渡す仕組みはない）。path は `/api/<機能>/<名前>`。
 import { z } from "zod";
-import { ApiError } from "./errors";
+import { ApiError } from "./errors.js";
 import {
   BlankPeriodCreate,
   BlankPeriodList,
   BlankPeriodSaveResult,
   BlankPeriodUpdate,
+  BlockedSitesSave,
+  BlockedSitesSaveResult,
+  BlockedSitesView,
+  ChildAppIconsQuery,
+  ChildAppIconsUpload,
+  ChildAppIconsUploadResult,
+  ChildAppIconsView,
+  ChildAppsUpload,
+  ChildAppsUploadResult,
+  ChildAppsView,
   ChildQuery,
   ConfigQuery,
   ConfigResult,
@@ -22,6 +32,7 @@ import {
   ExcludedAppsSaveResult,
   ExcludedAppsView,
   Family,
+  FamilyUnlinkResult,
   GoogleSignIn,
   LinkStatus,
   PairClaim,
@@ -37,6 +48,8 @@ import {
   PlanSaveResult,
   PlanView,
   Session,
+  SignOutRequest,
+  SignOutResult,
   TestPeriodCreate,
   TestPeriodList,
   TestPeriodSaveResult,
@@ -46,7 +59,7 @@ import {
   UsageUploadResult,
   UsualLimitSave,
   UsualLimitSaveResult,
-} from "./schemas";
+} from "./schemas.js";
 
 export const Health = z.object({ ok: z.literal(true), mock: z.boolean() });
 export type Health = z.infer<typeof Health>;
@@ -66,6 +79,12 @@ export const api = {
   authGoogle: post("/api/auth/google", "none", GoogleSignIn, Session),
   // 今の合言葉の持ち主（役割を含む）。アプリの起動時に、どの画面に進むかを決めるのに使う
   authMe: { kind: "json", method: "GET", path: "/api/auth/me", auth: "signedIn", req: z.void(), res: Session },
+  // ログアウト: 今の合言葉をサーバでも無効にする。以後その合言葉は 401。
+  //   本文なし（ふつうのログアウト）: この端末の合言葉だけ。{ otherDevices: true }: この端末以外の、同じ人の合言葉をすべて（端末をなくしたとき）
+  // 足した理由: 前はログアウトしても端末の合言葉を消すだけで、サーバでは最後に使ってから30日まで使えるまま残った
+  //   （端末から抜き出された・どこかに写っていた合言葉で、ログアウトした後も呼べてしまう。10/17 のセキュリティの残り）。
+  // アプリは端末のデータを消す前に呼ぶが、通信できなくてもログアウトは進める（session.tsx）。401 で自動でログアウトしたときは呼ばない
+  authSignOut: post("/api/auth/sign-out", "signedIn", SignOutRequest, SignOutResult),
 
   // ── C1: QR の紐づけ。役割がまだない人（role: null）が使う。MVP は親1人↔子1人（2人目は conflict。Q2）──
   // 子ども: QR を出す（保護者・連携済みの子どもは conflict。前に出した未使用の QR は無効になる。Q10）
@@ -91,6 +110,10 @@ export const api = {
   },
   // 保護者: 連携済みの子どもの一覧
   familyGet: { kind: "json", method: "GET", path: "/api/family/get", auth: "parent", req: z.void(), res: Family },
+  // 保護者: 子どもとの連携を外す（連携済みの子どもだけ。route.ts が確かめる）。子どもの合言葉はすべて使えなくなり、
+  // 子どもは役割のない状態（role: null）に戻る（もう一度 QR で紐づけ直せる）。子どもの端末をなくしたときにも使う。
+  // 足した理由: 保護者が子どもを外す手段・なくした子どもの端末の合言葉を止める手段がなかったため（PR #47）
+  familyUnlink: post("/api/family/unlink", "parent", ChildQuery, FamilyUnlinkResult),
 
   // ── D8: 通常上限と計画（C10 の入力）──
   // 親子: 計画と通常上限を見る（子どもは閲覧のみ）
@@ -115,7 +138,7 @@ export const api = {
   blankPeriodUpdate: post("/api/blank-period/update", "parent", BlankPeriodUpdate, BlankPeriodSaveResult),
   blankPeriodDelete: post("/api/blank-period/delete", "parent", PeriodDelete, PeriodDeleteResult),
 
-  // ── C7: 設定のスナップショット（通常上限・計画・日程・空白期間・日別上限・対象外アプリ・版を1組で）──
+  // ── C7: 設定のスナップショット（通常上限・計画・日程・空白期間・日別上限・対象外アプリ・制限する Web サイト・版を1組で）──
   // 親子: knownVersion と同じ版なら中身を省く。子どもが呼ぶと「子どもの端末が使っている版」として記録する（Q6）
   configGet: post("/api/config/get", "signedIn", ConfigQuery, ConfigResult),
 
@@ -130,7 +153,27 @@ export const api = {
   excludedAppsGet: post("/api/excluded-apps/get", "signedIn", ChildQuery, ExcludedAppsView),
   // 保護者: 対象外アプリを保存する（全件の置き換え。子どもは forbidden。版がずれていたら conflict）
   excludedAppsSave: post("/api/excluded-apps/save", "parent", ExcludedAppsSave, ExcludedAppsSaveResult),
-  // TODO(保留): Q15 子どもの端末のアプリ一覧をサーバへ送る API は作らない（プライバシーの検討中）
+
+  // ── 制限する Web サイト（docs/decisions.md D-111）──
+  // 上限に達したあと、子どもの端末のブラウザでこのサイトを開くと止める（C7 の blockedSites で子どもの端末へ届く）。
+  // 親子: 登録の一覧（子どもは閲覧のみ。今の子どもの画面には出していない）
+  blockedSitesGet: post("/api/blocked-sites/get", "signedIn", ChildQuery, BlockedSitesView),
+  // 保護者: 登録を保存する（全件の置き換え。子どもは forbidden。版がずれていたら conflict。
+  //   登録は contracts/web-sites.ts の normalizeSitePattern でそろえた形だけ。数・長さの上限を超える・同じものが2つは bad_request）
+  blockedSitesSave: post("/api/blocked-sites/save", "parent", BlockedSitesSave, BlockedSitesSaveResult),
+
+  // ── Q15: 子どもの端末のアプリ一覧とアイコン（親16 の候補・親09 と親16 のアイコン。docs/decisions.md D-110）──
+  // 子ども: ホーム画面に出るアプリの一覧（packageName・表示名・アイコンのハッシュ）を送る。全件の置き換え（差分ではない）。
+  //   端末は前に送った中身から変わったときだけ送る（起動時と1日1回ほど確かめる。src/lib/child-apps-sync.ts）。
+  //   応答の iconsNeeded（サーバにないアイコン）だけを、続けて childAppIconsUpload で送る
+  childAppsUpload: post("/api/child-apps/upload", "child", ChildAppsUpload, ChildAppsUploadResult),
+  // 子ども: アイコンの PNG を送る（50 枚ずつ。PNG であること・20KB 以下・ハッシュが合うことをサーバが確かめる）
+  childAppIconsUpload: post("/api/child-apps/icons/upload", "child", ChildAppIconsUpload, ChildAppIconsUploadResult),
+  // 保護者: 連携済みの子どもの端末のアプリ一覧（まだ届いていなければ receivedAt: null）。各アプリのアイコンのハッシュつき。
+  //   excludedAppsGet に入れない理由: 親16 は excludedAppsGet を 30 秒ごとに取り直すので、数百件の一覧を毎回運ばないため
+  childAppsGet: post("/api/child-apps/get", "parent", ChildQuery, ChildAppsView),
+  // 保護者: アイコンの PNG を読む（50 個ずつ。端末に持っていない・ハッシュが変わったものだけを頼む。src/lib/app-icons.ts）
+  childAppIconsGet: post("/api/child-apps/icons/get", "parent", ChildAppIconsQuery, ChildAppIconsView),
 } as const satisfies Record<string, { auth: AuthRule; [key: string]: unknown }>;
 
 export type Api = typeof api;

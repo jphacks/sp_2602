@@ -138,7 +138,10 @@ function WeeklyCard(props: { state: UsageState; snapshot: ConfigSnapshot; today:
   const next = nextTest(snapshot, today);
   return (
     <Card>
-      <AppText variant="title">週ごとの1日の使用時間（平均・分）</AppText>
+      {/* Figma 親03 の見出しは1行。title だと文字を大きくした端末で「分）」だけ次の行に落ちる */}
+      <AppText variant="label" strong>
+        週ごとの1日の使用時間（平均・分）
+      </AppText>
       {/* 共通の凡例（幅が足りないときは折り返す）。today = 濃い青・fill = 薄い青（WeekBars の strong・muted と同じ色） */}
       <Legend
         items={[

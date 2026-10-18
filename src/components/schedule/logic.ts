@@ -58,6 +58,7 @@ export function periodTexts(kind: PeriodKind, viewer: Role) {
       createTitle: viewer === "child" ? "テストの日程を入れよう" : "テスト日程の登録",
       createBanner: viewer === "child" ? "次のテストの日程を入れてください" : "テストの名前と期間を入れてください",
       editTitle: "テスト日程の変更",
+      // 手で改行しない（「くだ／さい」のような切れ方は AppText が防ぐ。src/components/text-wrap.ts）
       editBanner: "変更するテストの日程を入れてください",
       nameLabel: "テスト名",
       namePlaceholder: "例: 期末テスト",
@@ -116,16 +117,20 @@ export function withEndDate(draft: PeriodDraft, endDate: string): PeriodDraft {
   return { ...draft, endDate };
 }
 
-// 2つの期間が1日でも重なるか（両端の日を含む。サーバの store.ts の assertNoOverlap と同じ考え方）
+// 2つの期間が1日でも重なるか（両端の日を含む。サーバの src/server/plan/daily-limits.ts の sortedNoOverlap と同じ考え方）
 export function overlaps(a: { startDate: string; endDate: string }, b: { startDate: string; endDate: string }) {
   return a.startDate <= b.endDate && b.startDate <= a.endDate;
 }
+
+const sameRange = (a: { startDate: string; endDate: string }, b: { startDate: string; endDate: string }) =>
+  a.startDate === b.startDate && a.endDate === b.endDate;
 
 export type ValidPeriod = { name: string; startDate: string; endDate: string };
 
 // 送る前の検査。others は同じ種類の登録済みの期間（編集中のものは editingId で除く）。
 // 重なりは同じ種類どうしだけを見る（テスト期間と空白期間は重なってよい。空白期間の日が「制限なし」になる）
-// TODO(未決): 重なる期間の扱いは MVP_SPEC 9章 High。今はサーバ（C10）と同じく「重なりは断る」
+// サーバ（C10）と同じく「重なりは断る」。ただしテスト期間で、開始日も終了日も同じもの（同じ日の数学と英語など）は
+// 重なりにしない（サーバは同じ日程のテストを1件として計算する。D-93）
 export function validatePeriod(
   draft: PeriodDraft,
   others: Period[],
@@ -146,7 +151,7 @@ export function validatePeriod(
     const hit = [...others]
       .filter((o) => o.id !== editingId)
       .sort(byStart)
-      .find((o) => overlaps(o, mine));
+      .find((o) => overlaps(o, mine) && !(kind === "test" && sameRange(o, mine)));
     if (hit) {
       errors.startDate = "期間が重なっています";
       errors.endDate = `「${hit.name}」（${formatPeriodRange(hit.startDate, hit.endDate)}）と重なっています。重ならない日付にしてください`;
@@ -282,14 +287,20 @@ export function saveFailure(error: ApiError, kind: PeriodKind): SaveFailure {
 
 // ── 反映済み／反映待ち（Q6。保護者の一覧に出す）──────────────────────
 
-export function appliedStatus(configVersion: number, childAppliedVersion: number | null) {
+// changedVersion は、その一覧（テスト期間・空白期間）が最後に変わった設定の版（サーバの periodsChangedVersion・blankChangedVersion）。
+// 設定全体の版（configVersion）では決めない。なぜ: 計画や対象外アプリを保存しただけでも設定の版は上がるので、テストの日程は
+// 何も変わっていないのにテストの一覧が「反映待ち」になったため（10/17 デバッグ第2回。親16 の excludedListStatus と同じ考え方）。
+// 0（一度も変えていない）なら、子どもの端末に届けるものがないので反映済み
+export function appliedStatus(changedVersion: number, childAppliedVersion: number | null) {
+  if (changedVersion === 0)
+    return { tone: "success" as const, label: "反映済み", hint: "お子さんの端末に反映されています" };
   if (childAppliedVersion == null)
     return {
       tone: "warning" as const,
       label: "反映待ち",
       hint: "お子さんの端末がまだ設定を受け取っていません",
     };
-  if (childAppliedVersion < configVersion)
+  if (childAppliedVersion < changedVersion)
     return {
       tone: "warning" as const,
       label: "反映待ち",
@@ -300,8 +311,13 @@ export function appliedStatus(configVersion: number, childAppliedVersion: number
 
 // ── 一覧の取得結果の状態 ────────────────────────────────────────
 
-// サーバから取った一覧と、そのときの設定の版（保存のときの expectedVersion に使う）
-export type PeriodSource = { periods: Period[]; configVersion: number; childAppliedVersion: number | null };
+// サーバから取った一覧と、そのときの設定の版（保存のときの expectedVersion に使う）・一覧が最後に変わった版（反映済み／反映待ち）
+export type PeriodSource = {
+  periods: Period[];
+  configVersion: number;
+  changedVersion: number;
+  childAppliedVersion: number | null;
+};
 
 //   loading     : まだ一度も取れていない
 //   fresh       : サーバから取れた

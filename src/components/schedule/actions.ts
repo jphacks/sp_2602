@@ -7,10 +7,20 @@ import type { Period, PeriodKind, PeriodSource, ValidPeriod } from "./logic";
 export async function fetchPeriods(kind: PeriodKind, childId: string): Promise<PeriodSource> {
   if (kind === "test") {
     const r = await call("testPeriodList", { childId });
-    return { periods: r.testPeriods, configVersion: r.configVersion, childAppliedVersion: r.childAppliedVersion };
+    return {
+      periods: r.testPeriods,
+      configVersion: r.configVersion,
+      changedVersion: r.periodsChangedVersion,
+      childAppliedVersion: r.childAppliedVersion,
+    };
   }
   const r = await call("blankPeriodList", { childId });
-  return { periods: r.blankPeriods, configVersion: r.configVersion, childAppliedVersion: r.childAppliedVersion };
+  return {
+    periods: r.blankPeriods,
+    configVersion: r.configVersion,
+    changedVersion: r.blankChangedVersion,
+    childAppliedVersion: r.childAppliedVersion,
+  };
 }
 
 type SaveInput = ValidPeriod & { childId: string; expectedVersion: number; id?: string };
@@ -29,7 +39,8 @@ export async function deletePeriod(
   return kind === "test" ? call("testPeriodDelete", input) : call("blankPeriodDelete", input);
 }
 
-// C7 の設定の組から作る、一覧が取れないときの代わり（childAppliedVersion は組に入っていないので null）
+// C7 の設定の組から作る、一覧が取れないときの代わり（childAppliedVersion・一覧が最後に変わった版は組に入っていないので、
+// null と今の版にしておく。古い一覧では反映済み／反映待ちを出さないので、画面には出ない）
 export function fallbackFrom(
   snapshot: { configVersion: number; testPeriods: Period[]; blankPeriods: Period[] } | null,
   kind: PeriodKind,
@@ -38,6 +49,7 @@ export function fallbackFrom(
   return {
     periods: kind === "test" ? snapshot.testPeriods : snapshot.blankPeriods,
     configVersion: snapshot.configVersion,
+    changedVersion: snapshot.configVersion,
     childAppliedVersion: null,
   };
 }

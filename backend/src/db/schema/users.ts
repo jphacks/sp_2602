@@ -4,7 +4,8 @@ export const userRole = pgEnum("user_role", ["parent", "child"]);
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
-  role: userRole("role").notNull(),
+  // A new account has no product role until a pairing is confirmed.
+  role: userRole("role"),
   displayName: varchar("display_name", { length: 120 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

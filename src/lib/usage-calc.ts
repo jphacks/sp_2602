@@ -3,7 +3,8 @@
 // 取れなかった値を 0 分にしない: 実績が取れない・権限がない・上限が未設定・上限が負・制限なし（空白期間。Q7）は、それぞれ別の状態で返す。
 //   const r = calcUsage({ usage, limit: limitForDate(snapshot, today), excludedPackages, essentialPackages });
 //   if (r.state === "ok") { r.displayUsedPercent … r.reached … }
-import type { NativeAppUsage, NativeUsageResult } from "@contracts/native";
+import { addDays } from "@contracts/dates";
+import type { NativeAppUsage, NativeDayLimit, NativeRestriction, NativeUsageResult } from "@contracts/native";
 import type { ConfigSnapshot, UsageDayReport } from "@contracts/schemas";
 
 // 安全上の必須例外（電話・緊急通報など）。C9 の対象外アプリとは別に、いつも制限しない（MVP_SPEC 3.1・C4）
@@ -139,6 +140,42 @@ export function limitForDate(snapshot: ConfigSnapshot | null, date: string): Lim
   return hit.kind === "unlimited" ? { kind: "unlimited" } : { kind: "set", minutes: hit.limitMinutes };
 }
 
+// Kotlin に先の日の上限を何日分渡すか（電波がなく Slope を開かない日が続いても、この日数は端末だけで判定できる）
+export const RESTRICTION_UPCOMING_DAYS = 14;
+
+// C4: C7 のスナップショットから、Kotlin に渡す判定の値（NativeRestriction）を作る（child-data.tsx の refresh が saveRestriction に渡す）。
+// 上限の区別は data.md 2章のとおり: 上限あり（0 分を含む）= limited、空白期間 = unlimited、日付がない = unset。
+// upcoming は date の翌日から RESTRICTION_UPCOMING_DAYS 日分（Kotlin は日付が変わったら、ここから今日の上限を取り出す）。
+// testPeriods は判定には使わず、Kotlin がウィジェット（C5）の「次のテスト」のために保存する。
+// blockedSites（D-111）は Kotlin の engine/WebGuardService.kt が読む（上限に達した日だけ、ブラウザで開いたら止める）
+export function toNativeRestriction(
+  snapshot: ConfigSnapshot,
+  date: string,
+  opts: { essentialPackages?: readonly string[]; learningPackages?: readonly string[] } = {},
+): NativeRestriction {
+  const toNative = (d: string): NativeDayLimit => {
+    const l = limitForDate(snapshot, d);
+    if (l.kind === "set") return { kind: "limited", limitMinutes: l.minutes };
+    if (l.kind === "unlimited") return { kind: "unlimited" };
+    return { kind: "unset" }; // スナップショットがあるので unknown にはならない
+  };
+  return {
+    date,
+    limit: toNative(date),
+    upcoming: Array.from({ length: RESTRICTION_UPCOMING_DAYS }, (_, i) => {
+      const d = addDays(date, i + 1);
+      return { date: d, limit: toNative(d) };
+    }),
+    excludedPackages: snapshot.excludedApps.map((a) => a.packageName),
+    // 制限する Web サイト（D-111）。上限に達したあと、Kotlin のユーザー補助がブラウザでこのサイトを止める
+    blockedSites: snapshot.blockedSites.map((s) => s.pattern),
+    essentialPackages: [...(opts.essentialPackages ?? ESSENTIAL_PACKAGES)],
+    learningPackages: [...(opts.learningPackages ?? LEARNING_PACKAGES)],
+    configVersion: snapshot.configVersion,
+    testPeriods: snapshot.testPeriods.map((t) => ({ name: t.name, startDate: t.startDate, endDate: t.endDate })),
+  };
+}
+
 // 今日が空白期間の中なら、その空白期間（子どものホームで「夏休み中は制限なし」と出すため）。なければ null
 export function currentBlankPeriod(snapshot: ConfigSnapshot | null, today: string) {
   return snapshot?.blankPeriods.find((b) => b.startDate <= today && today <= b.endDate) ?? null;
@@ -176,6 +213,20 @@ export function clipText(text: string, max: number): string {
   return out;
 }
 
+// 同じアプリ（packageName）が2回出てきたら、使った時間を足して1つにする（名前は最初のもの。順番は最初に出てきた位置）。
+// なぜ: #49 の契約では、1日の記録に同じアプリが2回あると形の誤り（UsageDayReport の superRefine）になり、その日の記録が丸ごと
+//   隔離されて親に届かなくなる。ふだんの Kotlin（UsageReader）はアプリごとにまとめて返すが、まとめる前の形が来ても落とさないため
+function mergeSamePackage<A extends { packageName: string; label: string; usedMinutes: number }>(
+  apps: readonly A[],
+): A[] {
+  const byPackage = new Map<string, A>();
+  for (const a of apps) {
+    const seen = byPackage.get(a.packageName);
+    byPackage.set(a.packageName, seen ? { ...seen, usedMinutes: seen.usedMinutes + a.usedMinutes } : a);
+  }
+  return [...byPackage.values()];
+}
+
 // C2 の実績を、C8 で送る1日ぶんの利用記録の形にする（Q8: アプリ別の累計＋測った時刻＋制限対象の合計分）。
 // excluded と restrictedMinutes は C3 と同じ判定で付ける（親の画面はこの合計を使い、新しい設定で過去を計算し直さない）
 // 作った記録が必ず契約に合うようにする（なぜ: 合わない記録はサーバで 400 になり、その日の記録が親に届かないため）:
@@ -187,7 +238,7 @@ export function toUsageDayReport(
   excludedPackages: readonly string[],
   essentialPackages: readonly string[] = ESSENTIAL_PACKAGES,
 ): UsageDayReport {
-  const all = usage.apps.map((a) => ({
+  const all = mergeSamePackage(usage.apps).map((a) => ({
     packageName: a.packageName,
     label: clipText(a.label.trim() || a.packageName, APP_LABEL_MAX),
     usedMinutes: Math.min(1440, Math.max(0, Math.round(a.usedMinutes))),

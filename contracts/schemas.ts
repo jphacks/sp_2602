@@ -3,6 +3,7 @@
 // 人間が決めた「仕様の決定 Q1〜Q15」（空白期間・親1↔子1 など）に合わせた。
 // 名前と項目は backend/src/db/schema の表にそろえている（ただし DB の型ではなく API の形。id は文字列、日付は "YYYY-MM-DD"）。
 import { z } from "zod";
+import { isNormalizedSitePattern, MAX_BLOCKED_SITES, MAX_SITE_PATTERN_LENGTH } from "./web-sites.js";
 
 // ── 共通の部品 ──────────────────────────────────────────────
 
@@ -27,8 +28,8 @@ export const IsoDateTime = z.iso.datetime({ offset: true });
 // 1日の分数（0〜1440 の整数）。0 分は「有効な上限」（MVP_SPEC 4.2: 0 分上限は到達扱い）
 export const Minutes = z.number().int().min(0).max(1440);
 
-// 設定の版（C7 の configVersion）。子ども1人に1本の数で、計画・通常上限・テスト期間・空白期間・日別上限・対象外アプリの
-// どれかが変わるたびに 1 増える（Q6。backend の child_config_versions と同じ考え方）。0 は「まだ何も保存していない」
+// 設定の版（C7 の configVersion）。子ども1人に1本の数で、計画・通常上限・テスト期間・空白期間・日別上限・対象外アプリ・
+// 制限する Web サイト（D-111）のどれかが変わるたびに 1 増える（Q6。backend の child_config_versions と同じ考え方）。0 は「まだ何も保存していない」
 export const ConfigVersion = z.number().int().min(0);
 
 // Android のアプリ識別子（例: com.google.android.youtube）
@@ -61,6 +62,16 @@ export const Session = z.object({
   role: Role.nullable(),
 });
 export type Session = z.infer<typeof Session>;
+
+// ログアウト（authSignOut）の入力。本文なし（undefined）はふつうのログアウト（この端末の合言葉だけ）。
+//   otherDevices: true … この端末以外の、同じ人の合言葉をすべて使えなくする（端末をなくしたとき、別の端末から）
+// 知らない項目は bad_request（入力を間違えたまま、思っていたのと違うログアウトをしないように）
+export const SignOutRequest = z.strictObject({ otherDevices: z.boolean().optional() }).optional();
+export type SignOutRequest = z.infer<typeof SignOutRequest>;
+
+// ログアウト（authSignOut）の結果。サーバは合言葉を消してから ok を返す。revoked は使えなくした合言葉の数
+export const SignOutResult = z.object({ ok: z.literal(true), revoked: z.number().int().min(0) });
+export type SignOutResult = z.infer<typeof SignOutResult>;
 
 // 子ども1人。id は子どもの userId
 export const Child = z.object({
@@ -134,6 +145,13 @@ export type LinkStatus = z.infer<typeof LinkStatus>;
 export const Family = z.object({ children: z.array(Child) });
 export type Family = z.infer<typeof Family>;
 
+// 保護者が子どもとの連携を外した結果（familyUnlink）。外すと、子どもの端末の合言葉もすべて使えなくなる
+export const FamilyUnlinkResult = z.object({
+  childId: z.string().min(1),
+  revokedSessions: z.number().int().min(0), // 使えなくした、子どもの合言葉の数
+});
+export type FamilyUnlinkResult = z.infer<typeof FamilyUnlinkResult>;
+
 // ── 1日の上限の値（C10 が作り、C3・C6 が使う）──────────────────────
 // 1日の上限は3つの状態を取り違えないよう kind で分ける（Q7）:
 //   limited   : 上限あり（limitMinutes 分。0 分も有効な上限 = その日は使えない）
@@ -156,7 +174,7 @@ export const UsualLimitSave = z.object({
 export type UsualLimitSave = z.infer<typeof UsualLimitSave>;
 
 // 計画の中身（親02 で親が入力する3つの値。Q14: 3つとも必須・分は 0〜1440 の整数・G ≤ S・開始日は今日以降）
-// 「開始日は今日以降」は今日がサーバの時計で決まるため、サーバの store.ts で確かめる（ここでは形だけ）
+// 「開始日は今日以降」は今日がサーバの時計で決まるため、サーバの src/server/services/plan-settings.ts の savePlanForCaller で確かめる（ここでは形だけ）
 const planFields = {
   planStartDate: IsoDate, // 計画開始日 d0
   startLimitMinutes: Minutes, // 開始上限 S（分）
@@ -242,9 +260,14 @@ export const TestPeriod = z.object({
 export type TestPeriod = z.infer<typeof TestPeriod>;
 
 // テスト期間の一覧（取得結果）
+// periodsChangedVersion: テスト期間の一覧（名前・期間）が最後に変わった設定の版。一度も変わっていなければ 0。
+//   親05 の「反映済み／反映待ち」は、childAppliedVersion がこれ以上かで決める（ExcludedAppsView の appsChangedVersion と同じ考え方）。
+//   なぜ: configVersion（設定全体の版）で決めると、計画・通常上限・対象外アプリ・空白期間を保存しただけでも、
+//   テストの日程は何も変わっていないのにテストの一覧が「反映待ち」になったため（10/17 デバッグ第2回）
 export const TestPeriodList = z.object({
   childId: z.string().min(1),
   testPeriods: z.array(TestPeriod), // 開始日の早い順
+  periodsChangedVersion: ConfigVersion,
   configVersion: ConfigVersion,
   childAppliedVersion: ChildAppliedVersion,
 });
@@ -287,9 +310,12 @@ export const BlankPeriod = z.object({
 });
 export type BlankPeriod = z.infer<typeof BlankPeriod>;
 
+// blankChangedVersion: 空白期間の一覧（名前・期間）が最後に変わった設定の版。一度も変わっていなければ 0
+//   （TestPeriodList の periodsChangedVersion と同じ考え方。空白期間の一覧の「反映済み／反映待ち」に使う）
 export const BlankPeriodList = z.object({
   childId: z.string().min(1),
   blankPeriods: z.array(BlankPeriod), // 開始日の早い順
+  blankChangedVersion: ConfigVersion,
   configVersion: ConfigVersion,
   childAppliedVersion: ChildAppliedVersion,
 });
@@ -342,8 +368,8 @@ export type RemovedExcludedApp = z.infer<typeof RemovedExcludedApp>;
 //   appsChangedVersion : 対象外アプリの一覧（アプリの組・名前）が最後に変わった設定の版。一度も変わっていなければ 0。
 //                        childAppliedVersion がこれ以上なら、一覧の全体が子どもの端末に届いている
 //   apps[].sinceVersion: そのアプリが対象外になった版 / removedApps[].removedVersion: そのアプリを外した版
-// TODO(保留): Q15 親が選ぶ候補（子どもの端末のアプリ一覧）をどこから得るかは保留。サーバへ送る API は作らない。
-//   親16 の候補は contracts/fixtures.ts の mockExcludedAppCandidates（MOCK の固定値）を使う
+// 親16 で選ぶ候補（子どもの端末のアプリ一覧）はここには入れない（Q15・D-110）。別の API childAppsGet で読む
+// （なぜ: この一覧は 30 秒ごとに取り直すので、数百件になりうるアプリ一覧を毎回運ばないため）
 export const ExcludedAppsView = z.object({
   childId: z.string().min(1),
   apps: z.array(ExcludedApp),
@@ -368,6 +394,159 @@ export const ExcludedAppsSaveResult = z.object({
 });
 export type ExcludedAppsSaveResult = z.infer<typeof ExcludedAppsSaveResult>;
 
+// ── 制限する Web サイト（親だけが変える。D-111）──────────────────────
+// 上限に達したあと、子どもの端末のブラウザでこのサイトを開くと、Kotlin がブラウザを1つ前に戻して「時間は終わりです」を出す。
+// 上限なし・未設定・空白期間中は止めない（C4 と同じ）。登録の形と一致の規則は contracts/web-sites.ts
+
+// 登録1つ（"youtube.com" か "youtube.com/shorts"）。保存できるのは normalizeSitePattern でそろえた形だけ
+// （画面が保存の前にそろえる。そろっていない形はサーバの入口で bad_request）
+export const SitePattern = z
+  .string()
+  .min(1)
+  .max(MAX_SITE_PATTERN_LENGTH)
+  .refine(isNormalizedSitePattern, "Web サイトの形が違います（例: youtube.com・youtube.com/shorts）");
+
+// 保存済みの登録。sinceVersion はこの登録を足した設定の版（子どもの端末の版がこれ以上なら「反映済み」）。
+// 読むときの pattern は形を確かめ直さない（なぜ: そろえ方の規則をあとで変えても、保存済みの組（C7）が読めなくならないように。
+//   子どもの端末の Kotlin は、受け取った登録をもう一度そろえ、そろわないものは使わない）
+export const BlockedSite = z.object({
+  pattern: z.string().min(1).max(MAX_SITE_PATTERN_LENGTH),
+  sinceVersion: ConfigVersion.min(1),
+});
+export type BlockedSite = z.infer<typeof BlockedSite>;
+
+// 親子: 登録の一覧（子どもは閲覧のみ）。sitesChangedVersion は一覧が最後に変わった（足した・外した）設定の版。
+// 一度も変えていなければ 0。childAppliedVersion がこれ以上なら、一覧の全体が子どもの端末に届いている（ExcludedAppsView と同じ考え方）
+export const BlockedSitesView = z.object({
+  childId: z.string().min(1),
+  sites: z.array(BlockedSite),
+  sitesChangedVersion: ConfigVersion,
+  configVersion: ConfigVersion,
+  childAppliedVersion: ChildAppliedVersion,
+});
+export type BlockedSitesView = z.infer<typeof BlockedSitesView>;
+
+// 保存（親だけ。全件の置き換え）。expectedVersion は画面が読んだときの configVersion（ずれていたら conflict）
+export const BlockedSitesSave = z.object({
+  childId: z.string().min(1),
+  expectedVersion: ConfigVersion,
+  sites: z
+    .array(SitePattern)
+    .max(MAX_BLOCKED_SITES)
+    .refine((sites) => new Set(sites).size === sites.length, "同じサイトが2回入っています"),
+});
+export type BlockedSitesSave = z.infer<typeof BlockedSitesSave>;
+
+export const BlockedSitesSaveResult = z.object({
+  sites: z.array(BlockedSite),
+  sitesChangedVersion: ConfigVersion,
+  configVersion: ConfigVersion,
+});
+export type BlockedSitesSaveResult = z.infer<typeof BlockedSitesSaveResult>;
+
+// ── Q15: 子どもの端末のアプリ一覧とアイコン（親16 の候補・親09 と親16 のアイコン。D-110）────────────────
+
+// 子どもの端末から送るアプリの数の上限。ホーム画面に出るアプリはふつう数十〜300 ほどなので、余裕をみて 1000
+export const MAX_CHILD_APPS = 1000;
+// アイコン1枚（PNG）の大きさの上限（バイト）と、base64 にしたときの文字数の上限。端末は一辺 96px ほどに縮めて送る
+export const MAX_APP_ICON_BYTES = 20 * 1024;
+export const MAX_APP_ICON_BASE64 = Math.ceil(MAX_APP_ICON_BYTES / 3) * 4;
+// 1回で送る・読むアイコンの数の上限（1回の本文を 1.5MB ほどまでにする。Vercel の本文の上限 4.5MB より十分小さく）
+export const MAX_APP_ICONS_PER_CALL = 50;
+
+// 空白だけの文字は受け付けない（DB の「空でない」の決まりに当たって 500 にならないよう、入口で 400 にする）
+const notBlank = (s: string) => s.trim().length > 0;
+
+// アイコンの PNG の中身の SHA-256（16進 64 文字・小文字）。中身が変わったアイコンだけを送る・読み直すのに使う
+export const AppIconHash = z.string().regex(/^[0-9a-f]{64}$/, "アイコンのハッシュの形が違います");
+// アイコンの PNG（base64・改行なし）。PNG であること・大きさ・ハッシュが合うかはサーバが中身を読んで確かめる
+export const AppIconPng = z
+  .string()
+  .min(1)
+  .max(MAX_APP_ICON_BASE64)
+  .regex(/^[A-Za-z0-9+/]+={0,2}$/, "アイコンは base64 で送ってください");
+
+// 子どもの端末のホーム画面に出るアプリ1つ。送るのはアプリの識別子・画面に出す名前・アイコン（の中身のハッシュ）だけ
+// （使用時間・入れた日などは送らない。使用時間は C8 の利用記録で別に送る。プライバシーの説明は docs/decisions.md D-110）。
+// iconHash がない = 端末でアイコンを作れなかった（保護者の画面は仮のアイコンのまま）
+export const ChildApp = z.object({
+  packageName: PackageName.refine(notBlank, "アプリの識別子が空です"),
+  label: z.string().min(1).max(120).refine(notBlank, "アプリの名前が空です"), // 対象外アプリ（ExcludedAppInput）と同じ長さ
+  iconHash: AppIconHash.optional(),
+});
+export type ChildApp = z.infer<typeof ChildApp>;
+
+// 子どもが一覧を送る（全件の置き換え。差分ではない）。同じ packageName が2回あるのは端末の不具合なので断る。
+// アイコンの画像はここには入れない（重いので、サーバが持っていないものだけを childAppIconsUpload で送る）
+export const ChildAppsUpload = z.object({
+  childId: z.string().min(1),
+  apps: z
+    .array(ChildApp)
+    .max(MAX_CHILD_APPS)
+    .refine((apps) => new Set(apps.map((a) => a.packageName)).size === apps.length, "同じアプリが2回入っています"),
+});
+export type ChildAppsUpload = z.infer<typeof ChildAppsUpload>;
+
+export const ChildAppsUploadResult = z.object({
+  appCount: z.number().int().min(0), // 保存した件数
+  receivedAt: IsoDateTime, // サーバが受け取った時刻
+  // サーバが持っていない（または中身が違う）アイコンのアプリ。端末はこのアプリのアイコンだけを childAppIconsUpload で送る
+  iconsNeeded: z.array(PackageName),
+});
+export type ChildAppsUploadResult = z.infer<typeof ChildAppsUploadResult>;
+
+// アイコン1枚（送る・読むの両方の形）
+export const ChildAppIcon = z.object({ packageName: PackageName, iconHash: AppIconHash, png: AppIconPng });
+export type ChildAppIcon = z.infer<typeof ChildAppIcon>;
+
+const uniquePackages = (items: readonly { packageName: string }[]) =>
+  new Set(items.map((i) => i.packageName)).size === items.length;
+
+// 子どもがアイコンを送る（MAX_APP_ICONS_PER_CALL 枚ずつ）。今の一覧にないアプリのアイコンは保存しない
+export const ChildAppIconsUpload = z.object({
+  childId: z.string().min(1),
+  icons: z
+    .array(ChildAppIcon)
+    .min(1)
+    .max(MAX_APP_ICONS_PER_CALL)
+    .refine(uniquePackages, "同じアプリのアイコンが2回入っています"),
+});
+export type ChildAppIconsUpload = z.infer<typeof ChildAppIconsUpload>;
+
+export const ChildAppIconsUploadResult = z.object({
+  saved: z.number().int().min(0), // 保存した枚数（今の一覧にないアプリの分は数えない）
+});
+export type ChildAppIconsUploadResult = z.infer<typeof ChildAppIconsUploadResult>;
+
+// 保護者がアイコンを読む（MAX_APP_ICONS_PER_CALL 個ずつ。端末に持っていない・ハッシュが変わったものだけを頼む）
+export const ChildAppIconsQuery = z.object({
+  childId: z.string().min(1),
+  packageNames: z.array(PackageName).min(1).max(MAX_APP_ICONS_PER_CALL),
+});
+export type ChildAppIconsQuery = z.infer<typeof ChildAppIconsQuery>;
+
+// 頼んだアプリのうち、サーバにアイコンがあるものだけ（ないアプリは入らない＝仮のアイコンのまま）
+export const ChildAppIconsView = z.object({ childId: z.string().min(1), icons: z.array(ChildAppIcon) });
+export type ChildAppIconsView = z.infer<typeof ChildAppIconsView>;
+
+// 保護者が読む一覧の1つ。iconHash はサーバにあるアイコンのハッシュ（ない = null。仮のアイコンを出す）
+export const ChildAppEntry = z.object({
+  packageName: ChildApp.shape.packageName,
+  label: ChildApp.shape.label,
+  iconHash: AppIconHash.nullable(),
+});
+export type ChildAppEntry = z.infer<typeof ChildAppEntry>;
+
+// 保護者が読む子どもの端末のアプリ一覧。receivedAt が null = まだ一度も届いていない（apps は空）。
+// 届いた一覧が空（apps: [] で receivedAt あり）とは分ける（「まだ届いていません」と「アプリがありません」を取り違えないため）。
+// apps は表示名の順に並べてある（同じ名前なら packageName の順）
+export const ChildAppsView = z.object({
+  childId: z.string().min(1),
+  apps: z.array(ChildAppEntry),
+  receivedAt: IsoDateTime.nullable(),
+});
+export type ChildAppsView = z.infer<typeof ChildAppsView>;
+
 // ── C7: 設定のスナップショット ────────────────────────────────────
 
 // C7 で端末が取り込む「1組」。中の一覧は必ず同じ configVersion のもの（アプリはこの組を丸ごと採用し、版の違うものを混ぜない）
@@ -382,6 +561,9 @@ export const ConfigSnapshot = z.object({
   // 日付の早い順。一覧にない日は「上限未設定」。空白期間の日は kind: "unlimited"
   dailyLimits: z.array(DailyLimit),
   excludedApps: z.array(ExcludedApp),
+  // 制限する Web サイト（D-111。登録の順）。.default([]): この項目を足す前に端末へ保存した組（CachedConfig）も読めるように
+  // （足す前は登録がなかったので、空と同じ意味）
+  blockedSites: z.array(BlockedSite).default([]),
   generatedAt: IsoDateTime, // サーバがこの組を作った時刻
 });
 export type ConfigSnapshot = z.infer<typeof ConfigSnapshot>;
@@ -394,12 +576,25 @@ export const ConfigQuery = z.object({
 });
 export type ConfigQuery = z.infer<typeof ConfigQuery>;
 
-// C7 の取得の結果。changed: false なら手元の組をそのまま使ってよい
+// C7 の epoch（docs/decisions.md D-109）。サーバの DB ごとに1つ決まる値（DB を作ったときに1回だけ作る uuid。表 server_meta）。
+// DB を作り直す・PGlite と Neon を切り替えると変わり、サーバを再起動しても変わらない。
+// なぜ: 版（configVersion）は DB の中の数なので、DB を作り直すと 0 から数え直す。端末が手元の大きな版を信じ続けて
+//   新しい設定を「古い応答」として捨てないよう、版を比べる前に「同じ DB の版か」を epoch で確かめる
+export const ConfigEpoch = z.string().min(1).max(100);
+export type ConfigEpoch = z.infer<typeof ConfigEpoch>;
+
+// C7 の取得の結果。changed: false なら手元の組をそのまま使ってよい（ただし epoch が手元と同じときだけ）。
+// epoch はどちらの形にも必ず入る。端末は手元の epoch と違えば、版を比べずに手元を捨てる（changed: false なら knownVersion なしで取り直す）
 export const ConfigResult = z.discriminatedUnion("changed", [
-  z.object({ changed: z.literal(false), configVersion: ConfigVersion }),
-  z.object({ changed: z.literal(true), snapshot: ConfigSnapshot }),
+  z.object({ changed: z.literal(false), configVersion: ConfigVersion, epoch: ConfigEpoch }),
+  z.object({ changed: z.literal(true), snapshot: ConfigSnapshot, epoch: ConfigEpoch }),
 ]);
 export type ConfigResult = z.infer<typeof ConfigResult>;
+
+// 端末に保存する C7 の組（src/lib/config-cache.ts。AsyncStorage の slope.config.<childId>）。
+// epoch はその組をくれたサーバの DB の値。epoch を足す前に保存した組には epoch がない（読めるが「epoch が違う」として扱い、次の取得で捨てる）
+export const CachedConfig = z.object({ snapshot: ConfigSnapshot, savedAt: z.string(), epoch: ConfigEpoch.optional() });
+export type CachedConfig = z.infer<typeof CachedConfig>;
 
 // ── C8: 利用記録（子どもの端末 → サーバ）────────────────────────
 
@@ -415,21 +610,49 @@ export type AppMinutes = z.infer<typeof AppMinutes>;
 
 // 1日ぶんの利用記録（Q8: その日のアプリ別の累計＋測った時刻＋制限対象の合計分）。
 // サーバは日ごとに「測った時刻が一番新しいもの」を正とする（古い記録が後から届いても上書きしない）
-export const UsageDayReport = z.object({
-  date: IsoDate,
-  measuredAt: IsoDateTime, // 端末で測った時刻
-  restrictedMinutes: Minutes, // 制限対象アプリの合計（C3 と同じ計算。親の画面はこれを使う = 新しい設定で過去を計算し直さない）
-  apps: z.array(AppMinutes).max(1000),
-});
+export const UsageDayReport = z
+  .object({
+    date: IsoDate,
+    measuredAt: IsoDateTime, // 端末で測った時刻
+    restrictedMinutes: Minutes, // 制限対象アプリの合計（C3 と同じ計算。親の画面はこれを使う = 新しい設定で過去を計算し直さない）
+    apps: z.array(AppMinutes).max(1000),
+  })
+  .superRefine((report, context) => {
+    const seen = new Set<string>();
+    report.apps.forEach((app, index) => {
+      if (seen.has(app.packageName)) {
+        context.addIssue({
+          code: "custom",
+          path: ["apps", index, "packageName"],
+          message: "An app can appear only once per usage date.",
+        });
+      }
+      seen.add(app.packageName);
+    });
+  });
 export type UsageDayReport = z.infer<typeof UsageDayReport>;
 
 // 利用記録の送信（子どもだけ）。毎回「今日と昨日」の2日分を送る（Q8）。
 // submissionId は端末が作る送信 ID（UUID）。送り直しでも同じ ID を使う（冪等キー）
-export const UsageUpload = z.object({
-  submissionId: z.uuid(),
-  childId: z.string().min(1),
-  days: z.array(UsageDayReport).min(1).max(7),
-});
+export const UsageUpload = z
+  .object({
+    submissionId: z.uuid(),
+    childId: z.string().min(1),
+    days: z.array(UsageDayReport).min(1).max(7),
+  })
+  .superRefine((upload, ctx) => {
+    const seen = new Set<string>();
+    upload.days.forEach((day, index) => {
+      if (seen.has(day.date)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["days", index, "date"],
+          message: "A usage upload can contain only one report per date.",
+        });
+      }
+      seen.add(day.date);
+    });
+  });
 export type UsageUpload = z.infer<typeof UsageUpload>;
 
 // 送信の結果。duplicate は「同じ ID・同じ中身をもう受け付け済み」（二重には保存していない）。どちらも送信待ちから消してよい

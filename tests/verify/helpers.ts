@@ -1,33 +1,38 @@
 // 確かめ役（V）のテストで共通に使う道具。サーバは Hono の app.request で、本物のネットワークを使わずに呼ぶ。
-// 状態はメモリ上の store（src/server/mock/store.ts）。テストごとに時計を固定した新しい store に入れ替える。
+// 状態は手元の DB（PGlite）。テストごとに空にして見本を入れ直し、時計（Date）を固定する。
 // テストではない（ファイル名が *.test.ts でない）ので、vitest はこれを単体では走らせない。
 
 import { ApiError } from "@contracts/errors";
 import { mockSessions } from "@contracts/fixtures";
 import { PairStatus, PairTicket, Session } from "@contracts/schemas";
+import { vi } from "vitest";
 import app from "@/server/app";
-import { resetStore, type StoreOptions } from "@/server/mock/store";
+import { resetDatabaseForTests } from "@/server/db";
 
 export const PARENT = mockSessions["mock-google-parent"].token;
 export const CHILD = mockSessions["mock-google-child"].token;
 export const NEW = mockSessions["mock-google-new"].token;
 export const CHILD_ID = mockSessions["mock-google-child"].userId;
 
-// 時計。clock.set("2026-10-01T03:00:00Z") のように進める（日本時間は +9 時間）
+// 時計。clock.set("2026-10-01T03:00:00Z") のように進める（日本時間は +9 時間）。
+// サーバ（DB の保存処理も含む）は new Date() で時刻を読むので、Date だけを偽の時計にして、ここで動かす
 export const clock = {
   ms: Date.parse("2026-10-15T03:00:00Z"),
   set(iso: string) {
     this.ms = Date.parse(iso);
+    vi.setSystemTime(this.ms);
   },
   addMs(n: number) {
     this.ms += n;
+    vi.setSystemTime(this.ms);
   },
 };
 
-// 新しい store にする（seed: デモの3人を入れるか）
-export function fresh(nowIso: string, opts: Omit<StoreOptions, "now"> = {}) {
+// DB を空にして、時計を nowIso に合わせる（seed: デモの3人と見本を入れるか。既定は入れる）
+export async function fresh(nowIso: string, opts: { seed?: boolean } = {}) {
+  vi.useFakeTimers({ toFake: ["Date"] });
   clock.set(nowIso);
-  return resetStore({ seed: true, ...opts, now: () => new Date(clock.ms) });
+  return resetDatabaseForTests({ seed: opts.seed ?? true });
 }
 
 const auth = (token: string | null): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {});

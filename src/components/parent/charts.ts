@@ -1,7 +1,8 @@
 // 保護者の画面の棒グラフのデータ作り（純粋な関数。tests/parent/charts.test.ts）。描くのは WeekBars.tsx。
 //   - homeWeekBars : 親01「今週の使用時間（分）」。月〜日の7本。下地 = その日の上限、中身 = 使った時間
 //   - reviewWeekBars: 親03「週ごとの1日の使用時間（平均・分）」。6週。計画の前の週は淡い色
-//   - planTrendBars: 親02 で「今の計画だと上限はこう下がる」。サーバの日別上限（C10 の結果）を何日かおきに拾う（ここで C10 を計算し直さない）
+//   - planTrendBars: 親02 で「今の計画だと上限はこう下がる」。サーバの日別上限（C10 の結果）を何日かおきに拾う（ここで C10 を計算し直さない）。
+//     テストの開始日・終わった次の日（上限が戻る日）は必ず拾う（trendDates）
 // 取り違えないための決まり（C6・Q7）:
 //   - 記録がない日（recorded: false）は中身を描かず missing（「？」の印）。0 分の記録は高さ 0 の中身（印なし）
 //   - 上限が「制限なし」の日は下地を描かず、上の数字は「なし」。「上限未設定」の日も下地を描かず、上の数字は「－」
@@ -146,7 +147,9 @@ export const TREND_BARS = 6;
 export const TREND_DEFAULT_DAYS = 27; // 最後のテストがないときに見る日数（4週間）
 
 // サーバの日別上限（C10 の結果）から、今日〜最後のテストの開始日（最終目標になる日）までを、何日かおきに拾う。
-// クライアントで C10 を計算し直さない（拾うだけ）。日別上限がまだない日は「－」
+// クライアントで C10 を計算し直さない（拾うだけ）。日別上限がまだない日は「－」。
+// テストの開始日（上限がいちばん下がる日）と、テストが終わった次の日（上限が戻る日）は、間引きで落とさず必ず棒にして札を付ける
+// （なぜ: 等間隔に拾うだけだと、途中のテストの開始日・戻る日が棒にも札にも出ず、「下がって戻る」形がグラフから分からなかった）
 export function planTrendBars(
   snapshot: Pick<ConfigSnapshot, "dailyLimits" | "testPeriods">,
   today: string,
@@ -158,19 +161,18 @@ export function planTrendBars(
   const lastKnown = snapshot.dailyLimits.at(-1)?.date ?? today;
   let end = lastTest ?? addDays(today, TREND_DEFAULT_DAYS);
   if (end > lastKnown) end = lastKnown < today ? today : lastKnown;
-  const span = Math.round((Date.parse(end) - Date.parse(today)) / 86_400_000);
-  const n = Math.max(1, Math.min(maxBars, span + 1));
-  const dates = [
-    ...new Set(Array.from({ length: n }, (_, i) => addDays(today, n === 1 ? 0 : Math.round((i * span) / (n - 1))))),
-  ];
+  const dates = trendDates(snapshot.testPeriods, today, end, maxBars);
   const testStarts = new Map(snapshot.testPeriods.map((t) => [t.startDate, t.name]));
+  const testAfter = new Map(snapshot.testPeriods.map((t) => [addDays(t.endDate, 1), t.name]));
   return dates.map((date) => {
     const l = byDate.get(date);
     const lp = limitParts(l ?? null);
     const test = testStarts.get(date);
+    const after = testAfter.get(date);
     const tags: BarTag[] = [];
     if (date === today) tags.push({ label: "今日", tone: "strong" });
     if (test) tags.push({ label: "テスト", tone: "soft" });
+    else if (after) tags.push({ label: "テスト後", tone: "soft" });
     return {
       key: date,
       label: weekdayJa(date),
@@ -183,9 +185,43 @@ export function planTrendBars(
       emphasis: date === today,
       missing: false,
       tags,
-      a11y: `${md(date)}（${weekdayJa(date)}）${test ? `、${test}の始まり` : ""}、${lp.text}`,
+      a11y: `${md(date)}（${weekdayJa(date)}）${test ? `、${test}の始まり` : after ? `、${after}の次の日` : ""}、${lp.text}`,
     };
   });
+}
+
+// 親02 のグラフに出す日。今日〜end を等間隔に拾い、テストの開始日・終わった次の日（今日〜end の中のもの）を必ず入れる。
+// 必ず入れる日は、いちばん近い「等間隔に拾った日」と入れ替える（本数は変えない）。多すぎるときは早い順に、最後の日（end）は残す
+export function trendDates(
+  tests: readonly { startDate: string; endDate: string }[],
+  today: string,
+  end: string,
+  maxBars: number = TREND_BARS,
+): string[] {
+  const span = Math.max(0, Math.round((Date.parse(end) - Date.parse(today)) / 86_400_000));
+  const n = Math.max(1, Math.min(maxBars, span + 1));
+  const grid = [
+    ...new Set(Array.from({ length: n }, (_, i) => addDays(today, n === 1 ? 0 : Math.round((i * span) / (n - 1))))),
+  ];
+  const inRange = (d: string) => today <= d && d <= end;
+  const must = [
+    ...new Set([today, end, ...tests.flatMap((t) => [t.startDate, addDays(t.endDate, 1)]).filter(inRange)]),
+  ].sort();
+  if (must.length >= n) return [...must.filter((d) => d !== end).slice(0, n - 1), end].sort();
+  const dayNo = (d: string) => Date.parse(d) / 86_400_000;
+  const chosen = new Set(grid);
+  for (const m of must) {
+    if (chosen.has(m)) continue;
+    // 必ず入れる日でない中で、いちばん近い日と入れ替える
+    let nearest: string | null = null;
+    for (const g of chosen) {
+      if (must.includes(g)) continue;
+      if (nearest == null || Math.abs(dayNo(g) - dayNo(m)) < Math.abs(dayNo(nearest) - dayNo(m))) nearest = g;
+    }
+    if (nearest != null) chosen.delete(nearest);
+    chosen.add(m);
+  }
+  return [...chosen].sort();
 }
 
 // グラフの下に出す注記（その印が1本でもあるときだけ）

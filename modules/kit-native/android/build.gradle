@@ -34,4 +34,7 @@ dependencies {
   implementation "androidx.room:room-ktx:$roomVersion"
   ksp "androidx.room:room-compiler:$roomVersion"
   implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+  // K-A: engine/ の純粋な関数（日の区切り・前面時間の数え方・到達の判定）の JVM テスト（src/test/）。
+  //   cd android && ./gradlew :kit-native:testDebugUnitTest
+  testImplementation 'junit:junit:4.13.2'
 }

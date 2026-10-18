@@ -86,7 +86,7 @@ export default function Login() {
         icon="error"
         iconTone="danger"
         title="ログインできませんでした"
-        body={"通信を確かめて、\nもう一度ためしてください。"}
+        body="通信を確かめて、もう一度ためしてください。"
         centered
         onClose={close}
         actions={<Button variant="pill" label="OK" onPress={close} />}

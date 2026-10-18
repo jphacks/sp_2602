@@ -53,16 +53,18 @@ export function PeriodListScreen({ kind, viewer, today, periods, reload, onBack,
           ))}
         </View>
       );
-    // 反映済み／反映待ちは、サーバから取れた版でだけ出す（古い一覧の版では判断できない）
+    // 反映済み／反映待ちは、サーバから取れた版でだけ出す（古い一覧の版では判断できない）。
+    // 設定全体の版ではなく、この一覧が最後に変わった版で決める（計画などの保存だけで「反映待ち」にしない）
     const applied =
       isParent && periods.status === "fresh"
-        ? appliedStatus(periods.data.configVersion, periods.data.childAppliedVersion)
+        ? appliedStatus(periods.data.changedVersion, periods.data.childAppliedVersion)
         : null;
     return (
       <StateView state={periods.status === "stale" ? "stale" : "success"}>
         {applied && (
           <View style={styles.applied}>
             <Chip
+              align="start"
               tone={applied.tone}
               icon={applied.tone === "success" ? "check_circle" : "sync"}
               label={applied.label}

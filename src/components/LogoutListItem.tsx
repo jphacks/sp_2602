@@ -24,7 +24,7 @@ export function LogoutListItem() {
   };
   return (
     <>
-      <ListItem icon="logout" title="ログアウト" strong onPress={() => setOpen(true)} />
+      <ListItem icon="logout" title="ログアウト" strong chevron={false} onPress={() => setOpen(true)} />
       <Dialog
         visible={open}
         title="ログアウトしますか？"

@@ -1,5 +1,6 @@
-// C6: 保護者が、連携済みの子どもの期間の実績（分）と日別上限を見る（D2 の確認は route.ts が済ませている）。
-import { getStore } from "../mock/store";
-import { handle } from "../route";
+// C6: 親の画面の利用記録。日ごとに一番新しい測定（C8）と、その日の上限（D6）を返す（連携済みの子どもだけ。route.ts が確かめる）。
+import { readParentUsage } from "../../../backend/src/db/usage-read.js";
+import { db } from "../db/index.js";
+import { handle } from "../route.js";
 
-export default handle("usageGet", async (req) => getStore().usageView(req.childId, req.from, req.to));
+export default handle("usageGet", async (req) => readParentUsage(await db(), req));

@@ -135,6 +135,7 @@ describe("C7 の組から当日の上限・次のテストを取り出す", () =
       { date: "2026-10-16", kind: "unlimited", blankPeriodId: "b1" },
     ],
     excludedApps: [],
+    blockedSites: [],
     generatedAt: "2026-10-15T00:00:00.000Z",
   };
 
@@ -230,6 +231,24 @@ describe("C8 で送る記録は必ず契約に合う（アプリ名 120 文字�
     expect(report.apps.map((a) => a.label.length)).toEqual([APP_LABEL_MAX, APP_LABEL_MAX]);
     expect(report.apps[1]?.label).toBe(longPkg.slice(0, APP_LABEL_MAX));
     expect(UsageDayReport.safeParse(report).success).toBe(true);
+  });
+
+  // #49 の契約では、1日の記録に同じアプリが2回あると形の誤りになり、その日の記録が丸ごと隔離されて親に届かない
+  it("同じアプリが2回出てきたら、使った時間を足して1つにする（合計の分数も変わらない）", () => {
+    const report = toUsageDayReport(
+      usageWith([
+        { packageName: "com.game", label: "ゲーム", usedMinutes: 10 },
+        { packageName: "com.note", label: "ノート", usedMinutes: 4 },
+        { packageName: "com.game", label: "ゲーム（別名）", usedMinutes: 5 },
+      ]),
+      ["com.note"],
+    );
+    expect(report.apps.map((a) => [a.packageName, a.label, a.usedMinutes])).toEqual([
+      ["com.game", "ゲーム", 15],
+      ["com.note", "ノート", 4],
+    ]);
+    expect(report.restrictedMinutes).toBe(15);
+    expect(new Set(report.apps.map((a) => a.packageName)).size).toBe(report.apps.length);
   });
 
   it("絵文字（2つで1文字）を途中で切らない", () => {

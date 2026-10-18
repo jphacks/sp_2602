@@ -7,12 +7,13 @@
 //   「やめる」（出した QR を call("pairCancel") で取り消してから）・「いいえ」→ 役割選び（/pair）。未連携のまま。下部タブなし（Q12）。
 import { tokens } from "@contracts/tokens";
 import { router } from "expo-router";
-import { useCallback, useEffect, useReducer, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { BackHandler, StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Chip, Dialog, MessageView, Screen } from "@/components";
 import {
   childPairReducer,
   initialChildPairView,
+  issueFailedText,
   LinkIncomplete,
   PAIR_POLL_MS,
   QrCard,
@@ -109,18 +110,36 @@ export default function PairChild() {
 
   // 「いいえ」が確定した → 役割選びへ戻る（未連携のまま）
   useEffect(() => {
-    if (view.screen === "rejected") router.replace("/pair");
+    if (view.screen === "rejected") router.dismissTo("/pair");
   }, [view.screen]);
 
   // やめる: 出した QR を取り消して（pairCancel。以後その QR は読めない）、未連携のまま役割選びへ。
   // 取り消しの応答は短く待つだけにする（なぜ: 通信できないときに「やめる」が効かないと困るため。取り消せなくても、
   // 子どもが「はい」を押さない限りつながらず、QR も 10 分で切れる）。QR をまだ受け取っていない（つくっている途中）なら送らない
+  const leavingNow = useRef(false); // 「やめる」と戻るボタンを続けて押しても、取り消しを2回送らない
   const cancel = async () => {
+    if (leavingNow.current) return;
+    leavingNow.current = true;
     setLeaving(true);
     const id = ticketOf(view)?.pairId;
     if (id) await call("pairCancel", { pairId: id }, { signal: timeoutSignal(CANCEL_TIMEOUT_MS) }).catch(() => null);
-    router.replace("/pair");
+    router.dismissTo("/pair");
   };
+  // 子14 で Android の戻るボタンを押したら「やめる」と同じにする（QR を取り消してから役割選びへ）。
+  // なぜ: そのまま戻ると QR が 10 分間使えるまま残り、保護者が読んでも、この端末はもう返事を聞いていないため
+  //   保護者の画面が「返事を待っています」のまま止まる
+  const cancelOnBack = useRef(cancel);
+  cancelOnBack.current = cancel;
+  const showing = view.screen === "showing";
+  useEffect(() => {
+    if (!showing) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      void cancelOnBack.current();
+      return true;
+    });
+    return () => sub.remove();
+  }, [showing]);
+
   const start = () => dispatch({ type: "start" });
   const later = () => router.replace("/");
   const goHome = async () => {
@@ -139,19 +158,25 @@ export default function PairChild() {
           <MessageView spinner title="QRコードをつくっています" body="しばらく待ってね。" actions={quit} />
         </Screen>
       );
-    case "issueFailed":
+    case "issueFailed": {
+      // 文とボタンは原因で出し分ける（child-flow.ts の issueFailedText。連携済み・保護者の端末を通信のせいにしない）
+      const failed = issueFailedText(view.error);
       return (
         <Screen title="Slope" scroll={false}>
           <MessageView
             icon="error"
             iconTone="danger"
             title="QRコードをつくれませんでした"
-            body={"通信を確かめて、\nもう一度ためしてください。"}
+            body={failed.body}
             actions={
-              <>
-                <Button label="もう一度つくる" onPress={start} />
-                {quit}
-              </>
+              failed.next === "retry" ? (
+                <>
+                  <Button label="もう一度つくる" onPress={start} />
+                  {quit}
+                </>
+              ) : (
+                <Button label="ホームへ" onPress={goHome} loading={leaving} />
+              )
             }
           >
             <AppText variant="caption" tone="muted" center>
@@ -160,6 +185,7 @@ export default function PairChild() {
           </MessageView>
         </Screen>
       );
+    }
     case "expired":
       return (
         <Screen title="Slope" scroll={false}>
@@ -194,7 +220,7 @@ export default function PairChild() {
             icon="check_circle"
             iconTone="success"
             title="家族に入りました"
-            body={"保護者がきめた時間のルールが、\nこのスマホに届きます。"}
+            body="保護者がきめた時間のルールが、このスマホに届きます。"
             actions={<Button label="ホームへ" onPress={goHome} loading={leaving} />}
           />
         </Screen>

@@ -8,7 +8,8 @@ import { todayString } from "@contracts/dates";
 import type { ApiError } from "@contracts/errors";
 import type { ConfigSnapshot, PlanView } from "@contracts/schemas";
 import { router } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Keyboard } from "react-native";
 import {
   AppText,
   Banner,
@@ -34,6 +35,7 @@ import {
   planFormFromView,
   reflectState,
   saveConfirmation,
+  syncPlanInput,
   validatePlanForm,
 } from "@/components/parent/plan-form";
 import { WeekBars } from "@/components/parent/WeekBars";
@@ -43,7 +45,8 @@ import { usePolling } from "@/lib/polling";
 
 export default function ParentPlan() {
   const { child } = useParentData();
-  if (child) return <PlanBody childId={child.id} />;
+  // key: 子どもが変わったら、前の子どもの入力・版を持ち越さない
+  if (child) return <PlanBody key={child.id} childId={child.id} />;
   // 見ている子どもが決まるまで（読み込み中・取得不可・まだつながっていない）
   return (
     <Screen title="計画を作る" bottomInset={false}>
@@ -64,15 +67,23 @@ function PlanBody({ childId }: { childId: string }) {
   const [saveError, setSaveError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedVersion, setSavedVersion] = useState<number | null>(null);
+  // 入力欄を触り始めたか。触る前は取り直しのたびにサーバの値と版に合わせる（plan-form.ts の syncPlanInput）
+  const edited = useRef(false);
+  // 取り直しの関数から、今の入力欄と版を読むため（関数を作り直さずに済むように）
+  const latest = useRef({ form, baseVersion });
+  useEffect(() => {
+    latest.current = { form, baseVersion };
+  }, [form, baseVersion]);
 
   const load = useCallback(async () => {
     try {
       const v = await call("planGet", { childId });
       setView(v);
       setLoadError(null);
-      // 入力中の値は上書きしない（30 秒ごとの取り直しで打ちかけが消えないように）
-      setForm((f) => f ?? planFormFromView(v, today));
-      setBaseVersion((b) => b ?? v.configVersion);
+      // 触り始めた入力は上書きしない（30 秒ごとの取り直しで打ちかけが消えないように）。触る前はサーバの今の値と版に合わせる
+      const next = syncPlanInput(latest.current, v, today, edited.current);
+      setForm(next.form);
+      setBaseVersion(next.baseVersion);
     } catch (e) {
       const error = errorOf(e);
       if (error) setLoadError(error);
@@ -81,6 +92,7 @@ function PlanBody({ childId }: { childId: string }) {
   usePolling(load);
 
   const update = <K extends PlanField>(field: K, value: PlanForm[K]) => {
+    edited.current = true;
     setForm((f) => (f ? { ...f, [field]: value } : f));
     setErrors((e) => ({ ...e, [field]: undefined }));
     setSaveError(null);
@@ -88,6 +100,9 @@ function PlanBody({ childId }: { childId: string }) {
 
   const save = async () => {
     if (!form || baseVersion == null) return;
+    // 焦点を入力欄から外してから保存する（なぜ: 焦点を残したまま完了のダイアログを出すと、「OK」で閉じたときに
+    //   Android が最後の時間の欄へ焦点を戻し、キーボードがまた開いていた（第1回の実機で見つかった。Dialog も開くときに外す））
+    Keyboard.dismiss();
     const checked = validatePlanForm(form, today);
     if (!checked.ok) {
       setErrors(checked.errors);
@@ -111,6 +126,7 @@ function PlanBody({ childId }: { childId: string }) {
       };
       setForm(planFormFromView(next, today));
       setBaseVersion(v?.configVersion ?? res.configVersion);
+      edited.current = false; // 保存できたので、また取り直しに合わせる
       setSavedVersion(res.configVersion);
     } catch (e) {
       const error = errorOf(e);
@@ -148,6 +164,15 @@ function PlanBody({ childId }: { childId: string }) {
         <StateView state={loadError ? "unknown" : "loading"} error={loadError} onRetry={() => void load()} />
       ) : (
         <>
+          {loadError ? (
+            // 開いた後の取り直しに失敗している（反映済み／反映待ちが古いかもしれない。入力はそのまま使える）
+            <Banner
+              tone="warning"
+              icon="cloud_off"
+              message="最新でない可能性があります"
+              hint="通信できるようになると自動で更新します"
+            />
+          ) : null}
           <Banner icon="edit" message="計画をはじめる日と、1日の使用時間の上限を入れてください" />
           {view?.plan ? <ReflectChip view={view} /> : null}
           <DateField
@@ -156,6 +181,7 @@ function PlanBody({ childId }: { childId: string }) {
             onChange={(d) => update("startDate", d)}
             minimumDate={today}
             error={errors.startDate}
+            disabled={saving}
           />
           {planAlreadyStarted(view, today) && view?.plan ? (
             <AppText variant="caption" tone="muted">
@@ -168,18 +194,21 @@ function PlanBody({ childId }: { childId: string }) {
             value={form.start}
             onChange={(v) => update("start", v)}
             error={errors.start}
+            editable={!saving}
           />
           <DurationField
             label="最終目標（めざす1日の使用時間）"
             value={form.goal}
             onChange={(v) => update("goal", v)}
             error={errors.goal}
+            editable={!saving}
           />
           <DurationField
             label="通常上限（テストがない日の上限）"
             value={form.usual}
             onChange={(v) => update("usual", v)}
             error={errors.usual}
+            editable={!saving}
             hint={
               view?.usualLimitMinutes == null
                 ? "決めていないと、テストも計画もない日は「上限未設定」になります"
@@ -199,6 +228,8 @@ function PlanBody({ childId }: { childId: string }) {
       <Dialog
         visible={confirmation != null}
         icon="check_circle"
+        iconTone="success"
+        centered
         title="計画を作りました"
         body={
           confirmation === "confirmed"
@@ -206,7 +237,8 @@ function PlanBody({ childId }: { childId: string }) {
             : "保存して、上限を計算し直しました。新しい上限のグラフは、通信できると自動で表示されます。"
         }
         onClose={() => setSavedVersion(null)}
-        actions={<Button variant="text" label="OK" onPress={() => setSavedVersion(null)} />}
+        // 完了のダイアログは Figma 子04 と同じ形（中央・枠付きの丸い「OK」）にそろえる
+        actions={<Button variant="pill" label="OK" onPress={() => setSavedVersion(null)} />}
       />
     </Screen>
   );

@@ -28,8 +28,8 @@ import {
 
 const TODAY = "2026-10-15";
 
-beforeEach(() => {
-  fresh("2026-10-15T03:00:00Z");
+beforeEach(async () => {
+  await fresh("2026-10-15T03:00:00Z");
 });
 
 const period = { name: "テスト", startDate: "2026-11-01", endDate: "2026-11-02" };
@@ -58,6 +58,13 @@ const childBodies = (childId: string, v: number) => ({
   "/api/usage/get": { childId, from: TODAY, to: TODAY },
   "/api/excluded-apps/get": { childId },
   "/api/excluded-apps/save": { childId, expectedVersion: v, apps: [] },
+  "/api/child-apps/get": { childId },
+  "/api/child-apps/upload": { childId, apps: [{ packageName: "com.example.game", label: "ゲーム" }] },
+  "/api/child-apps/icons/get": { childId, packageNames: ["com.example.game"] },
+  "/api/child-apps/icons/upload": {
+    childId,
+    icons: [{ packageName: "com.example.game", iconHash: "a".repeat(64), png: "iVBORw0KGgo=" }],
+  },
   "/api/usage/upload": {
     submissionId: crypto.randomUUID(),
     childId,
@@ -358,7 +365,7 @@ describe("V: 余計な項目で中身を書き換えられない", () => {
           id: created.testPeriod.id,
           ...period,
           createdByRole: "parent",
-          createdByUserId: "demo-parent",
+          createdByUserId: mockSessions["mock-google-parent"].userId,
         },
         CHILD,
       ),

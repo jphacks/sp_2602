@@ -116,11 +116,59 @@ describe("call", () => {
     expect(errorOf(e)?.code).toBe("internal");
   });
 
+  it("HTML の 401 ではログアウト扱いにしない", async () => {
+    const { call, errorOf, setSessionToken, setUnauthorizedHandler } = await load("http://h");
+    const seen: string[] = [];
+    setUnauthorizedHandler(() => seen.push("401"));
+    setSessionToken("old");
+    mockFetch(() => new Response("<html>", { status: 401 }));
+    const e = await call("planGet", { childId: "c1" }).catch((x) => x);
+    expect(errorOf(e)?.code).toBe("internal");
+    expect(seen).toEqual([]);
+  });
+
   it("つながらないときは network", async () => {
     const { call, errorOf } = await load("http://h");
     vi.stubGlobal("fetch", () => Promise.reject(new TypeError("Network request failed")));
     const e = await call("planGet", { childId: "c1" }).catch((x) => x);
     expect(errorOf(e)?.code).toBe("network");
+  });
+
+  // 実機の通信（OkHttp）は既定で待ち時間の上限がない。応答が来ないと 30 秒ごとの取得が止まったままになるので、
+  // signal を渡さなくても DEFAULT_TIMEOUT_MS で「時間切れ」にする
+  it("signal を渡さなくても、応答が来なければ DEFAULT_TIMEOUT_MS で timeout にする", async () => {
+    vi.useFakeTimers();
+    try {
+      const { call, errorOf, DEFAULT_TIMEOUT_MS } = await load("http://h");
+      // 中断されるまで返事をしない fetch（電波の切り替えで応答が来ない状態）
+      vi.stubGlobal(
+        "fetch",
+        (_url: string, init: Init) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+          }),
+      );
+      const pending = call("planGet", { childId: "c1" }).catch((x) => x);
+      await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT_MS - 1);
+      let settled = false;
+      void pending.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(errorOf(await pending)?.code).toBe("timeout");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("signal を渡したときは、その signal を使う（画面ごとの短い待ち時間を変えない）", async () => {
+    const { call } = await load("http://h");
+    mockFetch(() => Response.json(planView));
+    const own = new AbortController();
+    await call("planGet", { childId: "c1" }, { signal: own.signal });
+    expect(calls[0]?.init.signal).toBe(own.signal);
   });
 });
 
@@ -167,7 +215,7 @@ describe("合言葉", () => {
     expect(((calls[1]?.init.headers ?? {}) as Record<string, string>).Authorization).toBeUndefined();
   });
 
-  it("合言葉を付けて 401 が返ったら、登録した関数を呼ぶ（session.tsx がログアウト扱いにする）", async () => {
+  it("合言葉を付けて unauthorized の 401 が返ったら、登録した関数を呼ぶ（session.tsx がログアウト扱いにする）", async () => {
     const { call, setSessionToken, setUnauthorizedHandler } = await load("http://h");
     const seen: string[] = [];
     setUnauthorizedHandler(() => seen.push("401"));
@@ -177,5 +225,42 @@ describe("合言葉", () => {
     expect(seen).toEqual(["401"]);
     setSessionToken(null);
     setUnauthorizedHandler(null);
+  });
+
+  // 合言葉が無効になる（サーバが DB 版に替わる等）→ ログイン画面 → ログインし直した後に、前の合言葉で送っていた呼び出しの 401 が
+  // 遅れて届いても、新しくログインした人をログアウトさせない
+  it("前の合言葉で送った呼び出しの 401 が、ログインし直した後に届いても、登録した関数を呼ばない", async () => {
+    const { call, setSessionToken, setUnauthorizedHandler } = await load("http://h");
+    const seen: string[] = [];
+    setUnauthorizedHandler(() => seen.push("401"));
+    let reply: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", () => new Promise<Response>((r) => (reply = r)));
+    setSessionToken("old");
+    const pending = call("planGet", { childId: "c1" }).catch((e: unknown) => e);
+    setSessionToken("new"); // 待っている間にログインし直した
+    reply(Response.json({ code: "unauthorized", message: "m", hint: "h" }, { status: 401 }));
+    const err = await pending;
+    expect((err as { status?: number }).status).toBe(401); // 呼んだ画面には 401 のエラーとして返す
+    expect(seen).toEqual([]);
+    setSessionToken(null);
+    setUnauthorizedHandler(null);
+  });
+
+  it("isUnauthorized: 本文が読めない 401 も「合言葉が無効」とみなす（起動時に offline と取り違えない）", async () => {
+    const { ApiCallError, isUnauthorized } = await load("http://h");
+    expect(isUnauthorized(new ApiCallError({ code: "internal", message: "m", hint: "" }, 401))).toBe(true);
+    expect(isUnauthorized(new ApiCallError({ code: "unauthorized", message: "m", hint: "" }, 401))).toBe(true);
+    expect(isUnauthorized(new ApiCallError({ code: "network", message: "m", hint: "" }, 0))).toBe(false);
+    expect(isUnauthorized(new ApiCallError({ code: "forbidden", message: "m", hint: "" }, 403))).toBe(false);
+    expect(isUnauthorized(new Error("x"))).toBe(false);
+  });
+
+  // 合言葉は有効なまま、サーバ上の id・役割が変わる（#49: デモの人の合言葉は固定で id が uuid に）と、自分の設定の取得が 403 になる
+  it("needsIdentityCheck: 403（forbidden）だけ、サーバに自分は誰かを確かめ直す", async () => {
+    const { needsIdentityCheck } = await load("http://h");
+    expect(needsIdentityCheck({ code: "forbidden", message: "m", hint: "" })).toBe(true);
+    expect(needsIdentityCheck({ code: "network", message: "m", hint: "" })).toBe(false);
+    expect(needsIdentityCheck({ code: "unauthorized", message: "m", hint: "" })).toBe(false); // 401 はログアウト扱い（別の道）
+    expect(needsIdentityCheck(null)).toBe(false);
   });
 });

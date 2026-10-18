@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  デバイス管理（Device Owner。デモ専用）の受け手の設定。
+  アンインストールを止める setUninstallBlocked は Device Owner なら使えるので、ここで宣言する権限（uses-policies）はいらない。
+  手順は docs/device-owner.md。
+-->
+<device-admin>
+    <uses-policies />
+</device-admin>

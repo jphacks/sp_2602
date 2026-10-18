@@ -5,14 +5,15 @@
 //   「決める」→ call("usualLimitSave")。サーバの保存（C10 の作り直しまで）が確定してから成功にする（Q5）。
 // 行き先: 保存できたら useSession().refresh() → 入口（/）→ 保護者のホーム（親01）。
 //   「あとで決める」→ 入口へ（子どもの画面は「上限未設定」になる。0 分とも制限なしとも違う）。
+//   親01 の帯から来たとき（URL の from=home）は、どちらもホームへ戻る（usual-limit-input.ts の usualLimitExit）。
 import type { ApiError } from "@contracts/errors";
 import type { PlanView } from "@contracts/schemas";
 import { tokens } from "@contracts/tokens";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, ErrorBanner, Screen, StateView, TextField } from "@/components";
-import { formatHoursMinutes, parseUsualLimit, splitMinutes } from "@/components/pair";
+import { formatHoursMinutes, parseUsualLimit, splitMinutes, usualLimitExit, usualLimitFromOf } from "@/components/pair";
 import { call, errorOf, timeoutSignal } from "@/lib/api";
 import { useFlow } from "@/lib/flow";
 import { useSession } from "@/lib/session";
@@ -23,6 +24,9 @@ type Load = { kind: "loading" } | { kind: "error"; error: ApiError } | { kind: "
 
 export default function PairUsualLimit() {
   const { refresh } = useSession();
+  const from = usualLimitFromOf(useLocalSearchParams<{ from?: string }>().from);
+  // 閉じるときの行き先（ホームから来たら戻る。紐づけの直後なら入口で振り分け直す。usual-limit-input.ts）
+  const leave = () => (usualLimitExit(from) === "back" && router.canGoBack() ? router.back() : router.replace("/"));
   const { child, setChild } = useFlow();
   const [load, setLoad] = useState<Load>({ kind: "loading" });
   const [hours, setHours] = useState("");
@@ -94,7 +98,7 @@ export default function PairUsualLimit() {
         { signal: timeoutSignal(REQUEST_TIMEOUT_MS) },
       );
       await refresh();
-      router.replace("/");
+      leave();
     } catch (e) {
       const error = errorOf(e);
       setSaving(false);
@@ -112,7 +116,7 @@ export default function PairUsualLimit() {
     }
   };
 
-  const later = () => router.replace("/");
+  const later = leave;
 
   if (load.kind !== "ready")
     return (
@@ -152,6 +156,7 @@ export default function PairUsualLimit() {
               setInputError(null);
             }}
             keyboardType="number-pad"
+            editable={!saving}
             maxLength={2}
             placeholder="3"
             trailingIcon="clock"
@@ -166,6 +171,7 @@ export default function PairUsualLimit() {
               setInputError(null);
             }}
             keyboardType="number-pad"
+            editable={!saving}
             maxLength={2}
             placeholder="0"
           />
