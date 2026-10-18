@@ -86,7 +86,9 @@ async function connect(): Promise<RuntimeDb> {
     const pool = new Pool({ connectionString: url, max: 1 });
     // 待っている間の接続が切れると、Pool は "error" を出す。受け手がないと Node はそれを捕まえられない例外にして、
     // プロセスごと落ちる（Vercel のインスタンスが休んでいる間に Neon が接続を閉じたとき）。記録だけして、次の呼び出しで張り直させる
-    pool.on("error", (error: unknown) => console.error("[db pool] 待っている間の接続が切れました", describeError(error)));
+    pool.on("error", (error: unknown) =>
+      console.error("[db pool] 待っている間の接続が切れました", describeError(error)),
+    );
     return { db: drizzle({ client: pool, schema }) as unknown as Db, kind: "neon", close: () => pool.end() };
   }
   // 本番で黙って手元の DB に保存すると、データが消えても気づけない
