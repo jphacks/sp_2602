@@ -112,7 +112,7 @@ export const chalkTiming = {
   highlight: 260, // タブの下線
 } as const;
 
-// 書体はほかのモードと同じ（theme/tool.ts の fonts。前は見出しだけ Klee One SemiBold だった。D-134）
+// 書体はほかのモードと同じ（theme/tool.ts の fonts。前は見出しだけ Klee One SemiBold だった。D-135）
 
 export const chalkTool: ToolValues = {
   name: "chalk",

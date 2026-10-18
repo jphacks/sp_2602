@@ -1,6 +1,6 @@
 // tmp/animations/rnweb/whiteboard/components/AppText.tsx から写したもの。直すなら元を直して写し直す（node scripts/sync-kids-ui.mjs）。
 // 文字の部品（ホワイトボード）。props・variant・tone はアプリの AppText（src/components/AppText.tsx）と同じ（足したものは下の2つだけ）。
-// 変わるのは書体だけ。書体はどの道具（テーマ）でも同じ BIZ UDPゴシック1つ（theme/tool.ts の fonts。D-134）。強弱は太さと大きさで付ける:
+// 変わるのは書体だけ。書体はどの道具（テーマ）でも同じ BIZ UDPゴシック1つ（theme/tool.ts の fonts。D-135）。強弱は太さと大きさで付ける:
 //   見出し（headline・title・message）＝ Bold（700）
 //   大きな数字（display・ring）＝ Bold（700）を大きく
 //   本文・日付・ボタン・タブ（body・small・label・caption・micro）＝ Regular（400）。strong で Bold（700）

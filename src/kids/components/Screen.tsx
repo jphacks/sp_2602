@@ -181,7 +181,7 @@ const useColorStyles = makeStyles((c) =>
   }),
 );
 
-// アプリ名のロゴ「Slope」（アプリのアイコンと同じ字形。字ではなく図として扱うので、ここだけロゴの書体 Londrina Solid。D-134）と「（子）」
+// アプリ名のロゴ「Slope」（アプリのアイコンと同じ字形。字ではなく図として扱うので、ここだけロゴの書体 Londrina Solid。D-135）と「（子）」
 const useBrandStyles = makeToolStyles(() =>
   StyleSheet.create({
     brand: { ...fonts.logo, fontSize: 30, lineHeight: 35, letterSpacing: 0.3 },

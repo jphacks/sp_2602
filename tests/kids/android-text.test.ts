@@ -1,7 +1,7 @@
 // 子ども用の文字が Android で切れないことのテスト（決まりは src/kids/fonts.ts の「Android で字が切れないための決まり」）。
 //   - letterSpacing は Android では外す（上のバーの「Slope」が「Slop」になったため）
 //   - 写した部品のスタイル（書体・大きさ・行の高さ）を src/kids のソースから集め、字の形が行の箱の上下からはみ出さないこと
-//     （ログインしないと出ない画面の文字も、ここで確かめる。文字はどのテーマでも BIZ UDPGothic、上のバーのロゴ「Slope」だけ Londrina Solid。D-134）
+//     （ログインしないと出ない画面の文字も、ここで確かめる。文字はどのテーマでも BIZ UDPGothic、上のバーのロゴ「Slope」だけ Londrina Solid。D-135）
 //   - 書体の高さの表（KIDS_FONT_METRICS）が、assets/fonts の TTF の値と合っていること
 import fs from "node:fs";
 import path from "node:path";

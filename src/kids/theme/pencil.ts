@@ -108,7 +108,7 @@ export const pencilTiming = {
   select: 200, // テーマの選択
 } as const;
 
-// 書体はほかのモードと同じ（theme/tool.ts の fonts。前は見出しだけ Klee One SemiBold だった。D-134）
+// 書体はほかのモードと同じ（theme/tool.ts の fonts。前は見出しだけ Klee One SemiBold だった。D-135）
 
 // ノートの道具の値の組
 export const pencilTool: ToolValues = {

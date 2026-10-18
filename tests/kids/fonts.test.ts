@@ -35,7 +35,7 @@ describe("書体の名前と太さ → 読み込んだファイルの名前", ()
     expect(fontFaceFor("Londrina Solid", "400")).toBe("LondrinaSolid-Black");
   });
 
-  it("使わなくなった書体（Klee One・Yusei Magic）は読み込まないので直さない（D-134）", () => {
+  it("使わなくなった書体（Klee One・Yusei Magic）は読み込まないので直さない（D-135）", () => {
     expect(fontFaceFor("Klee One", "600")).toBeNull();
     expect(fontFaceFor("Yusei Magic", "400")).toBeNull();
   });
@@ -87,7 +87,7 @@ describe("書体のファイルとライセンス（assets/fonts/）", () => {
   });
 });
 
-// 子どもの画面の書体は、どのテーマでも BIZ UDPGothic（Regular・Bold）。ロゴ「Slope」だけ Londrina Solid（D-134）
+// 子どもの画面の書体は、どのテーマでも BIZ UDPGothic（Regular・Bold）。ロゴ「Slope」だけ Londrina Solid（D-135）
 describe("子どもの画面の書体はテーマに依らず1つ", () => {
   it("fonts は BIZ UDPGothic の 400・700 と、ロゴの Londrina Solid 900 だけ", () => {
     expect(fonts).toEqual({

@@ -1,5 +1,5 @@
 // 子ども用の見た目の書体。React を使わない部分だけをここに置く（tests/kids/ から確かめる）。
-//   子どもの画面の文字は、どのテーマでも全部 BIZ UDPGothic（見出し・数字＝Bold 700、本文＝Regular 400。D-134）
+//   子どもの画面の文字は、どのテーマでも全部 BIZ UDPGothic（見出し・数字＝Bold 700、本文＝Regular 400。D-135）
 //   上のバーのアプリ名のロゴ「Slope」だけ Londrina Solid（900。アイコンと同じ字形の図として扱う）
 //   スタイルに書く名前と太さは src/kids/theme/tool.ts の fonts（写した元 tmp/animations と同じ）
 // 書体のファイル（Google Fonts の OFL の TTF）は assets/fonts/。ライセンスの文は同じフォルダの OFL-*.txt。
