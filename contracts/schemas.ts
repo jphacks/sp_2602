@@ -16,7 +16,10 @@ export const IsoDate = z
     {
       message: "存在しない日付です",
     },
-  );
+  )
+  // 扱う年は 2000〜2099 年だけ（なぜ: 9999-12-31 のような日付から日付を数えると、10000 年が "YYYY-MM-DD" で書けず
+  // 計算が壊れる。セキュリティ検査 IN-04。この範囲なら contracts/dates.ts の計算がいつも "YYYY-MM-DD" に収まる）
+  .refine((s) => s >= "2000-01-01" && s <= "2099-12-31", { message: "扱える日付は 2000〜2099 年です" });
 export type IsoDate = z.infer<typeof IsoDate>;
 
 // 日時（ISO 8601・タイムゾーンつき。例 2026-10-17T10:00:00.000Z・2026-10-17T19:00:00+09:00）。
@@ -33,7 +36,12 @@ export const Minutes = z.number().int().min(0).max(1440);
 export const ConfigVersion = z.number().int().min(0);
 
 // Android のアプリ識別子（例: com.google.android.youtube）
-export const PackageName = z.string().min(1).max(255);
+// Android のパッケージ名の形（英数字・"_" を "." でつなぐ）だけを受け付ける（セキュリティ検査 F-3 / IN-06: 前は NUL・改行も通り、DB が断って 500 になった）
+export const PackageName = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/, "アプリの名前（パッケージ名）の形が違います");
 
 // 「どの子どもの話か」を指す入力。サーバは必ず、呼んだ人がこの子どもを扱えるか（子ども本人・連携済みの親）を確かめる
 export const ChildQuery = z.object({ childId: z.string().min(1) });
