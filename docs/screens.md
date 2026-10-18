@@ -47,7 +47,7 @@ flowchart TD
 | `child/usage.tsx`（タブ: 利用割合） | 子02（108:6741） | 円形ゲージ・ペースの札・今週の割合の棒グラフ | 「ホームに戻る」→ 子01 | `calc`、過去の日は `native.getDailyUsage` と日別上限 |
 | `child/schedule-new.tsx`（タブ: 日程登録） | 子03（108:6809）・子04（108:6843 ダイアログ） | テスト期間の登録（名前・開始日・終了日） | 子01 | `testPeriodList`・`testPeriodCreate` |
 | `child/schedule-list.tsx`（タブ: 日程一覧） | 子10（108:7005） | テスト期間の一覧（近い順） | 項目 → 子05、「＋ テストを追加する」→ 子03 | `testPeriodList`（取れなければ C7 の組） |
-| `child/settings.tsx`（タブ: 設定） | 子07（108:6944）・子06（108:6906 ダイアログ） | テスト日程・テーマカラー（白色・黒色。選ぶとすぐ切り替わる）（Q13）。「ログアウト」は Figma にはあるが出さない（D-136。子どもがログアウトすると制限が止まるため） | 子10 | `config` の件数 |
+| `child/settings.tsx`（タブ: 設定） | 子07（108:6944）・子06（108:6906 ダイアログ） | テスト日程・テーマカラー（白色・黒色・ベージュ。選ぶとすぐ切り替わる）・配色（赤・緑・青。子ども用の見た目の「使った時間」「テスト」の色）（Q13）。「ログアウト」は Figma にはあるが出さない（D-136。子どもがログアウトすると制限が止まるため） | 子10 | `config` の件数 |
 | `child/schedule-edit/[id].tsx`（タブなし・タブは出たまま） | 子05（108:6878） | テスト期間の変更・削除（削除は Figma にないので足した） | 子10 | `flow` の `editTest`・`testPeriodList`・`testPeriodUpdate`・`Delete` |
 | `child/limit-reached.tsx`（タブなし・タブは出たまま） | 子11（108:7024） | 上限に届いたときの案内・お勧めアプリ | 「閉じる」→ 子01 | `calc`・`config`・`test`・`LEARNING_PACKAGES`（`child-data.tsx` から）・`native.openApp` |
 
@@ -140,6 +140,7 @@ flowchart TD
 | `Gauge` | 円形ゲージ（子02）。`null` なら「--」（0% と出さない）。`tone` は弧の色、`valueTone` は中央の数字の色 | `<Gauge percent={null} caption="使いました" />` |
 | `BarChart`・`Legend` | 週の棒グラフ。値が `null` の日は中身を描かない | `<BarChart bars={…} scaleMax={100} />` |
 | `ThemeDialog` | テーマカラーの変更（子06・親06）。「白色」「黒色」を押すとすぐ全画面の色が切り替わり、端末に保存する | `<ThemeDialog visible={open} onClose={() => setOpen(false)} />` |
+| `ColorSchemeDialog` | 配色の変更（子07 から開く。子ども用の見た目だけ）。「赤」「緑」「青」を押すとすぐ「使った時間」「テスト」の色・選んでいるタブの下線が切り替わり、端末に保存する（`slope.colorScheme`。既定は緑。ログアウトでも消さない）。子ども用の見た目の外では何も出さない | `<ColorSchemeDialog visible={open} onClose={() => setOpen(false)} />` |
 | `Chip` | 小さい札（「ちょうどいいペース！」「反映待ち」「あと 9分41秒…」） | `<Chip tone="warning" label="反映待ち" />` |
 | `Icon`・`IconBadge` | アイコン（Material Icons の形を SVG で描く。足すときは `paths` に1行）・大きいアイコンの丸 | `<Icon name="event" />` |
 | `TabIcon`・`tabBarOptions` | 下部タブのアイコンと見た目 | `_layout.tsx` で使う |
@@ -173,7 +174,7 @@ C7 の設定の状態は `configViewState(config)` で変換できます（`null
 - **テーマ（白色 = `light`・黒色 = `dark`）**: 色は `contracts/tokens.ts` の `palettes.light`・`palettes.dark` の2組（名前は同じで値だけ違う）。色を使うスタイルは `src/lib/theme.tsx` の `makeStyles` で作り、部品の中で呼ぶ:
   `const useStyles = makeStyles((c) => StyleSheet.create({ card: { backgroundColor: c.surface, padding: tokens.layout.cardPadding } }));` → 部品の中で `const styles = useStyles();`。
   スタイル以外で色を渡すとき（`<Icon color={…}>`・`ActivityIndicator`・`TextInput` のカーソル）は `const c = useColors();`。`tokens.color` はもう無い（色を直接 import しない）。
-  テーマは設定の「テーマカラーの変更」（`ThemeDialog`）で選び、端末に保存する（`src/lib/theme-store.ts`。既定は白色。ログアウトでも消さない）。ステータスバーの文字の色・画面の切り替えの地の色も合わせる（`src/app/_layout.tsx`）。
+  テーマは設定の「テーマカラーの変更」（`ThemeDialog`）で選び、端末に保存する（`src/lib/theme-store.ts`。既定は白色。ログアウトでも消さない）。子ども用の見た目の配色（赤・緑・青）も同じ作りで、`useColorScheme()` で読む（既定は緑。色の組 `ColorPalette` は変えず、道具の色だけが変わる）。ステータスバーの文字の色・画面の切り替えの地の色も合わせる（`src/app/_layout.tsx`）。
   色を足すときは `light` と `dark` の両方に同じ名前で足す（片方だけだと型と `tests/lib/theme.test.ts` で落ちる）。青は2つある: 文字・アイコン・枠は `primary`（ダークでは明るい青）、面を塗る主ボタン・進捗バー・今日の棒は `primaryFill`（どちらも同じ青）。QR は読み取りのためダークでも白地（`qrBg`・`qrFg`）。
 - `style={{…}}` を書かない。色コード（`#3B5BDB` など）や数値の余白を画面に直書きしない。例外は、値で大きさが決まる所（`BarChart`・`ProgressBar`・`WeekBars` の棒の高さ・幅）だけで、そこも色と寸法は tokens を使う。
 - 色の3つは MVP_SPEC 5章の値: 背景 `bg` `#FAF9FD`・アクセント `primary` `#3B5BDB`・薄い青 `primarySoft` `#DDE4FF`。ほかの色は Figma の見た目から近い値を置いた（ダイアログの地 `dialog`・枠付きボタンの枠 `outline` など）。ダークの値は Figma「ダーク」の画面から読んだ。

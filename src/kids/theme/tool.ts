@@ -41,11 +41,13 @@ export type ToolValues = {
 
 // ── ホワイトボード（マーカー）────────────────────────────────
 
-// マーカーの色（パイロット ボードマスターに近い色）
+// マーカーの色（パイロット ボードマスターに近い色）。
+// 使った時間・テストの色（used・usedPast・usedText・usedLine・test・testText・overlap）は、useTool() が配色（赤・緑・青）の値に
+// 替えてから部品に渡す（theme/schemes.ts）。ここの値は配色を入れる前の値（残してあるのは、元の見た目の記録のため）
 export const marker = {
   ink: "#262626", // 黒（文字・枠・チェック・くるくる）
   used: "#2EB76E", // 緑（使った時間の線・円・棒）
-  usedPast: "#84D1A9", // 過去の日の棒の色見本（凡例）。棒そのものは used を不透明度 pastOpacity で引く（後ろの道筋が透ける。Figma 子02）
+  usedPast: "#84D1A9", // 過去の日の棒と凡例の色見本（配色では primaryMuted。前は used を不透明度 0.55 で引いていた）
   usedText: "#246D47", // 緑の数字（緑マーカーそのままでは白板の上で文字に薄いので濃い緑）
   usedLine: "#246D47", // 選んでいるタブの下線（Figma の TabBar は濃い緑 3。確認ページは #2EB76E 3.4 だったが Figma に合わせる）
   test: "#BC1A33", // 赤（テストの日付の下線とちょん）
@@ -57,9 +59,6 @@ export const marker = {
   trayTo: "#C8CDD3",
   overlap: "#27A262", // 円が一周して書き始めと重なった所（インクが重なって少し濃い）
 } as const;
-
-// 過去の日の棒の濃さ（少しインク切れ。後ろの道筋のうすい線が透けて見える。Figma 子02 の #84D1A9 になる濃さ）
-export const pastOpacity = 0.55;
 
 // 線の太さ（px）
 export const stroke = {

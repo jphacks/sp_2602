@@ -13,7 +13,8 @@ import { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
 import Svg from "react-native-svg";
 import { useReducedMotion } from "@/lib/motion";
-import { marker, stroke, timing } from "../theme/tool";
+import { stroke, timing } from "../theme/tool";
+import { useToolColors } from "../tools/scheme-colors";
 import { bezier, ease } from "./draw";
 import { MarkerStroke } from "./MarkerStroke";
 
@@ -33,9 +34,11 @@ export function MarkerUnderline({
   start,
   twice = false,
   delay = timing.markAt,
-  color = marker.test,
+  color: colorProp,
   fontSize,
 }: Props) {
+  const colors = useToolColors("marker");
+  const color = colorProp ?? colors.test; // テストの色（今の配色。使った時間と同じ色の仲間で、形＝下線とちょんで分ける）
   const reduced = useReducedMotion();
   // 字の下から下線までの空き: 日付（21 の字・行の高さ 28）は今のまま。大きな数字（ウィジェットの「13」など）は字の大きさに合わせて離す
   // （fontSize がなければ、測った高さ h から見積もる。Figma 子12 は字の下から 7 ほど空く）

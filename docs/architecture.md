@@ -157,6 +157,8 @@ sequenceDiagram
 | `slope.usage-outbox` | C8 の送信待ち | 送れた分だけ消える。ログアウト・保護者に連携を外された 401（`family_unlink`）のときは、その人（子ども）の分だけ消す（`usageOutbox.removeChild`。消す前に始まった書き込みも捨てる）。理由のない 401 では消さない（同じ人がログインし直して送れるように） |
 | `slope.child-apps.<childId>` | Q15 で前に送ったアプリの一覧（packageName・表示名・アイコンのハッシュ）と、そのときの C7 の `epoch`（変わったときだけ送るため。`src/lib/child-apps-sync.ts`） | ログアウト・連携が外れた 401 のとき（`childAppsSync.clear`） |
 | `slope.mock-device-id` | MOCK の「はじめての人」をこの端末だけの人にする番号 | 消さない |
+| `slope.theme` | テーマカラー（`light`・`dark`・`notebook`。`src/lib/theme-store.ts`） | 消さない（人ではなく端末の好み） |
+| `slope.colorScheme` | 子ども用の見た目の配色（`red`・`green`・`blue`。既定は緑。`src/lib/theme-store.ts`） | 消さない（人ではなく端末の好み） |
 
 読むときは Zod で形を確かめ、壊れていたら「ない」として扱います（`readJson`）。
 

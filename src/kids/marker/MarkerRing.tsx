@@ -7,7 +7,8 @@
 import { useMemo } from "react";
 import { Animated, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { marker, stroke } from "../theme/tool";
+import { stroke } from "../theme/tool";
+import { useToolColors } from "../tools/scheme-colors";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -22,7 +23,8 @@ type Props = {
   showPath?: boolean;
 };
 
-export function MarkerRing({ progress, size, width = stroke.ring, color = marker.used, showPath = true }: Props) {
+export function MarkerRing({ progress, size, width = stroke.ring, color, showPath = true }: Props) {
+  const colors = useToolColors("marker"); // 色は今の配色（color を渡さなければ使った時間の色。重なりは overlap）
   // 線が箱からはみ出さないよう、半径は箱の半分から線の太さの分だけ内へ（Figma 子02: 240 の箱に半径 105・太さ 13）
   const r = (size - width) / 2 - 8;
   const mid = size / 2;
@@ -53,10 +55,10 @@ export function MarkerRing({ progress, size, width = stroke.ring, color = marker
   return (
     <View pointerEvents="none" style={{ width: size, height: size }}>
       <Svg width={size} height={size}>
-        {showPath && <Circle cx={mid} cy={mid} r={r} stroke={marker.path} strokeWidth={stroke.ringPath} fill="none" />}
+        {showPath && <Circle cx={mid} cy={mid} r={r} stroke={colors.path} strokeWidth={stroke.ringPath} fill="none" />}
         <AnimatedCircle
           {...common}
-          stroke={color}
+          stroke={color ?? colors.used}
           strokeWidth={width}
           strokeDasharray={`${c * 2} ${c * 2}`}
           strokeDashoffset={lines.arcOffset}
@@ -65,7 +67,7 @@ export function MarkerRing({ progress, size, width = stroke.ring, color = marker
         {/* 書き始めの上に重なった所。書き始めの角度から、行き過ぎた長さだけ */}
         <AnimatedCircle
           {...common}
-          stroke={marker.overlap}
+          stroke={colors.overlap}
           strokeWidth={width - 2}
           strokeDasharray={`${lines.over} ${c * 2}`}
           strokeDashoffset={lines.overOffset}

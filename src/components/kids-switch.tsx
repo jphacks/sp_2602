@@ -110,3 +110,9 @@ export function TextField(p: ComponentProps<typeof ClassicTextField>) {
 export function ThemeDialog(p: ComponentProps<typeof ClassicThemeDialog>) {
   return useKidsUI() ? <Kids.ThemeDialog {...p} /> : <ClassicThemeDialog {...p} />;
 }
+
+// 配色の変更（赤・緑・青）は子ども用の見た目だけのもの（保護者の今の見た目には配色も同じ部品もない）。
+// 子ども用の見た目の外では何も出さない（今は子07 設定だけが使い、子07 はいつも子ども用の見た目の中）
+export function ColorSchemeDialog(p: ComponentProps<typeof Kids.ColorSchemeDialog>) {
+  return useKidsUI() ? <Kids.ColorSchemeDialog {...p} /> : null;
+}

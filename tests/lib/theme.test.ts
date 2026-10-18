@@ -1,6 +1,7 @@
 // テーマカラー（白色 = light / 黒色 = dark / ベージュ = notebook。ノートは子ども用の見た目だけ）のテスト（contracts/tokens.ts の palettes・src/lib/theme-store.ts）。
 // 色の組がライト・ダークで同じ名前を全部持っていること（ダークに抜けがあると、その部品だけ色が付かない）、
 // 選んだテーマを端末に保存して読み戻せること、壊れた保存でも落ちずにライトになること、ログアウトでは消えないことを確かめる。
+// 子ども用の見た目の配色（赤・緑・青。既定は緑）も同じ作りなので、同じことを確かめる。
 import { type ColorName, palettes, type ThemeName } from "@contracts/tokens";
 import { describe, expect, it } from "vitest";
 import { createAppIconCache } from "@/lib/app-icons";
@@ -9,11 +10,16 @@ import { createConfigCache } from "@/lib/config-cache";
 import { clearLocalDataFor } from "@/lib/sign-out";
 import { clearSessionData, type KeyValueStorage, storageKeys } from "@/lib/storage";
 import {
+  COLOR_SCHEME_OPTIONS,
   classicThemeName,
+  colorSchemeLabel,
+  DEFAULT_COLOR_SCHEME,
   DEFAULT_THEME,
   KIDS_THEME_OPTIONS,
   kidsThemeLabel,
+  loadColorScheme,
   loadThemeName,
+  saveColorScheme,
   saveThemeName,
   statusBarStyle,
   THEME_OPTIONS,
@@ -198,5 +204,100 @@ describe("テーマの保存と読み込み（theme-store.ts）", () => {
     await clearLocalDataFor("child-a", { configCache, usageOutbox, childAppsSync, appIcons });
 
     expect(await loadThemeName(storage)).toBe("dark");
+  });
+});
+
+describe("配色の選択肢と文言（theme-store.ts）", () => {
+  it("選択肢は「赤」「緑」「青」の3つ（ダイアログの上から順）", () => {
+    expect(COLOR_SCHEME_OPTIONS.map((o) => [o.name, o.label])).toEqual([
+      ["red", "赤"],
+      ["green", "緑"],
+      ["blue", "青"],
+    ]);
+  });
+
+  it("既定は緑（今の「使った時間」の緑に近いので、見た目の変わり方が小さい）", () => {
+    expect(DEFAULT_COLOR_SCHEME).toBe("green");
+  });
+
+  it("設定の一覧の値は「赤」「緑」「青」。知らない名前は既定の「緑」", () => {
+    expect(colorSchemeLabel("red")).toBe("赤");
+    expect(colorSchemeLabel("green")).toBe("緑");
+    expect(colorSchemeLabel("blue")).toBe("青");
+    expect(colorSchemeLabel("purple" as never)).toBe("緑");
+  });
+});
+
+describe("配色の保存と読み込み（theme-store.ts）", () => {
+  it("何も保存していなければ緑", async () => {
+    expect(await loadColorScheme(memoryStorage())).toBe("green");
+  });
+
+  it("選んだ配色を保存すると、次に読んだとき（次の起動）も同じ。3つとも読み戻せる", async () => {
+    const storage = memoryStorage();
+    for (const o of COLOR_SCHEME_OPTIONS) {
+      await saveColorScheme(o.name, storage);
+      expect(await loadColorScheme(storage)).toBe(o.name);
+    }
+    expect(storage.data.get(storageKeys.colorScheme)).toBe('"blue"');
+  });
+
+  it("配色とテーマは別のキーに置く（片方を選び直しても、もう片方は変わらない）", async () => {
+    const storage = memoryStorage();
+    await saveThemeName("dark", storage);
+    await saveColorScheme("red", storage);
+    expect(storageKeys.colorScheme).not.toBe(storageKeys.theme);
+    await saveThemeName("notebook", storage);
+    expect(await loadColorScheme(storage)).toBe("red");
+    await saveColorScheme("blue", storage);
+    expect(await loadThemeName(storage)).toBe("notebook");
+  });
+
+  it("保存が壊れている・知らない値のときは落ちずに緑", async () => {
+    for (const raw of ["{壊れた", '"purple"', '"light"', '"Red"', "123", "null", '{"scheme":"red"}', '["red"]']) {
+      const storage = memoryStorage();
+      storage.data.set(storageKeys.colorScheme, raw);
+      expect(await loadColorScheme(storage), raw).toBe("green");
+    }
+  });
+
+  it("端末から読めない（例外）ときも落ちずに緑", async () => {
+    const broken: KeyValueStorage = {
+      getItem: async () => {
+        throw new Error("storage broken");
+      },
+      setItem: async () => {},
+      removeItem: async () => {},
+    };
+    expect(await loadColorScheme(broken)).toBe("green");
+  });
+
+  it("ログアウト（合言葉・設定のキャッシュ・送信待ち・アプリの一覧を消す）でも、選んだ配色は消えない（端末の好み）", async () => {
+    const storage = memoryStorage();
+    await saveColorScheme("blue", storage);
+    const configCache = createConfigCache({
+      storage,
+      fetchConfig: async () => {
+        throw new Error("offline");
+      },
+    });
+    const usageOutbox = createUsageOutbox({
+      storage,
+      send: async () => {
+        throw new Error("offline");
+      },
+    });
+    const childAppsSync = createChildAppsSync({
+      storage,
+      upload: async () => ({ iconsNeeded: [] }),
+      uploadIcons: async () => ({}),
+      epoch: async () => null,
+    });
+    const appIcons = createAppIconCache({ fetchList: async () => ({ apps: [] }), fetchIcons: async () => [] });
+
+    await clearSessionData(storage);
+    await clearLocalDataFor("child-a", { configCache, usageOutbox, childAppsSync, appIcons });
+
+    expect(await loadColorScheme(storage)).toBe("blue");
   });
 });
