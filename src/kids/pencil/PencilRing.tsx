@@ -11,6 +11,7 @@ import { useMemo } from "react";
 import { Animated, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { pencil, pencilStroke, pencilTiming } from "../theme/pencil";
+import { useToolColors } from "../tools/scheme-colors";
 import { useFollow } from "./draw";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -43,6 +44,7 @@ function useArc(p: Prog, c: number, over: number) {
 
 export function PencilRing({ progress, size }: { progress: Prog; size: number }) {
   // 半径: 240 の箱で 102（Figma 子02）。大きさに比例
+  const colors = useToolColors("pencil"); // 蛍光ペンの色は今の配色（緑の配色で #A5B37A）
   const r = (102 * size) / 240;
   const mid = size / 2;
   const c = 2 * Math.PI * r;
@@ -67,7 +69,7 @@ export function PencilRing({ progress, size }: { progress: Prog; size: number })
         {/* 蛍光ペン（平たいペン先なので端は平ら）。重なった所はもう1枚重ねて濃く */}
         <AnimatedCircle
           {...common}
-          stroke={pencil.highlightGreenLine}
+          stroke={colors.highlightGreenLine}
           strokeWidth={bw}
           strokeLinecap="butt"
           opacity={Animated.multiply(hl.visible, 0.88) as never}
@@ -76,7 +78,7 @@ export function PencilRing({ progress, size }: { progress: Prog; size: number })
         />
         <AnimatedCircle
           {...common}
-          stroke={pencil.highlightGreenLine}
+          stroke={colors.highlightGreenLine}
           strokeWidth={bw}
           strokeLinecap="butt"
           opacity={0.5}

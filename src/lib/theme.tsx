@@ -4,6 +4,11 @@
 //   useTheme()    : { name, colors, setTheme }。colors は今のテーマの色の組（contracts/tokens.ts の palettes）。
 //   useColors()   : 今のテーマの色の組だけ。<Icon color={c.primary} /> のように、スタイル以外で色を渡すときに使う。
 //   makeStyles()  : 色を使う StyleSheet をテーマごとに作る。
+//   useColorScheme() : { scheme, setColorScheme }。子ども用の見た目の配色（赤・緑・青。既定は緑）。テーマと同じく起動時に端末の保存から読み、
+//                   選び直すと保存して、すぐ全画面が変わる。ログアウトでは消さない。
+//                   配色で変わるのは道具の色（src/kids/tools の useTool().values。「使った時間」「テスト」の色・選んでいるタブの下線）だけで、
+//                   色の組（ColorPalette。useColors）は変えない。だから makeStyles の覚え場所の鍵に配色は入れない。
+//                   保護者の今の見た目は配色を読まない（変わらない）。
 //
 // 部品での使い方（色以外の余白・文字の大きさは今までどおり tokens のまま）:
 //   const useStyles = makeStyles((c) =>
@@ -29,11 +34,22 @@
 import { type ColorPalette, palettes, type ThemeName } from "@contracts/tokens";
 import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { classicThemeName, DEFAULT_THEME, loadThemeName, saveThemeName } from "./theme-store";
+import {
+  type ColorSchemeName,
+  classicThemeName,
+  DEFAULT_COLOR_SCHEME,
+  DEFAULT_THEME,
+  loadColorScheme,
+  loadThemeName,
+  saveColorScheme,
+  saveThemeName,
+} from "./theme-store";
 
 type ThemeValue = { name: ThemeName; colors: ColorPalette; setTheme: (name: ThemeName) => void };
-// 中で持つ値: 見た目（look。makeStyles の覚え場所の鍵）と、保存しているテーマの名前（saved。classic の name は notebook を light に直したもの）
-type ThemeState = ThemeValue & { look: string; saved: ThemeName };
+type ColorSchemeValue = { scheme: ColorSchemeName; setColorScheme: (scheme: ColorSchemeName) => void };
+// 中で持つ値: 見た目（look。makeStyles の覚え場所の鍵）と、保存しているテーマの名前（saved。classic の name は notebook を light に直したもの）、
+// 配色（scheme。どの見た目の中でも同じ値）
+type ThemeState = ThemeValue & ColorSchemeValue & { look: string; saved: ThemeName };
 
 const CLASSIC = "classic";
 
@@ -43,17 +59,23 @@ const ThemeContext = createContext<ThemeState>({
   setTheme: () => {},
   look: CLASSIC,
   saved: DEFAULT_THEME,
+  scheme: DEFAULT_COLOR_SCHEME,
+  setColorScheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   // null = まだ端末の保存を読んでいる
   const [name, setName] = useState<ThemeName | null>(null);
+  const [scheme, setScheme] = useState<ColorSchemeName | null>(null);
 
   useEffect(() => {
     let alive = true;
-    loadThemeName().then((saved) => {
+    // テーマと配色は一緒に読み、両方そろうまで描かない（片方だけ先に描くと、緑→赤のように色が一瞬変わって見える）
+    Promise.all([loadThemeName(), loadColorScheme()]).then(([savedTheme, savedScheme]) => {
+      if (!alive) return;
       // 読み終わる前に選び直していたら、そちらを優先する
-      if (alive) setName((current) => current ?? saved);
+      setName((current) => current ?? savedTheme);
+      setScheme((current) => current ?? savedScheme);
     });
     return () => {
       alive = false;
@@ -66,11 +88,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     saveThemeName(next).catch(() => {});
   }, []);
 
+  const setColorScheme = useCallback((next: ColorSchemeName) => {
+    setScheme(next);
+    // テーマと同じ: 保存に失敗しても、今の表示は切り替える
+    saveColorScheme(next).catch(() => {});
+  }, []);
+
   const value = useMemo<ThemeState | null>(() => {
-    if (!name) return null;
+    if (!name || !scheme) return null;
     const shown = classicThemeName(name);
-    return { name: shown, colors: palettes[shown], setTheme, look: CLASSIC, saved: name };
-  }, [name, setTheme]);
+    return { name: shown, colors: palettes[shown], setTheme, look: CLASSIC, saved: name, scheme, setColorScheme };
+  }, [name, scheme, setTheme, setColorScheme]);
   if (!value) return null;
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
@@ -88,8 +116,14 @@ export function useSavedThemeName(): ThemeName {
   return useContext(ThemeContext).saved;
 }
 
+// 今の配色と、選び直す関数（子ども用の見た目の道具の色と、子07 の「配色の変更」が使う）
+export function useColorScheme(): ColorSchemeValue {
+  const { scheme, setColorScheme } = useContext(ThemeContext);
+  return useMemo(() => ({ scheme, setColorScheme }), [scheme, setColorScheme]);
+}
+
 // 中の画面だけ、見た目（look）・テーマの名前・色の組を替える（子ども用の見た目 src/kids/KidsUI.tsx）。
-// 保存と setTheme は外のまま（選び直すと、外の ThemeProvider が保存して、両方の見た目が描き直される）
+// 保存と setTheme・配色（scheme・setColorScheme）は外のまま（選び直すと、外の ThemeProvider が保存して、両方の見た目が描き直される）
 export function ThemeLook({
   look,
   name,
@@ -103,15 +137,24 @@ export function ThemeLook({
 }) {
   const outer = useContext(ThemeContext);
   const value = useMemo<ThemeState>(
-    () => ({ name, colors, setTheme: outer.setTheme, look, saved: outer.saved }),
-    [name, colors, look, outer.setTheme, outer.saved],
+    () => ({
+      name,
+      colors,
+      setTheme: outer.setTheme,
+      look,
+      saved: outer.saved,
+      scheme: outer.scheme,
+      setColorScheme: outer.setColorScheme,
+    }),
+    [name, colors, look, outer.setTheme, outer.saved, outer.scheme, outer.setColorScheme],
   );
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 // 色を使うスタイルの作り方。factory は色の組を受け取って StyleSheet を返す。テーマごとに1回だけ呼ぶ
 export function makeStyles<T>(factory: (c: ColorPalette) => T): () => T {
-  // 鍵は見た目とテーマの名前（同じ "light" でも、保護者と子ども用で色の組が違う）
+  // 鍵は見た目とテーマの名前（同じ "light" でも、保護者と子ども用で色の組が違う）。
+  // 配色は色の組を変えないので鍵に入れない（配色で色の組を変えるようにしたら、ここに scheme を足す）
   const cache = new Map<string, T>();
   return function useStyles(): T {
     const { name, colors, look } = useContext(ThemeContext);

@@ -10,6 +10,7 @@
 import { useMemo } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { pencil, pencilStroke } from "../theme/pencil";
+import { useToolColors } from "../tools/scheme-colors";
 import { useSize } from "./draw";
 import { Grain } from "./Grain";
 import { Facets, PENCIL_FIXED, PENCIL_H, PencilEnd, PencilTip } from "./PencilShapes";
@@ -20,6 +21,7 @@ const PAD = 3; // 箱の内側の空き
 
 export function PencilBar({ length, thin = false }: { length: Len; thin?: boolean }) {
   const k = thin ? 0.6 : 1;
+  const colors = useToolColors("pencil"); // 軸の色は今の配色（色鉛筆の軸 primaryFill）
   const [{ w }, onLayout] = useSize();
   const fixed = PENCIL_FIXED * k;
   const lines = useMemo(() => {
@@ -42,7 +44,7 @@ export function PencilBar({ length, thin = false }: { length: Len; thin?: boolea
       <View style={[s.clip, { top: PAD, height: h }, thin && s.clipThin]}>
         <Animated.View style={[s.row, { height: h, transform: [{ translateX: lines.shift }] }]}>
           <PencilEnd scale={k} />
-          <Animated.View style={[s.body, { width: lines.body, height: h, backgroundColor: pencil.axis }]}>
+          <Animated.View style={[s.body, { width: lines.body, height: h, backgroundColor: colors.axis }]}>
             <Facets scale={k} />
             <Grain heavy={false} />
           </Animated.View>

@@ -13,8 +13,9 @@ import { MarkerRing } from "../marker/MarkerRing";
 import { MarkerSpinner } from "../marker/MarkerSpinner";
 import { MarkerUnderline } from "../marker/MarkerUnderline";
 import { PenTray } from "../marker/PenTray";
-import { marker, markerTool, stroke, timing } from "../theme/tool";
+import { markerTool, stroke, timing } from "../theme/tool";
 import type { FrameLineProps, FrameProps, Tool, UnderlineProps } from "./index";
+import { useToolColors } from "./scheme-colors";
 
 // 手描きの枠。ホワイトボードは地を塗らない（ボードに直接書く）ので kind による違いはない。small（行の中の小さい札）は線を細く・角を小さく
 function Frame({ size = "normal", kind: _kind, tone: _tone, ...rest }: FrameProps) {
@@ -39,14 +40,15 @@ function FrameLine({ w, h, seed, emphasis }: FrameLineProps) {
   return <HandFrame w={w} h={h} seed={seed} width={width} />;
 }
 
-// 短い下線: タブ＝濃い緑 3・200ms でキュッ / 上限の帯＝緑 3.4・300ms 待って 420ms
+// 短い下線: タブ＝濃い色（usedLine）3・200ms でキュッ / 上限の帯＝使った時間の色（used）3.4・300ms 待って 420ms。色は今の配色
 function Underline({ width, active, kind }: UnderlineProps) {
+  const colors = useToolColors("marker");
   if (kind === "reached")
     return (
       <MarkerHighlightLine
         width={width}
         active={active}
-        color={marker.used}
+        color={colors.used}
         thickness={stroke.reached}
         delay={timing.reachedDelay}
         duration={timing.reached}
@@ -57,7 +59,7 @@ function Underline({ width, active, kind }: UnderlineProps) {
     <MarkerHighlightLine
       width={width}
       active={active}
-      color={marker.usedLine}
+      color={colors.usedLine}
       thickness={stroke.tab}
       duration={timing.highlight}
       wave={0.3}
