@@ -1,7 +1,7 @@
 // デザイン契約（React Native 用のテーマ）。画面で使える色・余白・角丸・文字・寸法はここで定義したものだけ。
 // 色コードはこのファイルの中だけに書く（画面・部品に "#…" を直書きしない。style={{…}} も書かない）。
 //
-// 色はテーマ（"light" = 白色 / "dark" = 黒色）ごとに2組ある（palettes.light・palettes.dark）。名前は同じで値だけが違う。
+// 色はテーマ（"light" = 白色 / "dark" = 黒色）ごとに2組ある（palettes.light・palettes.dark。"notebook" はライトと同じ組。下の ThemeName）。名前は同じで値だけが違う。
 //   なぜ名前をそろえるか: 画面は「どの役目の色か」（bg・primary など）だけを書き、テーマを切り替えても画面のコードは変えずに済むようにするため。
 //   ダークに抜けがあると型（ColorPalette）でも tests/lib/theme.test.ts でも落ちる。
 //   画面・部品での使い方は src/lib/theme.tsx（makeStyles・useColors）。色以外（余白・文字・寸法）はテーマで変わらないので tokens のまま。
@@ -77,8 +77,11 @@ const dark: ColorPalette = {
   black: "#000000",
 };
 
-export type ThemeName = "light" | "dark";
-export const palettes: Readonly<Record<ThemeName, ColorPalette>> = { light, dark };
+// 保存するテーマの名前。"notebook"（ベージュ = ノート）は子ども用の見た目（src/kids）だけのテーマ。
+// 保護者の今の見た目には notebook の色の組がないので、ライトとして描く（palettes.notebook = light。src/lib/theme.tsx も light として扱う）。
+// 子ども用の見た目の色の組（ホワイトボード・黒板・ノート）は src/kids/theme/（tmp/animations から写したもの）にある。
+export type ThemeName = "light" | "dark" | "notebook";
+export const palettes: Readonly<Record<ThemeName, ColorPalette>> = { light, dark, notebook: light };
 
 export const tokens = {
   // 余白は 4px 刻み。space[4] = 16

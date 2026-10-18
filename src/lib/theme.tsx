@@ -22,17 +22,27 @@
 //   - 色は React の context から読むので、切り替えた瞬間に開いている画面もダイアログも描き直される。
 //     画面の木を作り直す（key を変える）方法だと、今いる画面から入口へ戻されてしまうので使わない。
 //   - 色を使わない StyleSheet は今までどおり StyleSheet.create のままでよい。
+//
+// 見た目（look）は2つ: 保護者の今の見た目（classic）と、子ども用の見た目（kids。src/kids/KidsUI.tsx が ThemeLook で包む）。
+//   保存するテーマの名前は1つ（light・dark・notebook）。classic では notebook をライトとして描く（今の見た目にノートの色の組がないため）。
+//   kids は同じ名前のまま、色の組だけを子ども用（ホワイトボード・黒板・ノート）に替える。makeStyles は見た目ごとに別に覚える。
 import { type ColorPalette, palettes, type ThemeName } from "@contracts/tokens";
 import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { DEFAULT_THEME, loadThemeName, saveThemeName } from "./theme-store";
+import { classicThemeName, DEFAULT_THEME, loadThemeName, saveThemeName } from "./theme-store";
 
 type ThemeValue = { name: ThemeName; colors: ColorPalette; setTheme: (name: ThemeName) => void };
+// 中で持つ値: 見た目（look。makeStyles の覚え場所の鍵）と、保存しているテーマの名前（saved。classic の name は notebook を light に直したもの）
+type ThemeState = ThemeValue & { look: string; saved: ThemeName };
 
-const ThemeContext = createContext<ThemeValue>({
+const CLASSIC = "classic";
+
+const ThemeContext = createContext<ThemeState>({
   name: DEFAULT_THEME,
   colors: palettes[DEFAULT_THEME],
   setTheme: () => {},
+  look: CLASSIC,
+  saved: DEFAULT_THEME,
 });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -56,10 +66,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     saveThemeName(next).catch(() => {});
   }, []);
 
-  const value = useMemo<ThemeValue | null>(
-    () => (name ? { name, colors: palettes[name], setTheme } : null),
-    [name, setTheme],
-  );
+  const value = useMemo<ThemeState | null>(() => {
+    if (!name) return null;
+    const shown = classicThemeName(name);
+    return { name: shown, colors: palettes[shown], setTheme, look: CLASSIC, saved: name };
+  }, [name, setTheme]);
   if (!value) return null;
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
@@ -72,24 +83,53 @@ export function useColors(): ColorPalette {
   return useContext(ThemeContext).colors;
 }
 
+// 保存しているテーマの名前（notebook もそのまま）。子ども用の見た目が色の組を選ぶのに使う
+export function useSavedThemeName(): ThemeName {
+  return useContext(ThemeContext).saved;
+}
+
+// 中の画面だけ、見た目（look）・テーマの名前・色の組を替える（子ども用の見た目 src/kids/KidsUI.tsx）。
+// 保存と setTheme は外のまま（選び直すと、外の ThemeProvider が保存して、両方の見た目が描き直される）
+export function ThemeLook({
+  look,
+  name,
+  colors,
+  children,
+}: {
+  look: string;
+  name: ThemeName;
+  colors: ColorPalette;
+  children: ReactNode;
+}) {
+  const outer = useContext(ThemeContext);
+  const value = useMemo<ThemeState>(
+    () => ({ name, colors, setTheme: outer.setTheme, look, saved: outer.saved }),
+    [name, colors, look, outer.setTheme, outer.saved],
+  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
 // 色を使うスタイルの作り方。factory は色の組を受け取って StyleSheet を返す。テーマごとに1回だけ呼ぶ
 export function makeStyles<T>(factory: (c: ColorPalette) => T): () => T {
-  const cache = new Map<ThemeName, T>();
+  // 鍵は見た目とテーマの名前（同じ "light" でも、保護者と子ども用で色の組が違う）
+  const cache = new Map<string, T>();
   return function useStyles(): T {
-    const { name, colors } = useContext(ThemeContext);
-    let styles = cache.get(name);
+    const { name, colors, look } = useContext(ThemeContext);
+    const key = `${look}:${name}`;
+    let styles = cache.get(key);
     if (styles === undefined) {
       styles = factory(colors);
-      cache.set(name, styles);
+      cache.set(key, styles);
     }
     return styles;
   };
 }
 
 // 画面の切り替え（expo-router の Stack・Tabs）の地の色。画面の裏や切り替えの途中に白が見えないよう、今のテーマの色を渡す
-export function navigationTheme(name: ThemeName): Theme {
+// colors を渡すと、その色の組で作る（子ども用の見た目。省くと保護者の今の見た目の色の組）
+export function navigationTheme(name: ThemeName, colors?: ColorPalette): Theme {
   const base = name === "dark" ? DarkTheme : DefaultTheme;
-  const c = palettes[name];
+  const c = colors ?? palettes[classicThemeName(name)];
   return {
     ...base,
     colors: {
