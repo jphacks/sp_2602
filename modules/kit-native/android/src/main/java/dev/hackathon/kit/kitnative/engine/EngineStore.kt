@@ -217,15 +217,26 @@ object EngineStore {
       .apply()
   }
 
-  // 401 が返ったとき: 送ったときの合言葉がまだ保存されていれば消す（送っている間に JS が新しい合言葉を渡していたら消さない）
+  // 401 が返ったとき: 送ったときの合言葉がまだ保存されていれば消して true（送っている間に JS が新しい合言葉を渡していたら消さずに false。
+  // 呼ぶ側は false なら生存報告の目覚ましも止めない＝新しい合言葉の分を止めない）
   @Synchronized
-  fun clearReporterIfToken(context: Context, token: String) {
-    if (currentToken(prefs(context)) == token) clearReporter(context)
+  fun clearReporterIfToken(context: Context, token: String): Boolean {
+    if (currentToken(prefs(context)) != token) return false
+    clearReporter(context)
+    return true
   }
 
-  // 送ったときの合言葉が、まだ保存してある合言葉か（連携が外れた 401 で、端末の値を消してよいかを決める。D-133）
+  /**
+   * 送ったときの合言葉が、まだ保存してある合言葉なら、このロックの中で block を呼んで true（連携が外れた 401 で、端末の値を消す。D-133）。
+   * 確かめと片付けをひとまとまりにする（確かめたあと・片付ける前に JS が新しい合言葉を渡して（saveReporter）、
+   * 新しい合言葉ごと消してしまわないように）。違えば何もしないで false
+   */
   @Synchronized
-  fun isReporterToken(context: Context, token: String): Boolean = currentToken(prefs(context)) == token
+  fun ifReporterToken(context: Context, token: String, block: () -> Unit): Boolean {
+    if (currentToken(prefs(context)) != token) return false
+    block()
+    return true
+  }
 
   fun loadReportState(context: Context): ReportState {
     val p = prefs(context)

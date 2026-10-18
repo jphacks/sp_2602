@@ -98,8 +98,8 @@ object SessionCheck {
         ReportOutcome.Unauthorized -> {
           // 理由のない 401: この合言葉ではもう確かめられない。監視は止めない（JS がログインし直せば渡し直す）
           failures = 0
-          EngineStore.clearReporterIfToken(context, access.token)
-          StatusReporter.cancelHeartbeat(context)
+          // 確かめている間に JS が新しい合言葉を渡していたら、消さず、生存報告の目覚ましも止めない
+          if (EngineStore.clearReporterIfToken(context, access.token)) StatusReporter.cancelHeartbeat(context)
         }
         is ReportOutcome.Failed -> failures = minOf(failures + 1, 10)
       }

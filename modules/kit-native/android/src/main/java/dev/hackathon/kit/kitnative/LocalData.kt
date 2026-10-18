@@ -34,12 +34,12 @@ object LocalData {
    * 呼ぶところ: 許可の状態の送信（StatusReporter）と、合言葉の確かめ（SessionCheck）。
    * 送ったときの合言葉がまだ保存してある合言葉のときだけ（送っている間に JS が新しい合言葉を渡していたら＝ログインし直して
    * 紐づけ直していたら、何もしない）、clear と同じく監視を止めて値を消し、デモ用の Device Owner（アンインストールの止め）もやめる。
+   * 合言葉の確かめと clear は EngineStore の同じロックの中で行う（ifReporterToken。間に新しい合言葉が入って、それごと消さないように）。
    * Device Owner をやめられなくても、ほかの片付けは済ませる。消したら true
    */
   fun clearUnlinked(context: Context, sentToken: String): Boolean {
     val ctx = context.applicationContext
-    if (!EngineStore.isReporterToken(ctx, sentToken)) return false
-    clear(ctx)
+    if (!EngineStore.ifReporterToken(ctx, sentToken) { clear(ctx) }) return false
     try {
       DeviceOwnerPolicy.release(ctx)
     } catch (e: Exception) {

@@ -64,12 +64,13 @@ object StatusReporter {
           scheduleHeartbeat(context) // 次の生存報告の目覚ましを、今から 15 分あとへ置き直す
         }
         ReportOutcome.Unauthorized -> {
-          EngineStore.clearReporterIfToken(context, access.token)
-          cancelHeartbeat(context)
+          // 送っている間に JS が新しい合言葉を渡していたら、消さず、生存報告の目覚ましも止めない（新しい合言葉の分）
+          if (EngineStore.clearReporterIfToken(context, access.token)) cancelHeartbeat(context)
         }
         ReportOutcome.Unlinked -> {
-          // 送っている間に JS が新しい合言葉を渡していたら（ログインし直して紐づけ直した）、消さない
-          if (!LocalData.clearUnlinked(context, access.token)) cancelHeartbeat(context)
+          // 送っている間に JS が新しい合言葉を渡していたら（ログインし直して紐づけ直した）、消さず、目覚ましも止めない
+          // （新しい合言葉の生存報告まで止めない）。消したときは clear の中で目覚ましも止まる
+          LocalData.clearUnlinked(context, access.token)
         }
         is ReportOutcome.Failed -> {
           EngineStore.saveReportFailed(context, access.token, now + outcome.retryAfterMs)
