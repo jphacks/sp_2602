@@ -2,13 +2,15 @@
 // MOCK=1 でも同じ処理を通る（違うのは、"mock-" のログインを受け付けることと、DB に見本が入っていることだけ。src/server/seed/demo.ts）。
 // 決まりごと（docs/decisions.md）:
 //   - 合言葉は推測できない乱数。DB にはハッシュだけを残す。最後に使ってから30日で無効（D-1）。ログアウトで無効（authSignOut）
+//   - 合言葉を無効にするときは、理由（revoked_reason）も残す。保護者が連携を外して無効にした合言葉で呼ばれたときだけ、
+//     401 に理由（family_unlink）を付ける（子どもの端末が「連携が外れた」と分かって制限を止められるように。D-133）
 //   - QR は10分・1回だけ・出し直したら前の QR は無効（Q10）。番号は16進40文字の乱数（D-5）
 //   - 保護者1人↔子ども1人（Q2）。読み取りのときと確定のときの両方で確かめる（D-7）
 //   - QR の番号を10分に10回まちがえた人は、しばらく断る（総当たりを防ぐ。PR #47）
 //   - id は uuid。uuid の形でない id は、DB に聞かずに「見つからない／扱えない」と答える（DB のエラーで 500 にしない）
 //   - MOCK=1 でないサーバでは、MOCK のログインの人（デモの3人・はじめての人）の合言葉は 401（findSession。D-126）
 import { randomBytes } from "node:crypto";
-import { and, count, eq, gt, inArray, isNull, lte, ne, notExists, or } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNotNull, isNull, lte, ne, notExists, or } from "drizzle-orm";
 import { clearChildFamilyData, recordFamilyUnlink } from "../../backend/src/db/family-unlink.js";
 import {
   authIdentities,
@@ -91,7 +93,10 @@ export async function signInMock(idToken: string): Promise<Session> {
     await tx
       .insert(userSessions)
       .values({ userId: fixed.userId, tokenHash: digest(fixed.token), createdAt: now, lastUsedAt: now })
-      .onConflictDoUpdate({ target: userSessions.tokenHash, set: { revokedAt: null, lastUsedAt: now } });
+      .onConflictDoUpdate({
+        target: userSessions.tokenHash,
+        set: { revokedAt: null, revokedReason: null, lastUsedAt: now },
+      });
     return { ...(await sessionUser(tx, fixed.userId)), token: fixed.token };
   });
 }
@@ -136,7 +141,7 @@ export async function authorize(rule: AuthRule, request: Request): Promise<Calle
   if (rule === "none") return null;
   const token = tokenOf(request);
   const caller = token ? await findSession(token) : null;
-  if (!caller) throw new AppError("unauthorized");
+  if (!caller) throw token && (await wasUnlinked(token)) ? unlinkedError() : new AppError("unauthorized");
   if (rule === "parent" && caller.role !== "parent")
     throw new AppError("forbidden", "保護者だけができる操作です", "保護者の端末から操作してください");
   if (rule === "child" && caller.role !== "child")
@@ -183,6 +188,31 @@ async function findSession(token: string): Promise<Session | null> {
   return { token, userId: row.userId, name: row.name || "利用者", role: row.role };
 }
 
+// 合言葉を無効にした理由（user_sessions.revoked_reason。backend/src/db/schema/auth.ts）
+type RevokeReason = "sign_out" | "sign_out_others" | "family_unlink";
+
+// 保護者が連携を外したので使えなくなった合言葉か（無効にした合言葉のうち、理由が family_unlink のもの）。
+// 期限切れ・知らない合言葉・ログアウトした合言葉は false（ふつうの 401 のまま）。
+// 合言葉を知っている本人にしか返らないので、ほかの人に「この子どもは外された」が漏れることはない
+async function wasUnlinked(token: string): Promise<boolean> {
+  const database = await db();
+  const [row] = await database
+    .select({ reason: userSessions.revokedReason })
+    .from(userSessions)
+    .where(and(eq(userSessions.tokenHash, digest(token)), isNotNull(userSessions.revokedAt)))
+    .limit(1);
+  return row?.reason === "family_unlink";
+}
+
+// 連携が外れた子どもの端末への 401（code は unauthorized のまま。古いアプリは今までどおりログアウトするだけ）
+const unlinkedError = () =>
+  new AppError(
+    "unauthorized",
+    "保護者との連携が外れました",
+    "また使うときは、ログインしてから保護者と QR でつなぎ直してください",
+    "family_unlink",
+  );
+
 // ログアウト。otherDevices なら同じ人のほかの合言葉をすべて、そうでなければこの合言葉だけを使えなくする。使えなくした数を返す
 export async function signOut(caller: Caller, otherDevices: boolean): Promise<{ revoked: number }> {
   const database = await db();
@@ -190,18 +220,19 @@ export async function signOut(caller: Caller, otherDevices: boolean): Promise<{ 
   const target = otherDevices
     ? and(eq(userSessions.userId, caller.userId), ne(userSessions.tokenHash, mine))
     : eq(userSessions.tokenHash, mine);
+  const reason: RevokeReason = otherDevices ? "sign_out_others" : "sign_out";
   const rows = await database
     .update(userSessions)
-    .set({ revokedAt: new Date() })
+    .set({ revokedAt: new Date(), revokedReason: reason })
     .where(and(target, isNull(userSessions.revokedAt)))
     .returning({ id: userSessions.id });
   return { revoked: rows.length };
 }
 
-async function revokeAllSessions(tx: Tx, userId: string): Promise<number> {
+async function revokeAllSessions(tx: Tx, userId: string, reason: RevokeReason): Promise<number> {
   const rows = await tx
     .update(userSessions)
-    .set({ revokedAt: new Date() })
+    .set({ revokedAt: new Date(), revokedReason: reason })
     .where(and(eq(userSessions.userId, userId), isNull(userSessions.revokedAt)))
     .returning({ id: userSessions.id });
   return rows.length;
@@ -512,6 +543,7 @@ export async function readFamily(caller: Caller): Promise<{ children: { id: stri
 // なぜ: 残すと、別の保護者と紐づけ直したときに、その保護者に前の家庭の時期のデータが見える（セキュリティ検査 F-2 / PII-10）。
 // 同じ保護者と紐づけ直しても、設定は最初から入れ直しになる。
 // 誰が・いつ・どの子どもを外したかは audit_events に残す（F-7 / IPA-15）
+// 子どもの合言葉は理由 family_unlink で無効にする。子どもの端末が次に呼ぶと、401 に理由が付いて返る（authorize。D-133）
 export async function unlinkChild(
   caller: Caller,
   childId: string,
@@ -534,6 +566,6 @@ export async function unlinkChild(
       .where(and(eq(pairTickets.childId, childId), inArray(pairTickets.state, ["waiting", "claimed"])));
     await clearChildFamilyData(tx, childId);
     await recordFamilyUnlink(tx, caller.userId, childId);
-    return { childId, revokedSessions: await revokeAllSessions(tx, childId) };
+    return { childId, revokedSessions: await revokeAllSessions(tx, childId, "family_unlink") };
   });
 }

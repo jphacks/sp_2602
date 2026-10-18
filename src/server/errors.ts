@@ -1,9 +1,16 @@
 // サーバ側のエラー（lead の担当）。処理の中では AppError を throw し、形の変換は route.ts に任せる。
 //   throw new AppError("upstream_failed");                       // 既定の文
 //   throw new AppError("not_found", "その結果は見つかりません");   // 文を上書き
+//   throw new AppError("unauthorized", 文, 次にすること, "family_unlink"); // 401 の理由を付ける（D-133。auth.ts の authorize だけ）
 
 import { ZodError } from "zod";
-import { type ApiError, type ErrorCode, errorStatus, errorText } from "../../contracts/errors.js";
+import {
+  type ApiError,
+  type ErrorCode,
+  errorStatus,
+  errorText,
+  type UnauthorizedReason,
+} from "../../contracts/errors.js";
 
 // "network" はクライアントが「サーバに届かなかった」ときにだけ作る。サーバから外部APIに繋がらないときは "upstream_failed"。
 export type ServerErrorCode = Exclude<ErrorCode, "network">;
@@ -13,6 +20,7 @@ export class AppError extends Error {
     readonly code: ServerErrorCode,
     message?: string,
     readonly hint?: string,
+    readonly reason?: UnauthorizedReason,
   ) {
     super(message ?? errorText[code].message);
   }
@@ -24,6 +32,8 @@ export function toApiError(e: unknown): { status: number; body: ApiError } {
     // 型を無視して "network" が来ても、HTTP ステータス 0 では返せないので upstream_failed に寄せる
     const code: ServerErrorCode = (e.code as ErrorCode) === "network" ? "upstream_failed" : e.code;
     body = { code, message: e.message, hint: e.hint ?? errorText[code].hint };
+    // 理由は unauthorized のときだけ返す（ほかの code に付けても意味がないので落とす）
+    if (code === "unauthorized" && e.reason) body.reason = e.reason;
   } else if (e instanceof ZodError) {
     // 入力の検査は route.ts で先に済むので、ここに来るのは「出力が契約と合わない」= サーバの不具合
     console.error(

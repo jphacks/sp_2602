@@ -116,6 +116,9 @@ export const api = {
   // 保護者: 子どもとの連携を外す（連携済みの子どもだけ。route.ts が確かめる）。子どもの合言葉はすべて使えなくなり、
   // 子どもは役割のない状態（role: null）に戻る（もう一度 QR で紐づけ直せる）。子どもの端末をなくしたときにも使う。
   // 足した理由: 保護者が子どもを外す手段・なくした子どもの端末の合言葉を止める手段がなかったため（PR #47）
+  // その子どもの家庭ごとのデータ（利用記録・計画・テスト期間・空白期間・対象外アプリ・Web サイトなど）も消える。元に戻せない。
+  // 外したあとに子どもの端末が呼ぶと、どの API も 401 unauthorized に reason: "family_unlink" が付く（contracts/errors.ts。D-133）。
+  // 保護者の画面: 親04 設定の「子どもとの連携を外す」→ 二段階の確認（src/components/parent/UnlinkChildItem.tsx）
   familyUnlink: post("/api/family/unlink", "parent", ChildQuery, FamilyUnlinkResult),
 
   // ── D8: 通常上限と計画（C10 の入力）──

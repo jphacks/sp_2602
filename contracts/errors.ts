@@ -16,11 +16,22 @@ export const ErrorCode = z.enum([
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;
 
+// 合言葉が無効（unauthorized・401）になった理由（D-133）。サーバが「無効にした合言葉」で呼ばれたときだけ付ける
+// （期限切れ・知らない合言葉・ログアウトした合言葉には付けない）。今は1つだけ:
+//   family_unlink … 保護者が子どもとの連携を外したので、子どもの合言葉を無効にした
+// アプリはこれを見て、端末の制限を止め・送信待ちを消し・ログイン画面で「連携が外れました」と知らせる（src/lib/session-core.ts）。
+// 新しい code にしないのは、古いアプリが知らない code を internal と取り違え、401 でログアウトしなくなるため（code は unauthorized のまま）
+export const UnauthorizedReason = z.enum(["family_unlink"]);
+export type UnauthorizedReason = z.infer<typeof UnauthorizedReason>;
+
 export const ApiError = z.object({
   code: ErrorCode,
   message: z.string(), // 何が起きたか（利用者に見せる文）
   hint: z.string(), // 次に何をすればよいか（利用者に見せる文）
   issues: z.array(z.object({ path: z.string(), message: z.string() })).optional(), // bad_request の詳細（開発者向け）
+  // unauthorized の理由（上の UnauthorizedReason）。知らない値は「理由なし」として読む（サーバが新しい理由を足しても、
+  // 古いアプリが本文ごと読めなくなって 401 を internal と取り違えないように）
+  reason: UnauthorizedReason.optional().catch(undefined),
 });
 export type ApiError = z.infer<typeof ApiError>;
 
