@@ -15,7 +15,7 @@ import { PgTable } from "drizzle-orm/pg-core";
 import type { Database } from "../../../backend/src/db/index.js";
 import * as schema from "../../../backend/src/db/schema/index.js";
 import { isMock } from "../env.js";
-import { DatabaseUnavailableError, isDatabaseUnavailable } from "../errors.js";
+import { DatabaseOpenError, DatabaseUnavailableError, describeError, isDatabaseUnavailable } from "../errors.js";
 import { seedMockAccounts } from "../seed/demo.js";
 
 export { isDatabaseHealthy } from "../../../backend/src/db/health.js";
@@ -40,12 +40,6 @@ export async function db(): Promise<Db> {
 export async function closeDatabaseClientForTests(): Promise<void> {
   if (process.env.DATABASE_URL || !process.env.VITEST) throw new Error("テストの手元の DB でだけ使えます");
   await (await runtime()).close?.();
-}
-
-// DB を開けなかった（接続の失敗ではないもの: 設定の欠落・マイグレーションの誤りなど）。API は 500 internal を返し、
-// ログ（errors.ts の describeError）には元のエラー（cause）の種類と場所が出る
-class DatabaseOpenError extends Error {
-  override name = "DatabaseOpenError";
 }
 
 function runtime(): Promise<RuntimeDb> {
@@ -90,10 +84,17 @@ async function connect(): Promise<RuntimeDb> {
       import("drizzle-orm/neon-serverless"),
     ]);
     const pool = new Pool({ connectionString: url, max: 1 });
+    // 待っている間の接続が切れると、Pool は "error" を出す。受け手がないと Node はそれを捕まえられない例外にして、
+    // プロセスごと落ちる（Vercel のインスタンスが休んでいる間に Neon が接続を閉じたとき）。記録だけして、次の呼び出しで張り直させる
+    pool.on("error", (error: unknown) => console.error("[db pool] 待っている間の接続が切れました", describeError(error)));
     return { db: drizzle({ client: pool, schema }) as unknown as Db, kind: "neon", close: () => pool.end() };
   }
   // 本番で黙って手元の DB に保存すると、データが消えても気づけない
-  if (process.env.VERCEL_ENV === "production") throw new Error("DATABASE_URL が未設定です（Vercel の本番では必須）");
+  // ログ（describeError）は message を出さない決まりなので、何が足りないかを code で分かるようにする
+  if (process.env.VERCEL_ENV === "production")
+    throw Object.assign(new Error("DATABASE_URL が未設定です（Vercel の本番では必須）"), {
+      code: "DATABASE_URL_MISSING",
+    });
   const [{ PGlite }, { drizzle }] = await Promise.all([import("@electric-sql/pglite"), import("drizzle-orm/pglite")]);
   const dir = process.env.LOCAL_DB_DIR?.trim();
   // テストだけ: マイグレーション済みの DB の写し（tests/setup/pglite-template.ts が1回だけ作る）から開く。

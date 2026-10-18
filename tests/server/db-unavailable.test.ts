@@ -5,7 +5,7 @@
 import { errorText } from "@contracts/errors";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { closeDatabaseClientForTests } from "@/server/db";
-import { DatabaseUnavailableError, isDatabaseUnavailable, toApiError } from "@/server/errors";
+import { DatabaseOpenError, DatabaseUnavailableError, isDatabaseUnavailable, toApiError } from "@/server/errors";
 import { CHILD_ID, fresh, get, ok, PARENT, post } from "../verify/helpers";
 
 const NOW = "2026-10-15T03:00:00.000Z";
@@ -33,6 +33,29 @@ describe("DB につながらないエラーの見分け", () => {
       expect(isDatabaseUnavailable(e), String(e)).toBe(true);
       expect(toApiError(e)).toEqual({ status: 503, body: { code: "unavailable", ...errorText.unavailable } });
     }
+  });
+
+  it("Neon の接続が切れたときのエラー（code がない・決まった文）も 503 unavailable", () => {
+    const event = { type: "error", target: {}, message: "" }; // WebSocket の ErrorEvent（Error ではない）
+    for (const e of [
+      new Error("Connection terminated unexpectedly"),
+      new Error("query failed", { cause: new Error("Client has encountered a connection error and is not queryable") }),
+      new Error("timeout exceeded when trying to connect"),
+      new Error("All attempts to open a WebSocket to connect to the database failed. Details: fetch failed"),
+      Object.assign(new Error("connect timeout"), { code: "UND_ERR_CONNECT_TIMEOUT" }),
+      new Error("query failed", { cause: event }),
+    ]) {
+      expect(isDatabaseUnavailable(e), String(e)).toBe(true);
+    }
+    // 文が少しでも違えば（利用者の入力が混ざった文など）見分けない
+    expect(isDatabaseUnavailable(new Error("Connection terminated unexpectedly: x"))).toBe(false);
+  });
+
+  it("DB を開けなかったエラー（DatabaseOpenError）は、中身が 22P02 でも 500 internal", () => {
+    const e = new DatabaseOpenError("DB を開けませんでした", {
+      cause: Object.assign(new Error("bad"), { code: "22P02" }),
+    });
+    expect(toApiError(e)).toEqual({ status: 500, body: { code: "internal", ...errorText.internal } });
   });
 
   it("それ以外のエラーは今までどおり（形の誤り 22P02 は 400・そのほかは 500）", () => {
