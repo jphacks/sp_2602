@@ -1,13 +1,16 @@
 // 下部タブのアイコンと見た目（Figma の TabBar: 高さ 80・選ばれたタブは 64×32 の薄い青の丸の中に青いアイコン、文字は青の太字）。
 // 子ども用・保護者用の Tabs（src/app/child/_layout.tsx・parent/_layout.tsx）で同じものを使う。
 import { tokens } from "@contracts/tokens";
+import { type ComponentProps, useCallback } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { TabIcon as KidsTabIcon, useTabBarOptions as useKidsTabBarOptions } from "@/kids/components/TabIcon";
+import { useKidsUI } from "@/kids/KidsUI";
 import { makeStyles, useColors } from "@/lib/theme";
 import { Icon, type IconName } from "./Icon";
 import { tabBarHeight } from "./tab-bar-size";
 
-export function TabIcon({ name, focused }: { name: IconName; focused: boolean }) {
+function ClassicTabIcon({ name, focused }: { name: IconName; focused: boolean }) {
   const styles = useStyles();
   const c = useColors();
   return (
@@ -60,7 +63,7 @@ export const hiddenTabOptions = { tabBarItemStyle: fixedStyles.hiddenItem } as c
 // Tabs の screenOptions（上のバーは各画面の <Screen> が描くので出さない）。
 // Android 15 以降は画面が端まで広がる（edge-to-edge）ので、下のナビゲーションボタン（|||・○・＜）の高さ（insets.bottom）を
 // タブの高さと下の余白に足す。足さないと、タブの文字がナビゲーションボタンの下に隠れる（実機 SC-53C・Android 16 で確認）。
-export function useTabBarOptions() {
+function useClassicTabBarOptions() {
   const styles = useStyles();
   const c = useColors();
   const insets = useSafeAreaInsets();
@@ -76,4 +79,23 @@ export function useTabBarOptions() {
     ],
     tabBarLabel: TabLabel,
   } as const;
+}
+
+// ── 子ども用の見た目への振り分け（決まりは ../kids-switch.tsx。この部品は画面がファイルを直接読むので、ここで振り分ける） ──
+
+export function TabIcon(p: ComponentProps<typeof ClassicTabIcon>) {
+  return useKidsUI() ? <KidsTabIcon {...p} /> : <ClassicTabIcon {...p} />;
+}
+
+// hooks の決まりで、両方を毎回呼んでから選ぶ。
+// 子ども用のタブの地（今の道具の TabBackground）は、関数で包んで「部品として」描く:
+//   React Navigation は tabBarBackground を部品ではなく関数として呼ぶ（tabBarBackground()）。部品をそのまま渡すと、
+//   その部品の hooks がタブの列の中で呼ばれ、テーマを替えて道具（マーカー → チョーク）が変わると hooks の数が変わって落ちる。
+export function useTabBarOptions() {
+  const kids = useKidsUI();
+  const kidsOptions = useKidsTabBarOptions();
+  const classicOptions = useClassicTabBarOptions();
+  const Background = kidsOptions.tabBarBackground;
+  const tabBarBackground = useCallback(() => <Background />, [Background]);
+  return kids ? { ...kidsOptions, tabBarBackground } : classicOptions;
 }

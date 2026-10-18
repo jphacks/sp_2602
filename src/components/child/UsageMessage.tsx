@@ -2,8 +2,11 @@
 // 文言と押したときの動き（設定を開く／取り直す）は child-view.ts の usageView が決める。ここは描くだけ。
 //   <UsageMessage message={view.message} onAction={(kind) => …} />
 import { tokens } from "@contracts/tokens";
+import type { ComponentProps } from "react";
 import { StyleSheet, View } from "react-native";
 import { AppText, Button, Icon } from "@/components";
+import { UsageMessage as KidsUsageMessage } from "@/kids/components/child/UsageMessage";
+import { useKidsUI } from "@/kids/KidsUI";
 import { useColors } from "@/lib/theme";
 import type { UsageMessage as Message } from "./child-view";
 
@@ -13,7 +16,7 @@ type Props = {
   center?: boolean; // 子02 のようにカードの外で中央に置くとき
 };
 
-export function UsageMessage({ message, onAction, center = false }: Props) {
+function ClassicUsageMessage({ message, onAction, center = false }: Props) {
   const c = useColors();
   const color = message.tone === "warning" ? c.warning : c.primary;
   return (
@@ -48,3 +51,9 @@ const styles = StyleSheet.create({
   text: { flex: 1, gap: tokens.space[1] },
   textCenter: { gap: tokens.space[1] },
 });
+
+// ── 子ども用の見た目への振り分け（決まりは ../kids-switch.tsx。この部品は画面がファイルを直接読むので、ここで振り分ける） ──
+
+export function UsageMessage(p: ComponentProps<typeof ClassicUsageMessage>) {
+  return useKidsUI() ? <KidsUsageMessage {...p} /> : <ClassicUsageMessage {...p} />;
+}

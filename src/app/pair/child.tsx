@@ -21,6 +21,7 @@ import {
   shouldPoll,
   ticketOf,
 } from "@/components/pair";
+import { withKidsUI } from "@/kids/KidsUI";
 import { call, errorOf, timeoutSignal } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useSession } from "@/lib/session";
@@ -30,7 +31,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 // 「やめる」で QR を取り消すときに待つ長さ（待ちすぎない。取り消せなくても画面は戻る）
 const CANCEL_TIMEOUT_MS = 3_000;
 
-export default function PairChild() {
+function PairChild() {
   const { refresh } = useSession();
   const [view, dispatch] = useReducer(childPairReducer, initialChildPairView);
   const [now, setNow] = useState(() => Date.now());
@@ -293,3 +294,6 @@ export default function PairChild() {
 const styles = StyleSheet.create({
   qr: { flex: 1, justifyContent: "center", gap: tokens.space[4], paddingVertical: tokens.space[8] },
 });
+
+// 子ども側の紐づけは子ども用の見た目（src/kids。Figma「UI子供用」子13〜子19）。
+export default withKidsUI(PairChild);

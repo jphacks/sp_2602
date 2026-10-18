@@ -9,9 +9,12 @@
 //   - カードが Reveal の中にあれば、カードが見えてから伸ばす（透けているうちに伸び終わらないように）
 //   - 読み込み中 → 割合・案内に変わるときは、短く透明から出す
 import { tokens } from "@contracts/tokens";
+import type { ComponentProps } from "react";
 import { useEffect, useRef } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { AppText, Button, Card, FadeIn, Icon, ProgressBar, useRevealDelay } from "@/components";
+import { UsageSummaryCard as KidsUsageSummaryCard } from "@/kids/components/child/UsageSummaryCard";
+import { useKidsUI } from "@/kids/KidsUI";
 import { motion, useAnimatedNumber } from "@/lib/motion";
 import { makeStyles, useColors } from "@/lib/theme";
 import type { UsageMessage as Message, UsageView } from "./child-view";
@@ -26,7 +29,7 @@ type Props = {
   onAction: (kind: NonNullable<Message["action"]>["kind"]) => void;
 };
 
-export function UsageSummaryCard({ view, onDetail, onAction }: Props) {
+function ClassicUsageSummaryCard({ view, onDetail, onAction }: Props) {
   const c = useColors();
   const styles = useStyles();
   const target = view.kind === "percent" ? view.percent : null;
@@ -97,3 +100,9 @@ const useStyles = makeStyles((c) =>
     },
   }),
 );
+
+// ── 子ども用の見た目への振り分け（決まりは ../kids-switch.tsx。この部品は画面がファイルを直接読むので、ここで振り分ける） ──
+
+export function UsageSummaryCard(p: ComponentProps<typeof ClassicUsageSummaryCard>) {
+  return useKidsUI() ? <KidsUsageSummaryCard {...p} /> : <ClassicUsageSummaryCard {...p} />;
+}

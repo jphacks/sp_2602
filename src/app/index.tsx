@@ -8,9 +8,10 @@
 // 通信できないときに起こるが、そのときは保存してある Session で進む = session.tsx の offline）。
 import { Redirect } from "expo-router";
 import { Screen, StateView } from "@/components";
+import { withKidsUI } from "@/kids/KidsUI";
 import { useSession } from "@/lib/session";
 
-export default function Index() {
+function Index() {
   const { state } = useSession();
   if (state.status === "checking")
     return (
@@ -24,3 +25,6 @@ export default function Index() {
   if (role === "parent") return <Redirect href="/parent/home" />;
   return <Redirect href="/pair" />;
 }
+
+// 親子どちらにも出る入口の画面。Figma の子ども用のデザイン（入01・入02・子08・子09・共01〜共03 など）があるので、今は子ども用の見た目（src/kids）で描く。
+export default withKidsUI(Index);
