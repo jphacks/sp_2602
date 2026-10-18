@@ -2,7 +2,6 @@
 // 「初日から 40 分 減」「上限 300→260分」が親03 振り返りと同じ数字になること、数字を出せない日は 0 ではなく文になること、
 // 先の日の分まで渡す（保護者が Slope を開かない日もウィジェットがその日の値を出せる）ことを確かめる。
 import type { ConfigSnapshot, DailyLimit, PlanSettings, TestPeriod } from "@contracts/schemas";
-import type { ConfigState } from "@/lib/config-cache";
 import { describe, expect, it } from "vitest";
 import { limitReduction } from "@/components/parent/review";
 import {
@@ -12,6 +11,7 @@ import {
   reductionForWidget,
   unlinkedParentWidgetData,
 } from "@/components/parent/widget";
+import type { ConfigState } from "@/lib/config-cache";
 
 const today = "2026-10-15";
 const plan = (over: Partial<PlanSettings> = {}): PlanSettings => ({
