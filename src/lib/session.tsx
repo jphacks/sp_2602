@@ -20,10 +20,11 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
-import { canSignOut, canTrustUnlink, clearDeviceOnSignOut, createSessionCore, type SessionState } from "./session-core";
+import { canSignOut, clearDeviceOnSignOut, createSessionCore, type SessionState } from "./session-core";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
 import { applyStatusReporter, statusReporterAction } from "./status-reporter";
 import { appStorage, clearSessionData } from "./storage";
+import { trustUnlinkForApp } from "./trust-unlink";
 
 export type { SessionState } from "./session-core";
 
@@ -68,7 +69,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       },
       // family_unlink を信じるのは、API の送り先が https か、開発中（__DEV__）のときだけ（偽の 401 で制限と Device Owner を
       // 止められないように。session-core.ts の canTrustUnlink）。信じられなければ理由のない 401 と同じにする
-      trustUnlink: () => canTrustUnlink(apiUrl("authMe"), typeof __DEV__ !== "undefined" && __DEV__),
+      trustUnlink: trustUnlinkForApp,
       clearSaved: () => clearSessionData(),
       setState,
     }),
