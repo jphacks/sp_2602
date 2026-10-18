@@ -43,8 +43,10 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 
 ### Q20. 子どもの端末のログアウト
 
-- 今の仮の動き: 子07 にログアウトがある（確認のダイアログつき。`src/components/LogoutListItem.tsx`）。ログアウトで、まず合言葉をサーバでも無効にし（`authSignOut`。D-90）、合言葉・設定のキャッシュ全部・その子どもの送信待ちを消す（`src/lib/sign-out.ts`）。**まだ送っていない利用記録は、ログアウトすると失われる**。監視（Kotlin）はまだないので、ログアウトで監視が止まるかは決めていない。
-- 変える場所: 子どもの画面から外すなら `src/app/child/settings.tsx`。ログアウトで消すものは `src/lib/sign-out.ts` の `clearLocalDataFor`（合言葉は `src/lib/storage.ts` の `clearSessionData`）。
+- **決まった（D-136。2026-10-18 ユーザーが決めた）**: 子どもは自分でログアウトできない。子07 の「ログアウト」（Figma・MVP_SPEC 5.1 にはある）は出さない。子どもの端末がログイン状態から抜けるのは、保護者が連携を外したとき（401 の `family_unlink`。D-133・D-134）だけ。
+- なぜ: ログアウトすると `session.tsx` の `signOut` → `native.clearLocalData()` で端末の制限（Kotlin の監視 `MonitorService`）が止まり、子どもが制限から逃げる道になっていたため。
+- 今の動き: `src/app/child/settings.tsx` に「ログアウト」の行がない。`session.tsx` の `signOut` は役割が子どもなら何もしない。入口 `/pair`（役割選び）の「ログアウト」は子どもには出さない（どちらも `src/lib/session-core.ts` の `canSignOut`。役割が決まる前の人はまだ制限がかかっていないのでログアウトできる）。
+- 変える場所: 子どもにもログアウトを戻すなら `canSignOut` と `src/app/child/settings.tsx`。ログアウトで消すものは `src/lib/sign-out.ts` の `clearLocalDataFor`（合言葉は `src/lib/storage.ts` の `clearSessionData`）。
 
 ### Q21. 安全上の「必須例外」アプリの一覧（C3・C4）
 

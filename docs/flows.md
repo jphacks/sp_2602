@@ -60,12 +60,13 @@ sequenceDiagram
 | 使っている途中の 401 | `src/lib/api.ts` が `setUnauthorizedHandler` で登録された関数にサーバの返事を渡す → `session-core.ts` の `expire` がログアウト状態にし、ログイン画面に「ログインの期限が切れました」の帯（`login-view.ts` の `loginNotice`） |
 | 連携が外れた 401（D-133） | 401 の本文に `reason: "family_unlink"` があれば、ログイン画面の帯はサーバの文「保護者との連携が外れました ／ また使うときは、ログインしてから保護者と QR でつなぎ直してください」。ログアウト状態にしたあとで、`session.tsx` の `clearUnlinked`: `native.clearLocalData()`（Kotlin の監視を止め、判定の値・ウィジェットを消す）と `clearLocalDataFor(userId)`（設定のキャッシュ・その子どもの送信待ち・送ったアプリの一覧）。起動時の確認（`verify`）の 401 も同じ。理由のない 401 ではどちらもしない |
 | 失敗 | 子09 のダイアログ。Google で「やめた」はエラーにしない（`login-view.ts` の `googleOutcome`） |
-| ログアウト | 設定の「ログアウト」→ 確認（`src/components/LogoutListItem.tsx`）→ `session.tsx` の `signOut`：合言葉をサーバでも無効にする（`sign-out.ts` の `revokeServerSession` → `authSignOut`。5 秒まで待ち、失敗しても進める）→ Google のログインを外す → `src/lib/sign-out.ts` の `clearLocalDataFor(userId)`（設定のキャッシュを全部と、その人の送信待ちを消す）→ 合言葉を消す → 入口 |
+| ログアウト | 保護者と、役割が決まる前の人（入口 `/pair` の「ログアウト」）だけ。**子どもは自分でログアウトできない**（D-136。子07 にも出さない。`signOut` も子どもでは何もしない。`session-core.ts` の `canSignOut`）。保護者の設定の「ログアウト」→ 確認（`src/components/LogoutListItem.tsx`）→ `session.tsx` の `signOut`：合言葉をサーバでも無効にする（`sign-out.ts` の `revokeServerSession` → `authSignOut`。5 秒まで待ち、失敗しても進める）→ Google のログインを外す → `src/lib/sign-out.ts` の `clearLocalDataFor(userId)`（設定のキャッシュを全部と、その人の送信待ちを消す）→ 合言葉を消す → 入口 |
 
 合言葉の期限は「最後に使ってから30日（使うたびに延長）」です（`src/server/auth.ts` の `SESSION_IDLE_MS`・`findSession`）。合言葉は DB に SHA-256 のハッシュでだけ残します（`src/server/auth/digest.ts`）。
 `authSignOut` は本文なしなら呼んだ端末の合言葉だけ、`{ "otherDevices": true }` なら同じ人のほかの端末の合言葉をすべて無効にします（端末をなくしたとき用。今のアプリは本文なしだけを使う。`auth.ts` の `signOut`）。
 合言葉の期限切れ（401）のときは合言葉だけを消し、設定のキャッシュと送信待ちは残します（同じ人がログインし直して、残った記録を送れるように）。端末の制限（Kotlin の監視）も止めません（子どもが合言葉の期限切れを待つだけで制限から逃げられないように）。
 保護者に連携を外された 401（`reason: "family_unlink"`）のときだけは、ログアウトと同じく制限を止め、送信待ちも消します（残すと、次に紐づけた保護者へ前の家庭の時期の記録が送られるため。セキュリティ検査 F-2 の残り。D-133）。
+子どもの端末がログイン状態から抜けて制限が止まるのは、この「保護者に連携を外された」ときだけです。子どもは自分でログアウトできません（D-136。前は子07 の「ログアウト」で制限が止まり、制限から逃げる道になっていた）。
 
 ## 2. 役割選び
 
@@ -353,7 +354,7 @@ C7 の決まり（`src/lib/config-cache.ts`）:
 - 判定の値: `child-data.tsx` の `refresh` が毎回 `native.saveRestriction(toNativeRestriction(snapshot, 今日))`（`src/lib/usage-calc.ts`）で Kotlin に渡す。中身は `{ date, limit, upcoming（翌日から14日分の上限）, excludedPackages, essentialPackages, learningPackages, blockedSites（制限する Web サイト。12章）, configVersion, testPeriods（ウィジェット用） }`。`learningPackages` は子11 の「お勧めアプリ」と同じ1つの一覧（`src/lib/usage-calc.ts` の `LEARNING_PACKAGES`。今は仮に Google Classroom・Duolingo）。`limit` は `limited`／`unlimited`／`unset` を分けて渡す。設定が分からないときは渡さない（前の値で判定を続ける）。
 - **Kotlin の監視**（`engine/MonitorService.kt`。Foreground Service・種類は specialUse・通知「Slope が使用時間を見守っています」）:
   - 始まる: 子どもの画面が出たとき（ログイン後）と、設定を取れたとき（`native.startEngine()`）。端末の再起動・Slope の更新のあと（`BootReceiver`。監視を始めたことがあり、判定の値が保存してあるときだけ）。
-  - 止まる: ログアウト（`session.tsx` の `signOut` → `native.clearLocalData()`。監視を止め、Kotlin の保存とウィジェットの値を消す）。
+  - 止まる: 保護者に連携を外されたとき（401 の `family_unlink`。JS は `session.tsx` の `clearUnlinked` → `native.clearLocalData()`、Kotlin は `LocalData.clearUnlinked`。監視を止め、Kotlin の保存とウィジェットの値を消す。D-133・D-134）。子どもは自分でログアウトできないので、子どもの端末ではこれだけ（D-136）。ログアウト（`signOut` → `native.clearLocalData()`）は保護者・役割が決まる前の人だけ。
   - 30 秒ごと（到達している間は 15 秒ごと・画面がついたときはすぐ）に、今日の使用時間を読み、**C3 と同じ規則**（対象外・必須例外を除く・上限 0 分は到達・制限なし／未設定／ルールのない日は到達しない・「使用 ≥ 上限」で到達）で判定する（`LimitRules.kt`）。日付が変わったら `upcoming` から今日の上限を取り出す（Slope を開かなくても次の日を判定できる）。
   - 到達していて、前面のアプリが Slope・ランチャー・システムの画面・対象外アプリ・必須例外のどれでもなく、Slope の画面が前に出ていなければ、子11 を前に出す（`LimitPrompt.kt`）:
     - 「他のアプリの上に表示」が許可されていれば `slope://child/limit-reached` の Activity を起動する（Android 10 以降の裏からの起動の制限の例外）。

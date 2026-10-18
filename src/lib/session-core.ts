@@ -36,6 +36,15 @@ export function isFamilyUnlinked(error: ApiError | null | undefined): boolean {
   return error?.code === "unauthorized" && error.reason === "family_unlink";
 }
 
+// 自分でログアウトできるか（D-136。2026-10-18 ユーザーが決めた「子どものログアウトをなくす」）。
+// 子ども（役割 child）はできない。なぜ: ログアウトすると端末の制限（Kotlin の監視）が止まり、制限から逃げる道になるため。
+//   子どもの端末がログイン状態から抜けるのは、保護者が連携を外したとき（401 の family_unlink。D-133）だけ。
+// 保護者・役割が決まる前（/pair の役割選び。まだ制限がかかっていない）・ログインしていないときはできる。
+// session.tsx の signOut（子どもなら何もしない）と、入口 /pair の「ログアウト」（子どもには出さない）が使う
+export function canSignOut(session: Pick<Session, "role"> | null): boolean {
+  return session?.role !== "child";
+}
+
 export type SessionCoreDeps = {
   storage: KeyValueStorage;
   box: SecretBox; // 合言葉の封（native.ts）

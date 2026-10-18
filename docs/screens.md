@@ -33,7 +33,7 @@ flowchart TD
 |---|---|---|---|---|
 | `src/app/index.tsx` | — | 入口。ログイン状態と役割で振り分ける | `/login`・`/pair`・`/child/home`・`/parent/home` | `useSession()` |
 | `src/app/login.tsx` | 子08（108:6969）・子09（108:6983 ダイアログ） | Google ログイン。設定がなければ MOCK のボタン3つ | 入口 | `src/lib/google.ts`・`useSession().signIn` |
-| `src/app/pair/index.tsx` | なし（Q1。共01 を流用） | 役割選び。先に連携状態を照会する | `/pair/parent`・`/pair/child`・ログアウト | `linkStatus` |
+| `src/app/pair/index.tsx` | なし（Q1。共01 を流用） | 役割選び。先に連携状態を照会する。「ログアウト」は子ども（役割 child）には出さない（D-136） | `/pair/parent`・`/pair/child`・ログアウト | `linkStatus` |
 | `src/app/pair/child.tsx` | 子13（108:8926）〜子19（108:9037） | QR を出し、保護者の読み取りを待ち、「はい／いいえ」で確定。「やめる」は QR を取り消してから戻る | 入口（子19）・`/pair`（やめる・いいえ） | `pairStart`・`pairStatus`・`pairConfirm`・`pairCancel` |
 | `src/app/pair/parent.tsx` | 親10（108:9050）〜親15（108:9130） | カメラの許可・QR の読み取り・子どもの確認待ち | `/pair/usual-limit`（親15）・`/pair/status`・`/pair` | `pairClaim`・`pairStatus` |
 | `src/app/pair/status.tsx` | 共01（108:9143）・共02（108:9156）・共03（108:9171） | 結果が分からないときの照会 | 入口・同じ役割の紐づけ | `linkStatus` |
@@ -47,7 +47,7 @@ flowchart TD
 | `child/usage.tsx`（タブ: 利用割合） | 子02（108:6741） | 円形ゲージ・ペースの札・今週の割合の棒グラフ | 「ホームに戻る」→ 子01 | `calc`、過去の日は `native.getDailyUsage` と日別上限 |
 | `child/schedule-new.tsx`（タブ: 日程登録） | 子03（108:6809）・子04（108:6843 ダイアログ） | テスト期間の登録（名前・開始日・終了日） | 子01 | `testPeriodList`・`testPeriodCreate` |
 | `child/schedule-list.tsx`（タブ: 日程一覧） | 子10（108:7005） | テスト期間の一覧（近い順） | 項目 → 子05、「＋ テストを追加する」→ 子03 | `testPeriodList`（取れなければ C7 の組） |
-| `child/settings.tsx`（タブ: 設定） | 子07（108:6944）・子06（108:6906 ダイアログ） | テスト日程・テーマカラー（白色・黒色。選ぶとすぐ切り替わる）・ログアウト（Q13） | 子10・ログアウト → 入口 | `config` の件数 |
+| `child/settings.tsx`（タブ: 設定） | 子07（108:6944）・子06（108:6906 ダイアログ） | テスト日程・テーマカラー（白色・黒色。選ぶとすぐ切り替わる）（Q13）。「ログアウト」は Figma にはあるが出さない（D-136。子どもがログアウトすると制限が止まるため） | 子10 | `config` の件数 |
 | `child/schedule-edit/[id].tsx`（タブなし・タブは出たまま） | 子05（108:6878） | テスト期間の変更・削除（削除は Figma にないので足した） | 子10 | `flow` の `editTest`・`testPeriodList`・`testPeriodUpdate`・`Delete` |
 | `child/limit-reached.tsx`（タブなし・タブは出たまま） | 子11（108:7024） | 上限に届いたときの案内・お勧めアプリ | 「閉じる」→ 子01 | `calc`・`config`・`test`・`LEARNING_PACKAGES`（`child-data.tsx` から）・`native.openApp` |
 
@@ -133,7 +133,7 @@ flowchart TD
 | `Dialog` | ダイアログ（完了・ログイン失敗・削除やログアウトの確認）。地は薄い紫（色の名前 `dialog`）。`centered` で題名・本文・ボタンを中央にそろえる（Figma 子04・子06・子09・親07）。`iconTone` は `primary`／`success`／`danger` | `<Dialog visible={open} title="登録しました。" centered onClose={close} actions={<Button variant="pill" label="OK" onPress={close} />} />` |
 | `MessageView` | 大きいアイコン＋題名＋本文＋ボタンの1画面（QR・連携の画面）。`spinner` で待ち。`tone` は丸の色、`iconTone` はアイコンの色（Figma は丸を薄い青のまま、アイコンだけ赤・緑にする） | `<MessageView icon="check_circle" iconTone="success" title="…" actions={…} />` |
 | `ListItem` | リストの1行（設定・一覧）。`onPress` があれば › を出す。アイコンは既定で青（`iconTone`）、`strong` で題名を太字（Figma 子07・親04） | `<ListItem icon="event" title="テスト日程の一覧・変更" strong value="2件" onPress={…} />` |
-| `LogoutListItem` | 「ログアウト」の行と確認のダイアログ（親07。子07 でも同じ。ボタンは `pill` の「キャンセル」「ログアウト」）。ログアウトすると端末の設定のキャッシュとその人の送信待ちも消える（`src/lib/sign-out.ts`） | `<LogoutListItem />` |
+| `LogoutListItem` | 「ログアウト」の行と確認のダイアログ（親07。保護者の設定だけ。Figma 子07 にもあるが出さない。D-136。ボタンは `pill` の「キャンセル」「ログアウト」）。ログアウトすると端末の設定のキャッシュとその人の送信待ちも消える（`src/lib/sign-out.ts`） | `<LogoutListItem />` |
 | `TextField` | 入力欄。`error` で赤い枠と文 | `<TextField label="テストの名前" value={name} onChangeText={setName} />` |
 | `DateField` | 日付の入力（Android の日付の選択を開く）。値は `"YYYY-MM-DD"`。表示はいつも年つきの「2026年10月28日（水）」（`contracts/dates.ts` の `formatDateLongJa`） | `<DateField label="開始日" value={d} onChange={setD} />` |
 | `ProgressBar` | 進捗バー（0〜100 に収める） | `<ProgressBar percent={calc.displayUsedPercent} />` |

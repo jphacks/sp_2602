@@ -7,7 +7,7 @@
 //       通信できない → 保存してある Session で続ける（offline: true。子どもの端末が電波なしでも使えるように）
 //   - 確かめ直す（refresh）ときは、この起動の間に使っている Session（メモリ）を先に使う。封ができず端末に置けなかったときも
 //     ログイン画面へ戻されないように（session-core.ts）
-//   - ログアウトは、まず合言葉をサーバでも無効にし（authSignOut。通信できなくても進める）、保存を消し、Google のログインも外す。
+//   - ログアウトは（保護者と役割が決まる前の人だけ。子どもはできない。D-136）、まず合言葉をサーバでも無効にし（authSignOut。通信できなくても進める）、保存を消し、Google のログインも外す。
 //     設定のキャッシュとその人の送信待ちも消す（sign-out.ts。別の人で入り直したときに、前の人の設定やデータが混ざらないように）。
 //     401 で自動でログアウトした（合言葉がもう無効）ときは、サーバには頼まない
 // 画面では: const { state, signIn, signOut, refresh } = useSession();
@@ -18,7 +18,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useM
 import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
-import { createSessionCore, type SessionState } from "./session-core";
+import { canSignOut, createSessionCore, type SessionState } from "./session-core";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
 import { applyStatusReporter, statusReporterAction } from "./status-reporter";
 import { appStorage, clearSessionData } from "./storage";
@@ -29,7 +29,7 @@ type SessionContextValue = {
   state: SessionState;
   // idToken（Google または MOCK）でログインする。成功すれば signedIn になる。失敗は state.error と戻り値で分かる
   signIn: (idToken: string) => Promise<ApiError | null>;
-  // ログアウト（端末の合言葉を消す）
+  // ログアウト（端末の合言葉を消す）。子ども（役割 child）では何もしない（D-136。canSignOut）
   signOut: () => Promise<void>;
   // サーバに本人と役割を確かめ直す（QR の紐づけが終わった後に呼ぶと、role が parent / child になる）
   refresh: () => Promise<void>;
@@ -101,6 +101,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const who = current.current;
+    // 子どもは自分でログアウトできない（D-136。ログアウトすると制限が止まるため。画面にも出していない）。
+    // 抜けるのは保護者が連携を外したとき（expire の family_unlink）だけ
+    if (!canSignOut(who)) return;
     signingOut.current = true;
     try {
       // 端末の合言葉・データを消す前に、サーバでも合言葉を無効にする（失敗は黙って無視して進める。sign-out.ts）
