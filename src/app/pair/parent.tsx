@@ -12,6 +12,7 @@ import { useCallback, useEffect, useReducer, useState } from "react";
 import { AppState, BackHandler, Linking, StyleSheet, View } from "react-native";
 import { AppText, Banner, Button, Dialog, MessageView, Screen, StateView } from "@/components";
 import {
+  claimLimitedText,
   initialParentPairView,
   LinkIncomplete,
   PAIR_POLL_MS,
@@ -197,6 +198,29 @@ export default function PairParent() {
               <>
                 <Button label="もう一度ためす" onPress={() => dispatch({ type: "retrySave" })} />
                 <Button variant="outline" label="やめる" onPress={quit} />
+              </>
+            }
+          >
+            <AppText variant="caption" tone="muted" center>
+              {view.error.message}
+            </AppText>
+          </MessageView>
+        </Screen>
+      );
+    case "claimLimited":
+      // TODO(未決): Figma にない表示（読み取りのまちがいが続き、サーバがしばらく断っている。429）。親14 と同じ形にした。
+      //   本文はサーバの hint（待つ長さ）。同じ番号で押し直しても断られ続けるので「もう一度ためす」は出さず、
+      //   「あとで」を主にする。待った後は「もう一度読み取る」で新しい QR を読める
+      return (
+        <Screen title="Slope" scroll={false}>
+          <MessageView
+            icon="clock"
+            title="しばらく読み取れません"
+            body={`まだ家族にはなっていません。\n${claimLimitedText(view.error)}`}
+            actions={
+              <>
+                <Button label="あとで" onPress={later} />
+                <Button variant="outline" label="もう一度読み取る" onPress={rescan} />
               </>
             }
           >
