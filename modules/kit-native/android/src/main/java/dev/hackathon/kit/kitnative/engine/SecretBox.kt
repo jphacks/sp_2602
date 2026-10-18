@@ -4,7 +4,10 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import android.util.Log
+import java.security.InvalidKeyException
 import java.security.KeyStore
+import java.security.UnrecoverableEntryException
+import java.security.UnrecoverableKeyException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -28,31 +31,47 @@ object SecretBox {
   fun isSealed(value: String): Boolean = value.startsWith(PREFIX)
 
   // 封をする。Keystore が使えないときは null（呼ぶ側は平文で置かずに、保存しないこと）
-  // 鍵が壊れている（あるのに使えない）と、そのままでは毎回失敗して直らない。そこで失敗したら鍵を消して、新しい鍵で1回だけやり直す。
+  // 失敗したら、まず鍵を消さずに1回やり直す（Keystore の一時的な失敗で鍵を消さないため）。
+  // それでも失敗し、しかも鍵が壊れている（あるのに使えない: InvalidKeyException・UnrecoverableKeyException など）ときだけ、
+  // 鍵を消して新しい鍵で1回だけやり直す（そのままでは毎回失敗して直らないため）。
   //   鍵を作り直すと、同じ鍵で封をしたもう一方の値（JS の Session / Kotlin の report_token）は開けなくなるが、
   //   それぞれ既存の「開けない → 消す（JS: loadSession）・送らない（Kotlin: loadReporter が null）→ ログインし直し・JS が setStatusReporter で封をし直す」に落ちる。
   // 開ける側（open）の失敗では鍵を消さない（値の書き換え・一時的な失敗で消すと、他の値まで読めなくなるため）
   @Synchronized
-  fun seal(plain: String): String? =
-    trySeal(plain)
-      ?: run {
-        Log.w(TAG, "鍵を消して作り直します")
-        deleteKey()
-        trySeal(plain)
-      }
+  fun seal(plain: String): String? {
+    trySeal(plain).let { if (it is Sealed.Ok) return it.value }
+    val retry = trySeal(plain)
+    if (retry is Sealed.Ok) return retry.value
+    if (retry !is Sealed.KeyBroken) return null
+    Log.w(TAG, "鍵が壊れているので、消して作り直します")
+    deleteKey()
+    return (trySeal(plain) as? Sealed.Ok)?.value
+  }
 
-  private fun trySeal(plain: String): String? =
+  private sealed interface Sealed {
+    data class Ok(val value: String) : Sealed
+
+    object KeyBroken : Sealed
+
+    object Failed : Sealed
+  }
+
+  private fun trySeal(plain: String): Sealed =
     try {
       val cipher = Cipher.getInstance("AES/GCM/NoPadding")
       cipher.init(Cipher.ENCRYPT_MODE, key()) // IV は Keystore が毎回ランダムに作る
       val iv = cipher.iv
       val body = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
-      PREFIX + Base64.encodeToString(iv + body, Base64.NO_WRAP)
+      Sealed.Ok(PREFIX + Base64.encodeToString(iv + body, Base64.NO_WRAP))
     } catch (e: Exception) {
       // 値や平文は書かない（例外の種類だけ）
       Log.w(TAG, "封ができませんでした（${e.javaClass.name}）")
-      null
+      if (isKeyBroken(e)) Sealed.KeyBroken else Sealed.Failed
     }
+
+  // 鍵そのものが使えないと分かる例外か（KeyPermanentlyInvalidatedException は InvalidKeyException の仲間）
+  private fun isKeyBroken(e: Exception): Boolean =
+    e is InvalidKeyException || e is UnrecoverableKeyException || e is UnrecoverableEntryException
 
   // 開ける。形が違う・鍵が違う（作り直された）・書き換えられているときは null
   @Synchronized

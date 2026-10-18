@@ -98,7 +98,7 @@ main へ入れる前に、このブランチの差分（`origin/main...HEAD`）�
 - **M-3 ログの「場所の行」に入力が混ざった（F-4 の再対応）**: `describeError` が stack の先頭から `at` の行を拾っていたため、message（Drizzle の params = 利用者の入力）に「改行＋空白＋at」があると、入力がログに出た。stack の中の message より後ろだけから拾い、`\r` も分け、制御文字を除く。元のエラー（cause）の場所も 2 行まで出す（`src/server/errors.ts`）。テスト: `tests/server/input-safety.test.ts`。
 - **M-4 DB を開く失敗をすべて 503 にしていた（AVL-04 の再対応）**: `DATABASE_URL` がない・migration の誤りなどの設定ミスまで「一時的に使えない」になり、原因の場所もログに出なかった。接続の失敗だけを 503、それ以外は `DatabaseOpenError` で 500 internal にして元のエラーの種類と場所を出す。失敗した PGlite は閉じてから捨てる（`src/server/db/index.ts`）。`/api/health` は前のまま、開けなければ 503。テスト: `tests/server/db-unavailable.test.ts`。
 - **M-5 封ができない端末で、紐づけの直後にログイン画面へ戻された（F-1 の再対応）**: 封ができないと Session を端末に置かないが、`refresh()` が端末の保存しか読まなかった。今の Session をメモリにも持ち、`refresh()` はメモリ→端末の順に読む（平文では置かない）。ログアウト・401 の後にメモリの値で戻らないよう、入れ替わりの回数で遅れて届いた返事を捨てる（`src/lib/session-core.ts`）。古い平文を封し直す書き込みが失敗しても、読めた Session は返す（`session-store.ts`）。テスト: `tests/lib/session-core.test.ts`・`session-store.test.ts`。
-- **M-6 Keystore の鍵が壊れると直らなかった（F-1 の再対応）**: `SecretBox.seal` が失敗したら鍵を消して 1 回だけ作り直す（`open` の失敗では消さない）。失敗は `Log.w` に例外の種類だけ残す。鍵を作り直すと前に封をした値は開けなくなり、JS はログインし直し、Kotlin は次の `setStatusReporter` で封をし直す。**確認待ち**: 実機。
+- **M-6 Keystore の鍵が壊れると直らなかった（F-1 の再対応）**: `SecretBox.seal` が失敗したら、まず鍵を消さずに 1 回やり直す。それでも失敗し、鍵が壊れていると分かる例外（`InvalidKeyException`・`UnrecoverableKeyException` など）のときだけ、鍵を消して 1 回だけ作り直す（Keystore の一時的な失敗で鍵を消すと、もう一方の封をした値まで開けなくなるため）。`open` の失敗では消さない。失敗は `Log.w` に例外の種類だけ残す。鍵を作り直すと前に封をした値は開けなくなり、JS はログインし直し、Kotlin は次の `setStatusReporter` で封をし直す。**確認待ち**: 実機。
 - ほか: 429 のときにサーバの hint（「1分ほど待ってから」）をログインと QR の画面に出す。古い dev client（`sealSecret` がない）で動かすと、開発中だけ警告を出す。
 - 出す前の作業（`docs/development.md` 8 章）: 0016・0017 をプレビュー・本番へ先に入れる。範囲外の古いデータが残っていないか SQL で確かめる。dev client を作り直す。
 
