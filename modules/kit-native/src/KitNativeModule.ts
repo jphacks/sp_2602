@@ -31,6 +31,9 @@ declare class KitNativeModule extends NativeModule {
   // ── D-113（許可の見張りと親への通告）──
   setStatusReporter(url: string, token: string, childId: string): void;
   clearStatusReporter(): void;
+  // ── 合言葉の封（Android Keystore）──
+  sealSecret(plain: string): string | null;
+  openSecret(sealed: string): string | null;
   // ── C5（保護者のウィジェット）──
   saveParentWidget(data: NativeParentWidget): boolean;
 }

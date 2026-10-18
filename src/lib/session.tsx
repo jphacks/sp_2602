@@ -1,5 +1,5 @@
 // ログイン状態（C1）を画面全体で共有する Context。src/app/_layout.tsx が SessionProvider で包む。
-//   - ログインしたら、合言葉と本人（Session）を端末に保存し、api.ts に合言葉を覚えさせる
+//   - ログインしたら、合言葉と本人（Session）を端末に保存し（Keystore の鍵で封をして。session-store.ts）、api.ts に合言葉を覚えさせる
 //   - 起動時は保存した合言葉で authMe を呼び、サーバで確かめる（役割が変わっていれば新しい役割になる）
 //       401（合言葉が無効）→ 保存を消してログアウト状態
 //       通信できない → 保存してある Session で続ける（offline: true。子どもの端末が電波なしでも使えるように）
@@ -9,14 +9,15 @@
 // 画面では: const { state, signIn, signOut, refresh } = useSession();
 //   state.status: "checking"（確かめ中）/ "signedOut"（ログインしていない）/ "signedIn"（session あり）
 import type { ApiError } from "@contracts/errors";
-import { Session } from "@contracts/schemas";
+import type { Session } from "@contracts/schemas";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl, call, errorOf, isUnauthorized, setSessionToken, setUnauthorizedHandler } from "./api";
 import { signOutGoogle } from "./google";
 import { native } from "./native";
+import { loadSession, saveSession } from "./session-store";
 import { clearLocalDataFor, revokeServerSession } from "./sign-out";
 import { applyStatusReporter, statusReporterAction } from "./status-reporter";
-import { appStorage, clearSessionData, readJson, storageKeys, writeJson } from "./storage";
+import { appStorage, clearSessionData } from "./storage";
 
 export type SessionState =
   | { status: "checking" }
@@ -52,13 +53,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const adopt = useCallback(async (session: Session) => {
     setSessionToken(session.token);
-    await writeJson(appStorage, storageKeys.session, session).catch(() => undefined);
+    // 合言葉は Android Keystore の鍵で封をしてから置く（session-store.ts。封ができなければ置かない）
+    await saveSession(appStorage, native, session).catch(() => undefined);
     setState({ status: "signedIn", session, offline: false });
   }, []);
 
   // 保存してある合言葉で、サーバに確かめる
   const verify = useCallback(async () => {
-    const saved = await readJson(appStorage, storageKeys.session, Session);
+    const saved = await loadSession(appStorage, native).catch(() => null);
     if (!saved) {
       setState({ status: "signedOut", error: null });
       return;

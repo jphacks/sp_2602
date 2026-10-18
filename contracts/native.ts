@@ -136,6 +136,12 @@ export interface NativeEngine {
   // 送り先と合言葉を消す（保護者・役割のない人・合言葉が無効になった 401 のとき。ログアウトは clearLocalData で消える）
   clearStatusReporter(): void;
 
+  // ── 合言葉の封（セキュリティ検査 PII-05 / AND-05）──
+  // ログインの Session（合言葉を含む）を端末に置く前に、Android Keystore の鍵で封をする（"sb1:…"）・読むときに開ける。
+  // 封ができない・開けない（Kotlin がない・鍵が作り直された・書き換えられた）ときは null。null なら平文で置かない
+  sealSecret(plain: string): string | null;
+  openSecret(sealed: string): string | null;
+
   // ── C5（保護者のウィジェット・親08）──
   // 保護者のウィジェットの値を端末に保存し、ウィジェットを保護者の形で描き直す。
   // ウィジェットは1つ（SlopeWidget）で、最後に保存した役割（saveRestriction = 子ども・saveParentWidget = 保護者）の形で描く

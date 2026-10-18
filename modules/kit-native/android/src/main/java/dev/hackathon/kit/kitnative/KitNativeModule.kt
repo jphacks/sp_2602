@@ -12,6 +12,7 @@ import dev.hackathon.kit.kitnative.engine.LimitPrompt
 import dev.hackathon.kit.kitnative.engine.LimitRules
 import dev.hackathon.kit.kitnative.engine.MonitorService
 import dev.hackathon.kit.kitnative.engine.PermissionNudge
+import dev.hackathon.kit.kitnative.engine.SecretBox
 import dev.hackathon.kit.kitnative.engine.StatusReporter
 import dev.hackathon.kit.kitnative.engine.UsageReader
 import dev.hackathon.kit.kitnative.widget.SlopeWidget
@@ -184,6 +185,13 @@ class KitNativeModule : Module() {
       EngineStore.clearReporter(ctx)
       StatusReporter.cancelHeartbeat(ctx)
     }
+
+    // ── 合言葉の封（セキュリティ検査 PII-05 / AND-05）──────────────────
+    // JS がログインの Session（合言葉を含む）を AsyncStorage に置く前に封をする・読んだら開ける（src/lib/session-store.ts）。
+    // 鍵は Android Keystore（engine/SecretBox.kt）。封ができない・開けないときは null（JS は平文で置かない・ログインし直し）
+    Function("sealSecret") { plain: String -> SecretBox.seal(plain) }
+
+    Function("openSecret") { sealed: String -> SecretBox.open(sealed) }
 
     // ── C5（保護者のウィジェット・Figma 親08）──────────────────────
 

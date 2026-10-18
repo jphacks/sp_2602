@@ -19,7 +19,7 @@ export const appStorage: KeyValueStorage = AsyncStorage;
 
 // キーの一覧（ここ以外でキーの文字列を書かない。消し忘れ・打ち間違いを防ぐ）
 export const storageKeys = {
-  session: "slope.session", // ログインした人（Session。合言葉を含む）
+  session: "slope.session", // ログインした人（Session。合言葉を含むので、封をした形でだけ置く。session-store.ts）
   config: (childId: string) => `slope.config.${childId}`, // C7 の最後の正常なスナップショット
   configIndex: "slope.config-index", // 設定のキャッシュを持っている子どもの一覧（ログアウトで全部消すため）
   outbox: "slope.usage-outbox", // C8 の送信待ち

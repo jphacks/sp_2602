@@ -33,7 +33,9 @@ import org.json.JSONObject
 //   "engine_enabled" … Boolean。startEngine で true、stopEngine・clearLocalData（ログアウト）で false。再起動後に監視を始めるかの印
 //   ── 許可の見張りと親への通告（D-113。StatusReporter.kt）──
 //   "report_url"     … String。許可の状態の送り先（サーバの deviceStatusReport の完全な URL）。JS の setStatusReporter が書く
-//   "report_token"   … String。そのときの合言葉（子どもの session token）。clearStatusReporter・401・clearLocalData で消える
+//   "report_token_sealed" … String。そのときの合言葉（子どもの session token）を SecretBox で封をしたもの（"sb1:…"）。
+//                     clearStatusReporter・401・clearLocalData で消える。平文では置かない（セキュリティ検査 PII-05 / AND-05）
+//   "report_token"   … 古い版が平文で置いた合言葉。読んだときに封をし直して消す（新しくは書かない）
 //   "report_child_id"… String。送る本文の childId（子ども本人の userId）
 //   "report_sent"    … String。最後に届いた許可の状態（PermissionFlags.encode() の "1101" の形）
 //   "report_sent_at" … Long。最後に届いた時刻（ミリ秒）
@@ -72,7 +74,8 @@ object EngineStore {
   const val KEY_ENGINE_ENABLED = "engine_enabled"
   const val ACTION_TODAY_UPDATED = "dev.hackathon.kit.kitnative.TODAY_UPDATED"
   const val KEY_REPORT_URL = "report_url"
-  const val KEY_REPORT_TOKEN = "report_token"
+  const val KEY_REPORT_TOKEN_SEALED = "report_token_sealed"
+  const val KEY_REPORT_TOKEN_LEGACY = "report_token" // 古い版の平文（読んだら封をし直して消す）
   const val KEY_REPORT_CHILD_ID = "report_child_id"
   const val KEY_REPORT_SENT = "report_sent"
   const val KEY_REPORT_SENT_AT = "report_sent_at"
@@ -144,7 +147,20 @@ object EngineStore {
 
   // ── 許可の状態の送り先と合言葉（D-113）──
   // なぜ合言葉を native に置くか: 送るのは Kotlin の監視（アプリを閉じていても動く）で、JS の保存場所（AsyncStorage）は読めないため。
-  // 置き場所はアプリ専用（MODE_PRIVATE）で、JS の合言葉の保存と同じ守り方。ログアウト（clear）・401 で消す
+  // 置き場所はアプリ専用（MODE_PRIVATE）で、合言葉は Android Keystore の鍵で封をしてから置く（SecretBox。JS の保存も同じ鍵）。
+  // ログアウト（clear）・401 で消す
+
+  // 今の合言葉（封を開けたもの）。ない・開けない（鍵が作り直された）ときは null。
+  // 古い版が平文で置いた値は、ここで封をし直して平文を消す（封ができなければ平文を消すだけ。平文のまま残さない）
+  private fun currentToken(p: SharedPreferences): String? {
+    p.getString(KEY_REPORT_TOKEN_SEALED, null)?.let { return SecretBox.open(it) }
+    val legacy = p.getString(KEY_REPORT_TOKEN_LEGACY, null) ?: return null
+    val sealed = SecretBox.seal(legacy)
+    val edit = p.edit().remove(KEY_REPORT_TOKEN_LEGACY)
+    if (sealed != null) edit.putString(KEY_REPORT_TOKEN_SEALED, sealed)
+    edit.commit()
+    return if (sealed != null) legacy else null
+  }
 
   // 送り先と合言葉を保存する。前と違えば送った記録も消して true（次の見張りですぐ送る）。同じなら何もしないで false
   @Synchronized
@@ -152,15 +168,22 @@ object EngineStore {
     val p = prefs(context)
     if (
       p.getString(KEY_REPORT_URL, null) == url &&
-      p.getString(KEY_REPORT_TOKEN, null) == token &&
+      currentToken(p) == token &&
       p.getString(KEY_REPORT_CHILD_ID, null) == childId
     ) {
+      return false
+    }
+    // 封ができない（Keystore が使えない）ときは、平文で置かずに送るのをやめる
+    val sealed = SecretBox.seal(token)
+    if (sealed == null) {
+      clearReporter(context)
       return false
     }
     p
       .edit()
       .putString(KEY_REPORT_URL, url)
-      .putString(KEY_REPORT_TOKEN, token)
+      .putString(KEY_REPORT_TOKEN_SEALED, sealed)
+      .remove(KEY_REPORT_TOKEN_LEGACY)
       .putString(KEY_REPORT_CHILD_ID, childId)
       .remove(KEY_REPORT_SENT)
       .remove(KEY_REPORT_SENT_AT)
@@ -169,10 +192,11 @@ object EngineStore {
     return true
   }
 
+  @Synchronized
   fun loadReporter(context: Context): ReporterAccess? {
     val p = prefs(context)
     val url = p.getString(KEY_REPORT_URL, null)
-    val token = p.getString(KEY_REPORT_TOKEN, null)
+    val token = currentToken(p)
     val childId = p.getString(KEY_REPORT_CHILD_ID, null)
     if (url.isNullOrEmpty() || token.isNullOrEmpty() || childId.isNullOrEmpty()) return null
     return ReporterAccess(url, token, childId)
@@ -184,7 +208,8 @@ object EngineStore {
     prefs(context)
       .edit()
       .remove(KEY_REPORT_URL)
-      .remove(KEY_REPORT_TOKEN)
+      .remove(KEY_REPORT_TOKEN_SEALED)
+      .remove(KEY_REPORT_TOKEN_LEGACY)
       .remove(KEY_REPORT_CHILD_ID)
       .remove(KEY_REPORT_SENT)
       .remove(KEY_REPORT_SENT_AT)
@@ -195,7 +220,7 @@ object EngineStore {
   // 401 が返ったとき: 送ったときの合言葉がまだ保存されていれば消す（送っている間に JS が新しい合言葉を渡していたら消さない）
   @Synchronized
   fun clearReporterIfToken(context: Context, token: String) {
-    if (prefs(context).getString(KEY_REPORT_TOKEN, null) == token) clearReporter(context)
+    if (currentToken(prefs(context)) == token) clearReporter(context)
   }
 
   fun loadReportState(context: Context): ReportState {
@@ -211,7 +236,7 @@ object EngineStore {
   @Synchronized
   fun saveReportSent(context: Context, token: String, flags: PermissionFlags, at: Long) {
     val p = prefs(context)
-    if (p.getString(KEY_REPORT_TOKEN, null) != token) return
+    if (currentToken(p) != token) return
     p.edit().putString(KEY_REPORT_SENT, flags.encode()).putLong(KEY_REPORT_SENT_AT, at).remove(KEY_REPORT_RETRY_AT).apply()
   }
 
@@ -219,7 +244,7 @@ object EngineStore {
   @Synchronized
   fun saveReportFailed(context: Context, token: String, retryAt: Long) {
     val p = prefs(context)
-    if (p.getString(KEY_REPORT_TOKEN, null) != token) return
+    if (currentToken(p) != token) return
     p.edit().putLong(KEY_REPORT_RETRY_AT, retryAt).apply()
   }
 

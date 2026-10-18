@@ -131,6 +131,10 @@ export const native: NativeEngine & {
   setStatusReporter: (url, token, childId) => callSafe("setStatusReporter", undefined, url, token, childId),
   clearStatusReporter: () => callSafe("clearStatusReporter", undefined),
 
+  // ── 合言葉の封（Kotlin がないときは null = 保存しない）──
+  sealSecret: (plain) => callSafe("sealSecret", null, plain),
+  openSecret: (sealed) => callSafe("openSecret", null, sealed),
+
   // ── C5（保護者のウィジェット）──
   saveParentWidget: (data) => callSafe("saveParentWidget", undefined, data),
 };
