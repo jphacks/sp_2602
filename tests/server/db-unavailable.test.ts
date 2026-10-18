@@ -11,6 +11,10 @@ import { CHILD_ID, fresh, get, ok, PARENT, post } from "../verify/helpers";
 const NOW = "2026-10-15T03:00:00.000Z";
 const template = process.env.SLOPE_TEST_PGLITE_TEMPLATE;
 
+// DB を閉じて開き直すテストの時間の上限。開き直し（写しの展開・マイグレーション）は重く、ほかのテストのファイルと一緒に流して
+// CPU が混んでいると、全体の上限（vitest.config.ts の 30 秒）を超えることがあった（単独なら通る）。テストの中身は変えない
+const REOPEN_TIMEOUT_MS = 90_000;
+
 afterEach(() => {
   process.env.SLOPE_TEST_PGLITE_TEMPLATE = template;
   vi.doUnmock("drizzle-orm/pglite/migrator");
@@ -71,7 +75,7 @@ describe("DB が閉じた・開けないときの API（AVL-04）", () => {
     await closeDatabaseClientForTests();
     expect(await ok(get("/api/health", null))).toMatchObject({ ok: true });
     await ok(usage());
-  });
+  }, REOPEN_TIMEOUT_MS);
 
   it("開き直せない間、接続の失敗なら health もログインが要る API も 503 unavailable（中身は返さない）。開ければ 200 に戻る", async () => {
     await fresh(NOW);
@@ -97,7 +101,7 @@ describe("DB が閉じた・開けないときの API（AVL-04）", () => {
     vi.doUnmock("drizzle-orm/pglite/migrator");
     expect(await ok(get("/api/health", null))).toMatchObject({ ok: true });
     await ok(usage());
-  });
+  }, REOPEN_TIMEOUT_MS);
 
   it("開けない理由が接続ではない（設定・マイグレーションの誤り）なら 500 internal。ログに元のエラーの種類と場所が出る", async () => {
     await fresh(NOW);
@@ -119,7 +123,7 @@ describe("DB が閉じた・開けないときの API（AVL-04）", () => {
     process.env.SLOPE_TEST_PGLITE_TEMPLATE = template;
     expect(await ok(get("/api/health", null))).toMatchObject({ ok: true });
     await ok(usage());
-  });
+  }, REOPEN_TIMEOUT_MS);
 
   it("マイグレーションの SQL の誤りは 500 internal。作りかけの PGlite は閉じてから捨てる", async () => {
     await fresh(NOW);
@@ -141,5 +145,5 @@ describe("DB が閉じた・開けないときの API（AVL-04）", () => {
 
     vi.doUnmock("drizzle-orm/pglite/migrator");
     await ok(usage());
-  });
+  }, REOPEN_TIMEOUT_MS);
 });
