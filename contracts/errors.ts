@@ -10,6 +10,7 @@ export const ErrorCode = z.enum([
   "upstream_failed", // 外部サービス（AI・DB など）が失敗した
   "timeout", // 時間切れ
   "rate_limited", // 呼び出し回数の上限
+  "unavailable", // サーバの DB につながらないなど、一時的に使えない（503。少し待てば直る）
   "network", // 通信できない（クライアント側でだけ作る）
   "internal", // それ以外のサーバの不具合
 ]);
@@ -32,6 +33,7 @@ export const errorStatus: Record<ErrorCode, number> = {
   upstream_failed: 502,
   timeout: 504,
   rate_limited: 429,
+  unavailable: 503,
   network: 0,
   internal: 500,
 };
@@ -46,6 +48,7 @@ export const errorText: Record<ErrorCode, { message: string; hint: string }> = {
   upstream_failed: { message: "外部のサービスが応答しませんでした", hint: "少し待ってから、もう一度押してください" },
   timeout: { message: "時間がかかりすぎて中断しました", hint: "もう一度押してください" },
   rate_limited: { message: "混み合っています", hint: "30秒ほど待ってから、もう一度押してください" },
+  unavailable: { message: "ただいま使えません", hint: "少し待ってから、もう一度押してください" },
   network: { message: "通信できませんでした", hint: "接続を確認して、もう一度押してください" },
   internal: { message: "うまく処理できませんでした", hint: "もう一度押してください。続く場合は担当者に伝えてください" },
 };

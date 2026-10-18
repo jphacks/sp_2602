@@ -77,6 +77,7 @@ export function isUncertain(error: ApiError): boolean {
     error.code === "timeout" ||
     error.code === "internal" ||
     error.code === "upstream_failed" ||
+    error.code === "unavailable" ||
     error.code === "rate_limited"
   );
 }
@@ -98,6 +99,7 @@ export function issueFailedText(error: ApiError): IssueFailedText {
       return { body: "混み合っています。少し待ってから、もう一度ためしてください。", next: "retry" };
     case "internal":
     case "upstream_failed":
+    case "unavailable":
       return { body: "うまく処理できませんでした。少し待ってから、もう一度ためしてください。", next: "retry" };
     default:
       return { body: error.hint, next: "home" };

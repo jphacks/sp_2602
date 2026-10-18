@@ -15,23 +15,38 @@ import { PgTable } from "drizzle-orm/pg-core";
 import type { Database } from "../../../backend/src/db/index.js";
 import * as schema from "../../../backend/src/db/schema/index.js";
 import { isMock } from "../env.js";
+import { DatabaseUnavailableError } from "../errors.js";
 import { seedMockAccounts } from "../seed/demo.js";
 
 export { isDatabaseHealthy } from "../../../backend/src/db/health.js";
 export type Db = Database;
 
-type RuntimeDb = { db: Db; kind: "neon" | "pglite"; close?: () => Promise<void> };
+type RuntimeDb = { db: Db; kind: "neon" | "pglite"; close?: () => Promise<void>; isClosed?: () => boolean };
 // 開発中の再読み込みでも作り直さないよう、プロセスに1つだけ持つ
 const g = globalThis as unknown as { __slopeRuntimeDb?: Promise<RuntimeDb> };
 
+// 手元の DB（PGlite）が閉じていたら開き直す（セキュリティ検査 AVL-04: 前は閉じたものを使い続け、どの API も失敗し続けた）。
+// Neon は接続の池（Pool）が切れた接続を自分で張り直すので、ここでは何もしない
 export async function db(): Promise<Db> {
+  const pending = runtime();
+  const opened = await pending;
+  if (!opened.isClosed?.()) return opened.db;
+  // 同時に呼ばれたほかの呼び出しがもう開き直していたら、それを使う（2つ開かない）
+  if (g.__slopeRuntimeDb === pending) g.__slopeRuntimeDb = undefined;
   return (await runtime()).db;
+}
+
+// テスト用: 手元の DB（PGlite）を、覚えたまま閉じる（DB が落ちたときの API の返事と、開き直しを確かめるため）
+export async function closeDatabaseClientForTests(): Promise<void> {
+  if (process.env.DATABASE_URL || !process.env.VITEST) throw new Error("テストの手元の DB でだけ使えます");
+  await (await runtime()).close?.();
 }
 
 function runtime(): Promise<RuntimeDb> {
   g.__slopeRuntimeDb ??= open().catch((error) => {
     g.__slopeRuntimeDb = undefined; // 失敗したら次の呼び出しでやり直す
-    throw error;
+    // API は 500 ではなく 503 unavailable を返す（errors.ts の isDatabaseUnavailable）
+    throw new DatabaseUnavailableError("DB を開けませんでした", { cause: error });
   });
   return g.__slopeRuntimeDb;
 }
@@ -76,7 +91,7 @@ async function connect(): Promise<RuntimeDb> {
   const { migrate } = await import("drizzle-orm/pglite/migrator");
   await migrate(local, { migrationsFolder: fileURLToPath(new URL("../../../backend/drizzle", import.meta.url)) });
   // 問い合わせの書き方は同じなので、型は本番にそろえる
-  return { db: local as unknown as Db, kind: "pglite", close: () => client.close() };
+  return { db: local as unknown as Db, kind: "pglite", close: () => client.close(), isClosed: () => client.closed };
 }
 
 // テスト用: 手元の DB（PGlite）を空にして、seed なら見本を入れ直す。Neon には決して使わない（本物のデータを消さないように）

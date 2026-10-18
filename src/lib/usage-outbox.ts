@@ -63,7 +63,7 @@ export type FlushResult = { sent: number; retrying: number; quarantined: number;
 
 // 直らない失敗（送り直しても同じ結果になる）か。true なら隔離する
 //   bad_request（形が違う）・forbidden（この端末の子どもではない）・conflict（同じ ID で中身が違う）・not_found
-// それ以外（network・timeout・upstream_failed・internal・rate_limited・unauthorized）は一時的とみなして送り直す
+// それ以外（network・timeout・upstream_failed・unavailable・internal・rate_limited・unauthorized）は一時的とみなして送り直す
 // （unauthorized はログインし直せば送れるので隔離しない）
 export function isPermanentError(error: ApiError): boolean {
   return ["bad_request", "forbidden", "conflict", "not_found"].includes(error.code);
