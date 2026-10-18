@@ -61,6 +61,31 @@ data class TodaySummary(
     other != null && copy(measuredAt = 0) == other.copy(measuredAt = 0)
 }
 
+// 封を開けた合言葉のメモリの置き場（EngineStore の合言葉。純粋な部分。JVM のテスト EngineRulesTest）。
+// 封をした値（sealed）と組にして持ち、違う封を聞かれたら開け直して入れ替える。開けられなければ何も持たない（次にまた試す）。
+// ディスクには書かない（平文はプロセスのメモリにだけ）。使う側（EngineStore）のロックの中で呼ぶ
+class OpenedSecretCache {
+  private var sealed: String? = null
+  private var plain: String? = null
+
+  fun get(sealedNow: String, open: (String) -> String?): String? {
+    if (sealed == sealedNow) plain?.let { return it }
+    val p = open(sealedNow)
+    if (p == null) clear() else put(sealedNow, p)
+    return p
+  }
+
+  fun put(sealedNow: String, plainNow: String) {
+    sealed = sealedNow
+    plain = plainNow
+  }
+
+  fun clear() {
+    sealed = null
+    plain = null
+  }
+}
+
 // 許可の状態の送り先と合言葉と子どもの id（D-113）
 data class ReporterAccess(val url: String, val token: String, val childId: String)
 
@@ -150,15 +175,26 @@ object EngineStore {
   // 置き場所はアプリ専用（MODE_PRIVATE）で、合言葉は Android Keystore の鍵で封をしてから置く（SecretBox。JS の保存も同じ鍵）。
   // ログアウト（clear）・401 で消す
 
-  // 今の合言葉（封を開けたもの）。ない・開けない（鍵が作り直された）ときは null。
+  // 封を開けた合言葉を、プロセスのメモリにだけ持つ（電池: 監視の見張り（30 秒ごと。上限に達したあとは 5 秒ごと）と
+  // 許可の状態の送信のたびに、Keystore で封を開け直さないように）。ディスクには平文で置かない（置くのは封をした値だけ）。
+  // 封をした値（sealed）と組にして持ち、置いてある封と違えば使わずに開け直す。
+  // saveReporter（入れ替える）・clearReporter・clear（消す）・clearReporterIfToken（clearReporter で消す）・
+  // ifReporterToken（中で片付けたあとに消す）で必ず合わせる。アプリが作り直されたら、最初の1回だけ開ける
+  private val opened = OpenedSecretCache()
+
+  // 今の合言葉（封を開けたもの）。ない・開けない（鍵が作り直された）ときは null。呼ぶのは @Synchronized の中だけ。
   // 古い版が平文で置いた値は、ここで封をし直して平文を消す（封ができなければ平文を消すだけ。平文のまま残さない）
   private fun currentToken(p: SharedPreferences): String? {
-    p.getString(KEY_REPORT_TOKEN_SEALED, null)?.let { return SecretBox.open(it) }
+    p.getString(KEY_REPORT_TOKEN_SEALED, null)?.let { sealed ->
+      return opened.get(sealed) { SecretBox.open(it) }
+    }
+    opened.clear()
     val legacy = p.getString(KEY_REPORT_TOKEN_LEGACY, null) ?: return null
     val sealed = SecretBox.seal(legacy)
     val edit = p.edit().remove(KEY_REPORT_TOKEN_LEGACY)
     if (sealed != null) edit.putString(KEY_REPORT_TOKEN_SEALED, sealed)
     edit.commit()
+    if (sealed != null) opened.put(sealed, legacy)
     return if (sealed != null) legacy else null
   }
 
@@ -189,6 +225,7 @@ object EngineStore {
       .remove(KEY_REPORT_SENT_AT)
       .remove(KEY_REPORT_RETRY_AT)
       .apply()
+    opened.put(sealed, token)
     return true
   }
 
@@ -205,6 +242,7 @@ object EngineStore {
   // 送り先・合言葉・送った記録を消す（保護者・役割のない人になった・ログアウト）
   @Synchronized
   fun clearReporter(context: Context) {
+    opened.clear()
     prefs(context)
       .edit()
       .remove(KEY_REPORT_URL)
@@ -234,7 +272,11 @@ object EngineStore {
   @Synchronized
   fun ifReporterToken(context: Context, token: String, block: () -> Unit): Boolean {
     if (currentToken(prefs(context)) != token) return false
-    block()
+    try {
+      block()
+    } finally {
+      opened.clear() // 中で片付けた（clear）ときに、前の合言葉をメモリに残さない（残っていても次は開け直す）
+    }
     return true
   }
 
@@ -267,6 +309,7 @@ object EngineStore {
   // 同期で書く（commit）: このあとすぐウィジェットを描き直すので、消えたあとの値を読ませる
   @Synchronized
   fun clear(context: Context) {
+    opened.clear()
     prefs(context).edit().clear().commit()
   }
 

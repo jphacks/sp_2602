@@ -89,7 +89,7 @@ object SessionCheck {
    */
   fun checkIfDue(context: Context, interactive: Boolean, now: Long = System.currentTimeMillis()): Boolean {
     if (!EngineStore.isEngineEnabled(context)) return false
-    // 確かめる時期かを先に決める（合言葉の封を開ける loadReporter は Keystore を使うので、見張りのたびには開けない）
+    // 確かめる時期かを先に決める（通信は時期のときだけ。合言葉は EngineStore が開けたものをメモリに持つので、Keystore は使い直さない）
     if (!SessionCheckRules.shouldCheck(now, lastCheckedAt, failures, interactive)) return false
     if (!busy.compareAndSet(false, true)) return false
     try {
