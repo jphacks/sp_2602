@@ -34,7 +34,7 @@ import org.json.JSONObject
 //   ── 許可の見張りと親への通告（D-113。StatusReporter.kt）──
 //   "report_url"     … String。許可の状態の送り先（サーバの deviceStatusReport の完全な URL）。JS の setStatusReporter が書く
 //   "report_token_sealed" … String。そのときの合言葉（子どもの session token）を SecretBox で封をしたもの（"sb1:…"）。
-//                     clearStatusReporter・401・clearLocalData で消える。平文では置かない（セキュリティ検査 PII-05 / AND-05）
+//                     clearStatusReporter・401・clearLocalData（LocalData.clear）で消える。平文では置かない（セキュリティ検査 PII-05 / AND-05）
 //   "report_token"   … 古い版が平文で置いた合言葉。読んだときに封をし直して消す（新しくは書かない）
 //   "report_child_id"… String。送る本文の childId（子ども本人の userId）
 //   "report_sent"    … String。最後に届いた許可の状態（PermissionFlags.encode() の "1101" の形）
@@ -222,6 +222,10 @@ object EngineStore {
   fun clearReporterIfToken(context: Context, token: String) {
     if (currentToken(prefs(context)) == token) clearReporter(context)
   }
+
+  // 送ったときの合言葉が、まだ保存してある合言葉か（連携が外れた 401 で、端末の値を消してよいかを決める。D-133）
+  @Synchronized
+  fun isReporterToken(context: Context, token: String): Boolean = currentToken(prefs(context)) == token
 
   fun loadReportState(context: Context): ReportState {
     val p = prefs(context)

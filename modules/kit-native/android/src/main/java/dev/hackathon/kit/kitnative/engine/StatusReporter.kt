@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
+import dev.hackathon.kit.kitnative.LocalData
 import dev.hackathon.kit.kitnative.R
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -25,6 +26,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 //   送り先と合言葉: JS がログイン時・起動時に setStatusReporter で渡し、EngineStore に保存してある（子どもだけ）。
 //   失敗: 時間切れ・通信できない・サーバの不具合は黙って次の機会に回す（RETRY_MS あと）。
 //     401（合言葉が無効）なら保存した合言葉を消して、送るのをやめる（JS がもう一度ログインすれば渡し直す）。
+//     401 の理由が「保護者が連携を外した」（family_unlink。D-133）なら、さらに監視を止めて端末に残した値を消す（LocalData.clear）。
+//     アプリを開かなくても、外された端末の制限が止まるように。JS は次に開いたときに同じ 401 を受け、送信待ちを消して知らせる
 //   送る中身: 許可ごとのオン/オフと測った時刻だけ（使用時間・アプリ名・URL は送らない）。
 // 新しい依存を足さないため HttpURLConnection で送る（1回の本文は 200 バイトほど）。
 object StatusReporter {
@@ -62,6 +65,14 @@ object StatusReporter {
         ReportOutcome.Unauthorized -> {
           EngineStore.clearReporterIfToken(context, access.token)
           cancelHeartbeat(context)
+        }
+        ReportOutcome.Unlinked -> {
+          // 送っている間に JS が新しい合言葉を渡していたら（ログインし直して紐づけ直した）、消さない
+          if (EngineStore.isReporterToken(context, access.token)) {
+            LocalData.clear(context)
+          } else {
+            cancelHeartbeat(context)
+          }
         }
         is ReportOutcome.Failed -> {
           EngineStore.saveReportFailed(context, access.token, now + outcome.retryAfterMs)

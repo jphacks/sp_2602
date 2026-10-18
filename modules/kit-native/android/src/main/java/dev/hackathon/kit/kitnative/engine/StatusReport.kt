@@ -36,6 +36,10 @@ sealed class ReportOutcome {
   // 合言葉が無効（401 で、本文がサーバの ApiError の unauthorized）。保存した合言葉を消して送るのをやめる
   object Unauthorized : ReportOutcome()
 
+  // 合言葉が無効で、その理由が「保護者が連携を外した」（401 の本文に reason: "family_unlink"。D-133）。
+  // 合言葉を消すのに加えて、ログアウトと同じく監視を止め、端末に残した値を消す（LocalData.clear）
+  object Unlinked : ReportOutcome()
+
   // 届かなかった・断られた。retryAfterMs のあとにやり直す
   data class Failed(val retryAfterMs: Long) : ReportOutcome()
 }
@@ -91,16 +95,20 @@ object StatusReportRules {
   }
 
   private val UNAUTHORIZED = Regex("\"code\"\\s*:\\s*\"unauthorized\"")
+  private val FAMILY_UNLINK = Regex("\"reason\"\\s*:\\s*\"family_unlink\"")
 
   /**
    * サーバの返事を読む。401 は本文がサーバの ApiError の unauthorized のときだけ「合言葉が無効」にする
    * （Vercel の保護ページなど、ほかの仕組みの 401 で合言葉を消さない。src/lib/api.ts と同じ考え方）。
+   * そのうち reason が family_unlink（保護者が連携を外した）のときだけ Unlinked にする。ほかの 401（期限切れ・ログアウトされた）で
+   * 監視を止めると、子どもが合言葉の期限切れを待つだけで制限から逃げられるので、止めない（src/lib/session-core.ts と同じ考え方）。
    * ほかの 4xx（403 など。時間切れ 408・混雑 429 を除く）は送り直しても同じなので、生存報告の間隔まで待つ
    */
   fun outcome(status: Int, errorBody: String?): ReportOutcome =
     when {
       status in 200..299 -> ReportOutcome.Sent
-      status == 401 && errorBody != null && UNAUTHORIZED.containsMatchIn(errorBody) -> ReportOutcome.Unauthorized
+      status == 401 && errorBody != null && UNAUTHORIZED.containsMatchIn(errorBody) ->
+        if (FAMILY_UNLINK.containsMatchIn(errorBody)) ReportOutcome.Unlinked else ReportOutcome.Unauthorized
       status in 400..499 && status != 408 && status != 429 -> ReportOutcome.Failed(HEARTBEAT_MS)
       else -> ReportOutcome.Failed(RETRY_MS)
     }

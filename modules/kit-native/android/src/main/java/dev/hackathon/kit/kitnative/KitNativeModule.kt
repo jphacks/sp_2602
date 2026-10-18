@@ -153,18 +153,11 @@ class KitNativeModule : Module() {
       PermissionNudge.cancel(ctx)
     }
 
-    // ログアウトのときに、この端末に残した値を全部消す（監視を止め、判定の値・今日の使用量・ウィジェットのテストの日程を消して、
-    // ウィジェットを描き直す）。前の人の値が、次にログインした人の判定やウィジェットに残らないようにするため
+    // ログアウトのとき・保護者に連携を外されたと分かったとき（D-133）に、この端末に残した値を全部消す（監視を止め、判定の値・
+    // 今日の使用量・ウィジェットのテストの日程を消して、ウィジェットを描き直す）。前の人の値が、次にログインした人の判定や
+    // ウィジェットに残らないようにするため。中身は LocalData.kt（許可の状態を送った返事で外されたと分かったときも同じものを呼ぶ）
     Function("clearLocalData") {
-      val ctx = context
-      EngineStore.setEngineEnabled(ctx, false) // 先に印を消す（動いている監視が、消した値を書き戻さないように）
-      MonitorService.stop(ctx)
-      EngineStore.clear(ctx) // 許可の状態の送り先と合言葉（D-113）もここで消える
-      StatusReporter.cancelHeartbeat(ctx)
-      PermissionNudge.cancel(ctx)
-      LimitPrompt.cancelLimitNotification(ctx)
-      WidgetStore.clear(ctx)
-      SlopeWidget.requestUpdate(ctx)
+      LocalData.clear(context)
     }
 
     // ── D-113（許可の見張りと親への通告）──────────────────────────

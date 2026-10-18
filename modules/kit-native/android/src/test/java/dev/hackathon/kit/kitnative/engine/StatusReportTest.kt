@@ -9,7 +9,8 @@ import org.junit.Test
 // 許可の見張りと親への通告（D-113）の純粋な部分のテスト（StatusReport.kt）。
 //   cd android && ./gradlew :kit-native:testDebugUnitTest
 // 確かめること: 変わったとき・15 分ごと・失敗のあとの待ち・時計が戻ったときに送るか、送る本文の形（使用時間などを入れない）、
-//   サーバの返事の読み方（401 は ApiError の unauthorized のときだけ合言葉を消す）、ユーザー補助の催促の出し分け
+//   サーバの返事の読み方（401 は ApiError の unauthorized のときだけ合言葉を消す。理由が family_unlink なら監視も止める）、
+//   ユーザー補助の催促の出し分け
 class StatusReportTest {
   private val min = 60_000L
   private val allOn = PermissionFlags(usageAccess = true, overlay = true, notifications = true, accessibility = true)
@@ -75,6 +76,23 @@ class StatusReportTest {
     assertEquals(
       ReportOutcome.Unauthorized,
       StatusReportRules.outcome(401, "{\"code\": \"unauthorized\",\"message\":\"x\",\"hint\":\"y\"}"),
+    )
+    // 保護者が連携を外した 401（reason: family_unlink。D-133）だけ Unlinked（監視を止めて端末の値を消す）
+    assertEquals(
+      ReportOutcome.Unlinked,
+      StatusReportRules.outcome(
+        401,
+        "{\"code\":\"unauthorized\",\"message\":\"x\",\"hint\":\"y\",\"reason\": \"family_unlink\"}",
+      ),
+    )
+    // 理由が違う 401 では監視を止めない。unauthorized でない本文に reason があっても止めない
+    assertEquals(
+      ReportOutcome.Unauthorized,
+      StatusReportRules.outcome(401, "{\"code\":\"unauthorized\",\"message\":\"x\",\"hint\":\"y\",\"reason\":\"other\"}"),
+    )
+    assertEquals(
+      ReportOutcome.Failed(StatusReportRules.HEARTBEAT_MS),
+      StatusReportRules.outcome(401, "{\"code\":\"forbidden\",\"reason\":\"family_unlink\"}"),
     )
     // サーバの ApiError でない 401（Vercel の保護ページなど）では合言葉を消さない（ほかの 4xx と同じく、生存報告の間隔まで待つ）
     assertEquals(ReportOutcome.Failed(StatusReportRules.HEARTBEAT_MS), StatusReportRules.outcome(401, "<html>"))
