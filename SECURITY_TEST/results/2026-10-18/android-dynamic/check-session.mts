@@ -1,0 +1,10 @@
+import { writeFileSync } from 'node:fs';
+import { mockSessions } from '../../../../contracts/fixtures.js';
+const who = process.argv[2];
+const tag = process.argv[3];
+if (!['parent', 'child'].includes(who ?? '') || !/^[a-z0-9-]+$/.test(tag ?? '')) throw new Error('Invalid label');
+const session = mockSessions[who === 'parent' ? 'mock-google-parent' : 'mock-google-child'];
+const response = await fetch('http://127.0.0.1:4313/api/auth/me', { headers: { Authorization: `Bearer ${session.token}` } });
+const result = { roleTested: who, status: response.status, time: new Date().toISOString() };
+writeFileSync(new URL(`./${tag}.json`, import.meta.url), JSON.stringify(result, null, 2) + '\n');
+console.log(JSON.stringify(result));

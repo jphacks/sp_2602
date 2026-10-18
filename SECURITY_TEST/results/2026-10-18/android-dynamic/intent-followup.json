@@ -1,0 +1,38 @@
+[
+  {
+    "case": "missing-uri-forged-role",
+    "amExitCode": 0,
+    "loginControlsVisible": true,
+    "parentHeadingVisible": false
+  },
+  {
+    "case": "parent-plan-uri",
+    "amExitCode": 0,
+    "loginControlsVisible": true,
+    "parentHeadingVisible": false
+  },
+  {
+    "case": "pair-status-uri",
+    "amExitCode": 0,
+    "loginControlsVisible": true,
+    "parentHeadingVisible": false
+  },
+  {
+    "case": "pair-setting-uri",
+    "amExitCode": 0,
+    "loginControlsVisible": true,
+    "parentHeadingVisible": false
+  },
+  {
+    "case": "unexpected-host",
+    "amExitCode": 0,
+    "loginControlsVisible": false,
+    "parentHeadingVisible": false
+  },
+  {
+    "case": "bounded-extra-16k",
+    "amExitCode": 0,
+    "loginControlsVisible": false,
+    "parentHeadingVisible": false
+  }
+]

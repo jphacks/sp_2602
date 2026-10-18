@@ -1,0 +1,53 @@
+{
+  "package": "com.quedotcom.androidslope",
+  "rawAppDataCopiedOutsideAvd": false,
+  "database": {
+    "syntheticTokenMarkerPresent": true,
+    "probeSucceeded": true
+  },
+  "activeSessionRowState": "not inferred from raw marker; see UI/API checks",
+  "safeDatabaseSummary": {
+    "sessionRows": 1,
+    "role": "child",
+    "configRows": 1,
+    "outboxEntries": 0
+  },
+  "safeOutboxMetadata": [],
+  "preferences": [
+    {
+      "file": "WebViewChromiumPrefs.xml",
+      "syntheticTokenMarkerPresent": false,
+      "probeSucceeded": true
+    },
+    {
+      "file": "com.quedotcom.androidslope_preferences.xml",
+      "syntheticTokenMarkerPresent": false,
+      "probeSucceeded": true
+    },
+    {
+      "file": "expo.modules.devlauncher.recentyopenedapps.xml",
+      "syntheticTokenMarkerPresent": false,
+      "probeSucceeded": true
+    },
+    {
+      "file": "expo.modules.devmenu.sharedpreferences.xml",
+      "syntheticTokenMarkerPresent": false,
+      "probeSucceeded": true
+    },
+    {
+      "file": "expo.modules.kotlin.PersistentDataManager.xml",
+      "syntheticTokenMarkerPresent": false,
+      "probeSucceeded": true
+    },
+    {
+      "file": "slope.widget.xml",
+      "syntheticTokenMarkerPresent": false,
+      "probeSucceeded": true
+    },
+    {
+      "file": "slope_engine.xml",
+      "syntheticTokenMarkerPresent": true,
+      "probeSucceeded": true
+    }
+  ]
+}

@@ -1,0 +1,465 @@
+{
+  "observedAt": "2026-10-18T03:00:28.652Z",
+  "server": "127.0.0.1:4311",
+  "database": "ephemeral PGlite",
+  "cases": [
+    {
+      "id": "API-01",
+      "status": 401,
+      "body": {
+        "code": "unauthorized",
+        "message": "ログインが確認できませんでした",
+        "hint": "もう一度 Google でログインしてください"
+      }
+    },
+    {
+      "id": "API-02",
+      "status": 401,
+      "body": {
+        "code": "unauthorized",
+        "message": "ログインが確認できませんでした",
+        "hint": "もう一度 Google でログインしてください"
+      }
+    },
+    {
+      "id": "API-03",
+      "status": 403,
+      "body": {
+        "code": "forbidden",
+        "message": "保護者だけができる操作です",
+        "hint": "保護者の端末から操作してください"
+      }
+    },
+    {
+      "id": "API-04",
+      "status": 403,
+      "body": {
+        "code": "forbidden",
+        "message": "連携していない子どもの情報は扱えません",
+        "hint": "QR で連携してから操作してください"
+      }
+    },
+    {
+      "id": "API-05",
+      "status": 403,
+      "body": {
+        "code": "forbidden",
+        "message": "連携していない子どもの情報は扱えません",
+        "hint": "QR で連携してから操作してください"
+      }
+    },
+    {
+      "id": "API-06",
+      "status": 403,
+      "body": {
+        "code": "forbidden",
+        "message": "ほかの子どもの情報は扱えません",
+        "hint": "自分の端末の情報だけを扱ってください"
+      }
+    },
+    {
+      "id": "IN-04",
+      "status": 400,
+      "body": {
+        "code": "bad_request",
+        "message": "入力の内容を受け付けられませんでした",
+        "hint": "入力を見直して、もう一度送ってください",
+        "issues": [
+          {
+            "path": "planStartDate",
+            "message": "存在しない日付です"
+          }
+        ]
+      }
+    },
+    {
+      "id": "IN-05",
+      "status": 400,
+      "body": {
+        "code": "bad_request",
+        "message": "入力の内容を受け付けられませんでした",
+        "hint": "入力を見直して、もう一度送ってください",
+        "issues": [
+          {
+            "path": "startLimitMinutes",
+            "message": "Too small: expected number to be >=0"
+          },
+          {
+            "path": "finalGoalMinutes",
+            "message": "最終目標は開始上限と同じか、それより少なくしてください"
+          }
+        ]
+      }
+    },
+    {
+      "id": "API-07",
+      "status": 200,
+      "body": {
+        "configVersion": 1,
+        "calculationVersion": 1,
+        "usualLimitMinutes": 88
+      }
+    },
+    {
+      "id": "API-08a",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "mock": true
+      }
+    },
+    {
+      "id": "API-08b",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "見つかりませんでした",
+        "hint": "最初の画面からやり直してください"
+      }
+    },
+    {
+      "id": "API-08c",
+      "status": 401,
+      "body": {
+        "code": "unauthorized",
+        "message": "ログインが確認できませんでした",
+        "hint": "もう一度 Google でログインしてください"
+      }
+    },
+    {
+      "id": "API-12a",
+      "status": 403,
+      "body": {
+        "code": "forbidden",
+        "message": "連携していない子どもの情報は扱えません",
+        "hint": "QR で連携してから操作してください"
+      }
+    },
+    {
+      "id": "API-12b",
+      "status": 403,
+      "body": {
+        "code": "forbidden",
+        "message": "連携していない子どもの情報は扱えません",
+        "hint": "QR で連携してから操作してください"
+      }
+    },
+    {
+      "id": "IN-07",
+      "status": 200,
+      "body": {
+        "configVersion": 1,
+        "calculationVersion": 1,
+        "usualLimitMinutes": 88
+      }
+    },
+    {
+      "id": "IN-11",
+      "status": 400,
+      "body": {
+        "code": "bad_request",
+        "message": "送る内容が大きすぎます",
+        "hint": "入力を見直して、もう一度送ってください"
+      }
+    },
+    {
+      "id": "AVL-01",
+      "status": 200,
+      "body": {
+        "token": "[redacted synthetic token]",
+        "userId": "10000000-0000-4000-8000-000000000001",
+        "name": "parentA",
+        "role": "parent"
+      }
+    },
+    {
+      "id": "IN-01",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "code": "[redacted synthetic QR code]",
+        "expiresAt": "2026-10-18T03:10:17.977Z"
+      }
+    },
+    {
+      "id": "IN-01-observation",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "state": "waiting",
+        "child": {
+          "id": "[synthetic child id]",
+          "name": "' OR '1'='1"
+        },
+        "parentName": null,
+        "expiresAt": "2026-10-18T03:10:17.977Z"
+      }
+    },
+    {
+      "id": "IN-02",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "code": "[redacted synthetic QR code]",
+        "expiresAt": "2026-10-18T03:10:18.015Z"
+      }
+    },
+    {
+      "id": "IN-02-observation",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "state": "waiting",
+        "child": {
+          "id": "[synthetic child id]",
+          "name": "<script>alert(1)</script>"
+        },
+        "parentName": null,
+        "expiresAt": "2026-10-18T03:10:18.015Z"
+      }
+    },
+    {
+      "id": "IN-03a",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "code": "[redacted synthetic QR code]",
+        "expiresAt": "2026-10-18T03:10:18.046Z"
+      }
+    },
+    {
+      "id": "IN-03b",
+      "status": 400,
+      "body": {
+        "code": "bad_request",
+        "message": "入力の内容を受け付けられませんでした",
+        "hint": "入力を見直して、もう一度送ってください",
+        "issues": [
+          {
+            "path": "name",
+            "message": "Too big: expected string to have <=40 characters"
+          }
+        ]
+      }
+    },
+    {
+      "id": "IN-08a",
+      "status": 200,
+      "body": {
+        "submissionId": "60000000-0000-4000-8000-000000000001",
+        "status": "accepted",
+        "appliedDates": [
+          "2026-10-18"
+        ]
+      }
+    },
+    {
+      "id": "IN-08b",
+      "status": 200,
+      "body": {
+        "submissionId": "60000000-0000-4000-8000-000000000001",
+        "status": "duplicate",
+        "appliedDates": [
+          "2026-10-18"
+        ]
+      }
+    },
+    {
+      "id": "IN-08c",
+      "status": 409,
+      "body": {
+        "code": "conflict",
+        "message": "同じ送信 ID で、違う内容の記録が届きました",
+        "hint": "この記録は送り直さずに、新しい送信 ID で送ってください"
+      }
+    },
+    {
+      "id": "API-09a",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "code": "[redacted synthetic QR code]",
+        "expiresAt": "2026-10-18T03:10:18.139Z"
+      }
+    },
+    {
+      "id": "API-10",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "このペアリングは見つかりません",
+        "hint": "QR をもう一度出してください"
+      }
+    },
+    {
+      "id": "API-09b",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "state": "claimed",
+        "child": {
+          "id": "[synthetic child id]",
+          "name": "QR child A"
+        },
+        "parentName": "qrParent",
+        "expiresAt": "2026-10-18T03:10:18.139Z"
+      }
+    },
+    {
+      "id": "API-09c",
+      "status": 409,
+      "body": {
+        "code": "conflict",
+        "message": "この QR コードはもう使われています",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "API-09d",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "state": "linked",
+        "child": {
+          "id": "[synthetic child id]",
+          "name": "QR child A"
+        },
+        "parentName": "qrParent",
+        "expiresAt": "2026-10-18T03:10:18.139Z"
+      }
+    },
+    {
+      "id": "API-11",
+      "status": 409,
+      "body": {
+        "code": "conflict",
+        "message": "まだ保護者が読み取っていません",
+        "hint": "保護者の端末で QR を読み取ってもらってください"
+      }
+    },
+    {
+      "id": "PII-09a",
+      "status": 200,
+      "body": {
+        "pairId": "[synthetic pair id]",
+        "code": "[redacted synthetic QR code]",
+        "expiresAt": "2026-10-18T03:10:18.264Z"
+      }
+    },
+    {
+      "id": "PII-09b",
+      "status": 409,
+      "body": {
+        "code": "conflict",
+        "message": "この QR コードは期限が切れています",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "API-11-side-effect",
+      "status": "observed",
+      "body": {
+        "familyLinksForQrChild": 1
+      }
+    },
+    {
+      "id": "AVL-01-1",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-2",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-3",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-4",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-5",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-6",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-7",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-8",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-9",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-10",
+      "status": 404,
+      "body": {
+        "code": "not_found",
+        "message": "この QR コードは使えません",
+        "hint": "子どもの端末で QR を出し直してください"
+      }
+    },
+    {
+      "id": "AVL-01-11",
+      "status": 429,
+      "body": {
+        "code": "rate_limited",
+        "message": "QR コードの読み取りに何度も失敗したため、しばらく受け付けません",
+        "hint": "10分ほど待ってから、子どもの端末で QR を出し直して読み取ってください"
+      }
+    }
+  ]
+}

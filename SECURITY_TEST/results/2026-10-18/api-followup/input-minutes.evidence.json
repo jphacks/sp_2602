@@ -1,0 +1,246 @@
+{
+  "runtime": "synthetic in-memory PGlite; loopback HTTP only",
+  "source": "isolated snapshot 0ddfc7e",
+  "requestCount": 14,
+  "minimumRequestStartSpacingMs": 1050,
+  "cases": [
+    {
+      "case": "usedMinutes:negative",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 6,
+        "dayReports": 6,
+        "appRecords": 30
+      },
+      "after": {
+        "batches": 6,
+        "dayReports": 6,
+        "appRecords": 30
+      }
+    },
+    {
+      "case": "usedMinutes:zero",
+      "status": 200,
+      "code": null,
+      "expected": "accepted",
+      "databaseCountsUnchangedOnReject": null,
+      "before": {
+        "batches": 6,
+        "dayReports": 6,
+        "appRecords": 30
+      },
+      "after": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "usedMinutes:decimal",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "usedMinutes:max-safe-integer",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "usedMinutes:string",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "usedMinutes:null",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "usedMinutes:array",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "restrictedMinutes:negative",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "restrictedMinutes:zero",
+      "status": 200,
+      "code": null,
+      "expected": "accepted",
+      "databaseCountsUnchangedOnReject": null,
+      "before": {
+        "batches": 7,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "restrictedMinutes:decimal",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "restrictedMinutes:max-safe-integer",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "restrictedMinutes:string",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "restrictedMinutes:null",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    },
+    {
+      "case": "restrictedMinutes:array",
+      "status": 400,
+      "code": "bad_request",
+      "expected": "rejected",
+      "databaseCountsUnchangedOnReject": true,
+      "before": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      },
+      "after": {
+        "batches": 8,
+        "dayReports": 7,
+        "appRecords": 31
+      }
+    }
+  ]
+}

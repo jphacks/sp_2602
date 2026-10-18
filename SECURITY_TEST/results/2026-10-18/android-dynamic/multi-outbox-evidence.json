@@ -1,0 +1,82 @@
+{
+  "executedAt": "2026-10-18T05:25:32.763451+00:00",
+  "beforeFirstFlush": [
+    {
+      "submissionId": "11111111-2222-4333-8444-555555555501",
+      "state": "pending",
+      "attempts": 1,
+      "nextAttemptAt": "2026-10-18T05:00:30.000Z",
+      "errorCode": "network",
+      "dayDates": [
+        "2026-10-17"
+      ]
+    },
+    {
+      "submissionId": "11111111-2222-4333-8444-555555555502",
+      "state": "pending",
+      "attempts": 2,
+      "nextAttemptAt": "2026-10-18T05:02:00.000Z",
+      "errorCode": "network",
+      "dayDates": [
+        "2026-10-18"
+      ]
+    },
+    {
+      "submissionId": "11111111-2222-4333-8444-555555555503",
+      "state": "pending",
+      "attempts": 0,
+      "nextAttemptAt": "2026-10-18T05:01:30.000Z",
+      "errorCode": null,
+      "dayDates": [
+        "2026-10-18"
+      ]
+    }
+  ],
+  "afterFirstFlush": [
+    {
+      "submissionId": "11111111-2222-4333-8444-555555555503",
+      "state": "quarantined",
+      "attempts": 1,
+      "nextAttemptAt": "2026-10-18T05:01:30.000Z",
+      "errorCode": "forbidden",
+      "dayDates": [
+        "2026-10-18"
+      ]
+    }
+  ],
+  "beforeDuplicateFlush": [
+    {
+      "submissionId": "11111111-2222-4333-8444-555555555501",
+      "state": "pending",
+      "attempts": 1,
+      "nextAttemptAt": "2026-10-18T05:00:30.000Z",
+      "errorCode": "network",
+      "dayDates": [
+        "2026-10-17"
+      ]
+    },
+    {
+      "submissionId": "11111111-2222-4333-8444-555555555503",
+      "state": "quarantined",
+      "attempts": 1,
+      "nextAttemptAt": "2026-10-18T05:01:30.000Z",
+      "errorCode": "forbidden",
+      "dayDates": [
+        "2026-10-18"
+      ]
+    }
+  ],
+  "afterDuplicateFlush": [
+    {
+      "submissionId": "11111111-2222-4333-8444-555555555503",
+      "state": "quarantined",
+      "attempts": 1,
+      "nextAttemptAt": "2026-10-18T05:01:30.000Z",
+      "errorCode": "forbidden",
+      "dayDates": [
+        "2026-10-18"
+      ]
+    }
+  ],
+  "cleanedOutbox": []
+}

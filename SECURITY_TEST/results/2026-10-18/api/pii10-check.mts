@@ -1,0 +1,15 @@
+import { createServer } from 'node:http';
+import { randomBytes } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
+import { eq } from 'drizzle-orm';
+import app from '../../../../src/server/app.ts';
+import { db } from '../../../../src/server/db/index.ts';
+import { digest } from '../../../../src/server/auth/digest.ts';
+import { users,userSessions,familyLinks } from '../../../../backend/src/db/schema/index.ts';
+process.env.MOCK='1';process.env.DATABASE_URL='';process.env.LOCAL_DB_DIR='';process.env.VERCEL_ENV='';
+const d=await db();const p='81000000-0000-4000-8000-000000000001',c='81000000-0000-4000-8000-000000000002';const pt=randomBytes(32).toString('base64url'),ct=randomBytes(32).toString('base64url');
+await d.insert(users).values([{id:p,role:'parent',displayName:'synthetic parent'},{id:c,role:'child',displayName:'synthetic child'}]);
+await d.insert(userSessions).values([{userId:p,tokenHash:digest(pt)},{userId:c,tokenHash:digest(ct)}]);await d.insert(familyLinks).values({parentId:p,childId:c});
+const server=createServer((req,res)=>app.fetch(new Request(`http://127.0.0.1:4312${req.url}`,{method:req.method,headers:req.headers as HeadersInit,body:['GET','HEAD'].includes(req.method||'')?undefined:req,duplex:'half'} as RequestInit)).then(async x=>{res.statusCode=x.status;x.headers.forEach((v,k)=>res.setHeader(k,v));res.end(Buffer.from(await x.arrayBuffer()));}));await new Promise<void>(r=>server.listen(4312,'127.0.0.1',r));
+const res=await fetch('http://127.0.0.1:4312/api/family/unlink',{method:'POST',headers:{authorization:`Bearer ${pt}`,'content-type':'application/json'},body:JSON.stringify({childId:c})});const response=await res.json();await new Promise(r=>setTimeout(r,1000));const famRes=await fetch('http://127.0.0.1:4312/api/family/get',{headers:{authorization:`Bearer ${pt}`}});const family=await famRes.json();const [child]=await d.select({role:users.role}).from(users).where(eq(users.id,c));const links=await d.select().from(familyLinks);const [session]=await d.select({revokedAt:userSessions.revokedAt}).from(userSessions).where(eq(userSessions.userId,c));
+const evidence={server:'127.0.0.1:4312',database:'ephemeral PGlite',requests:2,minRequestStartIntervalMs:1000,cases:[{id:'PII-10-unlink',status:res.status,body:response},{id:'PII-10-after',status:famRes.status,body:{childrenRemaining:family.children?.length,childRole:child.role,activeLinkCount:links.length,childSessionRevoked:session.revokedAt!==null}}]};await writeFile(new URL('./pii10-evidence.json',import.meta.url),`${JSON.stringify(evidence,null,2)}\n`,'utf8');await new Promise<void>(r=>server.close(()=>r()));console.log('PII-10 sanitized evidence written.');

@@ -1,0 +1,26 @@
+{
+  "server": "127.0.0.1:4312",
+  "database": "ephemeral PGlite",
+  "requests": 2,
+  "minRequestStartIntervalMs": 1000,
+  "cases": [
+    {
+      "id": "PII-10-unlink",
+      "status": 200,
+      "body": {
+        "childId": "81000000-0000-4000-8000-000000000002",
+        "revokedSessions": 1
+      }
+    },
+    {
+      "id": "PII-10-after",
+      "status": 200,
+      "body": {
+        "childrenRemaining": 0,
+        "childRole": null,
+        "activeLinkCount": 1,
+        "childSessionRevoked": true
+      }
+    }
+  ]
+}

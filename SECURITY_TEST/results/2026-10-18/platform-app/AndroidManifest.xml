@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="local.slope.securityprobe">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
+  <queries><package android:name="com.quedotcom.androidslope" /></queries>
+  <application android:label="Slope Security Probe" android:allowBackup="false" android:debuggable="false">
+    <activity android:name=".ProbeActivity" android:exported="true">
+      <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+    </activity>
+  </application>
+</manifest>
