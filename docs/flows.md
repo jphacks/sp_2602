@@ -120,7 +120,8 @@ stateDiagram-v2
 - `pairConfirm` で断るもの: QR を出した子ども以外（forbidden）、期限切れ・まだ読まれていない・役割が合わない・その間に別の相手と連携した（conflict）。
 - `pairCancel`（子どもの「やめる」）: `waiting`・`claimed` の QR を `expired` にする（保護者が読んだ後でも、子どもが「はい」を押す前なら取り消せる）。`expired`・`rejected` はそのまま返す（何度呼んでも同じ）。もう `linked` なら conflict。QR を出した子ども以外は forbidden（関わっていない人は not_found）。
 - 親1人↔子1人（Q2）: すでに連携している人は QR を出せない・読めない・確定できない（`oneToOne` の conflict）。
-- `familyUnlink`（保護者だけ。`{ childId }`）: 連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする（`auth.ts` の `unlinkChild`）。応答は `{ childId, revokedSessions }`。子どもの設定・利用記録は残す（`TODO(未決)`。[open-questions.md](open-questions.md)）。画面はまだない。
+- `familyUnlink`（保護者だけ。`{ childId }`）: 連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする（`auth.ts` の `unlinkChild`）。応答は `{ childId, revokedSessions }`。同じトランザクションで、子どもの家庭ごとのデータ（利用記録・日別上限・計画・通常上限・テスト期間・空白期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の許可の状態）を消し、設定の版を 1 上げ（0 に戻さない。端末が前の版より小さい版を「古い」と見ないように）、誰が・いつ・どの子どもを外したかを `audit_events` に1行残す（`backend/src/db/family-unlink.ts`。D-101）。残すと、別の保護者と紐づけ直したときに前の家庭のデータが見えるため（F-2）。同じ保護者と紐づけ直しても、設定は最初から入れ直し。画面はまだない。
+- 回数の上限（D-131）: `pairStart` は1人1分に5回、`authGoogle` は同じ IP から1分に20回・同じ人から1分に10回まで。こえたら `rate_limited`（429）。数は DB の表 `rate_limit_hits` に残す（`src/server/rate-limit.ts`）。
 - 確定（`linked`）のとき、QR を出すときに入れた呼び名（`PairStart.name`。省けば Google のアカウント名）を子どもの名前として残す。以後の `familyGet`・`linkStatus`・`authMe` も同じ名前になる。
 
 ### 子どもの画面の移り変わり（`src/components/pair/child-flow.ts` の `childPairReducer`）
@@ -371,7 +372,7 @@ flowchart LR
 |---|---|
 | `accepted`・`duplicate` | サーバに保存済みなので送信待ちから消す |
 | 直らない失敗（`bad_request`・`forbidden`・`conflict`・`not_found`） | その記録だけ**隔離**（`quarantined`）。自動では送り直さない。ほかの記録は送り続ける |
-| それ以外（通信・時間切れ・サーバの不具合・`rate_limited`・`unauthorized`） | 送信待ちのまま。30秒・60秒…と倍にして最大15分あけて送り直す（`backoffMs`。回数の上限なし） |
+| それ以外（通信・時間切れ・サーバの不具合・`unavailable`・`rate_limited`・`unauthorized`） | 送信待ちのまま。30秒・60秒…と倍にして最大15分あけて送り直す（`backoffMs`。回数の上限なし） |
 
 5. サーバ側（`usageUpload`）:
    - 同じ送信 ID・同じ中身 → `duplicate`（二重に保存しない）。日やアプリの並びだけが違うのは同じ中身とみなす（`fingerprintOf`）。

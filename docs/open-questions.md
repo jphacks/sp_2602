@@ -137,11 +137,13 @@ C10 の未決の点は、`src/server/plan/daily-limits.ts` の `DailyLimitOption
 
 ### Neon に migration を入れる
 
-- コードを Vercel に出す前に、プレビューと本番の DB に `backend/drizzle/0011_auth_rules_and_list_versions.sql` を入れる（それぞれの `DATABASE_URL` で `npm run db:migrate`。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。入れないと、QR の読み取り・期間の一覧・設定の保存が失敗します。
+- **コードを Vercel に出す前に、プレビューと本番の両方の DB に `backend/drizzle/0016_family_unlink_audit.sql`・`0017_rate_limit_hits.sql` を入れる**（それぞれの `DATABASE_URL` で `npm run db:migrate`。まだ入っていない `0011_auth_rules_and_list_versions.sql` などの前のものも一緒に入る。[development.md の 8章](development.md#8-vercel-の-dbneonを扱う)）。**入れずに出すと、`authGoogle`・`pairStart` が表 `rate_limit_hits` が無くて 500 になり、ログインできなくなります**（`familyUnlink` も `audit_events` が無くて 500）。0011 を入れていなければ、QR の読み取り・期間の一覧・設定の保存も失敗します。
+- 出す前に、範囲の外の古いデータ（2000〜2099 年の外の日付・Android の形でないアプリ名）が残っていないかを SQL で確かめる（[development.md の「出す前に確かめる SQL」](development.md#出す前に確かめる-sql範囲の外の古いデータ)）。残っていると、それを返す API が出力の契約チェックで 500 になります（D-128・D-129）。
+- この版を入れたら dev client を作り直す（合言葉を封する `sealSecret`・`openSecret` が Kotlin に増えたため。[development.md](development.md#この版を入れたら-dev-client-を作り直す)）。
 
 ### 外した子どものデータ
 
-- `familyUnlink` で外した子どもの設定・利用記録は残しています（D-101。上の 2章の「サーバ」の表）。消すか残すかを決めます。
+- **決めた（2026-10-18・セキュリティ検査 F-2）: 消す**。`familyUnlink` で外した子どもの家庭ごとのデータは、同じトランザクションで消し、設定の版を 1 上げ、外した記録を `audit_events` に残します（D-101。上の 2章の「サーバ」の表）。残っている気がかりは、子どもの端末の送信待ち（今日・昨日の分）が紐づけ直したあとに送られることがある点です（同じ表の「変えるときに直す所」）。
 
 ## 5. デバッグで残った、判断が要るもの（2026-10-17）
 

@@ -16,6 +16,7 @@
 | F-2 PII-10 連携を外したあと、別の保護者に前の家庭のデータが見える（高） | 修正 | 下の F-2 / F-7 |
 | F-7 IPA-15 連携を外す操作の監査記録がない | 修正 | 下の F-2 / F-7 |
 | F-5 AVL-01 ログイン・QR の発行に回数の上限がない | 修正 | 下の F-5 |
+| M-1〜M-6 main へ入れる前の点検で見つけたもの | 修正 | 下の「main へ入れる前の点検」 |
 
 ## 1. 合言葉の平文保存（F-1）
 
@@ -84,5 +85,28 @@
   - `authGoogle`: IP ごとに 1 分 20 回（Google の確認より先に数える。家庭・学校では保護者と子どもの端末が同じ IP になるので多め）。同じ人（Google の sub・MOCK の idToken）ごとに 1 分 10 回。
   - `pairStart`: 1 人 1 分 5 回（1 回ごとに `pair_tickets` へ行を書くため。QR は 10 分使えるので、ふつうは 1 回で足りる）。
 - IP は Vercel が付ける `x-real-ip`・`x-forwarded-for` の先頭（Vercel は利用者が送った値を上書きする）。ヘッダがない手元のサーバ・テストでは IP ごとの上限は数えず、人ごとの上限だけが効く。
-- 限界: 数えてから書くので、同時に届いた分だけ上限を少し超えることはある。監査ログ（AVL-01 の期待結果）は出していない。
+- 自分の行を先に足してから、自分を含めて窓の中の件数を数え、上限を超えていたら自分の行を消して 429（下の M-2）。同時に届いても通るのは上限まで。ちょうど同時に上限を超える数が届くと、多めに断ることがある（安全側）。
+- 限界: 監査ログ（AVL-01 の期待結果）は出していない。
 - テスト: `tests/verify/revoke-and-limit.test.ts` の F-5（pairStart は 5 回の次が 429・ほかの子どもは止まらない・1 分たてば出せる。authGoogle は同じ人 10 回の次が 429・ほかの人は止まらない・1 分たてば入れる。同じ IP 20 回の次が 429・ほかの IP は止まらない・通らない idToken でも数える）。`tests/verify/security.test.ts` の「QR の code を 20 回出す」は、上限にかからないように 12 秒ずつ時計を進めるようにした。
+
+## main へ入れる前の点検（M-1〜M-6）
+
+main へ入れる前に、このブランチの差分（`origin/main...HEAD`）を、DB・サーバ・契約・Android・アプリ・文書に分けて読み直した。見つけたものと直し方。
+
+- **M-1 電源断の番号の誤り（動作・重大）**: `ForegroundTime.kt` が `DEVICE_SHUTDOWN` を 17 としていた（D9 の検証のコミットで入った退行）。正しくは 26 で、17 は `KEYGUARD_SHOWN`（android.jar で確認）。電源を切っても区間が閉じず、再起動の後まで前のアプリを使っていたことになっていた。26 に戻し、`UsageEvents.Event` の定数と比べるテストと、電源断で区間が閉じるテストを足した（`UsageWindowCalculatorTest.kt`）。
+- **M-2 回数の上限が同時の呼び出しですり抜けた（F-5 の再対応・重大）**: `countCall` が「数える→足す」を別々に行っていたため、同じ子どもの `pairStart` を 30 本同時に送ると上限 5 に対して 30 本とも 200 になった（`authGoogle` も同じ）。上の F-5 のとおり「足してから数える」に変えた。テスト: `tests/verify/revoke-and-limit.test.ts`（`pairStart` 30 本・`authGoogle` の IP 40 本／人 30 本を同時に送り、200 は上限以下）。
+- **M-3 ログの「場所の行」に入力が混ざった（F-4 の再対応）**: `describeError` が stack の先頭から `at` の行を拾っていたため、message（Drizzle の params = 利用者の入力）に「改行＋空白＋at」があると、入力がログに出た。stack の中の message より後ろだけから拾い、`\r` も分け、制御文字を除く。元のエラー（cause）の場所も 2 行まで出す（`src/server/errors.ts`）。テスト: `tests/server/input-safety.test.ts`。
+- **M-4 DB を開く失敗をすべて 503 にしていた（AVL-04 の再対応）**: `DATABASE_URL` がない・migration の誤りなどの設定ミスまで「一時的に使えない」になり、原因の場所もログに出なかった。接続の失敗だけを 503、それ以外は `DatabaseOpenError` で 500 internal にして元のエラーの種類と場所を出す。失敗した PGlite は閉じてから捨てる（`src/server/db/index.ts`）。`/api/health` は前のまま、開けなければ 503。テスト: `tests/server/db-unavailable.test.ts`。
+- **M-5 封ができない端末で、紐づけの直後にログイン画面へ戻された（F-1 の再対応）**: 封ができないと Session を端末に置かないが、`refresh()` が端末の保存しか読まなかった。今の Session をメモリにも持ち、`refresh()` はメモリ→端末の順に読む（平文では置かない）。ログアウト・401 の後にメモリの値で戻らないよう、入れ替わりの回数で遅れて届いた返事を捨てる（`src/lib/session-core.ts`）。古い平文を封し直す書き込みが失敗しても、読めた Session は返す（`session-store.ts`）。テスト: `tests/lib/session-core.test.ts`・`session-store.test.ts`。
+- **M-6 Keystore の鍵が壊れると直らなかった（F-1 の再対応）**: `SecretBox.seal` が失敗したら鍵を消して 1 回だけ作り直す（`open` の失敗では消さない）。失敗は `Log.w` に例外の種類だけ残す。鍵を作り直すと前に封をした値は開けなくなり、JS はログインし直し、Kotlin は次の `setStatusReporter` で封をし直す。**確認待ち**: 実機。
+- ほか: 429 のときにサーバの hint（「1分ほど待ってから」）をログインと QR の画面に出す。古い dev client（`sealSecret` がない）で動かすと、開発中だけ警告を出す。
+- 出す前の作業（`docs/development.md` 8 章）: 0016・0017 をプレビュー・本番へ先に入れる。範囲外の古いデータが残っていないか SQL で確かめる。dev client を作り直す。
+
+### まだ直していないもの
+
+[security/android-security-test-plan](https://github.com/jphacks/sp_2602/tree/security/android-security-test-plan) の SUMMARY.md の FAIL のうち、次の 4 つはこの対応に入っていない。
+
+- AND-12: release 版の JS にデモの決まった合言葉が入る（`src/lib/google.ts` が `contracts/fixtures.ts` を読む）。
+- PII-09: 子どもがログアウトしても、出していた QR が使える。
+- AND-11: 端末の時計を進めると、上限の日をずらせる。
+- AVL-01 の `usageUpload`: 利用記録の送信に回数の上限がない。

@@ -181,8 +181,48 @@ DATABASE_URL='<本番の DATABASE_URL>' npm run db:migrate
 # PowerShell なら: $env:DATABASE_URL = '<URL>'; npm run db:migrate
 ```
 
-- 今入れる必要があるのは `0011_auth_rules_and_list_versions.sql` です。QR の番号のまちがいの記録の表（`pair_claim_failures`）、テスト期間・空白期間の一覧が最後に変わった版の列（`child_config_versions.test_periods_changed_version`・`blank_periods_changed_version`）を足し、設定の版を 0 から始められるようにします（`version` の既定値 0・0 以上の決まり）。
+> **注意（必ず先にやる）: この版（セキュリティ検査の直し・2026-10-18）を出す前に、`0016_family_unlink_audit.sql` と `0017_rate_limit_hits.sql` を、プレビューと本番の両方の DB に上の `npm run db:migrate` で入れてください。**
+>
+> 入れずにコードを出すと、`authGoogle`（ログイン）と `pairStart`（QR を出す）が表 `rate_limit_hits` が無くて **500 になり、だれもログインできなくなります**。`familyUnlink`（子どもを外す）も表 `audit_events` が無くて 500 になります。
+> 入れたあと、下の「出す前に確かめる SQL」で古いデータが残っていないかも確かめてください。
+
+- `npm run db:migrate` は、まだ入っていない migration を番号の順に全部入れます。`0011_auth_rules_and_list_versions.sql`（QR の番号のまちがいの記録の表 `pair_claim_failures`、テスト期間・空白期間の一覧が最後に変わった版の列 `child_config_versions.test_periods_changed_version`・`blank_periods_changed_version`、設定の版を 0 から始める決まり）など前のものをまだ入れていなければ、それも一緒に入ります。
+- `0016_family_unlink_audit.sql`: 表 `audit_events`（子どもを外した記録。D-101）。`0017_rate_limit_hits.sql`: 表 `rate_limit_hits`（ログイン・QR を出す回数の上限。D-131）。
 - 入れたかどうかは、Neon の表 `drizzle.__drizzle_migrations` に行が増えたかで分かります。
+
+#### 出す前に確かめる SQL（範囲の外の古いデータ）
+
+この版から、日付は 2000〜2099 年だけ（D-128）、アプリ名（パッケージ名）は Android の形だけ（D-129）を受け付けます。サーバは応答も契約で検査するので、**前の版で入った範囲の外のデータが DB に残っていると、それを返す API が出力の契約チェックで 500 `internal` になります**（入力の 400 ではありません）。Neon の SQL Editor（または `psql`）で、プレビューと本番の両方で流し、**件数がすべて 0** であることを確かめてください。0 でない表があれば、その行を直すか消してから出します。
+
+```sql
+-- 1. 日付が 2000-01-01〜2099-12-31 の外にある行の数（すべて 0 なら大丈夫）
+SELECT 'test_periods' AS 表, count(*) AS 件数 FROM test_periods
+  WHERE start_date NOT BETWEEN '2000-01-01' AND '2099-12-31' OR end_date NOT BETWEEN '2000-01-01' AND '2099-12-31'
+UNION ALL SELECT 'blank_periods', count(*) FROM blank_periods
+  WHERE start_date NOT BETWEEN '2000-01-01' AND '2099-12-31' OR end_date NOT BETWEEN '2000-01-01' AND '2099-12-31'
+UNION ALL SELECT 'plan_settings', count(*) FROM plan_settings
+  WHERE plan_start_date NOT BETWEEN '2000-01-01' AND '2099-12-31'
+UNION ALL SELECT 'daily_limits', count(*) FROM daily_limits
+  WHERE limit_date NOT BETWEEN '2000-01-01' AND '2099-12-31'
+UNION ALL SELECT 'usage_day_reports', count(*) FROM usage_day_reports
+  WHERE usage_date NOT BETWEEN '2000-01-01' AND '2099-12-31'
+UNION ALL SELECT 'usage_records', count(*) FROM usage_records
+  WHERE usage_date NOT BETWEEN '2000-01-01' AND '2099-12-31';
+
+-- 2. アプリ名（app_id）が Android のパッケージ名の形でない行の数（すべて 0 なら大丈夫）
+--    正規表現は contracts/schemas.ts の PackageName と同じ
+SELECT 'excluded_apps' AS 表, count(*) AS 件数 FROM excluded_apps WHERE app_id !~ '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
+UNION ALL SELECT 'removed_excluded_apps', count(*) FROM removed_excluded_apps WHERE app_id !~ '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
+UNION ALL SELECT 'usage_records', count(*) FROM usage_records WHERE app_id !~ '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
+UNION ALL SELECT 'child_app_list_items', count(*) FROM child_app_list_items WHERE app_id !~ '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$'
+UNION ALL SELECT 'child_app_icons', count(*) FROM child_app_icons WHERE app_id !~ '^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$';
+```
+
+- この SQL は読むだけで、何も書き換えません。手元の PGlite（`backend/drizzle` の migration をすべて入れた DB）で、範囲の外の日付（`1999-12-31`・`9999-12-31`）と形の違うアプリ名（`a b`）を数えられることを確かめてあります。
+
+#### この版を入れたら dev client を作り直す
+
+合言葉を Android Keystore の鍵で封をする `sealSecret`・`openSecret` が Kotlin（`modules/kit-native/` の `SecretBox`）に増えました。**dev client を `npm run android` で作り直してください**（画面の即時反映では入りません）。作り直さないと、古い dev client には封の関数がないので合言葉を端末に置けず、起動のたびに何も言わずにログインし直しになります（開発中は Metro のログに「dev client を作り直してください（sealSecret がありません）」が1回出ます。`src/lib/native.ts`）。
 - 手元の DB（PGlite）は、立ち上げのときに表の形を自動で合わせるので、この作業は要りません。
 
 ### 本番の DB に見本を入れる（`npm run db:seed-demo`）

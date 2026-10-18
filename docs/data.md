@@ -10,11 +10,11 @@
 
 | 型 | 形 | 決まり |
 |---|---|---|
-| `IsoDate` | `"2026-10-17"` | 実在する日付だけ。日本時間の「その日」 |
+| `IsoDate` | `"2026-10-17"` | 実在する日付で、**2000-01-01〜2099-12-31** だけ（範囲の外は `bad_request`。D-128）。日本時間の「その日」 |
 | `IsoDateTime` | `"2026-10-17T10:00:00.000Z"`・`"2026-10-17T19:00:00+09:00"` | タイムゾーンつきの本当の日時だけ（`z.iso.datetime({ offset: true })`）。タイムゾーンのない日時は端末の地域で意味が変わるので受け付けない |
 | `Minutes` | 整数 | 0〜1440。**0 分は有効な上限**（その日は使えない） |
 | `ConfigVersion` | 整数 | 0 以上。設定の版 |
-| `PackageName` | `"com.google.android.youtube"` | Android のアプリの識別子（1〜255 文字） |
+| `PackageName` | `"com.google.android.youtube"` | Android のアプリの識別子（1〜255 文字）。Android のパッケージ名の形（英数字と `_` を `.` でつなぐ。`/^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/`）だけ。空白・改行・NUL・ほかの記号は `bad_request`（D-129） |
 | `ChildQuery` | `{ childId }` | 「どの子どもの話か」。サーバが必ず扱えるか確かめる |
 | `ChildAppliedVersion` | 版 または `null` | 子どもの端末が使っている版。まだ一度も取りに来ていなければ `null` |
 
@@ -309,6 +309,8 @@ Kotlin の監視とウィジェットは JS が動いていなくても読むの
 | 制限する Web サイト（D-111） | `blocked_sites`, `blocked_site_states` | `blocked_sites` は子どもと登録（`pattern`。そろえた形・200 文字まで）の組に1行、`since_version`（足した版）。外した登録は行を消す。`blocked_site_states` は子ども1人に1行で `sites_changed_version`（一覧が最後に変わった版。行がない = 0）。保存は版の確かめ・版を 1 上げる・入れ替えを1回のトランザクションで（`backend/src/db/blocked-sites.ts`。migration `0014_blocked_sites.sql`）。C7 の組を読むトランザクションでも一緒に読む |
 | Q15（子どもの端末のアプリ一覧とアイコン） | `child_app_lists`, `child_app_list_items`, `child_app_icons` | `child_app_lists` は子ども1人に1行の「届いた」印（`received_at`。行がない = まだ届いていない）。`child_app_list_items` は packageName・表示名（全件の置き換え）。`child_app_icons` はアイコンの PNG（base64・20KB まで）と `icon_hash`（中身の SHA-256。サーバが計算し直して確かめた値）。一覧から消えたアプリのアイコンは一覧の置き換えのときに消す。下の2つは `child_app_lists` を消すと一緒に消える。設定の版とは別（migration `0013_child_app_lists.sql`。D-110） |
 | 許可の見張り（D-113） | `device_statuses` | 子ども1人に1行（行がない = まだ一度も届いていない）。許可ごとのオン/オフ（`usage_access`・`overlay`・`notifications`・`accessibility`）と、オフになった時刻（`*_off_since`。最初にオフと届いた報告の測った時刻）・`measured_at`（今の状態を測った時刻。これより古い報告では状態を変えない）・`last_seen_at`（最後に届いた時刻・サーバの時計）。連携を外すと消す（`unlinkChild`）。設定の版とは別（`backend/src/db/device-status.ts`。migration `0015_device_statuses.sql`） |
+| 監査の記録（D-101・F-7） | `audit_events` | 壊す操作を1回1行。`action`（今は `family_unlink` だけ）・`actor_user_id`（した人。保護者）・`child_id`（どの子ども）・`created_at`（サーバの時計）。`unlinkChild` と同じトランザクションで書く（`backend/src/db/family-unlink.ts` の `recordFamilyUnlink`）。消したデータの中身は残さない。書き足すだけで、書き換え・削除はしない（migration `0016_family_unlink_audit.sql`） |
+| 呼び出し回数の上限（D-131・F-5） | `rate_limit_hits` | 上限を数える API を呼ぶたびに1行。`bucket`（`auth-ip`・`auth-subject`・`pair-start`）・`key_hash`（IP・ログインの subject・利用者 id の SHA-256。IP をそのまま残さない）・`hit_at`（サーバの時計）。窓（1分）を過ぎた行は、次にその bucket を数えるときに消す。断った呼び出しは数えない（`src/server/rate-limit.ts` の `countCall`。migration `0017_rate_limit_hits.sql`） |
 | C8/C6 | `usage_sync_batches`, `usage_day_reports`, `usage_records` | 送信IDで冪等化。日報に測定時刻と制限対象合計、明細にアプリ名・除外状態を保存。送信・日付・アプリの組を重複させない。子ども・日ごとに一番新しい測定だけを残す（採用した日は前の日報と明細を消して入れ替え、採用しなかった日は保存しない。送信 ID の記録 `usage_sync_batches` は送り直しを見分けるために残す。D-127）。受け付ける日付は今日（日本時間）の190日前〜明日（`src/server/handlers/usageUpload.ts`）。サーバの時計より先の測定時刻はサーバの時計で保存する（送り直しを見分ける指紋は送られたままの中身で作る。`backend/src/db/usage-persistence.ts`） |
 
 日別上限が複数計算版に残る場合、C6は現行 `c10_input_version` に一致する最新計算版だけを参照します。一致する計算版がなければ上限は未計算として扱います。

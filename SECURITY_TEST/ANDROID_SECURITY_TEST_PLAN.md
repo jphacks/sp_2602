@@ -401,7 +401,7 @@ HTTP status / 相関ID:
 - Channel NewsAsia, Mobile Guardian incident follow-up (2024-09-10): https://www.channelnewsasia.com/singapore/mobile-guardian-cybersecurity-breach-attack-legal-action-contractors-chan-chun-sing-4597791
 - TechCrunch, Mobile Guardian platform breach and remote wipes (2024-08-06): https://techcrunch.com/2024/08/06/cyberattack-knocks-mobile-guardian-mdm-offline-and-wipes-thousands-of-student-devices/
 - Twilio security alert about Authy account data and an unauthenticated endpoint (2024-07-01): https://www.twilio.com/en-us/changelog/Security_Alert_Authy_App_Android_iOS
-- Slope implementation scope and security requirements: [`MVP_SPEC.md`](MVP_SPEC.md), especially C1 QR rules, C7/C8 versioning and idempotency, and C9 server-side authorization.
+- Slope implementation scope and security requirements: [`MVP_SPEC.md`](../docs/MVP_SPEC.md), especially C1 QR rules, C7/C8 versioning and idempotency, and C9 server-side authorization.
 
 個人情報保護の重点は、IPA「情報セキュリティ10大脅威 2026」の個人向け「インターネット上のサービスからの個人情報の窃取」「インターネット上のサービスへの不正ログイン」「不正アプリによるスマートフォン利用者への被害」等をSlope向けに読み替えている。脅威名はIPAの掲載内容、テスト手順・合格条件は本計画独自の整理。
 
