@@ -222,8 +222,8 @@ sequenceDiagram
 | 段階 | 担当 |
 |---|---|
 | 行とダイアログ | `src/components/parent/UnlinkChildItem.tsx`（`src/app/parent/settings.tsx` がログアウトの上に置く。子どもがいなければ行を出さない） |
-| 二段階の分かれ道と文 | `src/components/parent/unlink.ts` の `unlinkReducer`・`unlinkText`・`UNLINK_EFFECTS`。警告 →「次へ」→ 確かめ →「連携を外す」の2回押して、はじめて送る。どの段でもキャンセル（左）・戻るで閉じる。送っている間は閉じない |
-| 失敗 | ダイアログを閉じて行の上に `ErrorBanner`（`unlinkFailure`）。もう外れていた（not_found）・403 は子どもの一覧を読み直し、「もう一度」は出さない。通信できない・時間切れは読み直して「もう一度」も出す（サーバでは外れていることがあるため）。429・503 などはサーバの文のまま「もう一度」（確かめの段からやり直す） |
+| 二段階の分かれ道と文 | `src/components/parent/unlink.ts` の `unlinkReducer`・`unlinkText`・`UNLINK_EFFECTS`。警告 →「次へ」→ 確かめ →「連携を外す」の2回押して、はじめて送る。どの段でもキャンセル（左）・戻るで閉じる。送っている間は閉じない。「次へ」と「連携を外す」は同じ位置なので、確かめの段に入ってから 400ms は「連携を外す」を押せない（見た目も押せない形。`UNLINK_CONFIRM_DELAY_MS`・`canSendUnlink`）。送っている間の2回目は送らない（`familyUnlink` を2回送らない） |
+| 失敗 | ダイアログを閉じて行の上に `ErrorBanner`（`unlinkFailure`）。もう外れていた（not_found）・403 は子どもの一覧を読み直し、「もう一度」は出さない。通信できない・時間切れは読み直して「もう一度」も出す（サーバでは外れていることがあるため）。読み直した一覧から子どもが消えていたら（外れていた）、「もう一度」を消して「連携は外れていました」にし、外せたときと同じく設定のキャッシュとアイコンを消す（`unlinkedAfterFailure`）。429・503 などはサーバの文のまま「もう一度」（確かめの段からやり直す） |
 | サーバ | `src/server/auth.ts` の `unlinkChild`（上の `familyUnlink`）。子どもの合言葉は理由 `family_unlink` で無効（`user_sessions.revoked_reason`） |
 | 子どもの端末（アプリ） | `src/lib/session-core.ts` の `expire`・`verify`（上の 1章「連携が外れた 401」） |
 | 子どもの端末（Kotlin） | 監視（`MonitorService`）の見張りに相乗りして、画面がついている間は約1分ごと・消えている間は 15 分ごとに `authCheck` を呼ぶ（`engine/SessionCheck.kt`。D-134）。許可の状態の送信（`StatusReporter`）も同じ。401 + `family_unlink` を受けたら、アプリを開いていなくても `LocalData.clearUnlinked`（ログアウトと同じく監視を止めて端末の値を消し、Device Owner もやめる）。送っている間に JS が新しい合言葉を渡していたら何もしない |
