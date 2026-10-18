@@ -42,7 +42,7 @@ flowchart LR
 | 部分 | 何をするか | 主なファイル |
 |---|---|---|
 | 端末のアプリ | 画面を出し、サーバと通信する。保護者用・子ども用は同じアプリで、役割によって出す画面が変わる | `src/app/`・`src/components/`・`src/lib/` |
-| Kotlin の窓口 | Android だけでできること（C2 使用時間の取得・C4 監視と制限画面）を呼ぶ入口。Kotlin の中身は `modules/kit-native/android/.../engine/`（Kotlin がない環境では安全な既定値）。**Kotlin がサーバへ直接送るのは、許可の状態（`deviceStatusReport`。D-113）だけ**（アプリを閉じていても届けるため。ほかの通信はすべて JS の `call()` を通る） | `contracts/native.ts`・`src/lib/native.ts`・`modules/kit-native/` |
+| Kotlin の窓口 | Android だけでできること（C2 使用時間の取得・C4 監視と制限画面）を呼ぶ入口。Kotlin の中身は `modules/kit-native/android/.../engine/`（Kotlin がない環境では安全な既定値）。**Kotlin がサーバへ直接送るのは、許可の状態（`deviceStatusReport`。D-113）と合言葉の確かめ（`authCheck`。D-134）だけ**（アプリを閉じていても届け・外されたら止めるため。ほかの通信はすべて JS の `call()` を通る） | `contracts/native.ts`・`src/lib/native.ts`・`modules/kit-native/` |
 | Hono のサーバ | 窓口（API）を受け、ログインと権限を確かめ、データを保存し、上限を計算する | `src/server/` |
 | サーバの処理 | ログイン・合言葉・QR の紐づけ・家族（`auth.ts`）、計画・日程・対象外アプリ・設定の組（`services/`）。保存は `backend/src/db/` の Drizzle の処理を呼ぶ | `src/server/auth.ts`・`src/server/services/`・`backend/src/db/` |
 | DB | サーバのデータの置き場（すべての API が DB だけを通る）。Vercel では Neon（`DATABASE_URL`）、手元とテストでは PGlite（Node の中で動く Postgres）。表の設計は `backend/src/db/schema/`、変更の記録は `backend/drizzle/` | `src/server/db/index.ts`・`backend/` |
@@ -151,16 +151,18 @@ sequenceDiagram
 
 | キー | 中身 | 消えるとき |
 |---|---|---|
-| `slope.session` | ログインした人（合言葉を含む `Session`） | ログアウト・サーバが 401 を返したとき |
-| `slope.config.<childId>` | C7 の最後に正常だったスナップショットと、それをくれたサーバの DB の `epoch`（`CachedConfig`。epoch が違う応答が来たら置き換える。D-109） | ログアウトのとき全部（`configCache.clearAll`）。401 では消さない |
+| `slope.session` | ログインした人（合言葉を含む `Session`）。Android Keystore の鍵で封をした形 `{"v":1,"sealed":"sb1:…"}` で置く（`src/lib/session-store.ts`。封は Kotlin の `SecretBox`。セキュリティ検査 F-1）。封ができない（Kotlin がない）ときは置かない。古い版が平文で置いた Session は、読んだときに封をし直す | ログアウト・サーバが 401 を返したとき。封を開けられないときは消さずに、その起動はログアウト状態にする（次の起動でもう一度開ける）。開けたのに中身が壊れているときは消す |
+| `slope.config.<childId>` | C7 の最後に正常だったスナップショットと、それをくれたサーバの DB の `epoch`（`CachedConfig`。epoch が違う応答が来たら置き換える。D-109） | ログアウトのとき全部（`configCache.clearAll`）。保護者に連携を外された 401（`reason: "family_unlink"`。D-133）でも全部消す。理由のない 401 では消さない。保護者の端末では、連携を外したらその子どもの分を消す（`configCache.clear`） |
 | `slope.config-index` | 設定のキャッシュを持っている子どもの一覧（`clearAll` で全部消すため。保存の仕組みにキーの一覧を取る手段がないので自分で持つ） | ログアウトのとき |
-| `slope.usage-outbox` | C8 の送信待ち | 送れた分だけ消える。ログアウトのときは、その人（子ども）の分だけ消す（`usageOutbox.removeChild`）。401 では消さない（同じ人がログインし直して送れるように） |
-| `slope.child-apps.<childId>` | Q15 で前に送ったアプリの一覧（packageName・表示名・アイコンのハッシュ）と、そのときの C7 の `epoch`（変わったときだけ送るため。`src/lib/child-apps-sync.ts`） | ログアウトのとき（`childAppsSync.clear`） |
+| `slope.usage-outbox` | C8 の送信待ち | 送れた分だけ消える。ログアウト・保護者に連携を外された 401（`family_unlink`）のときは、その人（子ども）の分だけ消す（`usageOutbox.removeChild`。消す前に始まった書き込みも捨てる）。理由のない 401 では消さない（同じ人がログインし直して送れるように） |
+| `slope.child-apps.<childId>` | Q15 で前に送ったアプリの一覧（packageName・表示名・アイコンのハッシュ）と、そのときの C7 の `epoch`（変わったときだけ送るため。`src/lib/child-apps-sync.ts`） | ログアウト・連携が外れた 401 のとき（`childAppsSync.clear`） |
 | `slope.mock-device-id` | MOCK の「はじめての人」をこの端末だけの人にする番号 | 消さない |
 
 読むときは Zod で形を確かめ、壊れていたら「ない」として扱います（`readJson`）。
 
-**ログアウトで消すもの**（`src/lib/sign-out.ts` の `clearLocalDataFor`。`session.tsx` の `signOut` が呼ぶ）: 設定のキャッシュ全部と、ログアウトした人の送信待ち。Kotlin の保存（`native.clearLocalData`）も全部消し、許可の状態の送り先と合言葉もここで消える（401 のときは `native.clearStatusReporter` で送り先と合言葉だけ消す。D-113）。同じ端末で別の人がログインし直したときに、前の人の設定や記録が混ざらないようにするためです。合言葉の期限切れ（401）では呼びません。消す前に、合言葉をサーバでも無効にします（`revokeServerSession` → `authSignOut`。通信できなくてもログアウトは進める。401 のときは呼ばない）。
+**ログアウトで消すもの**（`src/lib/sign-out.ts` の `clearLocalDataFor`。`session.tsx` の `signOut` が呼ぶ。ログアウトできるのは保護者と役割が決まる前の人だけ。子どもはできない。D-136）: 設定のキャッシュ全部と、ログアウトした人の送信待ち・送ったアプリの一覧。Kotlin の保存は、監視が動いていない端末なら全部消し（`native.clearLocalData`。許可の状態の送り先と合言葉もここで消える）、監視が動いている端末（子どもの端末で、役割のない人・保護者として入り直した）なら監視を止めずに保護者のウィジェットの値だけを消す（`native.clearParentLocalData`。`session-core.ts` の `clearDeviceOnSignOut`）。同じ端末で別の人がログインし直したときに、前の人の設定や記録が混ざらないようにするためです。消す前に、合言葉をサーバでも無効にします（`revokeServerSession` → `authSignOut`。通信できなくてもログアウトは進める）。
+
+**401 で消すもの**: 理由のない 401（期限切れなど）では、端末の Session だけを消します（設定のキャッシュ・送信待ちは残し、監視も止めない。Kotlin は送り先と合言葉だけを消す。D-113）。保護者に連携を外された 401（`reason: "family_unlink"`）では、ログアウト状態にしたあとで `session.tsx` の `clearUnlinked` が、Kotlin の保存を全部消して監視を止め（`native.clearLocalData`）、Device Owner をやめ（`native.releaseDeviceOwner`）、その子どもの分を `clearLocalDataFor` で消します（D-133）。アプリを開いていなくても、Kotlin が同じ 401 を受けたら `LocalData.clearUnlinked` で同じく片付けます（D-134）。ただし「外された」を信じるのは送り先が https か開発用のビルドのときだけで、release 版で送り先が http なら理由のない 401 と同じにします（`canTrustUnlink`・`StatusReportRules.trustsUnlink`。偽の返事で監視を止められないように）。
 
 ## 6. まだ無いもの
 

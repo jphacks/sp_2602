@@ -74,7 +74,7 @@ flowchart TD
 | `pairCancel` | POST `/api/pair/cancel` | signedIn | `{ pairId }` | `PairStatus`（`waiting`・`claimed` は `expired` にする。`expired`・`rejected` はそのまま） | 403（QR を出した子ども以外）、404（関わっていないペアリング）、409（もう `linked`） |
 | `linkStatus` | GET `/api/link/status` | signedIn | なし | `LinkStatus`（`state`・`role`・`partners`） | — |
 | `familyGet` | GET `/api/family/get` | parent | なし | `Family`（`children`。MVP は最大1人） | 403（保護者以外） |
-| `familyUnlink` | POST `/api/family/unlink` | parent | `{ childId }` | `FamilyUnlinkResult`（`childId`・`revokedSessions`）。連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする。子どもの家庭ごとのデータ（利用記録・日別上限・計画・通常上限・テスト期間・空白期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の許可の状態）は同じトランザクションで消し、設定の版を 1 上げ、外した記録を `audit_events` に残す（D-101。`backend/src/db/family-unlink.ts`）。子どもの合言葉は理由 `family_unlink` で無効にするので、外したあとに子どもの端末がどの API を呼んでも 401 に `reason: "family_unlink"` が付く（D-133）。画面は親04 設定の「子どもとの連携を外す」（二段階の確認。D-133） | 403（保護者以外・連携していない子ども）、404（同じ子どもをもう外していた。ふつうは route の確かめで先に 403） |
+| `familyUnlink` | POST `/api/family/unlink` | parent | `{ childId }` | `FamilyUnlinkResult`（`childId`・`revokedSessions`）。連携を外し、子どもの合言葉をすべて無効にし、子どもの役割を `null` に戻し、子どもの出しかけの QR を `expired` にする。子どもの家庭ごとのデータ（利用記録・日別上限・計画・通常上限・テスト期間・空白期間・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の許可の状態）は同じトランザクションで消し、設定の版を 1 上げ、外した記録を `audit_events` に残す（D-101・D-138。`backend/src/db/family-unlink.ts`）。子どもの合言葉は理由 `family_unlink` で無効にするので、外したあとに子どもの端末がどの API を呼んでも 401 に `reason: "family_unlink"` が付く（D-133）。画面は親04 設定の「子どもとの連携を外す」（二段階の確認。D-133） | 403（保護者以外・連携していない子ども）、404（同じ子どもをもう外していた。ふつうは route の確かめで先に 403） |
 
 ### 通常上限・計画（D8）
 

@@ -16,13 +16,15 @@
 | F-2 PII-10 連携を外したあと、別の保護者に前の家庭のデータが見える（高） | 修正 | 下の F-2 / F-7 |
 | F-7 IPA-15 連携を外す操作の監査記録がない | 修正 | 下の F-2 / F-7 |
 | F-5 AVL-01 ログイン・QR の発行に回数の上限がない | 修正 | 下の F-5 |
-| M-1〜M-7 main へ入れる前の点検で見つけたもの | 修正 | 下の「main へ入れる前の点検」 |
+| M-1〜M-5・M-7 main へ入れる前の点検で見つけたもの | 修正 | 下の「main へ入れる前の点検」 |
+| M-6 Keystore の鍵が壊れると直らなかった | 修正（実機の確認待ち） | 下の「main へ入れる前の点検」 |
+| M-8〜M-14 最終点検のあとに見つけたもの | 修正 | 下の「main へ入れる前の点検」の「最終点検のあと」 |
 
 ## 1. 合言葉の平文保存（F-1）
 
 - Kotlin に `SecretBox`（`modules/kit-native/android/.../engine/SecretBox.kt`）を足した。Android Keystore の AES-256-GCM の鍵で封をする（鍵は端末から取り出せない）。形は `"sb1:" + Base64(IV 12 バイト + 暗号文)`。
 - Kotlin の `EngineStore`: 合言葉は `report_token_sealed` に封をして置く。古い版の平文 `report_token` は、読んだときに封をし直して消す。封ができないときは置かずに送るのをやめる。
-- JS: `KitNative.sealSecret` / `openSecret` を足し、`src/lib/session-store.ts` で Session（合言葉を含む）を `{"v":1,"sealed":"sb1:…"}` の形で AsyncStorage に置く。古い平文の Session は読んだときに封をし直して上書きする。封ができない（Kotlin がない）ときは置かない（アプリを閉じるとログインし直し）。開けない（鍵が作り直された）ときは消してログインし直し。
+- JS: `KitNative.sealSecret` / `openSecret` を足し、`src/lib/session-store.ts` で Session（合言葉を含む）を `{"v":1,"sealed":"sb1:…"}` の形で AsyncStorage に置く。古い平文の Session は読んだときに封をし直して上書きする。封ができない（Kotlin がない）ときは置かない（アプリを閉じるとログインし直し）。開けない（鍵が作り直された・Keystore の一時的な失敗）ときは、消さずにその起動はログアウト状態にし、次の起動でもう一度開けてみる（下の M-11。前は消していた）。
 - ログアウト・401 で消える流れは前と同じ。
 - **確認待ち**: 実機（dev client を作り直す必要あり）で、ログイン後の `RKStorage`・`slope_engine.xml` に合言葉の印が出ないこと、古い版からの更新で平文が消えること、監視の通告（D-113）がアプリを閉じても届くこと。JVM では Keystore が動かないので、SecretBox の単体テストはない。
 - 限界: SQLite（RKStorage）は上書きした古いページの中身がファイルの空き領域に残ることがある。古い版から更新した端末では、一度ログアウトしてログインし直すと確実。
@@ -76,6 +78,11 @@
 - 直し方（F-7）: 新しい表 `audit_events`（migration `0016_family_unlink_audit.sql`）に、`action = "family_unlink"`・`actor_user_id`（外した保護者）・`child_id`・`created_at` を、外すのと同じトランザクションで1行書く。消したデータの中身は残さない。外せなかったとき（403・not_found）は書かない。読む API・画面はまだない（DB を見る）。
 - テスト: `tests/verify/unlink-data.test.ts`（result.md の手順どおり: 子C が C1 とデータを作る → C1 が外す → 子C が C2 と連携 → C2 の `usageGet`・`testPeriodList`・空白期間・計画・対象外アプリ・Web サイト・アプリ一覧とアイコン・端末の状態・子どもの `configGet` に前の家庭のデータが出ない。版は前より大きい。ほかの家庭のデータは消えない。監査の行が1行残り、403 のときは残らない）。
 - 残り（2026-10-18 に直した。D-133）: 前は、子どもの端末の送信待ち（`src/lib/usage-outbox.ts`）を 401 では消さなかった（同じ人がログインし直して送れるように）ので、外された時点で送れていなかった今日・昨日の分が、別の保護者と紐づけ直したあとに送られて、新しい保護者に見えることがあった。今は、外すときに子どもの合言葉を理由 `family_unlink` で無効にし（`user_sessions.revoked_reason`。migration `0018_session_revoked_reason.sql`）、その合言葉で呼ばれたら 401 に `reason: "family_unlink"` を付ける。子どもの端末はそれを見て、送信待ち・設定のキャッシュを消し、端末の制限も止める（`src/lib/session-core.ts` の `expire`・Kotlin の `StatusReporter`）。期限切れなど理由のない 401 では今までどおり消さない。テスト: `tests/verify/unlink-notice.test.ts`・`tests/lib/session-core.test.ts` › 「session-core: 401 の理由（D-133）」。
+- その後に足したこと（2026-10-18〜19）:
+  - アプリを開いていない子どもの端末も止まるように、Kotlin の監視が約1分ごと（画面が消えている間は 15 分ごと）に、合言葉がまだ使えるかを確かめる API `authCheck`（GET `/api/auth/check`。DB は読むだけ）を呼ぶ（`engine/SessionCheck.kt`。D-134）。`family_unlink` の 401 なら、その場で監視を止めて端末の値を消す（`LocalData.clearUnlinked`）。
+  - 外されたときは、デモ用の Device Owner（Slope を消せないようにする止め）もやめる（Kotlin の `DeviceOwnerPolicy.release`・JS の `native.releaseDeviceOwner`。ログアウト・期限切れではやめない。[docs/device-owner.md](../docs/device-owner.md)）。
+  - 子どもが自分でログアウトして制限を止める逃げ道を、D-136 でふさいだ（子07 の「ログアウト」を出さない・`signOut` は子どもでは何もしない）。監視が動いている端末では、役割のない人・保護者としてログアウトしても監視を止めない（下の M-9）。
+  - 「外された」を信じて片付けるのは、送り先が https か開発用のビルドのときだけ（下の M-8）。
 
 ## F-5. ログイン・QR の発行の回数の上限（AVL-01）
 
@@ -89,7 +96,7 @@
 - 限界: 監査ログ（AVL-01 の期待結果）は出していない。
 - テスト: `tests/verify/revoke-and-limit.test.ts` の F-5（pairStart は 5 回の次が 429・ほかの子どもは止まらない・1 分たてば出せる。authGoogle は同じ人 10 回の次が 429・ほかの人は止まらない・1 分たてば入れる。同じ IP 20 回の次が 429・ほかの IP は止まらない・通らない idToken でも数える）。`tests/verify/security.test.ts` の「QR の code を 20 回出す」は、上限にかからないように 12 秒ずつ時計を進めるようにした。
 
-## main へ入れる前の点検（M-1〜M-7）
+## main へ入れる前の点検（M-1〜M-14）
 
 main へ入れる前に、このブランチの差分（`origin/main...HEAD`）を、DB・サーバ・契約・Android・アプリ・文書に分けて読み直した。見つけたものと直し方。
 
@@ -98,16 +105,28 @@ main へ入れる前に、このブランチの差分（`origin/main...HEAD`）�
 - **M-3 ログの「場所の行」に入力が混ざった（F-4 の再対応）**: `describeError` が stack の先頭から `at` の行を拾っていたため、message（Drizzle の params = 利用者の入力）に「改行＋空白＋at」があると、入力がログに出た。stack の中の message より後ろだけから拾い、`\r` も分け、制御文字を除く。元のエラー（cause）の場所も 2 行まで出す（`src/server/errors.ts`）。テスト: `tests/server/input-safety.test.ts`。
 - **M-4 DB を開く失敗をすべて 503 にしていた（AVL-04 の再対応）**: `DATABASE_URL` がない・migration の誤りなどの設定ミスまで「一時的に使えない」になり、原因の場所もログに出なかった。接続の失敗だけを 503、それ以外は `DatabaseOpenError` で 500 internal にして元のエラーの種類と場所を出す。失敗した PGlite は閉じてから捨てる（`src/server/db/index.ts`）。`/api/health` は前のまま、開けなければ 503。テスト: `tests/server/db-unavailable.test.ts`。
 - **M-5 封ができない端末で、紐づけの直後にログイン画面へ戻された（F-1 の再対応）**: 封ができないと Session を端末に置かないが、`refresh()` が端末の保存しか読まなかった。今の Session をメモリにも持ち、`refresh()` はメモリ→端末の順に読む（平文では置かない）。ログアウト・401 の後にメモリの値で戻らないよう、入れ替わりの回数で遅れて届いた返事を捨てる（`src/lib/session-core.ts`）。古い平文を封し直す書き込みが失敗しても、読めた Session は返す（`session-store.ts`）。テスト: `tests/lib/session-core.test.ts`・`session-store.test.ts`。
-- **M-6 Keystore の鍵が壊れると直らなかった（F-1 の再対応）**: `SecretBox.seal` が失敗したら、まず鍵を消さずに 1 回やり直す。それでも失敗し、鍵が壊れていると分かる例外（`InvalidKeyException`・`UnrecoverableKeyException` など）のときだけ、鍵を消して 1 回だけ作り直す（Keystore の一時的な失敗で鍵を消すと、もう一方の封をした値まで開けなくなるため）。`open` の失敗では消さない。失敗は `Log.w` に例外の種類だけ残す。鍵を作り直すと前に封をした値は開けなくなり、JS はログインし直し、Kotlin は次の `setStatusReporter` で封をし直す。**確認待ち**: 実機。
+- **M-6 Keystore の鍵が壊れると直らなかった（F-1 の再対応。実機の確認待ち）**: `SecretBox.seal` が失敗したら、まず鍵を消さずに 1 回やり直す。それでも失敗し、鍵が壊れていると分かる例外（`InvalidKeyException`・`UnrecoverableKeyException` など）のときだけ、鍵を消して 1 回だけ作り直す（Keystore の一時的な失敗で鍵を消すと、もう一方の封をした値まで開けなくなるため）。`open` の失敗では消さない。失敗は `Log.w` に例外の種類だけ残す。鍵を作り直すと前に封をした値は開けなくなり、JS はログインし直し、Kotlin は次の `setStatusReporter` で封をし直す。**確認待ち**: 実機。
 - **M-7 Neon の接続断が 503 にならず、待っている間の切断でプロセスが落ちうる（AVL-04 の再対応）**: Neon（`@neondatabase/serverless`）の切断のエラーは code を持たないので、決まった文（`Connection terminated unexpectedly` など）・undici の `UND_ERR_*`・WebSocket の ErrorEvent も 503 にする（`isDatabaseUnavailable`）。Pool に `error` の受け手がなく、待っている間に Neon が接続を閉じると Node がプロセスごと落とすので、記録だけする受け手を付けた（`src/server/db/index.ts`）。あわせて、ログの場所の行は stack の頭が「種類: message」の形で、すぐ後に続く `at` の行だけを拾う（message を後から書きかえた・stack に書き足した場合も入力を出さない）。`DatabaseOpenError` は中身の SQLSTATE によらず 500。本番で `DATABASE_URL` がないときはログに `DATABASE_URL_MISSING` と出る。テスト: `tests/server/db-unavailable.test.ts`・`input-safety.test.ts`。
 - ほか: 429 のときにサーバの hint（「1分ほど待ってから」など）をログイン・子どもの QR・保護者の QR 読み取りの画面に出す。古い dev client（`sealSecret` がない）で動かすと、開発中だけ警告を出す。
-- 出す前の作業（`docs/development.md` 8 章）: 0016・0017 をプレビュー・本番へ先に入れる。範囲外の古いデータが残っていないか SQL で確かめる。dev client を作り直す。
+- 出す前の作業（`docs/development.md` 8 章）: 0016・0017・0018 をプレビュー・本番へ先に入れる。範囲外の古いデータが残っていないか SQL で確かめる。dev client を作り直す。
+
+### 最終点検のあと（M-8〜M-14）
+
+連携を外す機能（D-133・D-134）と子どものログアウトの廃止（D-136）を入れたあと、main へ入れる前の最終点検で見つけて直したもの。
+
+- **M-8 偽の「外された」で監視を止められた（D-133 の再対応・重大）**: 「外された」（401 の `reason: "family_unlink"`）として片付ける（監視を止め、Device Owner もやめる）のは、送り先が https のとき、または開発用のビルド（Kotlin は debuggable、JS は `__DEV__`）のときだけにした（Kotlin の `StatusReportRules.trustsUnlink`・`guardUnlinked`、JS の `src/lib/session-core.ts` の `canTrustUnlink`）。release 版で送り先が http なら、`family_unlink` は理由のない 401 と同じ扱い（合言葉は消すが、監視は止めず、Device Owner も外さない）。なぜ: http だと、子どもが Wi-Fi の HTTP プロキシを自分の PC に向けて、偽の 401 を返せるため。**注意: デモを http の release 版で行うと、保護者が連携を外しても子どもの端末の監視は止まらない**（https のサーバか、開発用のビルドで行う）。テスト: `tests/lib/session-core.test.ts` › 「canTrustUnlink: https か開発中（__DEV__）のときだけ family_unlink を信じる」「送り先が信じられない（release 版で http）ときの family_unlink は、理由のない 401 と同じ（片付けない・帯は「期限が切れました」）」、Kotlin（JVM）: `StatusReportTest` › `連携が外れたを信じるのはhttpsか開発用のビルドのときだけ`・`releaseでhttpの送り先なら連携が外れたは理由のない401と同じにする`。
+- **M-9 子どもの端末で、別のアカウントで入り直してログアウトすると監視が止まった（D-136 の再対応・重大）**: 子どもの端末で JS だけがログアウト状態になり（理由のない 401・封を開けられないなど）、役割のない別のアカウントでログインし直すと、入口 `/pair` の「ログアウト」で監視を止められた。監視が動いている端末では、役割のない人・保護者がログアウトしても監視を止めず、保護者のウィジェットの値だけを消す（`src/lib/session-core.ts` の `clearDeviceOnSignOut` → Kotlin の `clearParentLocalData`）。`/pair` の「ログアウト」も出さない（`canSignOut(session, monitoring)`）。監視が動いているかは Kotlin の新しい窓口 `isEngineEnabled` で見る。監視が止まるのは `family_unlink` のときだけ。テスト: `tests/lib/child-no-logout.test.ts` › 「監視が動いている端末では、役割のない人・保護者・ログインしていない人にも出さない」「監視が動いている端末で役割のない人がログアウトしても、clearLocalData を呼ばない（監視を止めない）。保護者のウィジェットの値だけ消す」。
+- **M-10 外された片付けのあとで、子どもの画面の定期取得が制限を戻した（D-133 の再対応）**: 取得を待つ間に Session が変わった・消えた、または設定の取得が 401 だったら、その回の続き（Kotlin への保存 `saveRestriction`・監視の開始 `startEngine`・アプリ一覧・送信待ち）をしない（`src/lib/child-refresh-guard.ts` の `canApplyChildRefresh`）。送信待ち（`src/lib/usage-outbox.ts`）は子どもごとに消した回数（世代）を持ち、消す前に始まった `enqueue` は書かずに捨てる。読み書きは1つずつ順に行う。テスト: `tests/lib/child-refresh-guard.test.ts`・`tests/lib/usage-outbox.test.ts` › 「C8: 送信待ちを消した（removeChild）あとに、消す前に始まった書き込みを戻さない（D-133 の再検査）」。
+- **M-11 Session の封を一時的に開けられないだけで消していた（M-6 とそろえる）**: 封を開けられないときは消さずに「ない」とし、その起動はログアウト状態にして、次の起動でもう一度試す。開けたのに中身が壊れている・置いた形が違うときだけ消す（`src/lib/session-store.ts`）。平文に戻す道は作らない。テスト: `tests/lib/session-store.test.ts`。
+- **M-12 監視の見張りのたびに Keystore で合言葉を開けていた（電池）**: Kotlin の合言葉は、開けたものをプロセスのメモリにだけ持つ（`EngineStore` の `OpenedSecretCache`。封をした値と組にして、封が変われば開け直す）。Keystore で開けるのは、起動後の最初の1回と、封が変わったときだけ。ディスクには平文で置かない。テスト（JVM）: `EngineRulesTest` › `開けた合言葉は同じ封の間はメモリから返し_封が変わったら開け直す`・`入れ替えと消すで前の合言葉を返さない`。
+- **M-13 形の違うアプリの識別子が1件あると、その日の記録・アプリ一覧の送信が全部 400 になった（D-129 の再対応）**: 利用記録（`src/lib/usage-calc.ts` の `toUsageDayReport`）とアプリ一覧（`src/lib/child-apps-sync.ts` の `prepareChildApps`）は、契約の `PackageName` に合わない識別子を1件ずつ外す（利用記録では合計の分数には入れたまま）。テスト: `tests/lib/usage-calc.test.ts`・`tests/lib/child-apps-sync.test.ts` › 「prepareChildApps: 契約の PackageName の形に合わないアプリは1件ずつ外す」。
+- **M-14 DB を閉じて開き直すテストが、ほかのテストと一緒に流すと時間切れになった**: `tests/server/db-unavailable.test.ts` の重いテストに、それぞれ 90 秒の上限（`REOPEN_TIMEOUT_MS`）を付けた（中身は変えない）。
 
 ### まだ直していないもの
 
 [security/android-security-test-plan](https://github.com/jphacks/sp_2602/tree/security/android-security-test-plan) の SUMMARY.md の FAIL のうち、次の 4 つはこの対応に入っていない。
 
 - AND-12: release 版の JS にデモの決まった合言葉が入る（`src/lib/google.ts` が `contracts/fixtures.ts` を読む）。
-- PII-09: 子どもがログアウトしても、出していた QR が使える。
+- PII-09: 役割が決まる前の人がログアウトしても、出していた QR が使える（子どもは D-136 でログアウトできなくなった）。
 - AND-11: 端末の時計を進めると、上限の日をずらせる。
 - AVL-01 の `usageUpload`: 利用記録の送信に回数の上限がない。

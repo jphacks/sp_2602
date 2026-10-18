@@ -77,8 +77,9 @@ npm run dev       # 2回目からは Metro だけ立てる（開発用のアプ�
 
 ## 5. 使用時間（C2）を仮の値にする
 
-Kotlin の中身はまだないので、そのままでは子どもの画面は「使った時間を取得できませんでした」になります（0% とは出さない）。
-`.env` に `EXPO_PUBLIC_FAKE_USAGE=1` を書いて Metro を立て直すと、仮の使用時間（YouTube・Instagram・X・ゲーム・学習ノート。時刻に合わせて増える）を返します。仮の値かどうかは `native.fake` で分かります。
+`npm run android` で作った開発用のアプリには Kotlin の部品（`modules/kit-native/`）が入っていて、本物の使用時間を読みます（`getDailyUsage`。`engine/UsageReader.kt`。「使用状況へのアクセス」の許可が要る）。
+Kotlin の部品がない環境（テスト・Kotlin を入れていないアプリ）では、子どもの画面は「使った時間を取得できませんでした」になります（0% とは出さない）。
+そのときは `.env` に `EXPO_PUBLIC_FAKE_USAGE=1` を書いて Metro を立て直すと、仮の使用時間（YouTube・Instagram・X・ゲーム・学習ノート。時刻に合わせて増える）を返します。Kotlin の部品があるときは、`EXPO_PUBLIC_FAKE_USAGE=1` でも本物を読みます（`src/lib/native.ts`）。仮の値かどうかは `native.fake` で分かります。
 
 ## 6. Google ログインに切り替える
 
@@ -136,16 +137,21 @@ npm run fix     # 整形と並べ替えを自動で直す（biome check --write�
 
 - **「はじめての人」で紐づけた2台**: 合言葉が無効になり、アプリはログイン画面に戻ります。もう一度ログインすると別の人として作られるので、**紐づけからやり直し**です。
 - **デモの保護者・子ども**: 合言葉が固定なので、ログインしたままです。データは見本に戻ります（変えた計画や日程は消える）。設定の版も見本の版から数え直しますが、DB の `epoch` も変わるので、子ども・保護者の端末は次の取得で手元の組を捨てて新しい設定を取り込みます（D-109。前は「手元より古い版」として捨て続けたので、ログアウトが要った）。
-- 同じ端末で別の人に切り替えるときは、設定の「ログアウト」を使ってください。ログアウトで、その端末の設定のキャッシュと、その人の送信待ちが消えます（前の人の設定や記録が混ざらない）。**子どもの端末でログアウトすると、まだ送っていない利用記録も消えます**。
+- 同じ端末で別の人に切り替えるとき:
+  - **保護者の端末・まだ紐づけていない端末**: 保護者の設定（親04）か入口 `/pair` の「ログアウト」を使います。その端末の設定のキャッシュが消えます（前の人の設定が混ざらない）。
+  - **子どもの端末**: 子どもは自分でログアウトできません（D-136。子07 に「ログアウト」はない）。**保護者の端末で、親04 設定の「子どもとの連携を外す」を使います**（D-133）。子どもの端末は、アプリを開いていれば次の呼び出しで、閉じていても約1分（画面が消えていれば 15 分）以内に「保護者との連携が外れました」になり、監視が止まり、送信待ち・設定のキャッシュが消えます（Device Owner にしてあれば、それもやめる。[device-owner.md](device-owner.md)）。そのあと、新しい人でログインして QR で紐づけ直します。
+  - **送り先が http の release 版では、外しても子どもの端末の監視は止まりません**（偽の返事で止められないように、`family_unlink` を信じるのは送り先が https か開発用のビルドのときだけ。SECURITY_TEST/fixes.md の M-8）。外して切り替えるデモは、dev client（`npm run android` で作った開発用のアプリ）か、https のサーバ（Vercel）で行ってください。
+  - 子どもの端末（監視が動いている端末）で、役割のない人・保護者としてログインし直してからログアウトしても、監視は止まりません（保護者のウィジェットの値だけが消える。`/pair` に「ログアウト」も出ない。D-136）。
+- 合言葉が無効になって（理由のない 401）ログイン画面に戻った子どもの端末も、監視は止まらず前の制限のまま動きます（D-133）。もう一度ログインして紐づければ、新しい設定に入れ替わります。
 - 送信待ちに残っていた前の子どもの記録は、新しい子どもでは送れない（403）ので隔離され、自動では送り直されません。
 
 ### 見せ方のこつ
 
 - サーバは PC で立てても、Vercel（Neon の DB）に置いてもよい。どちらも同じ DB の処理を通る。Vercel の本番では `MOCK` のログインが使えないので、Google でログインして QR で紐づけた親子に `npm run db:seed-demo` で見本を入れる（8章）。`DATABASE_URL` の DB には、`MOCK=1` でもデモの3人と見本は自動では入らない（D-126）。
-- 子どもの端末は `EXPO_PUBLIC_FAKE_USAGE=1` で仮の使用時間を出す。
+- 子どもの端末は、Kotlin の部品の入った開発用のアプリなら本物の使用時間を出す（「使用状況へのアクセス」を許可する）。Kotlin の部品がないときは `EXPO_PUBLIC_FAKE_USAGE=1` で仮の使用時間を出す（5章）。
 - 設定の変更は、子どもの画面が出ている間なら **30秒以内**に届きます（アプリを開き直す・前面に戻すとすぐ取りに行く）。画面が出ていないときの取得はまだない。
 - QR は **10分**で切れます。
-- **上限に届いたところを見せる**: 今日の日別上限を小さくする（例: 親02 で開始上限・最終目標を小さくして保存する。計画もテストもない子どもなら通常上限を小さくする）。上限 0 分は必ず到達になる。割合の表示は到達するまで最大 99% で、到達したときだけ 100% になります。子01 ホームが見えているときに子11 へ進みます（その日1回だけ）。Kotlin がないので、ほかのアプリの上に制限画面は出ません。
+- **上限に届いたところを見せる**: 今日の日別上限を小さくする（例: 親02 で開始上限・最終目標を小さくして保存する。計画もテストもない子どもなら通常上限を小さくする）。上限 0 分は必ず到達になる。割合の表示は到達するまで最大 99% で、到達したときだけ 100% になります。子01 ホームが見えているときに子11 へ進みます（その日1回だけ）。ほかのアプリを使っている間も、Kotlin の監視（`MonitorService`）が上限に届いたら子11 を前に出します（「他のアプリの上に表示」の許可がなければ通知で案内する。`engine/LimitPrompt.kt`）。
 - **親03 振り返りの文を Figma どおりにする**: 最終テスト終了日の翌日から通常上限に戻ります。中間テスト後は回復式で上限が一度戻ります。期間の帯の「前の試験 ◯/◯」は、今日より前に終わったテストがあるときだけ出ます（ないときは「計画の開始 ◯/◯」）。
 - デモの子どもの計画は「14日前に始まった」見本です（本物の保存では開始日は今日以降）。親02 で計画を保存し直すと、開始日が今日になり、上限の下がり方が今日から始まり直します。
 - 親16 の候補のアプリは、子どもの端末から届いたアプリ一覧です（Q15）。MOCK のデモの子どもには見本の一覧（学習ノート・英単語カード・動画アプリ・ゲーム・YouTube など。アイコンなし）が入っています。実機の子どもの端末で Slope を開くと、その端末の一覧とアイコンで置き換わります（Kotlin の `getLauncherApps` が要るので、アプリの作り直しが要ります）。
@@ -183,11 +189,11 @@ DATABASE_URL='<本番の DATABASE_URL>' npm run db:migrate
 
 > **注意（必ず先にやる）: この版（セキュリティ検査の直し・子どもを外す画面・2026-10-18）を出す前に、`0016_family_unlink_audit.sql`・`0017_rate_limit_hits.sql`・`0018_session_revoked_reason.sql` を、プレビューと本番の両方の DB に上の `npm run db:migrate` で入れてください。**
 >
-> 入れずにコードを出すと、`authGoogle`（ログイン）と `pairStart`（QR を出す）が表 `rate_limit_hits` が無くて **500 になり、だれもログインできなくなります**。`familyUnlink`（子どもを外す）も表 `audit_events` が無くて 500 になります。`0018` が無いと、ログアウト（`authSignOut`）・子どもを外す・無効になった合言葉での呼び出し（ふつうは 401 のところ）が、列 `user_sessions.revoked_reason` が無くて 500 になります。
+> 入れずにコードを出すと、`authGoogle`（ログイン）と `pairStart`（QR を出す）が表 `rate_limit_hits` が無くて **500 になり、だれもログインできなくなります**。`familyUnlink`（子どもを外す）も表 `audit_events` が無くて 500 になります。`0018` が無いと、列 `user_sessions.revoked_reason` が無くて、次が 500 になります: ログイン（`authGoogle`・MOCK のログイン。合言葉の行を足すとき、Drizzle は表の列をすべて並べるため）・ログアウト（`authSignOut`）・子どもを外す（`familyUnlink`）・**通らない合言葉での呼び出しすべて**（ふつうは 401 のところ。知らない合言葉・期限が切れた合言葉・無効にした合言葉、`authCheck` も含む。通らないときは `src/server/auth.ts` の `wasUnlinked` が無効にした理由を読むため）。
 > 入れたあと、下の「出す前に確かめる SQL」で古いデータが残っていないかも確かめてください。
 
 - `npm run db:migrate` は、まだ入っていない migration を番号の順に全部入れます。`0011_auth_rules_and_list_versions.sql`（QR の番号のまちがいの記録の表 `pair_claim_failures`、テスト期間・空白期間の一覧が最後に変わった版の列 `child_config_versions.test_periods_changed_version`・`blank_periods_changed_version`、設定の版を 0 から始める決まり）など前のものをまだ入れていなければ、それも一緒に入ります。
-- `0016_family_unlink_audit.sql`: 表 `audit_events`（子どもを外した記録。D-101）。`0017_rate_limit_hits.sql`: 表 `rate_limit_hits`（ログイン・QR を出す回数の上限。D-131）。`0018_session_revoked_reason.sql`: 列 `user_sessions.revoked_reason`（合言葉を無効にした理由。連携を外された子どもの端末に、401 で理由を返すため。D-133。列を足すだけで、今ある行は NULL のまま）。
+- `0016_family_unlink_audit.sql`: 表 `audit_events`（子どもを外した記録。D-138）。`0017_rate_limit_hits.sql`: 表 `rate_limit_hits`（ログイン・QR を出す回数の上限。D-131）。`0018_session_revoked_reason.sql`: 列 `user_sessions.revoked_reason`（合言葉を無効にした理由。連携を外された子どもの端末に、401 で理由を返すため。D-133。列を足すだけで、今ある行は NULL のまま）。
 - 入れたかどうかは、Neon の表 `drizzle.__drizzle_migrations` に行が増えたかで分かります。
 
 #### 出す前に確かめる SQL（範囲の外の古いデータ）
@@ -222,8 +228,20 @@ UNION ALL SELECT 'child_app_icons', count(*) FROM child_app_icons WHERE app_id !
 
 #### この版を入れたら dev client を作り直す
 
-合言葉を Android Keystore の鍵で封をする `sealSecret`・`openSecret` が Kotlin（`modules/kit-native/` の `SecretBox`）に増えました。**dev client を `npm run android` で作り直してください**（画面の即時反映では入りません）。作り直さないと、古い dev client には封の関数がないので合言葉を端末に置けず、起動のたびに何も言わずにログインし直しになります（開発中は Metro のログに「dev client を作り直してください（sealSecret がありません）」が1回出ます。`src/lib/native.ts`）。
-Kotlin の許可の状態の送信が「連携が外れた」401（`reason: "family_unlink"`）を受けたら監視を止めるようにもしました（`LocalData.kt`・`StatusReporter`。D-133）。作り直さない dev client でも、アプリを開いたときに JS が同じ 401 を受けて止めますが、アプリを開くまでは制限が残ります。監視が約1分ごとに合言葉を確かめる処理（`SessionCheck.kt`・D-134）と、外されたときに Device Owner をやめる `releaseDeviceOwner` も Kotlin に増えています。
+この版では Kotlin（`modules/kit-native/`）が大きく変わりました。**dev client を `npm run android` で作り直してください**（画面の即時反映では入りません）。変わった Kotlin は次のとおりです。
+
+| 変わったもの | 何のためか | 作り直さないと |
+|---|---|---|
+| `engine/UsageWindowCalculator.kt`・`ForegroundTime.kt`（前面の区間）・`UsageReader.kt` | D9 の検証（制限を外す時間帯と使用時間の重なり。[d9-usage-window-verification.md](d9-usage-window-verification.md)） | 検証用の処理が入らない（画面・API は変わらない） |
+| `ForegroundTime.kt` の電源断 `DEVICE_SHUTDOWN` = 26 | 電源を切ったら前面の区間を閉じる（SECURITY_TEST/fixes.md の M-1） | D9 の検証の途中の版で作った dev client では、電源を切っても区間が閉じず、再起動の後まで前のアプリを使っていたことになる |
+| `engine/SecretBox.kt`（`sealSecret`・`openSecret`） | 合言葉を Android Keystore の鍵で封をして置く（F-1） | 古い dev client には封の関数がないので合言葉を端末に置けず、起動のたびに何も言わずにログインし直しになる（開発中は Metro のログに「dev client を作り直してください（sealSecret がありません）」が1回出る。`src/lib/native.ts`） |
+| `engine/EngineStore.kt`（合言葉は `report_token_sealed`・開けた合言葉はメモリにだけ持つ `OpenedSecretCache`） | 合言葉を平文で置かない（F-1）・見張りのたびに Keystore を使わない（M-12） | 合言葉が平文のまま残る |
+| `LocalData.kt`（`clear`・`clearUnlinked`・`clearParent`） | ログアウト・連携が外れたときの片付けを1か所に | — |
+| `engine/StatusReporter.kt`・`StatusReport.kt` | 許可の状態の送信が「連携が外れた」401（`reason: "family_unlink"`）を受けたら、アプリを開かなくても監視を止める（D-133）。信じるのは送り先が https か debuggable のときだけ（M-8） | アプリを開いたときに JS が同じ 401 を受けて止めるが、開くまでは制限が残る |
+| `engine/SessionCheck.kt` | 監視が約1分ごとに `authCheck` で合言葉を確かめる（D-134） | 同上 |
+| `releaseDeviceOwner`（`DeviceOwnerPolicy.release`） | 外されたときに Device Owner をやめる（D-133） | 外されても Device Owner のまま（[device-owner.md](device-owner.md) の 6章で解除する） |
+| `isEngineEnabled`・`clearParentLocalData` | 監視が動いている端末では、ログアウトで監視を止めない（D-136。M-9） | 監視が動いているかは監視の Service が動いているかで代わりに見る。保護者のウィジェットの値はログアウトで消えない |
+
 - 手元の DB（PGlite）は、立ち上げのときに表の形を自動で合わせるので、この作業は要りません。
 
 ### 本番の DB に見本を入れる（`npm run db:seed-demo`）
