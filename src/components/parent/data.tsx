@@ -2,8 +2,9 @@
 //   - ChildGate: 見ている子ども（useParentData().child）が決まるまでの状態（読み込み中・取得不可・まだつながっていない）を出し、
 //                決まったら children(child) を出す。親01・親02・親03・親09・親16 で同じ出し分けをするため
 //   - useUsage : C6 の実績（call("usageGet")）を 30 秒ごとに取り直す。失敗したら、前に取れた値を stale として残す（0 分にしない）
+//   - useDeviceStatus : 子どもの端末の許可の状態（call("deviceStatusGet")。D-113）を 30 秒ごとに取り直す（親01 の注意の帯）
 import type { ApiError } from "@contracts/errors";
-import type { Child, ParentUsageView } from "@contracts/schemas";
+import type { Child, ChildDeviceStatus, ParentUsageView } from "@contracts/schemas";
 import { router } from "expo-router";
 import { Fragment, type ReactNode, useCallback, useState } from "react";
 import { StateView } from "@/components";
@@ -71,4 +72,19 @@ export function useUsage(
   }, [childId, from, to]);
   usePolling(load);
   return { state, reload: load };
+}
+
+// D-113: 子どもの端末の許可の状態（親01 の注意の帯 DeviceAlertBanner に渡す）。null = まだ一度も届いていない・まだ読めていない
+// （どちらも帯を出さない）。読めなかったときは前の値のまま（帯を消したり出し直したりしない。古いサーバでまだ API がないときも何も出さない）
+export function useDeviceStatus(childId: string): ChildDeviceStatus | null {
+  const [status, setStatus] = useState<ChildDeviceStatus | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setStatus((await call("deviceStatusGet", { childId })).status);
+    } catch {
+      // 黙って前の値のまま
+    }
+  }, [childId]);
+  usePolling(load);
+  return status;
 }
